@@ -2,7 +2,18 @@
 
 **Version:** 1.0
 **Last Updated:** December 4, 2025
-**Status:** Consolidated from individual module specifications
+**Status:** SUPERSEDED by [api-surface.md](api-surface.md) — retained as a requirements source
+
+> **Superseded.** This document specifies a standalone REST service at
+> `https://api.jhiri.com/v1`. [ADR-004](05-architecture-decisions.md#adr-004-sveltekit-as-the-full-stack)
+> reversed that: SvelteKit is the backend, so there is no separate API service and no
+> `api.jhiri.com` origin. ADR-004 cites this file's endpoint count as evidence, which is why
+> it is kept rather than deleted.
+>
+> For the interface contract, see **[api-surface.md](api-surface.md)** — generated from
+> `data-models/schema.sql` by `scripts/gen-api-surface.mjs`. The 37 endpoints below are
+> harvested into it as declared operations; treat this file as a source of *requirements*
+> (payloads, response shapes, error codes), not of *routes*.
 
 ---
 
