@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance Review - John Smith - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item active">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">DW</div>
+          <div class="user-info">
+            <div class="user-name">David Wilson</div>
+            <div class="user-role">Manager</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="employees.html" class="breadcrumb-item">Employees</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="employee-detail.html" class="breadcrumb-item">John Smith</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Performance Review</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="card mb-6" style="background: linear-gradient(135deg, var(--color-primary-lightest) 0%, var(--color-primary-light) 100%); border: none;">
+          <div class="card-body">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="avatar" style="width: 80px; height: 80px; font-size: var(--text-3xl); border: 3px solid white; box-shadow: var(--shadow-md);">JS</div>
+                <div>
+                  <h1 class="text-3xl font-bold">John Smith - 2025 Annual Review</h1>
+                  <div class="flex items-center gap-4" style="margin-top: var(--space-2);">
+                    <span class="text-lg">Senior Software Engineer • Engineering Department</span>
+                    <span class="badge badge-warning" style="font-size: var(--text-sm);">
+                      <span class="badge-dot"></span>
+                      In Progress
+                    </span>
+                  </div>
+                  <div class="text-sm" style="margin-top: var(--space-2); opacity: 0.8;">
+                    Review Period: January 1, 2025 - December 31, 2025 • Due: January 15, 2026
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-col gap-2">
+                <button class="btn btn-primary">Submit Review</button>
+                <button class="btn btn-secondary">Save Draft</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Progress -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">Review Progress</h3>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-4">
+              <div class="text-center" style="padding: var(--space-4); border-right: 1px solid var(--color-gray-200);">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-success); display: flex; align-items: center; justify-content: center; margin: 0 auto; color: white;">
+                  <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <div class="font-medium" style="margin-top: var(--space-2);">Self-Assessment</div>
+                <div class="text-sm text-gray-600">Completed</div>
+              </div>
+              <div class="text-center" style="padding: var(--space-4); border-right: 1px solid var(--color-gray-200);">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-warning); display: flex; align-items: center; justify-content: center; margin: 0 auto; color: white; font-weight: var(--font-bold);">
+                  2
+                </div>
+                <div class="font-medium" style="margin-top: var(--space-2);">Manager Review</div>
+                <div class="text-sm text-warning">In Progress</div>
+              </div>
+              <div class="text-center" style="padding: var(--space-4); border-right: 1px solid var(--color-gray-200);">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-gray-300); display: flex; align-items: center; justify-content: center; margin: 0 auto; color: var(--color-gray-600); font-weight: var(--font-bold);">
+                  3
+                </div>
+                <div class="font-medium" style="margin-top: var(--space-2);">Peer Feedback</div>
+                <div class="text-sm text-gray-600">Pending</div>
+              </div>
+              <div class="text-center" style="padding: var(--space-4);">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-gray-300); display: flex; align-items: center; justify-content: center; margin: 0 auto; color: var(--color-gray-600); font-weight: var(--font-bold);">
+                  4
+                </div>
+                <div class="font-medium" style="margin-top: var(--space-2);">Review Meeting</div>
+                <div class="text-sm text-gray-600">Not Scheduled</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-3">
+
+          <!-- Main Content - 2 columns -->
+          <div style="grid-column: span 2;">
+
+            <!-- Overall Rating -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Overall Performance Rating</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex items-center gap-6">
+                  <div class="flex gap-2">
+                    <button class="rating-btn" onclick="selectRating(1)">
+                      <div class="rating-number">1</div>
+                      <div class="rating-label">Needs Improvement</div>
+                    </button>
+                    <button class="rating-btn" onclick="selectRating(2)">
+                      <div class="rating-number">2</div>
+                      <div class="rating-label">Meets Expectations</div>
+                    </button>
+                    <button class="rating-btn active" onclick="selectRating(3)">
+                      <div class="rating-number">3</div>
+                      <div class="rating-label">Exceeds Expectations</div>
+                    </button>
+                    <button class="rating-btn" onclick="selectRating(4)">
+                      <div class="rating-number">4</div>
+                      <div class="rating-label">Outstanding</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Core Competencies -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Core Competencies</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-4">
+
+                  <!-- Technical Skills -->
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <div class="font-medium">Technical Skills</div>
+                      <select class="input" style="width: 200px;">
+                        <option>Needs Improvement</option>
+                        <option>Meets Expectations</option>
+                        <option selected>Exceeds Expectations</option>
+                        <option>Outstanding</option>
+                      </select>
+                    </div>
+                    <textarea class="input" rows="2" placeholder="Comments on technical skills...">John demonstrates exceptional technical abilities, particularly in system architecture and optimization. He consistently delivers high-quality code and mentors junior developers effectively.</textarea>
+                  </div>
+
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+
+                  <!-- Communication -->
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <div class="font-medium">Communication</div>
+                      <select class="input" style="width: 200px;">
+                        <option>Needs Improvement</option>
+                        <option>Meets Expectations</option>
+                        <option selected>Exceeds Expectations</option>
+                        <option>Outstanding</option>
+                      </select>
+                    </div>
+                    <textarea class="input" rows="2" placeholder="Comments on communication...">Clear and concise communicator who effectively bridges technical and non-technical stakeholders. Excellent presentation skills demonstrated during sprint reviews.</textarea>
+                  </div>
+
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+
+                  <!-- Teamwork -->
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <div class="font-medium">Teamwork & Collaboration</div>
+                      <select class="input" style="width: 200px;">
+                        <option>Needs Improvement</option>
+                        <option>Meets Expectations</option>
+                        <option>Exceeds Expectations</option>
+                        <option selected>Outstanding</option>
+                      </select>
+                    </div>
+                    <textarea class="input" rows="2" placeholder="Comments on teamwork...">Outstanding team player who actively supports colleagues and fosters a positive work environment. Takes initiative in cross-functional projects.</textarea>
+                  </div>
+
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+
+                  <!-- Problem Solving -->
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <div class="font-medium">Problem Solving</div>
+                      <select class="input" style="width: 200px;">
+                        <option>Needs Improvement</option>
+                        <option>Meets Expectations</option>
+                        <option selected>Exceeds Expectations</option>
+                        <option>Outstanding</option>
+                      </select>
+                    </div>
+                    <textarea class="input" rows="2" placeholder="Comments on problem solving...">Demonstrates strong analytical thinking and creative problem-solving. Successfully resolved critical production issues with minimal guidance.</textarea>
+                  </div>
+
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+
+                  <!-- Leadership -->
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <div class="font-medium">Leadership</div>
+                      <select class="input" style="width: 200px;">
+                        <option>Needs Improvement</option>
+                        <option selected>Meets Expectations</option>
+                        <option>Exceeds Expectations</option>
+                        <option>Outstanding</option>
+                      </select>
+                    </div>
+                    <textarea class="input" rows="2" placeholder="Comments on leadership...">Shows emerging leadership qualities. Led the Q3 migration project successfully. Opportunity to further develop strategic thinking and delegation skills.</textarea>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Goals Review -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">2025 Goals Review</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-4">
+
+                  <div style="padding: var(--space-4); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                    <div class="flex justify-between items-start mb-3">
+                      <div>
+                        <div class="font-medium">Reduce API Response Time by 30%</div>
+                        <div class="text-sm text-gray-600" style="margin-top: var(--space-1);">Target: Q2 2025</div>
+                      </div>
+                      <span class="badge badge-success">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20" style="margin-right: 4px;">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        Achieved
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div style="flex: 1; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                        <div style="width: 100%; height: 100%; background: var(--color-success);"></div>
+                      </div>
+                      <span class="text-sm font-medium">100%</span>
+                    </div>
+                    <div class="text-sm">Reduced average API response time from 280ms to 180ms (35.7% improvement). Implemented caching strategy and optimized database queries.</div>
+                  </div>
+
+                  <div style="padding: var(--space-4); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                    <div class="flex justify-between items-start mb-3">
+                      <div>
+                        <div class="font-medium">Mentor 2 Junior Developers</div>
+                        <div class="text-sm text-gray-600" style="margin-top: var(--space-1);">Target: Ongoing</div>
+                      </div>
+                      <span class="badge badge-success">
+                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20" style="margin-right: 4px;">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        Achieved
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div style="flex: 1; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                        <div style="width: 100%; height: 100%; background: var(--color-success);"></div>
+                      </div>
+                      <span class="text-sm font-medium">100%</span>
+                    </div>
+                    <div class="text-sm">Mentored Sarah Chen and Michael Park throughout the year. Both have shown significant growth and are now working independently on critical features.</div>
+                  </div>
+
+                  <div style="padding: var(--space-4); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                    <div class="flex justify-between items-start mb-3">
+                      <div>
+                        <div class="font-medium">Complete AWS Solutions Architect Certification</div>
+                        <div class="text-sm text-gray-600" style="margin-top: var(--space-1);">Target: Q4 2025</div>
+                      </div>
+                      <span class="badge badge-warning">
+                        In Progress
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div style="flex: 1; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                        <div style="width: 75%; height: 100%; background: var(--color-warning);"></div>
+                      </div>
+                      <span class="text-sm font-medium">75%</span>
+                    </div>
+                    <div class="text-sm">Completed training courses and practice exams. Exam scheduled for January 10, 2026. On track to complete.</div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Strengths & Areas for Development -->
+            <div class="grid grid-cols-2 mb-6">
+              <div class="card" style="margin-right: var(--space-3);">
+                <div class="card-header">
+                  <h3 class="card-title">Key Strengths</h3>
+                </div>
+                <div class="card-body">
+                  <textarea class="input" rows="6" placeholder="List employee's key strengths...">• Exceptional technical architecture skills
+• Strong mentorship and knowledge sharing
+• Proactive problem-solving approach
+• Excellent code quality and documentation
+• Positive team influence and collaboration</textarea>
+                </div>
+              </div>
+              <div class="card" style="margin-left: var(--space-3);">
+                <div class="card-header">
+                  <h3 class="card-title">Development Areas</h3>
+                </div>
+                <div class="card-body">
+                  <textarea class="input" rows="6" placeholder="List areas for development...">• Project planning and timeline estimation
+• Strategic thinking for long-term initiatives
+• Delegation when managing larger projects
+• Public speaking for external conferences
+• Cross-departmental stakeholder management</textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2026 Goals -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">2026 Goals</h3>
+                <button class="btn btn-sm btn-secondary">Add Goal</button>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-3">
+                  <div style="padding: var(--space-4); border: 2px dashed var(--color-gray-300); border-radius: var(--radius-md);">
+                    <input type="text" class="input mb-2" placeholder="Goal title" value="Lead migration to microservices architecture">
+                    <textarea class="input mb-2" rows="2" placeholder="Goal description">Plan and execute migration of monolithic application to microservices. Target completion by Q3 2026.</textarea>
+                    <div class="flex gap-2">
+                      <select class="input" style="width: 150px;">
+                        <option>Q1 2026</option>
+                        <option>Q2 2026</option>
+                        <option selected>Q3 2026</option>
+                        <option>Q4 2026</option>
+                      </select>
+                      <select class="input" style="width: 150px;">
+                        <option>Technical</option>
+                        <option selected>Leadership</option>
+                        <option>Business</option>
+                        <option>Personal Development</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="padding: var(--space-4); border: 2px dashed var(--color-gray-300); border-radius: var(--radius-md);">
+                    <input type="text" class="input mb-2" placeholder="Goal title" value="Present at 2 technical conferences">
+                    <textarea class="input mb-2" rows="2" placeholder="Goal description">Submit and present talks at industry conferences to build public speaking skills and raise company profile.</textarea>
+                    <div class="flex gap-2">
+                      <select class="input" style="width: 150px;">
+                        <option>Q1 2026</option>
+                        <option>Q2 2026</option>
+                        <option>Q3 2026</option>
+                        <option selected>Q4 2026</option>
+                      </select>
+                      <select class="input" style="width: 150px;">
+                        <option>Technical</option>
+                        <option>Leadership</option>
+                        <option>Business</option>
+                        <option selected>Personal Development</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Sidebar - 1 column -->
+          <div>
+
+            <!-- Review Details Card -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Review Details</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-3">
+                  <div>
+                    <div class="text-sm text-gray-600">Review Type</div>
+                    <div class="font-medium" style="margin-top: var(--space-1);">Annual Performance Review</div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="text-sm text-gray-600">Review Period</div>
+                    <div class="font-medium" style="margin-top: var(--space-1);">Jan 1 - Dec 31, 2025</div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="text-sm text-gray-600">Reviewer</div>
+                    <div class="flex items-center gap-2" style="margin-top: var(--space-1);">
+                      <div class="avatar" style="width: 24px; height: 24px; font-size: var(--text-xs);">DW</div>
+                      <span class="font-medium">David Wilson</span>
+                    </div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="text-sm text-gray-600">Due Date</div>
+                    <div class="font-medium" style="margin-top: var(--space-1);">January 15, 2026</div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="text-sm text-gray-600">Status</div>
+                    <span class="badge badge-warning" style="margin-top: var(--space-1);">
+                      <span class="badge-dot"></span>
+                      In Progress
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Peer Feedback Card -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Peer Feedback (3)</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-4">
+                  <div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="avatar" style="width: 32px; height: 32px; font-size: var(--text-sm);">SC</div>
+                      <div>
+                        <div class="font-medium text-sm">Sarah Chen</div>
+                        <div class="text-xs text-gray-500">Software Engineer</div>
+                      </div>
+                    </div>
+                    <div class="text-sm text-gray-700">
+                      "John has been an incredible mentor. His patient teaching style and willingness to share knowledge has accelerated my growth significantly."
+                    </div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="avatar" style="width: 32px; height: 32px; font-size: var(--text-sm);">AL</div>
+                      <div>
+                        <div class="font-medium text-sm">Alice Liu</div>
+                        <div class="text-xs text-gray-500">Product Manager</div>
+                      </div>
+                    </div>
+                    <div class="text-sm text-gray-700">
+                      "John consistently delivers high-quality work and is a great collaborator. His technical insights have been invaluable to our product roadmap."
+                    </div>
+                  </div>
+                  <hr style="border: none; border-top: 1px solid var(--color-gray-200);">
+                  <div>
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="avatar" style="width: 32px; height: 32px; font-size: var(--text-sm);">TK</div>
+                      <div>
+                        <div class="font-medium text-sm">Tom Kim</div>
+                        <div class="text-xs text-gray-500">Senior Engineer</div>
+                      </div>
+                    </div>
+                    <div class="text-sm text-gray-700">
+                      "Excellent problem solver who approaches challenges methodically. Great team player who's always willing to help."
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Previous Reviews Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Previous Reviews</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-3">
+                  <a href="#" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); display: block; text-decoration: none; color: inherit;">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <div class="font-medium">2024 Annual Review</div>
+                        <div class="text-sm text-gray-600">Exceeds Expectations</div>
+                      </div>
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </div>
+                  </a>
+                  <a href="#" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); display: block; text-decoration: none; color: inherit;">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <div class="font-medium">2024 Mid-Year Review</div>
+                        <div class="text-sm text-gray-600">Meets Expectations</div>
+                      </div>
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </div>
+                  </a>
+                  <a href="#" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); display: block; text-decoration: none; color: inherit;">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <div class="font-medium">2023 Annual Review</div>
+                        <div class="text-sm text-gray-600">Meets Expectations</div>
+                      </div>
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">
+      💬
+    </button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>👋 Hi! I can help you with performance reviews. What would you like to know?</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Suggest review comments</button>
+              <button class="ai-quick-action">• Set goals for next year</button>
+              <button class="ai-quick-action">• Compare to previous reviews</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .rating-btn {
+      flex: 1;
+      padding: var(--space-4);
+      border: 2px solid var(--color-gray-200);
+      border-radius: var(--radius-md);
+      background: white;
+      cursor: pointer;
+      transition: all var(--transition-base);
+      text-align: center;
+    }
+
+    .rating-btn:hover {
+      border-color: var(--color-primary);
+      background: var(--color-primary-lightest);
+    }
+
+    .rating-btn.active {
+      border-color: var(--color-primary);
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .rating-number {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-bold);
+      margin-bottom: var(--space-2);
+    }
+
+    .rating-label {
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+    }
+
+    .rating-btn.active .rating-label {
+      color: white;
+    }
+  </style>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function selectRating(rating) {
+      document.querySelectorAll('.rating-btn').forEach(btn => btn.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+    }
+  </script>
+
+</body>
+</html>

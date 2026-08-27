@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theme Demo - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item active">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <span class="breadcrumb-item">Theme Demo</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Theme Customization</h1>
+            <p class="text-gray-600">Choose your preferred color theme</p>
+          </div>
+        </div>
+
+        <!-- Theme Selector -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">Select Theme</h3>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-4">
+
+              <!-- Blue Themes -->
+              <div>
+                <h4 style="margin-bottom: var(--space-3);">Blue</h4>
+                <button class="btn btn-secondary mb-2" onclick="setTheme('')" style="width: 100%; justify-content: center;">
+                  Light Blue (Default)
+                </button>
+                <button class="btn btn-secondary" onclick="setTheme('theme-blue-dark')" style="width: 100%; justify-content: center;">
+                  Dark Blue
+                </button>
+              </div>
+
+              <!-- Green Themes -->
+              <div>
+                <h4 style="margin-bottom: var(--space-3);">Green</h4>
+                <button class="btn btn-secondary mb-2" onclick="setTheme('theme-green-light')" style="width: 100%; justify-content: center;">
+                  Light Green
+                </button>
+                <button class="btn btn-secondary" onclick="setTheme('theme-green-dark')" style="width: 100%; justify-content: center;">
+                  Dark Green
+                </button>
+              </div>
+
+              <!-- Orange Themes -->
+              <div>
+                <h4 style="margin-bottom: var(--space-3);">Orange</h4>
+                <button class="btn btn-secondary mb-2" onclick="setTheme('theme-orange-light')" style="width: 100%; justify-content: center;">
+                  Light Orange
+                </button>
+                <button class="btn btn-secondary" onclick="setTheme('theme-orange-dark')" style="width: 100%; justify-content: center;">
+                  Dark Orange
+                </button>
+              </div>
+
+              <!-- Purple Themes -->
+              <div>
+                <h4 style="margin-bottom: var(--space-3);">Purple</h4>
+                <button class="btn btn-secondary mb-2" onclick="setTheme('theme-purple-light')" style="width: 100%; justify-content: center;">
+                  Light Purple
+                </button>
+                <button class="btn btn-secondary" onclick="setTheme('theme-purple-dark')" style="width: 100%; justify-content: center;">
+                  Dark Purple
+                </button>
+              </div>
+
+              <!-- Brown Themes -->
+              <div>
+                <h4 style="margin-bottom: var(--space-3);">Brown</h4>
+                <button class="btn btn-secondary mb-2" onclick="setTheme('theme-brown-light')" style="width: 100%; justify-content: center;">
+                  Light Brown
+                </button>
+                <button class="btn btn-secondary" onclick="setTheme('theme-brown-dark')" style="width: 100%; justify-content: center;">
+                  Dark Brown
+                </button>
+              </div>
+
+            </div>
+
+            <div style="margin-top: var(--space-6); padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+              <div class="text-sm text-gray-600">
+                <strong>Current Theme:</strong> <span id="currentTheme">Light Blue (Default)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Component Examples -->
+        <div class="grid grid-cols-2">
+
+          <!-- Buttons -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Buttons</h3>
+            </div>
+            <div class="card-body">
+              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <button class="btn btn-primary">Primary Button</button>
+                <button class="btn btn-secondary">Secondary Button</button>
+                <button class="btn btn-success">Success Button</button>
+                <button class="btn btn-danger">Danger Button</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Badges -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Badges</h3>
+            </div>
+            <div class="card-body">
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                <span class="badge badge-success">Success</span>
+                <span class="badge badge-warning">Warning</span>
+                <span class="badge badge-error">Error</span>
+                <span class="badge badge-info">Info</span>
+                <span class="badge badge-gray">Gray</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-4 mt-4">
+          <div class="stat-card">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value">1,234</div>
+            <div class="stat-change positive">
+              <span>+12% this month</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Revenue</div>
+            <div class="stat-value">$45.2K</div>
+            <div class="stat-change positive">
+              <span>+8.5% this week</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Active Projects</div>
+            <div class="stat-value">23</div>
+            <div class="stat-change negative">
+              <span>-2 from last week</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Completion Rate</div>
+            <div class="stat-value">94%</div>
+            <div class="stat-change">
+              <span class="text-gray-600">On target</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div style="margin-top: var(--space-6);">
+          <div class="alert alert-info">
+            <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="alert-content">
+              <div class="alert-title">Information</div>
+              <div>This is an informational alert using the theme colors.</div>
+            </div>
+          </div>
+
+          <div class="alert alert-success">
+            <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="alert-content">
+              <div class="alert-title">Success</div>
+              <div>Your changes have been saved successfully.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>Try different themes to see how the chatbot adapts!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function setTheme(themeClass) {
+      // Remove all theme classes
+      document.body.classList.remove(
+        'theme-blue-dark',
+        'theme-green-light',
+        'theme-green-dark',
+        'theme-orange-light',
+        'theme-orange-dark',
+        'theme-purple-light',
+        'theme-purple-dark',
+        'theme-brown-light',
+        'theme-brown-dark'
+      );
+
+      // Add new theme class if provided
+      if (themeClass) {
+        document.body.classList.add(themeClass);
+      }
+
+      // Update display text
+      const themeNames = {
+        '': 'Light Blue (Default)',
+        'theme-blue-dark': 'Dark Blue',
+        'theme-green-light': 'Light Green',
+        'theme-green-dark': 'Dark Green',
+        'theme-orange-light': 'Light Orange',
+        'theme-orange-dark': 'Dark Orange',
+        'theme-purple-light': 'Light Purple',
+        'theme-purple-dark': 'Dark Purple',
+        'theme-brown-light': 'Light Brown',
+        'theme-brown-dark': 'Dark Brown'
+      };
+
+      document.getElementById('currentTheme').textContent = themeNames[themeClass] || 'Light Blue (Default)';
+
+      // Save to localStorage
+      localStorage.setItem('theme', themeClass);
+    }
+
+    // Load saved theme on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+    });
+  </script>
+
+</body>
+</html>

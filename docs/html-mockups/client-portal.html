@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client Portal - Acme Corp - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Simplified Client Sidebar -->
+    <aside class="sidebar" style="background: linear-gradient(180deg, #1E3A8A 0%, #1E40AF 100%);">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon" style="background: white; color: #1E3A8A;">A</div>
+          <span style="color: white;">Acme Corp Portal</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <a href="#" class="nav-item active" style="color: white;">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="#" class="nav-item" style="color: rgba(255,255,255,0.8);">
+            <span class="nav-item-icon">📁</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="#" class="nav-item" style="color: rgba(255,255,255,0.8);">
+            <span class="nav-item-icon">📄</span>
+            <span class="nav-item-text">Documents</span>
+          </a>
+          <a href="#" class="nav-item" style="color: rgba(255,255,255,0.8);">
+            <span class="nav-item-icon">💰</span>
+            <span class="nav-item-text">Invoices</span>
+          </a>
+          <a href="#" class="nav-item" style="color: rgba(255,255,255,0.8);">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Support</span>
+            <span class="nav-item-badge" style="background: #EF4444;">2</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar" style="background: white; color: #1E3A8A;">JD</div>
+          <div class="user-info">
+            <div class="user-name" style="color: white;">John Doe</div>
+            <div class="user-role" style="color: rgba(255,255,255,0.8);">Acme Corp</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <h1 class="text-2xl font-bold">Welcome back, John!</h1>
+        </div>
+
+        <div class="header-right">
+          <button class="btn btn-primary">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Submit Ticket
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Active Projects -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">Active Projects</h3>
+            <a href="#" class="text-sm">View All →</a>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-2">
+
+              <div style="padding: var(--space-4); border: 2px solid var(--color-primary); border-radius: var(--radius-md); margin-right: var(--space-3);">
+                <div class="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 class="font-semibold">Website Redesign</h4>
+                    <div class="text-sm text-gray-600">Project #2025-042</div>
+                  </div>
+                  <span class="badge badge-success">On Track</span>
+                </div>
+                <div class="mb-3">
+                  <div class="flex justify-between text-sm mb-1">
+                    <span>Progress</span>
+                    <span class="font-medium">65%</span>
+                  </div>
+                  <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                    <div style="width: 65%; height: 100%; background: var(--color-success);"></div>
+                  </div>
+                </div>
+                <div class="text-sm text-gray-600 mb-3">Next Milestone: Frontend Development Complete</div>
+                <div class="flex gap-2">
+                  <button class="btn btn-sm btn-primary">View Details</button>
+                  <button class="btn btn-sm btn-secondary">Documents</button>
+                </div>
+              </div>
+
+              <div style="padding: var(--space-4); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); margin-left: var(--space-3);">
+                <div class="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 class="font-semibold">SEO Optimization</h4>
+                    <div class="text-sm text-gray-600">Project #2025-028</div>
+                  </div>
+                  <span class="badge badge-info">In Review</span>
+                </div>
+                <div class="mb-3">
+                  <div class="flex justify-between text-sm mb-1">
+                    <span>Progress</span>
+                    <span class="font-medium">90%</span>
+                  </div>
+                  <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                    <div style="width: 90%; height: 100%; background: var(--color-info);"></div>
+                  </div>
+                </div>
+                <div class="text-sm text-gray-600 mb-3">Awaiting client review and approval</div>
+                <div class="flex gap-2">
+                  <button class="btn btn-sm btn-primary">Review</button>
+                  <button class="btn btn-sm btn-secondary">Documents</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Documents & Invoices Grid -->
+        <div class="grid grid-cols-2 mb-6">
+
+          <!-- Recent Documents -->
+          <div class="card" style="margin-right: var(--space-3);">
+            <div class="card-header">
+              <h3 class="card-title">Recent Documents</h3>
+              <a href="#" class="text-sm">View All →</a>
+            </div>
+            <div class="card-body">
+              <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-3" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                  <div style="width: 40px; height: 40px; background: var(--color-error-light); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-error); font-weight: var(--font-semibold);">
+                    PDF
+                  </div>
+                  <div style="flex: 1;">
+                    <div class="font-medium text-sm">Design Mockups v3.pdf</div>
+                    <div class="text-xs text-gray-500">Added Dec 24 • 2.4 MB</div>
+                  </div>
+                  <button class="btn btn-sm btn-secondary">Download</button>
+                </div>
+
+                <div class="flex items-center gap-3" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                  <div style="width: 40px; height: 40px; background: var(--color-success-light); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-success); font-weight: var(--font-semibold);">
+                    DOC
+                  </div>
+                  <div style="flex: 1;">
+                    <div class="font-medium text-sm">Project Requirements.docx</div>
+                    <div class="text-xs text-gray-500">Added Dec 20 • 156 KB</div>
+                  </div>
+                  <button class="btn btn-sm btn-secondary">Download</button>
+                </div>
+
+                <div class="flex items-center gap-3" style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                  <div style="width: 40px; height: 40px; background: var(--color-warning-light); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-warning); font-weight: var(--font-semibold);">
+                    ZIP
+                  </div>
+                  <div style="flex: 1;">
+                    <div class="font-medium text-sm">Assets-Dec-2025.zip</div>
+                    <div class="text-xs text-gray-500">Added Dec 18 • 15.2 MB</div>
+                  </div>
+                  <button class="btn btn-sm btn-secondary">Download</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Invoices -->
+          <div class="card" style="margin-left: var(--space-3);">
+            <div class="card-header">
+              <h3 class="card-title">Invoices</h3>
+              <a href="#" class="text-sm">View All →</a>
+            </div>
+            <div class="card-body">
+              <div class="flex flex-col gap-3">
+                <div style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                  <div class="flex justify-between items-start mb-2">
+                    <div>
+                      <div class="font-medium">Invoice #INV-2025-042</div>
+                      <div class="text-sm text-gray-600">Dec 15, 2025</div>
+                    </div>
+                    <span class="badge badge-success">Paid</span>
+                  </div>
+                  <div class="text-xl font-bold mb-2">$25,000.00</div>
+                  <div class="flex gap-2">
+                    <button class="btn btn-sm btn-secondary">View</button>
+                    <button class="btn btn-sm btn-secondary">Download</button>
+                  </div>
+                </div>
+
+                <div style="padding: var(--space-3); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
+                  <div class="flex justify-between items-start mb-2">
+                    <div>
+                      <div class="font-medium">Invoice #INV-2025-028</div>
+                      <div class="text-sm text-gray-600">Nov 30, 2025</div>
+                    </div>
+                    <span class="badge badge-success">Paid</span>
+                  </div>
+                  <div class="text-xl font-bold mb-2">$18,500.00</div>
+                  <div class="flex gap-2">
+                    <button class="btn btn-sm btn-secondary">View</button>
+                    <button class="btn btn-sm btn-secondary">Download</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Open Support Tickets -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Open Support Tickets</h3>
+            <button class="btn btn-sm btn-primary">New Ticket</button>
+          </div>
+          <div class="card-body">
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Ticket</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Last Update</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>#TKT-2025-156</td>
+                    <td>Request for design revision</td>
+                    <td><span class="badge badge-warning">Awaiting Response</span></td>
+                    <td>2 hours ago</td>
+                    <td><button class="btn btn-sm btn-secondary">View</button></td>
+                  </tr>
+                  <tr>
+                    <td>#TKT-2025-142</td>
+                    <td>Question about timeline</td>
+                    <td><span class="badge badge-info">In Progress</span></td>
+                    <td>1 day ago</td>
+                    <td><button class="btn btn-sm btn-secondary">View</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    // Client portal specific JavaScript
+  </script>
+
+</body>
+</html>

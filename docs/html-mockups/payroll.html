@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll Processing - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item active">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Payroll Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Payroll</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Payroll Processing</h1>
+            <p class="text-gray-600">December 15-31, 2025</p>
+          </div>
+        </div>
+
+        <!-- Alert Banner -->
+        <div class="alert alert-warning">
+          <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <div class="alert-content">
+            <div class="alert-title">Review Required</div>
+            <div>This payroll run has 3 employees that need attention before processing. Deadline: January 3, 2026</div>
+          </div>
+        </div>
+
+        <!-- Overview Card -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">Payroll Summary</h3>
+            <div style="display: flex; gap: var(--space-3);">
+              <button class="btn btn-secondary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                View Details
+              </button>
+              <button class="btn btn-primary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Approve & Process
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-cols-4">
+              <div>
+                <div class="stat-label">Total Employees</div>
+                <div class="stat-value" style="font-size: var(--text-2xl);">156</div>
+                <div class="text-xs text-gray-500">All active employees</div>
+              </div>
+              <div>
+                <div class="stat-label">Gross Pay</div>
+                <div class="stat-value" style="font-size: var(--text-2xl);">$487,250.00</div>
+                <div class="text-xs text-gray-500">Before deductions</div>
+              </div>
+              <div>
+                <div class="stat-label">Total Deductions</div>
+                <div class="stat-value" style="font-size: var(--text-2xl);">$125,149.50</div>
+                <div class="text-xs text-gray-500">Taxes & benefits</div>
+              </div>
+              <div>
+                <div class="stat-label">Net Pay</div>
+                <div class="stat-value" style="font-size: var(--text-2xl); color: var(--color-primary);">$362,100.50</div>
+                <div class="text-xs text-gray-500">Total to be paid</div>
+              </div>
+            </div>
+
+            <div style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--color-gray-200);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                <div class="font-semibold">Deduction Breakdown</div>
+                <button class="text-sm" style="color: var(--color-primary);" onclick="toggleBreakdown()">
+                  <span id="breakdownToggle">Show Details ▼</span>
+                </button>
+              </div>
+
+              <div id="breakdownDetails" style="display: none;">
+                <div class="grid grid-cols-2 gap-4">
+                  <div style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+                    <div class="font-medium mb-3">Federal & State Taxes</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">Federal Income Tax</span>
+                      <span class="text-sm font-medium">$67,415.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">State Tax (CA)</span>
+                      <span class="text-sm font-medium">$24,362.50</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">FICA (Social Security)</span>
+                      <span class="text-sm font-medium">$30,209.50</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span class="text-sm text-gray-600">Medicare</span>
+                      <span class="text-sm font-medium">$7,065.13</span>
+                    </div>
+                  </div>
+
+                  <div style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+                    <div class="font-medium mb-3">Benefits & Other</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">Health Insurance</span>
+                      <span class="text-sm font-medium">$11,200.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">401(k) Contributions</span>
+                      <span class="text-sm font-medium">$18,650.25</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                      <span class="text-sm text-gray-600">Dental & Vision</span>
+                      <span class="text-sm font-medium">$2,340.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span class="text-sm text-gray-600">Other Deductions</span>
+                      <span class="text-sm font-medium">$897.62</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Issues Card -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <h3 class="card-title">
+              <span class="badge badge-warning" style="margin-right: var(--space-2);">3</span>
+              Employees Needing Attention
+            </h3>
+          </div>
+          <div class="card-body">
+
+            <!-- Issue 1 -->
+            <div style="padding: var(--space-4); background: var(--color-warning-light); border-left: 4px solid var(--color-warning); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                  <div class="flex items-center gap-3 mb-2">
+                    <div class="avatar" style="width: 32px; height: 32px;">JS</div>
+                    <div>
+                      <div class="font-semibold">John Smith</div>
+                      <div class="text-xs text-gray-600">Engineering • EMP-12345</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 mt-2">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="color: var(--color-warning);">
+                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-sm font-medium">No bank account on file</span>
+                  </div>
+                  <div class="text-sm text-gray-600 mt-1">Direct deposit cannot be processed without banking information.</div>
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                  <button class="btn btn-sm btn-primary">Add Bank Info</button>
+                  <button class="btn btn-sm btn-secondary">Contact Employee</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Issue 2 -->
+            <div style="padding: var(--space-4); background: var(--color-warning-light); border-left: 4px solid var(--color-warning); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                  <div class="flex items-center gap-3 mb-2">
+                    <div class="avatar" style="width: 32px; height: 32px;">SC</div>
+                    <div>
+                      <div class="font-semibold">Sarah Chen</div>
+                      <div class="text-xs text-gray-600">Engineering • EMP-12346</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 mt-2">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="color: var(--color-warning);">
+                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-sm font-medium">Exceeded 401(k) contribution limit</span>
+                  </div>
+                  <div class="text-sm text-gray-600 mt-1">Employee has reached the annual IRS limit of $23,000 for 401(k) contributions.</div>
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                  <button class="btn btn-sm btn-primary">Review Details</button>
+                  <button class="btn btn-sm btn-secondary">Override</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Issue 3 -->
+            <div style="padding: var(--space-4); background: var(--color-warning-light); border-left: 4px solid var(--color-warning); border-radius: var(--radius-md);">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                  <div class="flex items-center gap-3 mb-2">
+                    <div class="avatar" style="width: 32px; height: 32px;">MJ</div>
+                    <div>
+                      <div class="font-semibold">Mike Johnson</div>
+                      <div class="text-xs text-gray-600">Sales • EMP-12347</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 mt-2">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="color: var(--color-warning);">
+                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-sm font-medium">Missing W-4 form</span>
+                  </div>
+                  <div class="text-sm text-gray-600 mt-1">Tax withholding cannot be calculated without a valid W-4 on file.</div>
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                  <button class="btn btn-sm btn-primary">Request Form</button>
+                  <button class="btn btn-sm btn-secondary">Use Default</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Verification Checklist -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Pre-Processing Checklist</h3>
+          </div>
+          <div class="card-body">
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+
+              <div class="flex items-center gap-3">
+                <div style="width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--color-success); color: white; display: flex; align-items: center; justify-content: center;">
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <div style="flex: 1;">
+                  <div class="font-medium">Tax calculations verified</div>
+                  <div class="text-xs text-gray-500">All federal and state tax rates are up to date</div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div style="width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--color-success); color: white; display: flex; align-items: center; justify-content: center;">
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <div style="flex: 1;">
+                  <div class="font-medium">Time entries approved</div>
+                  <div class="text-xs text-gray-500">All timesheets have been reviewed and approved</div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div style="width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--color-success); color: white; display: flex; align-items: center; justify-content: center;">
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <div style="flex: 1;">
+                  <div class="font-medium">Benefit deductions calculated</div>
+                  <div class="text-xs text-gray-500">Health insurance, 401(k), and other benefits computed</div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div style="width: 24px; height: 24px; border-radius: var(--radius-full); background: var(--color-warning); color: white; display: flex; align-items: center; justify-content: center;">
+                  <span style="font-weight: bold;">!</span>
+                </div>
+                <div style="flex: 1;">
+                  <div class="font-medium">Employee issues resolved</div>
+                  <div class="text-xs text-gray-500">3 employees need attention before processing</div>
+                </div>
+                <button class="btn btn-sm btn-secondary">Review Issues</button>
+              </div>
+
+            </div>
+          </div>
+          <div class="card-footer">
+            <div style="flex: 1;">
+              <div class="text-sm text-gray-600">Once all items are complete, you can process this payroll.</div>
+            </div>
+            <div style="display: flex; gap: var(--space-3);">
+              <button class="btn btn-secondary">Save Draft</button>
+              <button class="btn btn-danger" onclick="confirmProcess()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Process Payroll
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-overlay" id="confirmModal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirm Payroll Processing</h3>
+        <button class="icon-btn" onclick="closeModal()" style="width: 32px; height: 32px;">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+          <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="alert-content">
+            <div class="alert-title">This action cannot be undone</div>
+            <div>Processing this payroll will initiate direct deposits and notify all employees.</div>
+          </div>
+        </div>
+
+        <div style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+          <div class="font-semibold mb-3">You are about to process:</div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+            <span class="text-gray-600">Employees:</span>
+            <span class="font-medium">153 (3 excluded due to issues)</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+            <span class="text-gray-600">Total Amount:</span>
+            <span class="font-medium">$362,100.50</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span class="text-gray-600">Pay Date:</span>
+            <span class="font-medium">January 5, 2026</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-item">
+            <input type="checkbox" id="confirmCheck">
+            <span class="checkbox-label">
+              <span>I have reviewed all calculations and am ready to process</span>
+            </span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirmBtn" disabled>
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Confirm & Process
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>💡 I can help with payroll questions:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Explain this deduction breakdown</button>
+              <button class="ai-quick-action">• What are the flagged issues?</button>
+              <button class="ai-quick-action">• How do I fix missing bank info?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function toggleBreakdown() {
+      const details = document.getElementById('breakdownDetails');
+      const toggle = document.getElementById('breakdownToggle');
+      if (details.style.display === 'none') {
+        details.style.display = 'block';
+        toggle.textContent = 'Hide Details ▲';
+      } else {
+        details.style.display = 'none';
+        toggle.textContent = 'Show Details ▼';
+      }
+    }
+
+    function confirmProcess() {
+      document.getElementById('confirmModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('confirmModal').style.display = 'none';
+    }
+
+    document.getElementById('confirmCheck').addEventListener('change', function() {
+      document.getElementById('confirmBtn').disabled = !this.checked;
+    });
+  </script>
+
+</body>
+</html>

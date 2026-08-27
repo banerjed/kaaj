@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employees - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar (same as dashboard) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item active">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">HR Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Employees</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Employees</h1>
+            <p class="text-gray-600">Manage your team members and their information</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Export
+            </button>
+            <button class="btn btn-primary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add Employee
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-4">
+
+          <!-- Filters Sidebar -->
+          <div>
+            <div class="filters-panel">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                <h3 class="font-semibold">Filters</h3>
+                <button class="text-sm" style="color: var(--color-primary);">Clear all</button>
+              </div>
+
+              <!-- Department Filter -->
+              <div class="filter-group">
+                <div class="filter-title">Department</div>
+                <div class="checkbox-group">
+                  <label class="checkbox-item">
+                    <input type="checkbox" checked>
+                    <span class="checkbox-label">
+                      <span>Engineering</span>
+                      <span class="checkbox-count">(45)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" checked>
+                    <span class="checkbox-label">
+                      <span>Sales</span>
+                      <span class="checkbox-count">(32)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>Marketing</span>
+                      <span class="checkbox-count">(28)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>Operations</span>
+                      <span class="checkbox-count">(24)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>Other</span>
+                      <span class="checkbox-count">(27)</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Status Filter -->
+              <div class="filter-group">
+                <div class="filter-title">Employment Status</div>
+                <div class="checkbox-group">
+                  <label class="checkbox-item">
+                    <input type="checkbox" checked>
+                    <span class="checkbox-label">
+                      <span>Active</span>
+                      <span class="checkbox-count">(150)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>On Leave</span>
+                      <span class="checkbox-count">(4)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>Inactive</span>
+                      <span class="checkbox-count">(2)</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Location Filter -->
+              <div class="filter-group">
+                <div class="filter-title">Location</div>
+                <div class="checkbox-group">
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>San Francisco</span>
+                      <span class="checkbox-count">(89)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>New York</span>
+                      <span class="checkbox-count">(42)</span>
+                    </span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox">
+                    <span class="checkbox-label">
+                      <span>Remote</span>
+                      <span class="checkbox-count">(25)</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Employee List -->
+          <div style="grid-column: span 3;">
+
+            <!-- Active Filters -->
+            <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+              <div class="badge badge-info" style="padding: 6px 12px;">
+                Engineering
+                <button style="margin-left: 6px; background: none; border: none; cursor: pointer; font-weight: bold;">×</button>
+              </div>
+              <div class="badge badge-info" style="padding: 6px 12px;">
+                Sales
+                <button style="margin-left: 6px; background: none; border: none; cursor: pointer; font-weight: bold;">×</button>
+              </div>
+              <div class="badge badge-success" style="padding: 6px 12px;">
+                Active
+                <button style="margin-left: 6px; background: none; border: none; cursor: pointer; font-weight: bold;">×</button>
+              </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+              <div style="font-size: var(--text-sm); color: var(--color-gray-600);">
+                Showing <strong>77</strong> of 156 employees
+              </div>
+              <div style="display: flex; gap: var(--space-3); align-items: center;">
+                <div style="font-size: var(--text-sm); color: var(--color-gray-600);">Sort by:</div>
+                <select class="form-select" style="width: 200px;">
+                  <option>Name (A-Z)</option>
+                  <option>Department</option>
+                  <option>Start Date</option>
+                  <option>Last Modified</option>
+                </select>
+                <div style="display: flex; gap: var(--space-1); border: 1px solid var(--color-gray-300); border-radius: var(--radius-md); padding: 2px;">
+                  <button class="btn btn-sm" style="background: var(--color-primary); color: white; padding: 4px 8px;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                  </button>
+                  <button class="btn btn-sm" style="padding: 4px 8px; background: white; border: none;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Employee Table -->
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;">
+                      <input type="checkbox">
+                    </th>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Job Title</th>
+                    <th>Location</th>
+                    <th>Start Date</th>
+                    <th>Status</th>
+                    <th style="width: 80px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td>
+                      <div class="flex items-center gap-3">
+                        <div class="avatar" style="width: 36px; height: 36px;">JS</div>
+                        <div>
+                          <div class="font-medium">John Smith</div>
+                          <div class="text-xs text-gray-500">john.smith@company.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Engineering</td>
+                    <td>Senior Software Engineer</td>
+                    <td>San Francisco</td>
+                    <td>Jan 15, 2023</td>
+                    <td>
+                      <span class="badge badge-success">
+                        <span class="badge-dot"></span>
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: var(--space-1);">
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;" title="View">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;" title="Edit">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td>
+                      <div class="flex items-center gap-3">
+                        <div class="avatar" style="width: 36px; height: 36px;">SC</div>
+                        <div>
+                          <div class="font-medium">Sarah Chen</div>
+                          <div class="text-xs text-gray-500">sarah.chen@company.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Engineering</td>
+                    <td>Engineering Manager</td>
+                    <td>San Francisco</td>
+                    <td>Mar 10, 2022</td>
+                    <td>
+                      <span class="badge badge-warning">
+                        <span class="badge-dot"></span>
+                        On Leave
+                      </span>
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: var(--space-1);">
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td>
+                      <div class="flex items-center gap-3">
+                        <div class="avatar" style="width: 36px; height: 36px;">MC</div>
+                        <div>
+                          <div class="font-medium">Mike Chen</div>
+                          <div class="text-xs text-gray-500">mike.chen@company.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Sales</td>
+                    <td>Account Executive</td>
+                    <td>New York</td>
+                    <td>Jun 5, 2023</td>
+                    <td>
+                      <span class="badge badge-success">
+                        <span class="badge-dot"></span>
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: var(--space-1);">
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td>
+                      <div class="flex items-center gap-3">
+                        <div class="avatar" style="width: 36px; height: 36px;">AR</div>
+                        <div>
+                          <div class="font-medium">Alex Rivera</div>
+                          <div class="text-xs text-gray-500">alex.rivera@company.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Sales</td>
+                    <td>Sales Manager</td>
+                    <td>Remote</td>
+                    <td>Feb 20, 2022</td>
+                    <td>
+                      <span class="badge badge-success">
+                        <span class="badge-dot"></span>
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: var(--space-1);">
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td>
+                      <div class="flex items-center gap-3">
+                        <div class="avatar" style="width: 36px; height: 36px;">EJ</div>
+                        <div>
+                          <div class="font-medium">Emma Johnson</div>
+                          <div class="text-xs text-gray-500">emma.j@company.com</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>Engineering</td>
+                    <td>Software Engineer</td>
+                    <td>San Francisco</td>
+                    <td>Dec 1, 2025</td>
+                    <td>
+                      <span class="badge badge-success">
+                        <span class="badge-dot"></span>
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: var(--space-1);">
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
+                        <button class="icon-btn btn-sm" style="width: 32px; height: 32px;">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-4); padding: var(--space-4); background: white; border-radius: var(--radius-lg); border: 1px solid var(--color-gray-200);">
+              <div style="font-size: var(--text-sm); color: var(--color-gray-600);">
+                Showing 1-25 of 77 results
+              </div>
+              <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-sm btn-secondary" disabled>Previous</button>
+                <button class="btn btn-sm" style="background: var(--color-primary); color: white;">1</button>
+                <button class="btn btn-sm btn-secondary">2</button>
+                <button class="btn btn-sm btn-secondary">3</button>
+                <button class="btn btn-sm btn-secondary">4</button>
+                <button class="btn btn-sm btn-secondary">Next</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>👋 I can help you manage employees! Try asking:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• How do I add a new employee?</button>
+              <button class="ai-quick-action">• Show me everyone in Engineering</button>
+              <button class="ai-quick-action">• Who started this month?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+  </script>
+
+</body>
+</html>

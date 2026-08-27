@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Objectives - Strategic Planning</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">J</div>
+          <span>JHIRI</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Strategic</div>
+          <a href="objectives-dashboard.html" class="nav-item active">
+            <span class="nav-item-icon">🎯</span>
+            <span class="nav-item-text">Objectives</span>
+          </a>
+          <a href="dashboard-widgets.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Dashboards</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects-table-view.html" class="nav-item">
+            <span class="nav-item-icon">📁</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">Tasks</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="automation-builder.html" class="nav-item">
+            <span class="nav-item-icon">⚡</span>
+            <span class="nav-item-text">Automations</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Executive</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <span class="breadcrumb-item">Objectives</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search objectives...">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Strategic Objectives</h1>
+            <p class="text-gray-600">Organize projects by client, department, or strategic initiative</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+              </svg>
+              Filter
+            </button>
+            <button class="btn btn-primary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              New Objective
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">Total Objectives</div>
+            <div class="stat-value">12</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/>
+              </svg>
+              +3 this quarter
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Active Projects</div>
+            <div class="stat-value">34</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/>
+              </svg>
+              8 projects launched
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Target Revenue</div>
+            <div class="stat-value">$2.4M</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/>
+              </svg>
+              67% achieved
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">On Track</div>
+            <div class="stat-value">83%</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/>
+              </svg>
+              +5% from last month
+            </div>
+          </div>
+        </div>
+
+        <!-- Objectives Grid -->
+        <div class="grid grid-cols-3">
+
+          <!-- Client-Based Objective -->
+          <div class="objective-card">
+            <div class="objective-header">
+              <div class="flex items-center gap-3">
+                <div class="objective-icon" style="background: linear-gradient(135deg, #10B981, #059669);">
+                  🏢
+                </div>
+                <div>
+                  <h3 class="objective-title">Acme Corp Partnership</h3>
+                  <div class="text-xs text-gray-500">Client • Q1 2025</div>
+                </div>
+              </div>
+              <div class="badge badge-success">
+                <span class="badge-dot"></span>
+                On Track
+              </div>
+            </div>
+
+            <div class="objective-body">
+              <p class="text-sm text-gray-600 mb-4">Deliver comprehensive digital transformation services for Acme Corp including website redesign, mobile app, and CRM integration.</p>
+
+              <div class="objective-metrics">
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Revenue Target</div>
+                  <div class="font-semibold">$450K</div>
+                  <div class="text-xs text-success">$320K achieved</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Projects</div>
+                  <div class="font-semibold">5</div>
+                  <div class="text-xs text-gray-600">3 completed</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Completion</div>
+                  <div class="font-semibold">68%</div>
+                  <div class="progress-bar-small">
+                    <div class="progress-fill" style="width: 68%; background: var(--color-success);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="objective-projects">
+                <div class="text-xs font-semibold text-gray-700 mb-2">Active Projects:</div>
+                <div class="project-chip">📱 Mobile App Dev</div>
+                <div class="project-chip">🌐 Website Redesign</div>
+              </div>
+
+              <div class="objective-team">
+                <div class="avatar-group">
+                  <div class="avatar avatar-sm">JS</div>
+                  <div class="avatar avatar-sm">SC</div>
+                  <div class="avatar avatar-sm">MC</div>
+                  <div class="avatar-count">+4</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="objective-footer">
+              <button class="btn btn-sm btn-secondary">View Dashboard</button>
+              <button class="btn btn-sm btn-primary">Manage</button>
+            </div>
+          </div>
+
+          <!-- Department Objective -->
+          <div class="objective-card">
+            <div class="objective-header">
+              <div class="flex items-center gap-3">
+                <div class="objective-icon" style="background: linear-gradient(135deg, #3B82F6, #2563EB);">
+                  💼
+                </div>
+                <div>
+                  <h3 class="objective-title">Engineering Excellence</h3>
+                  <div class="text-xs text-gray-500">Department • 2025</div>
+                </div>
+              </div>
+              <div class="badge badge-warning">
+                <span class="badge-dot"></span>
+                At Risk
+              </div>
+            </div>
+
+            <div class="objective-body">
+              <p class="text-sm text-gray-600 mb-4">Improve engineering processes, reduce technical debt, and increase development velocity by 30%.</p>
+
+              <div class="objective-metrics">
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Velocity Target</div>
+                  <div class="font-semibold">+30%</div>
+                  <div class="text-xs text-warning">+18% current</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Initiatives</div>
+                  <div class="font-semibold">8</div>
+                  <div class="text-xs text-gray-600">5 in progress</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Completion</div>
+                  <div class="font-semibold">42%</div>
+                  <div class="progress-bar-small">
+                    <div class="progress-fill" style="width: 42%; background: var(--color-warning);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="objective-kpis">
+                <div class="text-xs font-semibold text-gray-700 mb-2">Key KPIs:</div>
+                <div class="kpi-item">
+                  <span class="text-xs">Technical Debt Reduction:</span>
+                  <span class="text-xs font-semibold text-warning">58% → Target: 80%</span>
+                </div>
+                <div class="kpi-item">
+                  <span class="text-xs">Test Coverage:</span>
+                  <span class="text-xs font-semibold text-success">72% → Target: 85%</span>
+                </div>
+              </div>
+
+              <div class="objective-team">
+                <div class="avatar-group">
+                  <div class="avatar avatar-sm">DL</div>
+                  <div class="avatar avatar-sm">AR</div>
+                  <div class="avatar avatar-sm">TW</div>
+                  <div class="avatar-count">+12</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="objective-footer">
+              <button class="btn btn-sm btn-secondary">View Dashboard</button>
+              <button class="btn btn-sm btn-primary">Manage</button>
+            </div>
+          </div>
+
+          <!-- Service Line Objective -->
+          <div class="objective-card">
+            <div class="objective-header">
+              <div class="flex items-center gap-3">
+                <div class="objective-icon" style="background: linear-gradient(135deg, #9333EA, #7E22CE);">
+                  🎨
+                </div>
+                <div>
+                  <h3 class="objective-title">Design Services</h3>
+                  <div class="text-xs text-gray-500">Service Line • Q1 2025</div>
+                </div>
+              </div>
+              <div class="badge badge-success">
+                <span class="badge-dot"></span>
+                On Track
+              </div>
+            </div>
+
+            <div class="objective-body">
+              <p class="text-sm text-gray-600 mb-4">Expand design service offerings including UX/UI design, branding, and illustration services.</p>
+
+              <div class="objective-metrics">
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Revenue Target</div>
+                  <div class="font-semibold">$180K</div>
+                  <div class="text-xs text-success">$145K achieved</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Projects</div>
+                  <div class="font-semibold">12</div>
+                  <div class="text-xs text-gray-600">8 delivered</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Completion</div>
+                  <div class="font-semibold">81%</div>
+                  <div class="progress-bar-small">
+                    <div class="progress-fill" style="width: 81%; background: var(--color-success);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="objective-projects">
+                <div class="text-xs font-semibold text-gray-700 mb-2">Recent Projects:</div>
+                <div class="project-chip">🎨 Brand Identity - TechStart</div>
+                <div class="project-chip">📱 App UI - FinanceHub</div>
+              </div>
+
+              <div class="objective-team">
+                <div class="avatar-group">
+                  <div class="avatar avatar-sm">SC</div>
+                  <div class="avatar avatar-sm">EJ</div>
+                  <div class="avatar avatar-sm">KL</div>
+                  <div class="avatar-count">+3</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="objective-footer">
+              <button class="btn btn-sm btn-secondary">View Dashboard</button>
+              <button class="btn btn-sm btn-primary">Manage</button>
+            </div>
+          </div>
+
+          <!-- Marketing Initiative -->
+          <div class="objective-card">
+            <div class="objective-header">
+              <div class="flex items-center gap-3">
+                <div class="objective-icon" style="background: linear-gradient(135deg, #F97316, #EA580C);">
+                  📢
+                </div>
+                <div>
+                  <h3 class="objective-title">Q1 Marketing Campaign</h3>
+                  <div class="text-xs text-gray-500">Initiative • Jan-Mar 2025</div>
+                </div>
+              </div>
+              <div class="badge badge-info">
+                <span class="badge-dot"></span>
+                In Progress
+              </div>
+            </div>
+
+            <div class="objective-body">
+              <p class="text-sm text-gray-600 mb-4">Launch integrated marketing campaign across digital channels to increase brand awareness by 40%.</p>
+
+              <div class="objective-metrics">
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Budget</div>
+                  <div class="font-semibold">$85K</div>
+                  <div class="text-xs text-gray-600">$42K spent</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Campaigns</div>
+                  <div class="font-semibold">6</div>
+                  <div class="text-xs text-gray-600">2 live</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Completion</div>
+                  <div class="font-semibold">35%</div>
+                  <div class="progress-bar-small">
+                    <div class="progress-fill" style="width: 35%; background: var(--color-info);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="objective-kpis">
+                <div class="text-xs font-semibold text-gray-700 mb-2">Campaign Metrics:</div>
+                <div class="kpi-item">
+                  <span class="text-xs">Website Traffic:</span>
+                  <span class="text-xs font-semibold text-success">+28%</span>
+                </div>
+                <div class="kpi-item">
+                  <span class="text-xs">Lead Generation:</span>
+                  <span class="text-xs font-semibold text-success">+42%</span>
+                </div>
+              </div>
+
+              <div class="objective-team">
+                <div class="avatar-group">
+                  <div class="avatar avatar-sm">MK</div>
+                  <div class="avatar avatar-sm">LR</div>
+                  <div class="avatar-count">+2</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="objective-footer">
+              <button class="btn btn-sm btn-secondary">View Dashboard</button>
+              <button class="btn btn-sm btn-primary">Manage</button>
+            </div>
+          </div>
+
+          <!-- Internal Operations -->
+          <div class="objective-card">
+            <div class="objective-header">
+              <div class="flex items-center gap-3">
+                <div class="objective-icon" style="background: linear-gradient(135deg, #6B7280, #4B5563);">
+                  ⚙️
+                </div>
+                <div>
+                  <h3 class="objective-title">Internal Operations</h3>
+                  <div class="text-xs text-gray-500">Internal • 2025</div>
+                </div>
+              </div>
+              <div class="badge badge-success">
+                <span class="badge-dot"></span>
+                On Track
+              </div>
+            </div>
+
+            <div class="objective-body">
+              <p class="text-sm text-gray-600 mb-4">Streamline internal processes and implement new HRIS, project management, and billing systems.</p>
+
+              <div class="objective-metrics">
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Budget</div>
+                  <div class="font-semibold">$120K</div>
+                  <div class="text-xs text-gray-600">$75K spent</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Projects</div>
+                  <div class="font-semibold">4</div>
+                  <div class="text-xs text-gray-600">2 completed</div>
+                </div>
+                <div class="metric-item">
+                  <div class="text-xs text-gray-500">Completion</div>
+                  <div class="font-semibold">55%</div>
+                  <div class="progress-bar-small">
+                    <div class="progress-fill" style="width: 55%; background: var(--color-success);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="objective-projects">
+                <div class="text-xs font-semibold text-gray-700 mb-2">Active Projects:</div>
+                <div class="project-chip">✅ HRIS Implementation</div>
+                <div class="project-chip">💰 Billing System Upgrade</div>
+              </div>
+
+              <div class="objective-team">
+                <div class="avatar-group">
+                  <div class="avatar avatar-sm">JD</div>
+                  <div class="avatar avatar-sm">HR</div>
+                  <div class="avatar-count">+5</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="objective-footer">
+              <button class="btn btn-sm btn-secondary">View Dashboard</button>
+              <button class="btn btn-sm btn-primary">Manage</button>
+            </div>
+          </div>
+
+          <!-- New Objective Placeholder -->
+          <div class="objective-card objective-card-new">
+            <div style="text-align: center; padding: var(--space-12);">
+              <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto var(--space-4); color: var(--color-gray-400);">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              <h3 class="font-semibold text-gray-700 mb-2">Create New Objective</h3>
+              <p class="text-sm text-gray-500 mb-4">Organize projects by client, department, or strategic initiative</p>
+              <button class="btn btn-primary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New Objective
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <style>
+    .objective-card {
+      background: white;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-gray-200);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: all var(--transition-base);
+    }
+
+    .objective-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--color-gray-300);
+    }
+
+    .objective-card-new {
+      border: 2px dashed var(--color-gray-300);
+      background: var(--color-gray-50);
+    }
+
+    .objective-header {
+      padding: var(--space-4) var(--space-6);
+      border-bottom: 1px solid var(--color-gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .objective-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .objective-title {
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      color: var(--color-gray-900);
+      margin-bottom: 2px;
+    }
+
+    .objective-body {
+      padding: var(--space-6);
+      flex: 1;
+    }
+
+    .objective-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+      padding: var(--space-4);
+      background: var(--color-gray-50);
+      border-radius: var(--radius-md);
+    }
+
+    .metric-item {
+      text-align: center;
+    }
+
+    .objective-projects, .objective-kpis {
+      margin-bottom: var(--space-4);
+    }
+
+    .project-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      background: var(--color-primary-light);
+      color: var(--color-primary-dark);
+      border-radius: var(--radius-md);
+      font-size: var(--text-xs);
+      font-weight: var(--font-medium);
+      margin-right: var(--space-2);
+      margin-bottom: var(--space-2);
+    }
+
+    .kpi-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--color-gray-200);
+    }
+
+    .kpi-item:last-child {
+      border-bottom: none;
+    }
+
+    .progress-bar-small {
+      width: 100%;
+      height: 4px;
+      background: var(--color-gray-200);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      transition: width var(--transition-base);
+    }
+
+    .objective-team {
+      margin-top: var(--space-4);
+    }
+
+    .avatar-group {
+      display: flex;
+      align-items: center;
+    }
+
+    .avatar-sm {
+      width: 28px;
+      height: 28px;
+      font-size: 11px;
+      margin-left: -8px;
+      border: 2px solid white;
+    }
+
+    .avatar-sm:first-child {
+      margin-left: 0;
+    }
+
+    .avatar-count {
+      width: 28px;
+      height: 28px;
+      margin-left: -8px;
+      border: 2px solid white;
+      border-radius: var(--radius-full);
+      background: var(--color-gray-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: var(--font-semibold);
+      color: var(--color-gray-700);
+    }
+
+    .objective-footer {
+      padding: var(--space-4) var(--space-6);
+      border-top: 1px solid var(--color-gray-200);
+      background: var(--color-gray-50);
+      display: flex;
+      gap: var(--space-2);
+      justify-content: flex-end;
+    }
+  </style>
+
+</body>
+</html>

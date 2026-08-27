@@ -1,0 +1,42 @@
+
+@layer base, components;
+
+@layer base {
+
+  *, *:before, *:after {
+    box-sizing: border-box;
+  }
+
+  body {
+    line-height: 1.5;
+    font-family: system-ui;
+    font-size: 14px;
+    max-width: 1000px;
+    margin: 1em auto;
+    padding: 1em;
+  }
+
+  h1 {
+    font-size: 1.5em;
+  }
+
+  strong {
+    font-weight: 550;
+  }
+
+  table {
+    width: 100%;
+    td {
+      border-bottom: 1px solid var(--border);
+      padding: .5em 0;
+    }
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns:25% 1fr;
+    > * { margin: .25em 0 }
+    dt { font-weight: 500 }
+    p:first-child { margin-top: 0 }
+  }
+}

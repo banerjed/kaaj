@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <!-- People & Organization -->
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item active">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <!-- Business Operations -->
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <!-- Support -->
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">HR Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <span class="breadcrumb-item">Home</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Dashboard</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="text-gray-600">Welcome back! Here's what's happening today.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Export Report
+            </button>
+            <button class="btn btn-primary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Quick Action
+            </button>
+          </div>
+        </div>
+
+        <!-- Alert Banner -->
+        <div class="alert alert-warning">
+          <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="alert-content">
+            <div class="alert-title">Payroll Review Needed</div>
+            <div>December payroll is ready for your review. Processing deadline is in 2 days.</div>
+          </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">Total Employees</div>
+            <div class="stat-value">156</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>+3 this month</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Active Projects</div>
+            <div class="stat-value">23</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>+2 this week</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Pending Approvals</div>
+            <div class="stat-value">12</div>
+            <div class="stat-change negative">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Needs attention</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Payroll Status</div>
+            <div class="stat-value">$362K</div>
+            <div class="stat-change">
+              <span class="text-gray-600">Ready for review</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-3">
+
+          <!-- Left Column - 2 cols -->
+          <div style="grid-column: span 2;">
+
+            <!-- Time Off Calendar Card -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Upcoming Time Off</h3>
+                <a href="time-off.html" class="text-sm">View All →</a>
+              </div>
+              <div class="card-body">
+                <div class="table-container">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Dates</th>
+                        <th>Days</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <div class="flex items-center gap-3">
+                            <div class="avatar" style="width: 32px; height: 32px;">SC</div>
+                            <div>
+                              <div class="font-medium">Sarah Chen</div>
+                              <div class="text-xs text-gray-500">Engineering</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>Dec 23 - Dec 27</td>
+                        <td>5 days</td>
+                        <td>
+                          <span class="badge badge-info">Vacation</span>
+                        </td>
+                        <td>
+                          <span class="badge badge-success">
+                            <span class="badge-dot"></span>
+                            Approved
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <div class="flex items-center gap-3">
+                            <div class="avatar" style="width: 32px; height: 32px;">MC</div>
+                            <div>
+                              <div class="font-medium">Mike Chen</div>
+                              <div class="text-xs text-gray-500">Marketing</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>Dec 24 - Jan 2</td>
+                        <td>7 days</td>
+                        <td>
+                          <span class="badge badge-info">Vacation</span>
+                        </td>
+                        <td>
+                          <span class="badge badge-success">
+                            <span class="badge-dot"></span>
+                            Approved
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <div class="flex items-center gap-3">
+                            <div class="avatar" style="width: 32px; height: 32px;">AR</div>
+                            <div>
+                              <div class="font-medium">Alex Rivera</div>
+                              <div class="text-xs text-gray-500">Sales</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>Dec 26 - Dec 30</td>
+                        <td>3 days</td>
+                        <td>
+                          <span class="badge badge-warning">Sick Leave</span>
+                        </td>
+                        <td>
+                          <span class="badge badge-warning">
+                            <span class="badge-dot"></span>
+                            Pending
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Activity Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Recent Activity</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-4">
+                  <!-- Activity Item -->
+                  <div class="flex gap-3">
+                    <div class="avatar" style="width: 36px; height: 36px;">JS</div>
+                    <div style="flex: 1;">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <span class="font-medium">John Smith</span> submitted a time off request
+                          <div class="text-xs text-gray-500 mt-1">2 hours ago</div>
+                        </div>
+                        <button class="btn btn-sm btn-secondary">Review</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-3">
+                    <div class="avatar" style="width: 36px; height: 36px; background: var(--color-success);">✓</div>
+                    <div style="flex: 1;">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <span class="font-medium">Payroll Processed</span> for December 1-15
+                          <div class="text-xs text-gray-500 mt-1">1 day ago</div>
+                        </div>
+                        <button class="btn btn-sm btn-secondary">View</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-3">
+                    <div class="avatar" style="width: 36px; height: 36px;">EJ</div>
+                    <div style="flex: 1;">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <span class="font-medium">Emma Johnson</span> completed onboarding
+                          <div class="text-xs text-gray-500 mt-1">2 days ago</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex gap-3">
+                    <div class="avatar" style="width: 36px; height: 36px;">DL</div>
+                    <div style="flex: 1;">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <span class="font-medium">David Lee</span> submitted expense report
+                          <div class="text-xs text-gray-500 mt-1">3 days ago</div>
+                        </div>
+                        <button class="btn btn-sm btn-secondary">Review</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <a href="#" class="text-sm font-medium">View All Activity →</a>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column -->
+          <div>
+
+            <!-- Quick Actions Card -->
+            <div class="card mb-6">
+              <div class="card-header">
+                <h3 class="card-title">Quick Actions</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-3">
+                  <button class="btn btn-secondary" style="justify-content: flex-start;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                    </svg>
+                    Add New Employee
+                  </button>
+                  <button class="btn btn-secondary" style="justify-content: flex-start;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Request Time Off
+                  </button>
+                  <button class="btn btn-secondary" style="justify-content: flex-start;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    View Pay Stubs
+                  </button>
+                  <button class="btn btn-secondary" style="justify-content: flex-start;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    Submit Ticket
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Team Summary Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Department Summary</h3>
+              </div>
+              <div class="card-body">
+                <div class="flex flex-col gap-4">
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">Engineering</span>
+                      <span class="text-sm text-gray-600">45 people</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                      <div style="width: 75%; height: 100%; background: var(--color-primary);"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">Sales</span>
+                      <span class="text-sm text-gray-600">32 people</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                      <div style="width: 53%; height: 100%; background: var(--color-success);"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">Marketing</span>
+                      <span class="text-sm text-gray-600">28 people</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                      <div style="width: 47%; height: 100%; background: var(--color-warning);"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">Operations</span>
+                      <span class="text-sm text-gray-600">24 people</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                      <div style="width: 40%; height: 100%; background: var(--color-info);"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">Other</span>
+                      <span class="text-sm text-gray-600">27 people</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                      <div style="width: 45%; height: 100%; background: var(--color-gray-400);"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">
+      💬
+    </button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>👋 Hi! I'm here to help. What can I assist you with today?</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• How do I submit time off?</button>
+              <button class="ai-quick-action">• Show my team's pending approvals</button>
+              <button class="ai-quick-action">• Explain payroll deductions</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+  </script>
+
+</body>
+</html>

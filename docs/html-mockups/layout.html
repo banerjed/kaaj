@@ -1,0 +1,116 @@
+<head>
+  <title>Kaaj - Simplify your business</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; img-src https://*; child-src 'none';">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo"><img src="kaaj-logo.png" alt="Kaaj" style="width: 180px"></div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <!-- People & Organization -->
+    <div class="nav-section">
+      <div class="nav-section-title">People</div>
+      <a href="dashboard.html" class="nav-item active">
+        <span class="nav-item-icon">🏠</span>
+        <span class="nav-item-text">Dashboard</span>
+      </a>
+      <a href="employees.html" class="nav-item">
+        <span class="nav-item-icon">👥</span>
+        <span class="nav-item-text">Employees</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-item-icon">📋</span>
+        <span class="nav-item-text">HR Management</span>
+      </a>
+      <a href="payroll.html" class="nav-item">
+        <span class="nav-item-icon">💵</span>
+        <span class="nav-item-text">Payroll</span>
+        <span class="nav-item-badge">1</span>
+      </a>
+      <a href="time-off.html" class="nav-item">
+        <span class="nav-item-icon">🌴</span>
+        <span class="nav-item-text">Time Off</span>
+        <span class="nav-item-badge">3</span>
+      </a>
+    </div>
+
+    <!-- Business Operations -->
+    <div class="nav-section">
+      <div class="nav-section-title">Operations</div>
+      <a href="projects.html" class="nav-item">
+        <span class="nav-item-icon">📊</span>
+        <span class="nav-item-text">Projects</span>
+      </a>
+      <a href="time-tracking.html" class="nav-item">
+        <span class="nav-item-icon">⏱️</span>
+        <span class="nav-item-text">Time Tracking</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-item-icon">🤝</span>
+        <span class="nav-item-text">CRM</span>
+      </a>
+    </div>
+
+    <!-- Support -->
+    <div class="nav-section">
+      <div class="nav-section-title">Support</div>
+      <a href="tickets.html" class="nav-item">
+        <span class="nav-item-icon">🎫</span>
+        <span class="nav-item-text">Tickets</span>
+      </a>
+      <a href="settings.html" class="nav-item">
+        <span class="nav-item-icon">⚙️</span>
+        <span class="nav-item-text">Settings</span>
+      </a>
+    </div>
+  </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-menu">
+        <div class="avatar">JD</div>
+        <div class="user-info">
+        <div class="user-name">John Doe</div>
+        <div class="user-role">HR Admin</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div :is="subheader">
+  <div class="breadcrumb">
+    <span class="breadcrumb-item">Home</span>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-item">Dashboard</span>
+  </div>
+</div>
+
+<header class="header">
+  <div class="header-left">
+    <div class="text-lg font-semibold text-primary">Acme Org</div>
+  </div>
+
+  <div class="header-right">
+    <div class="search-bar">
+      <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+    </div>
+
+    <button class="icon-btn">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+      <span class="icon-btn-badge">3</span>
+    </button>
+  </div>
+</header>

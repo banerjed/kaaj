@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tickets - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar (same as other pages, shortened for brevity) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item active">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Employee</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Tickets</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search tickets...">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Support Tickets</h1>
+            <p class="text-gray-600">Submit and track internal support requests</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-primary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              New Ticket
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">My Open Tickets</div>
+            <div class="stat-value">4</div>
+            <div class="stat-change">
+              <span class="text-gray-600">2 awaiting response</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">IT Tickets</div>
+            <div class="stat-value">18</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>-3 from last week</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">HR Tickets</div>
+            <div class="stat-value">12</div>
+            <div class="stat-change">
+              <span class="text-gray-600">across all categories</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Avg Response Time</div>
+            <div class="stat-value">4.2h</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Faster than target</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="card mb-6">
+          <div style="border-bottom: 1px solid var(--color-gray-200); padding: 0 var(--space-6);">
+            <div style="display: flex; gap: var(--space-6);">
+              <button class="tab-button active">My Tickets (4)</button>
+              <button class="tab-button">All IT Tickets</button>
+              <button class="tab-button">All HR Tickets</button>
+              <button class="tab-button">Facilities</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticket List -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">My Open Tickets</h3>
+            <div style="display: flex; gap: var(--space-3); align-items: center;">
+              <span class="text-sm text-gray-600">Filter:</span>
+              <select class="form-select" style="width: 150px;">
+                <option>All Statuses</option>
+                <option>Pending</option>
+                <option>Active</option>
+                <option>Awaiting Response</option>
+              </select>
+              <select class="form-select" style="width: 150px;">
+                <option>All Categories</option>
+                <option>IT - Software</option>
+                <option>IT - Hardware</option>
+                <option>HR - Benefits</option>
+                <option>Facilities</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body" style="padding: 0;">
+
+            <!-- Ticket 1 -->
+            <div class="ticket-row">
+              <div style="display: flex; gap: var(--space-4); align-items: start;">
+                <div style="flex-shrink: 0; width: 80px;">
+                  <span class="badge badge-error">
+                    Critical
+                  </span>
+                </div>
+                <div style="flex: 1;">
+                  <div class="flex items-center gap-2 mb-1">
+                    <div class="font-semibold text-lg">Cannot Access Payroll System</div>
+                    <span class="badge badge-warning">
+                      <span class="badge-dot"></span>
+                      Pending
+                    </span>
+                  </div>
+                  <div class="text-sm text-gray-600 mb-2">
+                    Ticket #IT-2456 • IT - Software • Created 2 hours ago
+                  </div>
+                  <div class="text-sm text-gray-700 mb-3">
+                    I'm unable to log into the payroll system. Getting an "Access Denied" error. Need urgent help as payroll is due tomorrow.
+                  </div>
+                  <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Assigned to: IT Support Team</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>3 updates</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>SLA: 4h remaining</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="flex-shrink: 0;">
+                  <button class="btn btn-sm btn-primary">View Details</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ticket 2 -->
+            <div class="ticket-row">
+              <div style="display: flex; gap: var(--space-4); align-items: start;">
+                <div style="flex-shrink: 0; width: 80px;">
+                  <span class="badge badge-warning">
+                    High
+                  </span>
+                </div>
+                <div style="flex: 1;">
+                  <div class="flex items-center gap-2 mb-1">
+                    <div class="font-semibold text-lg">Laptop Running Slowly</div>
+                    <span class="badge badge-info">
+                      <span class="badge-dot"></span>
+                      Active
+                    </span>
+                  </div>
+                  <div class="text-sm text-gray-600 mb-2">
+                    Ticket #IT-2445 • IT - Hardware • Created 1 day ago
+                  </div>
+                  <div class="text-sm text-gray-700 mb-3">
+                    My MacBook Pro has been running very slowly for the past week. Applications freeze frequently and it takes forever to boot up.
+                  </div>
+                  <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Assigned to: Mike Chen (IT)</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>5 updates</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="flex-shrink: 0;">
+                  <button class="btn btn-sm btn-primary">View Details</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ticket 3 -->
+            <div class="ticket-row">
+              <div style="display: flex; gap: var(--space-4); align-items: start;">
+                <div style="flex-shrink: 0; width: 80px;">
+                  <span class="badge badge-info">
+                    Medium
+                  </span>
+                </div>
+                <div style="flex: 1;">
+                  <div class="flex items-center gap-2 mb-1">
+                    <div class="font-semibold text-lg">Question About Health Insurance</div>
+                    <span class="badge badge-warning">
+                      <span class="badge-dot"></span>
+                      Pending
+                    </span>
+                  </div>
+                  <div class="text-sm text-gray-600 mb-2">
+                    Ticket #HR-1234 • HR - Benefits • Created 2 days ago
+                  </div>
+                  <div class="text-sm text-gray-700 mb-3">
+                    I'm getting married next month and want to add my spouse to my health insurance. What's the process and deadline for this?
+                  </div>
+                  <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Assigned to: HR Benefits Team</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>1 update</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="flex-shrink: 0;">
+                  <button class="btn btn-sm btn-primary">View Details</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ticket 4 -->
+            <div class="ticket-row">
+              <div style="display: flex; gap: var(--space-4); align-items: start;">
+                <div style="flex-shrink: 0; width: 80px;">
+                  <span class="badge badge-gray">
+                    Low
+                  </span>
+                </div>
+                <div style="flex: 1;">
+                  <div class="flex items-center gap-2 mb-1">
+                    <div class="font-semibold text-lg">Office Temperature Too Cold</div>
+                    <span class="badge badge-warning">
+                      <span class="badge-dot"></span>
+                      Pending
+                    </span>
+                  </div>
+                  <div class="text-sm text-gray-600 mb-2">
+                    Ticket #FAC-789 • Facilities • Created 3 days ago
+                  </div>
+                  <div class="text-sm text-gray-700 mb-3">
+                    The AC in the engineering area (3rd floor) is set too cold. Several team members have complained. Can we adjust the temperature?
+                  </div>
+                  <div class="flex items-center gap-4 text-xs text-gray-500">
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Assigned to: Facilities Team</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>2 updates</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="flex-shrink: 0;">
+                  <button class="btn btn-sm btn-primary">View Details</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>I can help with your tickets:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Create a new IT ticket</button>
+              <button class="ai-quick-action">• Show my open tickets</button>
+              <button class="ai-quick-action">• When will ticket #IT-2456 be resolved?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+  </script>
+
+  <style>
+    .tab-button {
+      padding: var(--space-4) 0;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-gray-600);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: var(--color-primary);
+    }
+
+    .tab-button.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+
+    .ticket-row {
+      padding: var(--space-6);
+      border-bottom: 1px solid var(--color-gray-200);
+      transition: background-color 0.2s;
+    }
+
+    .ticket-row:hover {
+      background-color: var(--color-gray-50);
+    }
+
+    .ticket-row:last-child {
+      border-bottom: none;
+    }
+
+    .badge-gray {
+      background: var(--color-gray-100);
+      color: var(--color-gray-700);
+    }
+  </style>
+
+</body>
+</html>

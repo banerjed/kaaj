@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projects - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item active">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Project Manager</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Projects</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search projects...">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Projects</h1>
+            <p class="text-gray-600">Manage projects and tasks with Kanban boards</p>
+          </div>
+          <div class="page-actions">
+            <div style="display: flex; gap: var(--space-2); border: 1px solid var(--color-gray-300); border-radius: var(--radius-md); padding: 2px;">
+              <button class="btn btn-sm" style="background: var(--color-primary); color: white; padding: 6px 12px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+                </svg>
+                Kanban
+              </button>
+              <button class="btn btn-sm" style="padding: 6px 12px; background: white; border: none;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                List
+              </button>
+              <button class="btn btn-sm" style="padding: 6px 12px; background: white; border: none;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                Gantt
+              </button>
+            </div>
+            <button class="btn btn-primary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              New Project
+            </button>
+          </div>
+        </div>
+
+        <!-- Project Selector -->
+        <div class="card mb-6">
+          <div class="card-body" style="padding: var(--space-4);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <select class="form-select" style="font-size: var(--text-lg); font-weight: 600; border: none; background: transparent; padding: 0;">
+                  <option>Website Redesign Project</option>
+                  <option>Mobile App Development</option>
+                  <option>Marketing Campaign Q1</option>
+                  <option>Product Launch</option>
+                </select>
+              </div>
+              <div style="display: flex; gap: var(--space-4); align-items: center;">
+                <div class="flex items-center gap-2">
+                  <div class="avatar" style="width: 28px; height: 28px; margin-left: -8px; border: 2px solid white;">JS</div>
+                  <div class="avatar" style="width: 28px; height: 28px; margin-left: -8px; border: 2px solid white;">SC</div>
+                  <div class="avatar" style="width: 28px; height: 28px; margin-left: -8px; border: 2px solid white;">MC</div>
+                  <div style="width: 28px; height: 28px; margin-left: -8px; border: 2px solid white; border-radius: var(--radius-full); background: var(--color-gray-200); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600;">+5</div>
+                </div>
+                <div style="padding: 4px 12px; background: var(--color-success-light); color: var(--color-success); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 600;">
+                  On Track
+                </div>
+                <button class="btn btn-sm btn-secondary">Project Settings</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kanban Board -->
+        <div style="display: flex; gap: var(--space-4); overflow-x: auto; padding-bottom: var(--space-4);">
+
+          <!-- To Do Column -->
+          <div class="kanban-column">
+            <div class="kanban-header">
+              <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <span class="font-semibold">To Do</span>
+                <span class="badge badge-gray">4</span>
+              </div>
+              <button class="icon-btn" style="width: 24px; height: 24px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-error">High</span>
+                <span class="text-xs text-gray-500">WEB-24</span>
+              </div>
+              <div class="font-medium mb-2">Design new homepage layout</div>
+              <p class="text-sm text-gray-600 mb-3">Create mockups for the new homepage design with updated branding</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">SC</div>
+                <div class="text-xs text-gray-500">Due Dec 28</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-warning">Medium</span>
+                <span class="text-xs text-gray-500">WEB-25</span>
+              </div>
+              <div class="font-medium mb-2">Update product images</div>
+              <p class="text-sm text-gray-600 mb-3">Replace old product photos with new high-res images</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">DL</div>
+                <div class="text-xs text-gray-500">Due Jan 5</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-gray">Low</span>
+                <span class="text-xs text-gray-500">WEB-26</span>
+              </div>
+              <div class="font-medium mb-2">Write blog post</div>
+              <p class="text-sm text-gray-600 mb-3">Create content for the launch announcement</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">EJ</div>
+                <div class="text-xs text-gray-500">Due Jan 10</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-info">Medium</span>
+                <span class="text-xs text-gray-500">WEB-27</span>
+              </div>
+              <div class="font-medium mb-2">Setup analytics tracking</div>
+              <p class="text-sm text-gray-600 mb-3">Configure Google Analytics and heatmap tracking</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">MC</div>
+                <div class="text-xs text-gray-500">Due Jan 8</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- In Progress Column -->
+          <div class="kanban-column">
+            <div class="kanban-header">
+              <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <span class="font-semibold">In Progress</span>
+                <span class="badge badge-gray">3</span>
+              </div>
+              <button class="icon-btn" style="width: 24px; height: 24px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-error">High</span>
+                <span class="text-xs text-gray-500">WEB-20</span>
+              </div>
+              <div class="font-medium mb-2">Implement responsive navigation</div>
+              <p class="text-sm text-gray-600 mb-3">Make the main navigation mobile-friendly</p>
+              <div style="margin: var(--space-3) 0;">
+                <div class="text-xs text-gray-600 mb-1">Progress: 65%</div>
+                <div style="width: 100%; height: 6px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                  <div style="width: 65%; height: 100%; background: var(--color-primary);"></div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JS</div>
+                <div class="text-xs text-gray-500">Due Dec 26</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-warning">Medium</span>
+                <span class="text-xs text-gray-500">WEB-21</span>
+              </div>
+              <div class="font-medium mb-2">SEO optimization</div>
+              <p class="text-sm text-gray-600 mb-3">Optimize meta tags and alt text for all pages</p>
+              <div style="margin: var(--space-3) 0;">
+                <div class="text-xs text-gray-600 mb-1">Progress: 40%</div>
+                <div style="width: 100%; height: 6px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                  <div style="width: 40%; height: 100%; background: var(--color-warning);"></div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">AR</div>
+                <div class="text-xs text-gray-500">Due Jan 3</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-info">Medium</span>
+                <span class="text-xs text-gray-500">WEB-22</span>
+              </div>
+              <div class="font-medium mb-2">Testing on browsers</div>
+              <p class="text-sm text-gray-600 mb-3">QA testing across Chrome, Firefox, Safari</p>
+              <div style="margin: var(--space-3) 0;">
+                <div class="text-xs text-gray-600 mb-1">Progress: 20%</div>
+                <div style="width: 100%; height: 6px; background: var(--color-gray-200); border-radius: var(--radius-full); overflow: hidden;">
+                  <div style="width: 20%; height: 100%; background: var(--color-info);"></div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">TW</div>
+                <div class="text-xs text-gray-500">Due Jan 7</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- In Review Column -->
+          <div class="kanban-column">
+            <div class="kanban-header">
+              <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <span class="font-semibold">In Review</span>
+                <span class="badge badge-gray">2</span>
+              </div>
+              <button class="icon-btn" style="width: 24px; height: 24px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-error">High</span>
+                <span class="text-xs text-gray-500">WEB-18</span>
+              </div>
+              <div class="font-medium mb-2">Contact form integration</div>
+              <p class="text-sm text-gray-600 mb-3">Connect contact form to email service</p>
+              <div class="flex items-center gap-2 mb-3">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="color: var(--color-warning);">
+                  <path fill-rule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-xs text-gray-600">2 comments</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JS</div>
+                <div class="text-xs text-gray-500">Due Dec 24</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-warning">Medium</span>
+                <span class="text-xs text-gray-500">WEB-19</span>
+              </div>
+              <div class="font-medium mb-2">Performance optimization</div>
+              <p class="text-sm text-gray-600 mb-3">Optimize images and minify CSS/JS</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">MC</div>
+                <div class="text-xs text-gray-500">Due Dec 27</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Done Column -->
+          <div class="kanban-column">
+            <div class="kanban-header">
+              <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <span class="font-semibold">Done</span>
+                <span class="badge badge-gray">5</span>
+              </div>
+              <button class="icon-btn" style="width: 24px; height: 24px;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-success">
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" style="display: inline; vertical-align: middle;">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Completed
+                </span>
+                <span class="text-xs text-gray-500">WEB-15</span>
+              </div>
+              <div class="font-medium mb-2">Setup hosting environment</div>
+              <p class="text-sm text-gray-600 mb-3">Configure production server and deploy pipeline</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JS</div>
+                <div class="text-xs text-gray-500">Completed Dec 20</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-success">
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" style="display: inline; vertical-align: middle;">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Completed
+                </span>
+                <span class="text-xs text-gray-500">WEB-16</span>
+              </div>
+              <div class="font-medium mb-2">Create style guide</div>
+              <p class="text-sm text-gray-600 mb-3">Document design system and component library</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">SC</div>
+                <div class="text-xs text-gray-500">Completed Dec 18</div>
+              </div>
+            </div>
+
+            <div class="kanban-card">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="badge badge-success">
+                  <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20" style="display: inline; vertical-align: middle;">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Completed
+                </span>
+                <span class="text-xs text-gray-500">WEB-17</span>
+              </div>
+              <div class="font-medium mb-2">Build footer component</div>
+              <p class="text-sm text-gray-600 mb-3">Implement responsive footer with links</p>
+              <div class="flex items-center justify-between">
+                <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">DL</div>
+                <div class="text-xs text-gray-500">Completed Dec 19</div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>I can help with project management:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Create a new task</button>
+              <button class="ai-quick-action">• Show overdue tasks</button>
+              <button class="ai-quick-action">• What's the project status?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+  </script>
+
+  <style>
+    .kanban-column {
+      min-width: 320px;
+      background: var(--color-gray-50);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .kanban-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-2);
+    }
+
+    .kanban-card {
+      background: white;
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .kanban-card:hover {
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+  </style>
+
+</body>
+</html>

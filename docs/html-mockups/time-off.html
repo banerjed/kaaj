@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Off Management - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item active">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Manager</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Time Off</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search anything... (⌘K)">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Time Off Management</h1>
+            <p class="text-gray-600">View and manage time off requests for your team</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              View Calendar
+            </button>
+            <button class="btn btn-primary" onclick="showRequestModal()">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Request Time Off
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">Pending Requests</div>
+            <div class="stat-value">3</div>
+            <div class="stat-change negative">
+              <span>Needs approval</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Out Today</div>
+            <div class="stat-value">8</div>
+            <div class="stat-change">
+              <span class="text-gray-600">employees</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Out This Week</div>
+            <div class="stat-value">15</div>
+            <div class="stat-change">
+              <span class="text-gray-600">employees</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Upcoming (30 days)</div>
+            <div class="stat-value">42</div>
+            <div class="stat-change">
+              <span class="text-gray-600">approved requests</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="card mb-6">
+          <div style="border-bottom: 1px solid var(--color-gray-200); padding: 0 var(--space-6);">
+            <div style="display: flex; gap: var(--space-6);">
+              <button class="tab-button active">Pending Approval (3)</button>
+              <button class="tab-button">Upcoming</button>
+              <button class="tab-button">History</button>
+              <button class="tab-button">Team Calendar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Requests -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Requests Pending Your Approval</h3>
+            <div style="display: flex; gap: var(--space-3); align-items: center;">
+              <span class="text-sm text-gray-600">Sort by:</span>
+              <select class="form-select" style="width: 150px;">
+                <option>Date Requested</option>
+                <option>Start Date</option>
+                <option>Employee Name</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <!-- Request 1 -->
+            <div class="request-card">
+              <div class="flex items-start gap-4">
+                <div class="avatar" style="width: 48px; height: 48px; flex-shrink: 0;">AR</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                    <div>
+                      <div class="font-semibold text-lg">Alex Rivera</div>
+                      <div class="text-sm text-gray-600">Sales Manager • EMP-12349</div>
+                    </div>
+                    <div class="text-sm text-gray-500">Requested 2 hours ago</div>
+                  </div>
+
+                  <div class="grid grid-cols-4 gap-4 mb-4" style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Type</div>
+                      <div class="font-medium">
+                        <span class="badge badge-warning">Sick Leave</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Dates</div>
+                      <div class="font-medium">Dec 26 - Dec 30, 2025</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Duration</div>
+                      <div class="font-medium">3 business days (24 hours)</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Balance After</div>
+                      <div class="font-medium">16 hours remaining</div>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <div class="text-sm font-medium mb-1">Reason:</div>
+                    <div class="text-sm text-gray-700">Medical appointment and recovery time needed.</div>
+                  </div>
+
+                  <div class="alert alert-warning" style="margin-bottom: var(--space-4);">
+                    <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div class="alert-content">
+                      <div>Mike Chen and Sarah Johnson are also off during this period.</div>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: var(--space-3);">
+                    <button class="btn btn-success">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Approve
+                    </button>
+                    <button class="btn btn-danger">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      Deny
+                    </button>
+                    <button class="btn btn-secondary">Request More Info</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Request 2 -->
+            <div class="request-card">
+              <div class="flex items-start gap-4">
+                <div class="avatar" style="width: 48px; height: 48px; flex-shrink: 0;">EJ</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                    <div>
+                      <div class="font-semibold text-lg">Emma Johnson</div>
+                      <div class="text-sm text-gray-600">Software Engineer • EMP-12350</div>
+                    </div>
+                    <div class="text-sm text-gray-500">Requested 1 day ago</div>
+                  </div>
+
+                  <div class="grid grid-cols-4 gap-4 mb-4" style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Type</div>
+                      <div class="font-medium">
+                        <span class="badge badge-info">Vacation</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Dates</div>
+                      <div class="font-medium">Jan 20 - Jan 24, 2026</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Duration</div>
+                      <div class="font-medium">5 business days (40 hours)</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Balance After</div>
+                      <div class="font-medium">40 hours remaining</div>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <div class="text-sm font-medium mb-1">Reason:</div>
+                    <div class="text-sm text-gray-700">Family vacation - planned trip to Hawaii.</div>
+                  </div>
+
+                  <div style="display: flex; gap: var(--space-3);">
+                    <button class="btn btn-success">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Approve
+                    </button>
+                    <button class="btn btn-danger">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      Deny
+                    </button>
+                    <button class="btn btn-secondary">Request More Info</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Request 3 -->
+            <div class="request-card">
+              <div class="flex items-start gap-4">
+                <div class="avatar" style="width: 48px; height: 48px; flex-shrink: 0;">DL</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                    <div>
+                      <div class="font-semibold text-lg">David Lee</div>
+                      <div class="text-sm text-gray-600">Product Designer • EMP-12351</div>
+                    </div>
+                    <div class="text-sm text-gray-500">Requested 3 days ago</div>
+                  </div>
+
+                  <div class="grid grid-cols-4 gap-4 mb-4" style="padding: var(--space-4); background: var(--color-gray-50); border-radius: var(--radius-md);">
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Type</div>
+                      <div class="font-medium">
+                        <span class="badge badge-info">Vacation</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Dates</div>
+                      <div class="font-medium">Mar 10 - Mar 14, 2026</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Duration</div>
+                      <div class="font-medium">5 business days (40 hours)</div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-500 mb-1">Balance After</div>
+                      <div class="font-medium">60 hours remaining</div>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <div class="text-sm font-medium mb-1">Reason:</div>
+                    <div class="text-sm text-gray-700">Personal travel - attending a friend's wedding.</div>
+                  </div>
+
+                  <div style="display: flex; gap: var(--space-3);">
+                    <button class="btn btn-success">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Approve
+                    </button>
+                    <button class="btn btn-danger">
+                      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      Deny
+                    </button>
+                    <button class="btn btn-secondary">Request More Info</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Time Off Request Modal -->
+  <div class="modal-overlay" id="requestModal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Request Time Off</h3>
+        <button class="icon-btn" onclick="closeRequestModal()" style="width: 32px; height: 32px;">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-input">
+            <option>Vacation</option>
+            <option>Sick Leave</option>
+            <option>Personal Day</option>
+            <option>Bereavement</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-input" value="2025-12-23">
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-input" value="2025-12-27">
+          </div>
+        </div>
+
+        <div style="padding: var(--space-4); background: var(--color-info-light); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+          <div class="flex items-center gap-2 mb-2">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20" style="color: var(--color-info);">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+            </svg>
+            <span class="font-semibold">5 days (40 hours)</span>
+          </div>
+          <div class="text-sm">Available balance: 80 hours</div>
+        </div>
+
+        <div class="alert alert-warning">
+          <svg class="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="alert-content">
+            <div>Mike Chen is also off Dec 24-26</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Reason (optional)</label>
+          <textarea class="form-input" rows="3" placeholder="Provide a brief reason for your time off request..."></textarea>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRequestModal()">Cancel</button>
+        <button class="btn btn-primary">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Submit Request
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>I can help with time off requests:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Who's out next week?</button>
+              <button class="ai-quick-action">• Check my PTO balance</button>
+              <button class="ai-quick-action">• Approve all pending requests</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function showRequestModal() {
+      document.getElementById('requestModal').style.display = 'flex';
+    }
+
+    function closeRequestModal() {
+      document.getElementById('requestModal').style.display = 'none';
+    }
+  </script>
+
+  <style>
+    .tab-button {
+      padding: var(--space-4) 0;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-gray-600);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: var(--color-primary);
+    }
+
+    .tab-button.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+
+    .request-card {
+      padding: var(--space-6);
+      border-bottom: 1px solid var(--color-gray-200);
+    }
+
+    .request-card:last-child {
+      border-bottom: none;
+    }
+  </style>
+
+</body>
+</html>

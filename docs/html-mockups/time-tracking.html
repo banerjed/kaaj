@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Tracking - Business Management Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">B</div>
+          <span>BizManager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">People</div>
+          <a href="dashboard.html" class="nav-item">
+            <span class="nav-item-icon">🏠</span>
+            <span class="nav-item-text">Dashboard</span>
+          </a>
+          <a href="employees.html" class="nav-item">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-text">Employees</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">📋</span>
+            <span class="nav-item-text">HR Management</span>
+          </a>
+          <a href="payroll.html" class="nav-item">
+            <span class="nav-item-icon">💵</span>
+            <span class="nav-item-text">Payroll</span>
+            <span class="nav-item-badge">1</span>
+          </a>
+          <a href="time-off.html" class="nav-item">
+            <span class="nav-item-icon">🌴</span>
+            <span class="nav-item-text">Time Off</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operations</div>
+          <a href="projects.html" class="nav-item">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-text">Projects</span>
+          </a>
+          <a href="time-tracking.html" class="nav-item active">
+            <span class="nav-item-icon">⏱️</span>
+            <span class="nav-item-text">Time Tracking</span>
+          </a>
+          <a href="#" class="nav-item">
+            <span class="nav-item-icon">🤝</span>
+            <span class="nav-item-text">CRM</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Support</div>
+          <a href="tickets.html" class="nav-item">
+            <span class="nav-item-icon">🎫</span>
+            <span class="nav-item-text">Tickets</span>
+          </a>
+          <a href="settings.html" class="nav-item">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-text">Settings</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-menu">
+          <div class="avatar">JD</div>
+          <div class="user-info">
+            <div class="user-name">John Doe</div>
+            <div class="user-role">Developer</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="breadcrumb">
+            <a href="dashboard.html" class="breadcrumb-item">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item">Time Tracking</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search time entries...">
+          </div>
+
+          <button class="icon-btn">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="icon-btn-badge">3</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area">
+
+        <!-- Page Header with Timer -->
+        <div class="card mb-6">
+          <div class="card-body">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h1 class="page-title" style="margin-bottom: var(--space-2);">Time Tracking</h1>
+                <p class="text-gray-600">Track billable and non-billable time</p>
+              </div>
+              <div>
+                <!-- Active Timer -->
+                <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-6); background: var(--color-success-light); border-radius: var(--radius-lg); border: 2px solid var(--color-success);">
+                  <div>
+                    <div class="text-sm text-gray-600 mb-1">Currently Tracking</div>
+                    <div class="font-semibold">Website Redesign - Development</div>
+                  </div>
+                  <div style="font-size: 32px; font-weight: 700; font-family: 'SF Mono', monospace; color: var(--color-success);">
+                    02:34:18
+                  </div>
+                  <button class="btn btn-danger">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"/>
+                    </svg>
+                    Stop Timer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">This Week</div>
+            <div class="stat-value">32.5h</div>
+            <div class="stat-change positive">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>+2.5h from last week</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Billable Hours</div>
+            <div class="stat-value">28h</div>
+            <div class="stat-change">
+              <span class="text-gray-600">86% of total</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Pending Approval</div>
+            <div class="stat-value">12.5h</div>
+            <div class="stat-change negative">
+              <span>Needs manager approval</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-label">Earnings (Est.)</div>
+            <div class="stat-value">$4,200</div>
+            <div class="stat-change">
+              <span class="text-gray-600">@ $150/hr avg</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Week View Tabs -->
+        <div class="card mb-6">
+          <div style="border-bottom: 1px solid var(--color-gray-200); padding: 0 var(--space-6);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; gap: var(--space-6);">
+                <button class="tab-button active">This Week</button>
+                <button class="tab-button">Last Week</button>
+                <button class="tab-button">This Month</button>
+                <button class="tab-button">Custom Range</button>
+              </div>
+              <div style="display: flex; gap: var(--space-3); padding: var(--space-3) 0;">
+                <button class="btn btn-sm btn-secondary">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                  Previous
+                </button>
+                <span style="padding: 0 var(--space-3); display: flex; align-items: center; font-weight: 600;">
+                  Dec 21-27, 2025
+                </span>
+                <button class="btn btn-sm btn-secondary">
+                  Next
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timesheet -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Timesheet - Week of Dec 21, 2025</h3>
+            <div style="display: flex; gap: var(--space-3);">
+              <button class="btn btn-secondary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Entry
+              </button>
+              <button class="btn btn-primary">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Submit for Approval
+              </button>
+            </div>
+          </div>
+          <div class="card-body" style="padding: 0; overflow-x: auto;">
+
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="min-width: 250px;">Project / Task</th>
+                  <th>Mon 12/21</th>
+                  <th>Tue 12/22</th>
+                  <th>Wed 12/23</th>
+                  <th>Thu 12/24</th>
+                  <th>Fri 12/25</th>
+                  <th>Sat 12/26</th>
+                  <th>Sun 12/27</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Project 1 -->
+                <tr style="background: var(--color-gray-50);">
+                  <td colspan="10" class="font-semibold">Website Redesign Project</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2" style="padding-left: var(--space-4);">
+                      <span class="badge badge-success">Billable</span>
+                      <span>Frontend Development</span>
+                    </div>
+                  </td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="8.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="7.5" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="6.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td class="font-semibold">21.5h</td>
+                  <td>
+                    <span class="badge badge-info">
+                      <span class="badge-dot"></span>
+                      Draft
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2" style="padding-left: var(--space-4);">
+                      <span class="badge badge-success">Billable</span>
+                      <span>Code Review</span>
+                    </div>
+                  </td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="1.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="1.5" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="2.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td class="font-semibold">4.5h</td>
+                  <td>
+                    <span class="badge badge-info">
+                      <span class="badge-dot"></span>
+                      Draft
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Project 2 -->
+                <tr style="background: var(--color-gray-50);">
+                  <td colspan="10" class="font-semibold">Internal - Training</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2" style="padding-left: var(--space-4);">
+                      <span class="badge badge-gray">Non-billable</span>
+                      <span>React Training</span>
+                    </div>
+                  </td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="2.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="2.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td class="font-semibold">4.0h</td>
+                  <td>
+                    <span class="badge badge-success">
+                      <span class="badge-dot"></span>
+                      Approved
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Project 3 -->
+                <tr style="background: var(--color-gray-50);">
+                  <td colspan="10" class="font-semibold">Mobile App Development</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2" style="padding-left: var(--space-4);">
+                      <span class="badge badge-success">Billable</span>
+                      <span>Backend API</span>
+                    </div>
+                  </td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="1.5" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="1.0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td><input type="number" class="form-input" style="width: 60px; text-align: center;" value="0" step="0.5"></td>
+                  <td class="font-semibold">2.5h</td>
+                  <td>
+                    <span class="badge badge-info">
+                      <span class="badge-dot"></span>
+                      Draft
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Totals Row -->
+                <tr style="background: var(--color-primary-light); font-weight: 600;">
+                  <td>TOTAL HOURS</td>
+                  <td>9.0h</td>
+                  <td>12.5h</td>
+                  <td>11.0h</td>
+                  <td>0h</td>
+                  <td>0h</td>
+                  <td>0h</td>
+                  <td>0h</td>
+                  <td style="font-size: var(--text-lg); color: var(--color-primary);">32.5h</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+          <div class="card-footer">
+            <div style="flex: 1;">
+              <div class="text-sm text-gray-600">
+                Billable: 28h (86%) • Non-billable: 4.5h (14%)
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="ai-chatbot">
+    <button class="ai-chatbot-button" onclick="toggleChat()">💬</button>
+
+    <div class="ai-chatbot-window" id="chatWindow" style="display: none;">
+      <div class="ai-chatbot-header">
+        <div class="ai-chatbot-title">
+          <span>🤖</span>
+          <span>AI Assistant</span>
+        </div>
+        <button class="ai-chatbot-close" onclick="toggleChat()">×</button>
+      </div>
+
+      <div class="ai-chatbot-body">
+        <div class="ai-message assistant">
+          <div class="ai-message-avatar">🤖</div>
+          <div class="ai-message-content">
+            <div>I can help with time tracking:</div>
+            <div class="ai-quick-actions">
+              <button class="ai-quick-action">• Start timer for Website Redesign</button>
+              <button class="ai-quick-action">• How many hours this week?</button>
+              <button class="ai-quick-action">• Submit timesheet for approval</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-chatbot-input">
+        <input type="text" placeholder="Type your question...">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleChat() {
+      const chatWindow = document.getElementById('chatWindow');
+      chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
+    }
+  </script>
+
+  <style>
+    .tab-button {
+      padding: var(--space-4) 0;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-gray-600);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: var(--color-primary);
+    }
+
+    .tab-button.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+
+    .form-input[type="number"] {
+      padding: 4px 8px;
+    }
+  </style>
+
+</body>
+</html>
