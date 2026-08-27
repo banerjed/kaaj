@@ -16,6 +16,9 @@
 --    So updated_at never updates on its own anywhere, on any of the 82 tables
 --    that have the column.
 --
+-- Minimum PostgreSQL: 14, for CREATE OR REPLACE TRIGGER. Supabase provisions 15
+-- or 17 depending on when the project was created; both are fine.
+--
 -- Both are fixed generically rather than by listing tables, so a table added by
 -- a later migration cannot reintroduce them silently.
 -- =============================================================================

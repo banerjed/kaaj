@@ -7,15 +7,19 @@
 -- editing this one.
 --
 --   source: docs/data-models/schema.sql
---   sha256: d048fffa691bdb187ed2efcbfbf6efb96d54816066149baebc6ad2ec9a696353
+--   sha256: d0c5e4528e2a3e4022758182bae719306b7522d098090d7386d4859d1c2df9d8
 --
 -- Drift check:
 --   shasum -a 256 docs/data-models/schema.sql
 --
 -- This migration creates tables, types, indexes, RLS policies and triggers only.
--- It grants NOTHING — see the companion 20260827000002_auth_and_grants.sql,
--- without which every query fails. The split is deliberate: privileges and the
--- auth hook are environment-shaped, the schema is not.
+-- It grants NOTHING, so on its own it is a database no role can read — see the
+-- three companion migrations, without which every query fails. The split is
+-- deliberate: privileges and the auth hook are environment-shaped, the schema
+-- is not.
+--
+-- Minimum PostgreSQL: 12. Requires the pgcrypto, pg_trgm and btree_gin
+-- extensions, all available on Supabase.
 -- =============================================================================
 
 -- =============================================================================
@@ -33,6 +37,31 @@
 -- Every merge decision — including the eight capabilities the D1 "SMB
 -- optimization" pass dropped and which were restored — is recorded in
 -- SCHEMA-RECONCILIATION.md. Read that before changing anything here.
+--
+-- AMENDED BY MIGRATIONS. This file remains authoritative for INTENT — the tables,
+-- types, indexes and policies below are what the system is meant to contain. It
+-- is NOT a description of the deployed database. Four migrations correct defects
+-- that only appeared when this file was applied to a real PostgreSQL and used as
+-- a non-owner role; see ../api-surface.md for the findings table.
+--
+--   app/supabase/migrations/
+--     ..._initial_schema.sql         this file, verbatim
+--     ..._auth_and_grants.sql        adds every GRANT (this file has none, so
+--                                    no role can read anything), the
+--                                    custom_access_token_hook that ADR-008
+--                                    assumes, a policy letting the hook read
+--                                    tenant_users at token issue, FORCE RLS on
+--                                    exchange_rates, security_invoker on
+--                                    v_upcoming_celebrations
+--     ..._audit_column_defaults.sql  DEFAULT now() on the 33 tables whose
+--                                    created_at/updated_at are NOT NULL with no
+--                                    default, and attaches app.set_updated_at()
+--                                    which is defined below but wired to nothing
+--     ..._harden_tenant_context.sql  app.current_tenant_id() below RAISES on an
+--                                    empty or malformed claim; it should return
+--                                    no tenant
+--
+-- Verify any change to this file with: ./scripts/verify-migrations.sh
 --
 -- Architecture: see ../05-architecture-decisions.md
 --   ADR-002  PostgreSQL is the only datastore (search, jobs, cache)

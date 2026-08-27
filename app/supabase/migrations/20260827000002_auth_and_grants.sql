@@ -6,6 +6,13 @@
 -- it reachable. Four independent things go wrong without it, and they fail at
 -- different layers, which is why each is called out separately below.
 --
+-- ASSUMES A SUPABASE-PROVISIONED PROJECT. The roles `supabase_auth_admin`,
+-- `authenticated` and `anon` are created by Supabase, not by these migrations.
+-- On vanilla Postgres this fails in section 3 with "role does not exist" —
+-- create the three roles first (scripts/verify-migrations.sh does exactly that).
+--
+-- Minimum PostgreSQL: 12, for FORCE ROW LEVEL SECURITY.
+--
 -- References: ADR-003 (RLS), ADR-008 (Supabase, tenant claim), ADR-009 (tiers).
 -- =============================================================================
 

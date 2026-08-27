@@ -25,6 +25,9 @@
 -- nothing" into a 500, and it makes the no-tenant case untestable. All three
 -- states should mean the same thing — no tenant, therefore no rows.
 --
+-- pg_input_is_valid() would be tidier but is PostgreSQL 16+. The exception
+-- handler below works on every version Supabase provisions.
+--
 -- Rewritten in plpgsql because SQL has no way to recover from a bad cast. The
 -- function stays STABLE, so it is evaluated once per query rather than per row.
 -- =============================================================================
