@@ -178,6 +178,37 @@ const storageTables = tables
 
 const hookPresent = /custom_access_token_hook/.test(sql);
 
+// Findings are reported against the migrations too, not just schema.sql: a
+// defect fixed in a migration is no longer open, and saying otherwise sends
+// someone to fix it twice.
+const MIGRATIONS_DIR = join(ROOT, 'app', 'supabase', 'migrations');
+let migrationSql = '';
+let migrationFiles = [];
+try {
+  migrationFiles = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  migrationSql = migrationFiles.map((f) => readFileSync(join(MIGRATIONS_DIR, f), 'utf8')).join('\n');
+} catch { /* not initialised yet */ }
+
+const schemaShipped = migrationFiles.some((f) => /initial_schema/.test(f));
+// Match only executable SQL. schema.sql documents the app_user GRANTs in a
+// SECTION 5 comment, which would otherwise read as "already fixed".
+const stripComments = (t) => t.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+const fixedBy = (re) => {
+  const f = migrationFiles.find((n) => re.test(stripComments(readFileSync(join(MIGRATIONS_DIR, n), 'utf8'))));
+  return f ?? null;
+};
+const fix = {
+  hook:     migrationSql ? fixedBy(/CREATE OR REPLACE FUNCTION public\.custom_access_token_hook/) : null,
+  grants:   migrationSql ? fixedBy(/GRANT[\s\S]*?ON ALL TABLES IN SCHEMA public TO app_user/) : null,
+  schemaUsage: migrationSql ? fixedBy(/GRANT USAGE ON SCHEMA app\s+TO app_user/) : null,
+  authAdmin: migrationSql ? fixedBy(/CREATE POLICY auth_admin_reads_memberships/) : null,
+  invoker:  migrationSql ? fixedBy(/security_invoker = on/) : null,
+  force:    migrationSql ? fixedBy(/ALTER TABLE exchange_rates FORCE ROW LEVEL SECURITY/) : null,
+  defaults: migrationSql ? fixedBy(/SET DEFAULT now\(\)/) : null,
+  harden:   migrationSql ? fixedBy(/RETURN NULL;\s+-- malformed claims/) : null,
+};
+const status = (f) => (f ? `**addressed** by \`${f}\`` : '**OPEN**');
+
 // Security posture — computed, never assumed. These three facts decide whether
 // surface A is reachable at all.
 const grants = (sql.match(/^\s*GRANT\b/gm) ?? []).length;
@@ -379,69 +410,48 @@ w('elsewhere. **Surface A is therefore enumerated below for completeness, not as
 w();
 
 // -- Gating facts ---------------------------------------------------------
-w('### Blocking: the JWT claim every policy depends on is never written');
+w('### Prerequisites — verified by running them, not by reading');
 w();
-if (!hookPresent) {
-  w('All 98 RLS policies read `tenant_id = app.current_tenant_id()`, and that function reads');
-  w('`request.jwt.claims -> app_metadata -> tenant_id`. ADR-008 says that claim is stamped by a');
-  w('`custom_access_token_hook` Postgres function at token issue. **That function is not in');
-  w('`schema.sql`.** It is specified in `05-architecture-decisions.md`, `07-app-provenance.md`');
-  w('and `architecture-technical.md` (which carries a full body at ~line 1411), but the');
-  w('authoritative schema does not create it.');
-  w();
-  w('Until it ships, `app.current_tenant_id()` returns NULL, `tenant_id = NULL` is never true, and');
-  w('**every policy denies every row** — on surface A *and* surface B. This gates the whole');
-  w('manifest, not one surface of it. Port the function from `architecture-technical.md` into a');
-  w('migration and register it under Auth Hooks in the Supabase dashboard.');
+w('Everything below was found by applying the schema to a real PostgreSQL 17 and trying to use');
+w('it as a non-owner role. None of it is visible in the DDL. `scripts/verify-migrations.sh`');
+w('re-checks all of it from a clean database in about twenty seconds.');
+w();
+w('| # | Finding | Gates | Status |');
+w('|---|---|---|---|');
+w(`| 1 | \`custom_access_token_hook\` absent from schema.sql — the claim all 98 policies read is never written | A + B | ${status(fix.hook)} |`);
+w(`| 2 | \`tenant_users\` RLS blocks the hook's own SELECT at token issue — stamps nothing, silently | A + B | ${status(fix.authAdmin)} |`);
+w(`| 3 | Zero \`GRANT\`s — no role can read any table | A + B | ${status(fix.grants)} |`);
+w(`| 4 | No \`GRANT USAGE ON SCHEMA app\` — every policy call fails before RLS evaluates | A + B | ${status(fix.schemaUsage)} |`);
+w(`| 5 | \`app.current_tenant_id()\` raises on an empty or malformed claim instead of returning no rows | A + B | ${status(fix.harden)} |`);
+w(`| 6 | 33 tables declare \`created_at\`/\`updated_at\` NOT NULL with no default — every INSERT fails | A + B | ${status(fix.defaults)} |`);
+w(`| 7 | \`app.set_updated_at()\` defined but attached to no table | B | ${status(fix.defaults)} |`);
+w(`| 8 | \`v_upcoming_celebrations\` has no \`security_invoker\` — returns every tenant's rows | A | ${status(fix.invoker)} |`);
+w(`| 9 | \`exchange_rates\` enables RLS without FORCE, alone among the 98 | A + B | ${status(fix.force)} |`);
+w();
+w('Two of these deserve emphasis, because both fail *silently* rather than loudly:');
+w();
+w('- **#2** is a deadlock. The hook reads `tenant_users` to find the membership, but');
+w('  `tenant_users` carries `tenant_isolation` with no `TO` clause, so the policy applies to');
+w('  `supabase_auth_admin` too — and at token issue there is no claim yet. The hook finds nothing,');
+w('  stamps nothing, and login *succeeds*. Every query afterwards returns zero rows.');
+w('  `SECURITY DEFINER` does not fix it: under `FORCE ROW LEVEL SECURITY` the owner is subject to');
+w('  policies as well. It needs an explicit permissive policy for that one role.');
+w('- **#5** turns a missing tenant into a database error rather than an empty result. Under');
+w('  ADR-009\'s long-lived pools, a cleared setting is reachable, and the difference between');
+w('  "no rows" and "500" is the difference between isolation and an outage.');
+w();
+if (schemaShipped) {
+  w(`The schema ships as \`${migrationFiles.filter((f) => /^2026/.test(f)).join('`, `')}\`.`);
+  w('Once applied to your Supabase project, verify this document against the live database:');
 } else {
-  w('`custom_access_token_hook` is present in the schema. Confirm it is registered as the');
-  w('access-token hook in the Supabase dashboard — creating the function is not enough.');
+  w('The schema is **not deployed** — `app/supabase/migrations/` holds only the CMSaasStarter');
+  w('migrations. Until it ships, this document derived from the file is the only list there is.');
 }
-w();
-w('### Before surface A works at all');
-w();
-if (grants === 0) {
-  w(`- **No \`GRANT\` statements exist in the schema (found: ${grants}).** PostgREST connects as`);
-  w('  `anon` or `authenticated`; with no table privileges every request returns');
-  w('  `42501 permission denied`. RLS policies narrow access that a `GRANT` has already given —');
-  w('  they do not grant it. Surface A is currently **empty in practice**.');
-} else {
-  w(`- ${plural(grants, '`GRANT` statement')} present.`);
-}
-if (callableRpc.length === 0) {
-  const trig = functions.filter((f) => f.isTrigger).length;
-  const nonPublic = functions.filter((f) => !f.isTrigger && f.schema !== 'public').length;
-  w(`- **No callable RPC endpoints.** Of ${plural(functions.length, 'function')}, ` +
-    `${trig} return \`trigger\` (never exposed by PostgREST) and ` +
-    `${nonPublic} ${nonPublic === 1 ? 'lives' : 'live'} in the \`app\` schema, which is not in ` +
-    'Supabase\'s exposed-schemas list by default. `/rest/v1/rpc/*` is empty.');
-} else {
-  w(`- ${plural(callableRpc.length, 'callable RPC endpoint')}: ` + callableRpc.map((f) => `\`${f.name}\``).join(', '));
-}
-for (const v of views) {
-  if (!v.securityInvoker) {
-    w(`- **\`${v.name}\` lacks \`security_invoker = on\`.** A view without it runs with the`);
-    w('  *definer\'s* rights, so the underlying table\'s RLS is bypassed. This view selects');
-    w(`  \`tenant_id\` but has no tenant predicate of its own — exposing it over surface A`);
-    w('  would return **every tenant\'s** rows. Fix before granting on it:');
-    w(`  \`ALTER VIEW ${v.name} SET (security_invoker = on);\``);
-  }
-}
-if (missingForce.length) {
-  w(`- \`${missingForce.join('`, `')}\`: RLS enabled but **not FORCEd**. The table owner bypasses`);
-  w('  policies; every other table in the schema forces them. Deliberate or an omission?');
-}
-if (missingRls.length) {
-  w(`- Tenant-owned but no RLS: \`${missingRls.join('`, `')}\``);
-}
-w();
-w('The schema is also **not deployed yet** — `app/supabase/migrations/` holds only the two');
-w('CMSaasStarter migrations. Until `schema.sql` ships as a migration, this document derived from');
-w('the file *is* the authoritative list; there is no live API to introspect.');
-w();
-w('Once it is deployed, verify this document against the live database:');
 w();
 w('```bash');
+w('# prove the tenancy guarantees locally first — no cloud project needed');
+w('./scripts/verify-migrations.sh');
+w();
 w('# the exact reflected surface, as OpenAPI');
 w('curl -s "https://<project-ref>.supabase.co/rest/v1/" \\');
 w('  -H "apikey: <anon-key>" | jq \'.paths | keys\'');

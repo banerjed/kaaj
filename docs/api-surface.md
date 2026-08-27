@@ -35,42 +35,43 @@ transaction; secrets need a server-side home. ADR-009 adds a fifth — a PostgRE
 to one Supabase project, so it cannot serve tier-B or tier-C customers whose database is
 elsewhere. **Surface A is therefore enumerated below for completeness, not as a recommendation.**
 
-### Blocking: the JWT claim every policy depends on is never written
+### Prerequisites — verified by running them, not by reading
 
-All 98 RLS policies read `tenant_id = app.current_tenant_id()`, and that function reads
-`request.jwt.claims -> app_metadata -> tenant_id`. ADR-008 says that claim is stamped by a
-`custom_access_token_hook` Postgres function at token issue. **That function is not in
-`schema.sql`.** It is specified in `05-architecture-decisions.md`, `07-app-provenance.md`
-and `architecture-technical.md` (which carries a full body at ~line 1411), but the
-authoritative schema does not create it.
+Everything below was found by applying the schema to a real PostgreSQL 17 and trying to use
+it as a non-owner role. None of it is visible in the DDL. `scripts/verify-migrations.sh`
+re-checks all of it from a clean database in about twenty seconds.
 
-Until it ships, `app.current_tenant_id()` returns NULL, `tenant_id = NULL` is never true, and
-**every policy denies every row** — on surface A *and* surface B. This gates the whole
-manifest, not one surface of it. Port the function from `architecture-technical.md` into a
-migration and register it under Auth Hooks in the Supabase dashboard.
+| # | Finding | Gates | Status |
+|---|---|---|---|
+| 1 | `custom_access_token_hook` absent from schema.sql — the claim all 98 policies read is never written | A + B | **addressed** by `20260827000002_auth_and_grants.sql` |
+| 2 | `tenant_users` RLS blocks the hook's own SELECT at token issue — stamps nothing, silently | A + B | **addressed** by `20260827000002_auth_and_grants.sql` |
+| 3 | Zero `GRANT`s — no role can read any table | A + B | **addressed** by `20260827000002_auth_and_grants.sql` |
+| 4 | No `GRANT USAGE ON SCHEMA app` — every policy call fails before RLS evaluates | A + B | **addressed** by `20260827000002_auth_and_grants.sql` |
+| 5 | `app.current_tenant_id()` raises on an empty or malformed claim instead of returning no rows | A + B | **addressed** by `20260827000004_harden_tenant_context.sql` |
+| 6 | 33 tables declare `created_at`/`updated_at` NOT NULL with no default — every INSERT fails | A + B | **addressed** by `20260827000003_audit_column_defaults.sql` |
+| 7 | `app.set_updated_at()` defined but attached to no table | B | **addressed** by `20260827000003_audit_column_defaults.sql` |
+| 8 | `v_upcoming_celebrations` has no `security_invoker` — returns every tenant's rows | A | **addressed** by `20260827000002_auth_and_grants.sql` |
+| 9 | `exchange_rates` enables RLS without FORCE, alone among the 98 | A + B | **addressed** by `20260827000002_auth_and_grants.sql` |
 
-### Before surface A works at all
+Two of these deserve emphasis, because both fail *silently* rather than loudly:
 
-- **No `GRANT` statements exist in the schema (found: 0).** PostgREST connects as
-  `anon` or `authenticated`; with no table privileges every request returns
-  `42501 permission denied`. RLS policies narrow access that a `GRANT` has already given —
-  they do not grant it. Surface A is currently **empty in practice**.
-- **No callable RPC endpoints.** Of 4 functions, 3 return `trigger` (never exposed by PostgREST) and 1 lives in the `app` schema, which is not in Supabase's exposed-schemas list by default. `/rest/v1/rpc/*` is empty.
-- **`v_upcoming_celebrations` lacks `security_invoker = on`.** A view without it runs with the
-  *definer's* rights, so the underlying table's RLS is bypassed. This view selects
-  `tenant_id` but has no tenant predicate of its own — exposing it over surface A
-  would return **every tenant's** rows. Fix before granting on it:
-  `ALTER VIEW v_upcoming_celebrations SET (security_invoker = on);`
-- `exchange_rates`: RLS enabled but **not FORCEd**. The table owner bypasses
-  policies; every other table in the schema forces them. Deliberate or an omission?
+- **#2** is a deadlock. The hook reads `tenant_users` to find the membership, but
+  `tenant_users` carries `tenant_isolation` with no `TO` clause, so the policy applies to
+  `supabase_auth_admin` too — and at token issue there is no claim yet. The hook finds nothing,
+  stamps nothing, and login *succeeds*. Every query afterwards returns zero rows.
+  `SECURITY DEFINER` does not fix it: under `FORCE ROW LEVEL SECURITY` the owner is subject to
+  policies as well. It needs an explicit permissive policy for that one role.
+- **#5** turns a missing tenant into a database error rather than an empty result. Under
+  ADR-009's long-lived pools, a cleared setting is reachable, and the difference between
+  "no rows" and "500" is the difference between isolation and an outage.
 
-The schema is also **not deployed yet** — `app/supabase/migrations/` holds only the two
-CMSaasStarter migrations. Until `schema.sql` ships as a migration, this document derived from
-the file *is* the authoritative list; there is no live API to introspect.
-
-Once it is deployed, verify this document against the live database:
+The schema ships as `20260827000001_initial_schema.sql`, `20260827000002_auth_and_grants.sql`, `20260827000003_audit_column_defaults.sql`, `20260827000004_harden_tenant_context.sql`.
+Once applied to your Supabase project, verify this document against the live database:
 
 ```bash
+# prove the tenancy guarantees locally first — no cloud project needed
+./scripts/verify-migrations.sh
+
 # the exact reflected surface, as OpenAPI
 curl -s "https://<project-ref>.supabase.co/rest/v1/" \
   -H "apikey: <anon-key>" | jq '.paths | keys'
