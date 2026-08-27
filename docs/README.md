@@ -123,18 +123,25 @@
     - What we refuse to support (per-tenant DDL, EAV, per-tenant code)
     - The financial-calculation boundary
 
+### Process
+
+13. **[07-vendor-branch-workflow.md](./07-vendor-branch-workflow.md)** - Vendor branch workflow
+    - How `app/` tracks the CMSaasStarter template upstream
+    - Pulling upstream releases without losing local changes
+    - Where we deliberately diverge, and when to retire the branch
+
 ### Data Model
 
-13. **[data-models/schema.sql](./data-models/schema.sql)** - **Authoritative database schema**
+14. **[data-models/schema.sql](./data-models/schema.sql)** - **Authoritative database schema**
     - 98 tables + 1 view, Supabase PostgreSQL, validated against PostgreSQL 17
     - Shared-schema multi-tenancy with row-level security on every table
     - Supersedes the former `data-models.md` and all `d1-*` sources (now deleted)
 
-14. **[data-models/mock-data.sql](./data-models/mock-data.sql)** - Test organization
+15. **[data-models/mock-data.sql](./data-models/mock-data.sql)** - Test organization
     - Northwind Consulting: 12 employees, 3 countries, 3 currencies
     - 265 rows across 48 tables, with self-verifying consistency checks
 
-15. **[data-models/SCHEMA-RECONCILIATION.md](./data-models/SCHEMA-RECONCILIATION.md)** - Schema Reconciliation
+16. **[data-models/SCHEMA-RECONCILIATION.md](./data-models/SCHEMA-RECONCILIATION.md)** - Schema Reconciliation
     - How the two legacy schemas were merged
     - Every capability the D1 pass dropped, and which were restored
     - Verification results and post-merge corrections
