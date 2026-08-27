@@ -6,12 +6,16 @@
 # all invisible on the page and fatal on first contact. Run it after any change
 # to the schema or to a migration.
 #
-#   ./scripts/verify-migrations.sh                # uses a temp cluster
-#   PGPORT=55432 ./scripts/verify-migrations.sh   # reuse a running one
+#   ./scripts/verify-migrations.sh                    # uses a temp cluster
+#   ./scripts/verify-migrations.sh --with-mock-data   # also load Northwind
+#   PGPORT=55432 ./scripts/verify-migrations.sh       # reuse a running one
 #
 # Requires postgresql@17 binaries on PATH (brew install postgresql@17).
 
 set -euo pipefail
+
+WITH_MOCK=0
+[ "${1:-}" = "--with-mock-data" ] && WITH_MOCK=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATIONS="$ROOT/app/supabase/migrations"
@@ -107,16 +111,18 @@ SELECT pg_temp.check('Data API stays closed (no grants to anon/authenticated)',
     WHERE table_schema='public' AND grantee IN ('anon','authenticated')), 0);
 
 -- ---- seed ----------------------------------------------------------------
+-- Fixture subdomains are namespaced so they cannot collide with real seed data
+-- (mock-data.sql also claims 'northwind').
 INSERT INTO tenants (id, subdomain, company_name) VALUES
-  ('11111111-1111-1111-1111-111111111111','northwind','Northwind'),
-  ('33333333-3333-3333-3333-333333333333','other','Other Corp');
+  ('11111111-1111-1111-1111-111111111111','verify-a','Verify Tenant A'),
+  ('33333333-3333-3333-3333-333333333333','verify-b','Verify Tenant B');
 INSERT INTO tenant_users (tenant_id, user_id, role, is_active, is_default_tenant)
 VALUES ('11111111-1111-1111-1111-111111111111',
         '22222222-2222-2222-2222-222222222222','admin',true,true);
 INSERT INTO employees (tenant_id, first_name, last_name, email, start_date, created_by) VALUES
-  ('11111111-1111-1111-1111-111111111111','Ada','Lovelace','ada@nw.test','2024-01-15','22222222-2222-2222-2222-222222222222'),
-  ('11111111-1111-1111-1111-111111111111','Alan','Turing','alan@nw.test','2024-02-01','22222222-2222-2222-2222-222222222222'),
-  ('33333333-3333-3333-3333-333333333333','Grace','Hopper','g@other.test','2024-03-01','22222222-2222-2222-2222-222222222222');
+  ('11111111-1111-1111-1111-111111111111','Ada','Lovelace','ada@verify-a.test','2024-01-15','22222222-2222-2222-2222-222222222222'),
+  ('11111111-1111-1111-1111-111111111111','Alan','Turing','alan@verify-a.test','2024-02-01','22222222-2222-2222-2222-222222222222'),
+  ('33333333-3333-3333-3333-333333333333','Grace','Hopper','grace@verify-b.test','2024-03-01','22222222-2222-2222-2222-222222222222');
 
 -- ---- the auth hook -------------------------------------------------------
 -- Each check runs in its own transaction with SET LOCAL, which is exactly the
@@ -184,7 +190,7 @@ psql -d "$DB" -q -v ON_ERROR_STOP=1 -c "
       SET LOCAL ROLE app_user;
       SET LOCAL request.jwt.claims = '{\"app_metadata\":{\"tenant_id\":\"11111111-1111-1111-1111-111111111111\"}}';
       INSERT INTO employees (tenant_id, first_name, last_name, email, start_date, created_by)
-      VALUES ('33333333-3333-3333-3333-333333333333','Mallory','Evil','m@evil.test','2024-01-01',
+      VALUES ('33333333-3333-3333-3333-333333333333','Mallory','Evil','mallory@verify-b.test','2024-01-01',
               '22222222-2222-2222-2222-222222222222');
     COMMIT;" >/dev/null 2>&1
 rc=$?
@@ -195,6 +201,40 @@ if [ "$rc" -eq 0 ]; then
   exit 1
 fi
 echo "    pass  cross-tenant insert rejected by WITH CHECK (psql rc=$rc)"
+
+if [ "$WITH_MOCK" = 1 ]; then
+  echo "==> loading mock data (docs/data-models/mock-data.sql)"
+  # Loaded as the owner: the file seeds several tenants' worth of reference data
+  # and self-verifies at the end. It supplies its own timestamps, so it does not
+  # depend on the defaults added by 20260827000003.
+  set +e
+  mock_out="$(psql -d "$DB" -q -v ON_ERROR_STOP=1 \
+                   -f "$ROOT/docs/data-models/mock-data.sql" 2>&1)"
+  mock_rc=$?
+  set -e
+  if [ "$mock_rc" -ne 0 ]; then
+    echo "    FAIL  mock data did not load"
+    echo "$mock_out" | grep -E 'ERROR|DETAIL' | head -5 | sed 's/^/    /'
+    exit 1
+  fi
+  echo "$mock_out" | grep -E 'NOTICE:' | sed 's/^/    /'
+
+  echo "==> reading it back through RLS as app_user"
+  psql -d "$DB" -q -v ON_ERROR_STOP=1 <<'SQL'
+\pset format aligned
+BEGIN;
+  SET LOCAL ROLE app_user;
+  SET LOCAL request.jwt.claims =
+    '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"}}';
+  SELECT 'employees' AS table, count(*) FROM employees
+  UNION ALL SELECT 'invoices',      count(*) FROM invoices
+  UNION ALL SELECT 'payroll_runs',  count(*) FROM payroll_runs
+  UNION ALL SELECT 'time_entries',  count(*) FROM time_tracking_entries
+  UNION ALL SELECT 'journal_lines', count(*) FROM journal_entry_lines
+  ORDER BY 1;
+COMMIT;
+SQL
+fi
 
 echo
 echo "All checks passed."
