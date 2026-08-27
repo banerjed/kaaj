@@ -520,6 +520,7 @@ tenancy with colliding natural keys), and `data-models/d1-best-practices.md`
 | 3 | ~~Rebuild FTS5 search as `tsvector` + GIN~~ — **done** | — | — |
 | 4 | Choose the application host (Fly / Render / Railway) and match its region to the Supabase project | Deployment | — |
 | 5 | Confirm whether any prospect has actually asked for on-premise deployment | ADR-007, ADR-008 | — |
+| 6a | **Add the AI assistant schema** (`ai_conversations`, `ai_messages`, `ai_knowledge_base`, `ai_user_preferences`) — Phase 1 module #5 has no storage; deferred by decision on 2026-08-27 | AI Assistant module | — |
 | 6 | Decide the India payroll launch scope — the schema supports it and `validation-utils.js` validates PAN/Aadhaar, but it is a large compliance surface | Roadmap | — |
 | 7 | Write per-country seed data (chart of accounts, leave policies, tax rates) | Onboarding | — |
 

@@ -213,7 +213,7 @@ CREATE TABLE tenants (
     fiscal_year_start     TEXT DEFAULT '01-01',
     company_size          TEXT CHECK (company_size IN ('1-10', '11-50', '51-200', '201-500', '501+')),
     industry              TEXT,
-    trial_end_date        TEXT,
+    trial_end_date        DATE,
     primary_contact_name  TEXT,
     primary_contact_email TEXT,
     primary_contact_phone TEXT,
@@ -575,7 +575,7 @@ CREATE TABLE clients (
     tax_id                TEXT,
     portal_access_enabled BOOLEAN DEFAULT FALSE,
     account_manager_id    UUID,
-    acquisition_date      TEXT,
+    acquisition_date      DATE,
     acquisition_source    TEXT,
     custom_fields         TEXT DEFAULT '{}',
     notes                 TEXT,
@@ -681,7 +681,7 @@ CREATE TABLE compensation_premiums (
     premium_id            TEXT,
     rate_multiplier       NUMERIC(18,4),
     amount                NUMERIC(18,4),
-    eligibility_rules     TEXT,
+    eligibility_rules     JSONB,
     status                TEXT,
     updated_at            TIMESTAMPTZ NOT NULL,
     UNIQUE (tenant_id, premium_id)
@@ -979,15 +979,15 @@ CREATE TABLE firm_benefits_plans (
     coverage_type         TEXT,
     network_type          TEXT,
     is_active             BOOLEAN DEFAULT TRUE,
-    effective_date        TEXT NOT NULL,
-    end_date              TEXT,
+    effective_date        DATE NOT NULL,
+    end_date              DATE,
     employee_cost_monthly REAL,
     employer_cost_monthly REAL,
     total_premium_monthly REAL,
     currency              TEXT DEFAULT 'USD',
-    plan_details          TEXT DEFAULT '{}',
+    plan_details          JSONB DEFAULT '{}',
     cost_tiers            TEXT DEFAULT '[]',
-    eligibility_rules     TEXT DEFAULT '{}',
+    eligibility_rules     JSONB DEFAULT '{}',
     open_enrollment_start TEXT,
     open_enrollment_end   TEXT,
     allows_new_hire_enrollment BOOLEAN DEFAULT TRUE,
@@ -1045,8 +1045,8 @@ CREATE TABLE hr_attendance (
     attendance_id         TEXT,
     employee_id           UUID NOT NULL,
     attendance_date       DATE NOT NULL,
-    clock_in_time         TEXT,
-    clock_out_time        TEXT,
+    clock_in_time         TIMESTAMPTZ,
+    clock_out_time        TIMESTAMPTZ,
     clock_in_location     TEXT,
     clock_out_location    TEXT,
     break_minutes         INTEGER DEFAULT 0,
@@ -1081,7 +1081,7 @@ CREATE TABLE hr_benefits_enrollments (
     status                TEXT DEFAULT 'active',
     dependents            TEXT,
     beneficiaries         TEXT,
-    election_details      TEXT,
+    election_details      JSONB,
     created_at            TIMESTAMPTZ NOT NULL,
     updated_at            TIMESTAMPTZ NOT NULL,
     UNIQUE (tenant_id, enrollment_id)
@@ -1094,7 +1094,7 @@ CREATE TABLE hr_change_requests (
     requested_by          TEXT NOT NULL,
     requested_for         TEXT NOT NULL,
     request_type          TEXT NOT NULL,
-    request_details       TEXT NOT NULL,
+    request_details       JSONB NOT NULL,
     approval_chain        TEXT,
     status                TEXT DEFAULT 'pending',
     comments              TEXT,
@@ -1174,8 +1174,8 @@ CREATE TABLE hr_onboarding_tasks (
     due_date              DATE,
     completion_date       DATE,
     status                TEXT DEFAULT 'pending',
-    template_data         TEXT,
-    result_data           TEXT,
+    template_data         JSONB,
+    result_data           JSONB,
     priority              TEXT,
     created_at            TIMESTAMPTZ NOT NULL,
     updated_at            TIMESTAMPTZ NOT NULL,
@@ -1576,7 +1576,7 @@ CREATE TABLE payroll_pay_schedules (
     pay_period_days       INTEGER,
     is_default            BOOLEAN DEFAULT FALSE,
     configuration         TEXT DEFAULT '{}',
-    next_pay_date         TEXT,
+    next_pay_date         DATE,
     upcoming_pay_dates    TEXT DEFAULT '[]',
     description           TEXT,
     version               INTEGER DEFAULT 1
@@ -1837,7 +1837,7 @@ CREATE TABLE pm_dashboard_widgets (
     show_title            BOOLEAN DEFAULT TRUE,
     is_text_widget        BOOLEAN DEFAULT FALSE,
     cache_enabled         BOOLEAN DEFAULT TRUE,
-    cached_data           TEXT,
+    cached_data           JSONB,
     cached_at             TIMESTAMPTZ,
     cache_ttl_seconds     INTEGER DEFAULT 300,
     created_at            TIMESTAMPTZ NOT NULL,
@@ -1990,8 +1990,8 @@ CREATE TABLE pm_task_time_entries (
     task_id               UUID NOT NULL,
     project_id            UUID NOT NULL,
     employee_id           UUID NOT NULL,
-    start_time            TEXT NOT NULL,
-    end_time              TEXT,
+    start_time            TIMESTAMPTZ NOT NULL,
+    end_time              TIMESTAMPTZ,
     duration_minutes      INTEGER,
     is_manual_entry       BOOLEAN DEFAULT FALSE,
     entry_date            DATE NOT NULL,
@@ -2283,8 +2283,8 @@ CREATE TABLE time_tracking_entries (
     task_id               UUID,
     client_id             UUID,
     entry_date            DATE NOT NULL,
-    start_time            TEXT,
-    end_time              TEXT,
+    start_time            TIMESTAMPTZ,
+    end_time              TIMESTAMPTZ,
     duration_minutes      INTEGER,
     duration_hours        NUMERIC(18,4),
     hours                 NUMERIC(18,4) NOT NULL,
@@ -2609,6 +2609,261 @@ CREATE TABLE time_tracking_hourly_rates (
 CREATE INDEX idx_tthr_lookup
     ON time_tracking_hourly_rates (tenant_id, employee_id, client_id, effective_from DESC)
     WHERE is_active;
+
+-- =============================================================================
+-- SECTION 9 — MODULE COVERAGE ADDITIONS (2026-08-27)
+-- =============================================================================
+-- Added after auditing all 13 module specifications against the schema. Each
+-- table below closes a gap where a Phase 1 requirement had no storage.
+-- Rationale per table; user stories cited where they exist.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- Employee bank accounts — module-payroll.md FR-PAY-005, US-PAY-010
+-- -----------------------------------------------------------------------------
+-- Gap: the schema had no employee banking at all. bank_accounts holds the
+-- COMPANY's accounts (accounting module) and vendors holds vendor banking, so
+-- payroll had no way to pay anyone.
+--
+-- Supports ACH (US), NEFT/RTGS (India) and SEPA, plus split deposits across
+-- multiple accounts by percentage or fixed amount.
+CREATE TABLE employee_bank_accounts (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id           UUID NOT NULL,
+
+    account_holder_name   TEXT NOT NULL,
+    bank_name             TEXT NOT NULL,
+    branch_name           TEXT,
+    country               VARCHAR(2) NOT NULL,
+    currency              VARCHAR(3) NOT NULL,
+    account_type          TEXT NOT NULL DEFAULT 'checking'
+        CHECK (account_type IN ('checking','savings','paycard')),
+
+    -- Account identifiers. Store only the encrypted value plus a display mask;
+    -- see "Sensitive Data Encryption" in architecture-technical.md.
+    account_number_encrypted TEXT NOT NULL,
+    account_number_last4  VARCHAR(4),
+    routing_number        TEXT,             -- US ABA
+    ifsc_code             TEXT,             -- India
+    sort_code             TEXT,             -- UK
+    iban                  TEXT,             -- SEPA
+    bic_swift             TEXT,
+
+    -- Split deposits: exactly one primary; others take a percentage or a fixed
+    -- amount, and the primary receives the remainder.
+    is_primary            BOOLEAN NOT NULL DEFAULT FALSE,
+    allocation_type       TEXT NOT NULL DEFAULT 'remainder'
+        CHECK (allocation_type IN ('remainder','percentage','fixed_amount')),
+    allocation_value      NUMERIC(12,2),
+    priority              INT NOT NULL DEFAULT 1,
+
+    -- Prenote (zero-dollar verification) per FR-PAY-005
+    verification_status   TEXT NOT NULL DEFAULT 'unverified'
+        CHECK (verification_status IN ('unverified','prenote_sent','verified','failed')),
+    prenote_sent_at       TIMESTAMPTZ,
+    verified_at           TIMESTAMPTZ,
+
+    is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+    effective_from        DATE NOT NULL DEFAULT CURRENT_DATE,
+    effective_to          DATE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by            UUID,
+
+    CHECK (allocation_type = 'remainder' OR allocation_value IS NOT NULL),
+    CHECK (effective_to IS NULL OR effective_to >= effective_from)
+);
+
+-- Exactly one primary account per employee at a time.
+CREATE UNIQUE INDEX idx_emp_bank_primary
+    ON employee_bank_accounts (tenant_id, employee_id)
+    WHERE is_primary AND is_active;
+CREATE INDEX idx_emp_bank_employee
+    ON employee_bank_accounts (tenant_id, employee_id, priority)
+    WHERE is_active;
+
+-- -----------------------------------------------------------------------------
+-- Employment history — module-hr.md US-HR-007/008/010/011, FR-HR-003
+-- -----------------------------------------------------------------------------
+-- Gap: compensation_base gave effective-dated SALARY history, but job title,
+-- level, department, manager and location existed only as current values on
+-- employees. "Record a job change (promotion, transfer, department change)"
+-- and "view my full employment history" had no storage.
+--
+-- One row per change, holding both sides so the record stays readable even if
+-- a department or title is later renamed.
+CREATE TABLE hr_employment_history (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id           UUID NOT NULL,
+
+    effective_date        DATE NOT NULL,
+    change_type           TEXT NOT NULL
+        CHECK (change_type IN ('hire','promotion','lateral_move','demotion',
+                               'transfer','title_change','manager_change',
+                               'location_change','fte_change','status_change',
+                               'compensation_change','rehire','termination')),
+
+    -- Previous state (NULL on hire)
+    previous_job_title    TEXT,
+    previous_job_level    TEXT,
+    previous_department_code TEXT,
+    previous_manager_id   UUID,
+    previous_location_code TEXT,
+    previous_employment_type employment_type,
+    previous_fte          NUMERIC(4,2),
+
+    -- New state
+    job_title             TEXT,
+    job_level             TEXT,
+    department_code       TEXT,
+    manager_id            UUID,
+    location_code         TEXT,
+    new_employment_type   employment_type,
+    fte                   NUMERIC(4,2),
+
+    -- Compensation at the time of the change. The authoritative record is
+    -- compensation_base; this is denormalized for the history view so it can be
+    -- rendered without a temporal join.
+    compensation_id       UUID,
+    compensation_amount   NUMERIC(18,2),
+    compensation_currency VARCHAR(3),
+    compensation_type     compensation_type,
+
+    -- US-HR-011: reasons drive compensation-trend analysis
+    reason                TEXT NOT NULL
+        CHECK (reason IN ('new_hire','promotion','cost_of_living','market_adjustment',
+                          'merit_increase','reorganization','employee_request',
+                          'performance','role_change','relocation','other')),
+    reason_notes          TEXT,
+
+    approved_by           UUID,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by            UUID
+);
+
+CREATE INDEX idx_emp_history_employee
+    ON hr_employment_history (tenant_id, employee_id, effective_date DESC);
+CREATE INDEX idx_emp_history_type
+    ON hr_employment_history (tenant_id, change_type, effective_date DESC);
+
+-- -----------------------------------------------------------------------------
+-- Onboarding templates — module-hr.md FR-HR-009
+-- -----------------------------------------------------------------------------
+-- Gap: hr_onboarding_tasks.template_data held a per-employee COPY of whatever
+-- template was applied, so templates could not be maintained centrally.
+-- "Onboarding tasks auto-created from template on hire" needs a definition.
+CREATE TABLE hr_onboarding_templates (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    template_code         TEXT NOT NULL,
+    template_name         TEXT NOT NULL,
+    template_name_i18n    JSONB,
+    description           TEXT,
+
+    -- Which new hires this template applies to; NULL = all
+    applies_to_department_code TEXT,
+    applies_to_location_code   TEXT,
+    applies_to_employment_types JSONB NOT NULL DEFAULT '[]'::jsonb,
+
+    is_default            BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by            UUID,
+
+    UNIQUE (tenant_id, template_code)
+);
+
+CREATE TABLE hr_onboarding_template_tasks (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    template_id           UUID NOT NULL,
+
+    task_name             TEXT NOT NULL,
+    task_name_i18n        JSONB,
+    description           TEXT,
+
+    -- FR-HR-009 task types
+    task_type             TEXT NOT NULL
+        CHECK (task_type IN ('document_upload','form_completion','training',
+                             'meeting','equipment_request','e_signature',
+                             'i9_verification','policy_acknowledgment','other')),
+
+    -- FR-HR-009 phases
+    phase                 TEXT NOT NULL DEFAULT 'first_day'
+        CHECK (phase IN ('pre_boarding','first_day','first_week',
+                         'first_30_days','first_60_days','first_90_days')),
+
+    -- Who it lands on; resolved to a person when the template is applied
+    assignee_role         TEXT NOT NULL DEFAULT 'employee'
+        CHECK (assignee_role IN ('employee','hr','manager','buddy','it','facilities')),
+
+    -- Days relative to start date; negative = before starting
+    due_offset_days       INT NOT NULL DEFAULT 0,
+    sort_order            INT NOT NULL DEFAULT 0,
+    is_required           BOOLEAN NOT NULL DEFAULT TRUE,
+    reminder_days_before  INT,
+    task_config           JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_onboarding_tmpl_tasks
+    ON hr_onboarding_template_tasks (tenant_id, template_id, phase, sort_order)
+    WHERE is_active;
+
+-- -----------------------------------------------------------------------------
+-- Company news — module-hr.md FR-HR-011 (Company News Feed widget)
+-- -----------------------------------------------------------------------------
+-- Note: birthdays and work anniversaries are DERIVED from employees.birth_date
+-- and employees.start_date and need no table — see v_upcoming_celebrations
+-- below. Privacy controls already live in employees.celebration_preferences.
+-- What genuinely had no home was announcements and recognition posts.
+CREATE TABLE hr_company_news (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+    title                 TEXT NOT NULL,
+    title_i18n            JSONB,
+    body                  TEXT NOT NULL,
+    body_i18n             JSONB,
+    summary               TEXT,
+
+    post_type             TEXT NOT NULL DEFAULT 'announcement'
+        CHECK (post_type IN ('announcement','recognition','event','policy_update','milestone')),
+
+    -- Audience; NULL means everyone
+    audience_department_code TEXT,
+    audience_location_code   TEXT,
+    audience_group_id     UUID,
+
+    -- Recognition posts reference the person being recognized
+    subject_employee_id   UUID,
+
+    -- Events carry a date; announcements do not
+    event_date            DATE,
+    event_location        TEXT,
+
+    is_pinned             BOOLEAN NOT NULL DEFAULT FALSE,
+    publish_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at            TIMESTAMPTZ,
+    status                TEXT NOT NULL DEFAULT 'published'
+        CHECK (status IN ('draft','published','archived')),
+
+    attachments           JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by            UUID,
+    author_employee_id    UUID
+);
+
+CREATE INDEX idx_company_news_feed
+    ON hr_company_news (tenant_id, publish_at DESC)
+    WHERE status = 'published';
 
 -- =============================================================================
 -- SECTION 5 — ROW-LEVEL SECURITY (ADR-003)
@@ -3184,6 +3439,39 @@ ALTER TABLE exchange_rates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY exchange_rates_read ON exchange_rates FOR SELECT USING (true);
 
 
+
+-- RLS for the module-coverage additions (SECTION 9)
+
+ALTER TABLE employee_bank_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_bank_accounts FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON employee_bank_accounts
+    USING (tenant_id = app.current_tenant_id())
+    WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE hr_employment_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hr_employment_history FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON hr_employment_history
+    USING (tenant_id = app.current_tenant_id())
+    WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE hr_onboarding_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hr_onboarding_templates FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON hr_onboarding_templates
+    USING (tenant_id = app.current_tenant_id())
+    WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE hr_onboarding_template_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hr_onboarding_template_tasks FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON hr_onboarding_template_tasks
+    USING (tenant_id = app.current_tenant_id())
+    WITH CHECK (tenant_id = app.current_tenant_id());
+
+ALTER TABLE hr_company_news ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hr_company_news FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON hr_company_news
+    USING (tenant_id = app.current_tenant_id())
+    WITH CHECK (tenant_id = app.current_tenant_id());
+
 -- =============================================================================
 -- SECTION 6 — INDEXES (ADR-003 rule 2: tenant_id LEADS every index)
 -- =============================================================================
@@ -3675,3 +3963,100 @@ ALTER TABLE pm_dashboard_widgets ADD CONSTRAINT fk_pm_dashboard_widgets_dashboar
 ALTER TABLE employee_group_members ADD CONSTRAINT fk_employee_group_members_employee_id FOREIGN KEY (employee_id) REFERENCES employees(id);
 ALTER TABLE employee_assets ADD CONSTRAINT fk_employee_assets_employee_id FOREIGN KEY (employee_id) REFERENCES employees(id);
 ALTER TABLE ticketing_attachments ADD CONSTRAINT fk_ticketing_attachments_ticket_id FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id);
+
+-- Foreign keys for the module-coverage additions (SECTION 9)
+ALTER TABLE employee_bank_accounts ADD CONSTRAINT fk_eba_employee
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+ALTER TABLE hr_employment_history ADD CONSTRAINT fk_heh_employee
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+ALTER TABLE hr_employment_history ADD CONSTRAINT fk_heh_manager
+    FOREIGN KEY (manager_id) REFERENCES employees(id);
+ALTER TABLE hr_employment_history ADD CONSTRAINT fk_heh_prev_manager
+    FOREIGN KEY (previous_manager_id) REFERENCES employees(id);
+ALTER TABLE hr_employment_history ADD CONSTRAINT fk_heh_compensation
+    FOREIGN KEY (compensation_id) REFERENCES compensation_base(id);
+ALTER TABLE hr_onboarding_template_tasks ADD CONSTRAINT fk_hott_template
+    FOREIGN KEY (template_id) REFERENCES hr_onboarding_templates(id) ON DELETE CASCADE;
+ALTER TABLE hr_company_news ADD CONSTRAINT fk_hcn_subject
+    FOREIGN KEY (subject_employee_id) REFERENCES employees(id) ON DELETE SET NULL;
+ALTER TABLE hr_company_news ADD CONSTRAINT fk_hcn_author
+    FOREIGN KEY (author_employee_id) REFERENCES employees(id) ON DELETE SET NULL;
+ALTER TABLE hr_company_news ADD CONSTRAINT fk_hcn_group
+    FOREIGN KEY (audience_group_id) REFERENCES employee_user_groups(id) ON DELETE SET NULL;
+
+-- -----------------------------------------------------------------------------
+-- Celebrations — module-hr.md FR-HR-012, US-HR-070/075
+-- -----------------------------------------------------------------------------
+-- Birthdays and work anniversaries are derived, not stored: a table would
+-- duplicate employees.birth_date and employees.start_date and immediately drift.
+-- Privacy controls read from employees.celebration_preferences, e.g.
+--   {"show_birthday": true, "show_age": false, "show_anniversary": true}
+CREATE OR REPLACE VIEW v_upcoming_celebrations AS
+SELECT
+    e.tenant_id,
+    e.id            AS employee_id,
+    e.first_name,
+    e.last_name,
+    e.preferred_name,
+    e.department_code,
+    e.location_code,
+    'birthday'      AS celebration_type,
+    -- this year's occurrence, rolling to next year once it has passed
+    (date_trunc('year', CURRENT_DATE)
+       + (date_trunc('day', e.birth_date) - date_trunc('year', e.birth_date)))::date
+       + CASE WHEN (date_trunc('year', CURRENT_DATE)
+                     + (date_trunc('day', e.birth_date) - date_trunc('year', e.birth_date)))::date
+                   < CURRENT_DATE
+              THEN INTERVAL '1 year' ELSE INTERVAL '0' END AS celebration_date,
+    NULL::int       AS years,
+    coalesce((e.celebration_preferences ->> 'show_age')::boolean, false) AS show_detail
+  FROM employees e
+ WHERE e.is_active
+   AND e.birth_date IS NOT NULL
+   AND coalesce((e.celebration_preferences ->> 'show_birthday')::boolean, true)
+
+UNION ALL
+
+SELECT
+    e.tenant_id, e.id, e.first_name, e.last_name, e.preferred_name,
+    e.department_code, e.location_code,
+    'work_anniversary',
+    (date_trunc('year', CURRENT_DATE)
+       + (date_trunc('day', e.start_date) - date_trunc('year', e.start_date)))::date
+       + CASE WHEN (date_trunc('year', CURRENT_DATE)
+                     + (date_trunc('day', e.start_date) - date_trunc('year', e.start_date)))::date
+                   < CURRENT_DATE
+              THEN INTERVAL '1 year' ELSE INTERVAL '0' END,
+    (EXTRACT(YEAR FROM age(CURRENT_DATE, e.start_date)))::int + 1,
+    coalesce((e.celebration_preferences ->> 'show_anniversary')::boolean, true)
+  FROM employees e
+ WHERE e.is_active
+   AND e.start_date IS NOT NULL
+   AND coalesce((e.celebration_preferences ->> 'show_anniversary')::boolean, true);
+
+-- The view inherits RLS from employees, so it is tenant-safe by construction.
+
+-- -----------------------------------------------------------------------------
+-- Ticketing SLA — module-ticketing.md, /reports/sla-compliance
+-- -----------------------------------------------------------------------------
+-- Gap: the spec configures slaHours per category and exposes an SLA compliance
+-- report, but due_date was DATE (too coarse for a 4-hour SLA) and there was
+-- nothing to measure first response against.
+ALTER TABLE ticketing_tickets
+    ADD COLUMN sla_due_at             TIMESTAMPTZ,
+    ADD COLUMN sla_response_due_at    TIMESTAMPTZ,
+    ADD COLUMN first_response_at      TIMESTAMPTZ,
+    ADD COLUMN sla_paused_seconds     INT NOT NULL DEFAULT 0,
+    ADD COLUMN sla_resolution_breached BOOLEAN,
+    ADD COLUMN sla_response_breached  BOOLEAN;
+
+-- due_date was DATE NOT NULL, which forced a due date onto every ticket and
+-- could not express an hours-based SLA.
+ALTER TABLE ticketing_tickets ALTER COLUMN due_date DROP NOT NULL;
+
+CREATE INDEX idx_tickets_sla_open
+    ON ticketing_tickets (tenant_id, sla_due_at)
+    WHERE status NOT IN ('resolved','closed');
+
+COMMENT ON COLUMN ticketing_tickets.sla_paused_seconds IS
+    'Time spent in a paused state (e.g. awaiting customer), excluded from SLA elapsed time.';

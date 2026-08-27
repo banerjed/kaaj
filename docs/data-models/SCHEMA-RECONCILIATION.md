@@ -1,6 +1,6 @@
 # Schema Reconciliation
 
-**Version:** 1.1
+**Version:** 1.2
 **Last Updated:** August 27, 2026
 **Status:** Authoritative record of the merge
 
@@ -21,7 +21,7 @@ functionality. Merging naively would have silently shipped that loss.
 | `data-models.md` | PostgreSQL | 43 | Superseded — merged in |
 | `data-models/d1-schema-clean.sql` | SQLite / D1 | 52 | Superseded — merged in |
 | `data-models/critical-tables-addon.sql` | SQLite / D1 | 4 | Superseded — merged in |
-| **`data-models/schema.sql`** | **PostgreSQL** | **93** | **Authoritative** |
+| **`data-models/schema.sql`** | **PostgreSQL** | **98** | **Authoritative** |
 
 The two main sources overlapped by only **14 tables** once module prefixes
 (`firm_`, `payroll_`, `compensation_`) were normalized. They were largely
@@ -470,6 +470,95 @@ mock data into PostgreSQL 17 rather than by inspection:
   business-meaning content is not reproduced anywhere else. Each now carries a
   staleness header. A refresh pass should update types and identifier examples,
   and cover the 41 tables they do not yet document.
+
+---
+
+## Module coverage audit (2026-08-27)
+
+All 13 module specifications were audited against the schema. Findings and
+resolutions below. The audit compared each spec's declared entities, its
+`## Data Model` section, and its user stories against the tables actually built.
+
+### Gaps closed — 5 new tables
+
+| Table | Closes | Source requirement |
+|---|---|---|
+| `employee_bank_accounts` | **Payroll could not pay anyone.** The only banking in the schema was `bank_accounts` (the company's own) and `vendors`. | `module-payroll.md` FR-PAY-005, US-PAY-010 |
+| `hr_employment_history` | Job title, department, manager and location existed only as *current* values. `compensation_base` covered salary history; career progression had no store. | `module-hr.md` US-HR-007/008/010/011 |
+| `hr_onboarding_templates` | `hr_onboarding_tasks.template_data` held a per-employee *copy*, so templates could not be maintained centrally. | `module-hr.md` FR-HR-009 |
+| `hr_onboarding_template_tasks` | Task definitions across the pre-boarding → 90-day phases, with role-based assignment. | `module-hr.md` FR-HR-009 |
+| `hr_company_news` | Company news feed and recognition posts had no store. | `module-hr.md` FR-HR-011 |
+
+`employee_bank_accounts` supports ACH, NEFT/RTGS and SEPA, split deposits by
+percentage or fixed amount, and prenote verification. Two constraints are
+enforced by the database: exactly one primary account per employee, and a
+non-remainder allocation must carry a value.
+
+### Gap closed without a table
+
+**Celebrations** (`module-hr.md` FR-HR-012, US-HR-070/075) are served by the
+`v_upcoming_celebrations` **view**. Birthdays and work anniversaries derive from
+`employees.birth_date` and `employees.start_date`; a table would duplicate them
+and immediately drift. Privacy controls read from
+`employees.celebration_preferences`. The view inherits RLS from `employees`, so
+it is tenant-safe by construction.
+
+### Ticketing SLA
+
+`module-ticketing.md` configures `slaHours` per category and exposes
+`/business-areas/{id}/reports/sla-compliance`, but compliance could not be
+computed: `due_date` was `DATE` — too coarse for a 4-hour SLA — and nothing
+recorded first response. Added to `ticketing_tickets`: `sla_due_at`,
+`sla_response_due_at`, `first_response_at`, `sla_paused_seconds`,
+`sla_resolution_breached`, `sla_response_breached`. `due_date` is now nullable,
+since the spec never required one on every ticket.
+
+### Typing corrections — 19 columns
+
+The SQLite→Postgres conversion only retyped columns with a JSON-shaped
+`DEFAULT`, so columns holding JSON without a default stayed `TEXT`. Every one is
+documented as JSONB in `SCHEMA-HELP-GUIDE`.
+
+**`TEXT` → `JSONB` (8):** `compensation_premiums.eligibility_rules`,
+`firm_benefits_plans.plan_details`, `firm_benefits_plans.eligibility_rules`,
+`hr_benefits_enrollments.election_details`, `hr_change_requests.request_details`,
+`hr_onboarding_tasks.template_data`, `hr_onboarding_tasks.result_data`,
+`pm_dashboard_widgets.cached_data`.
+
+**`TEXT` → `DATE` (5):** `tenants.trial_end_date`, `clients.acquisition_date`,
+`firm_benefits_plans.effective_date`, `firm_benefits_plans.end_date`,
+`payroll_pay_schedules.next_pay_date`.
+
+**`TEXT` → `TIMESTAMPTZ` (6):** `hr_attendance.clock_in_time`,
+`hr_attendance.clock_out_time`, `pm_task_time_entries.start_time`,
+`pm_task_time_entries.end_time`, `time_tracking_entries.start_time`,
+`time_tracking_entries.end_time`.
+
+### Deferred
+
+**AI Assistant** (`module-ai-assistant.md`, Phase 1 module #5) specifies
+`ai_conversations`, `ai_messages`, `ai_knowledge_base` and `ai_user_preferences`.
+**None exist**, and the tables were deliberately not added — deferred by
+decision, not oversight. Both source schemas predated the module, so the merge
+had nothing to carry over. This remains the largest known gap, and it is the
+module ADR-001 identifies as the product's clearest differentiator.
+
+### Verified as correctly absent
+
+Not gaps; recorded so they are not "fixed" later:
+
+- **Marketing** — appears in no phase list in `product-specification.md`; the
+  spec is HubSpot competitive research, not a build specification.
+- **Phase 1B modules** — Proposals, CRM, Client Portal, Document Management and
+  Retainer Management have no schema because their module specs do not exist
+  yet. Tracked in `MISSING-FUNCTIONALITY.md`.
+- **Accounting** — Phase 2, but fully modelled with 17 tables. Ahead of its
+  phase, not behind.
+- **`dependents` / `beneficiaries`** — stored as JSONB on
+  `hr_benefits_enrollments`, a preserved D1 simplification. Worth revisiting if
+  per-dependent querying is needed, since `module-hr.md` FR-HR-008 requires
+  name, DOB, relationship and SSN per dependent.
+
 
 ---
 
