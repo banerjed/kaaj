@@ -41,6 +41,18 @@ BEGIN;
 INSERT INTO tenants (id, subdomain, company_name, company_name_i18n, region, data_residency_country, default_locale, default_currency, default_timezone, plan_tier, max_employees, billing_email, billing_currency, billing_status, is_active) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'northwind', 'Northwind Consulting', '{"en-US": "Northwind Consulting", "fr-FR": "Northwind Conseil"}'::jsonb, 'us-east-1', 'US', 'en-US', 'USD', 'America/New_York', 'professional', 200, 'billing@northwind.example', 'USD', 'active', TRUE);
 
+UPDATE tenants SET
+    supported_locales = ARRAY['en-US','en-GB','en-IN','fr-FR','de-DE'],
+    supported_currencies = ARRAY['USD','GBP','INR','EUR'],
+    legal_entity_name = 'Northwind Consulting LLC',
+    industry = 'professional_services',
+    primary_contact_name = 'Sarah Johnson',
+    primary_contact_email = 'sarah.johnson@northwind.example',
+    city = 'New York',
+    state_province = 'NY',
+    billing_country = 'US'
+WHERE id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
+
 -- Tier 3 customization: behaviour settings
 INSERT INTO tenant_settings (tenant_id, namespace, key, value) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'accounting', 'fiscal_year_start', '{"month": 1, "day": 1}'::jsonb),
@@ -61,6 +73,13 @@ INSERT INTO firm_locations (id, tenant_id, location_code, name, name_i18n, city,
     ('bf32fdb3-c7ed-52bd-b5e3-a581d6ab000c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'UK-LON', 'London Office', '{"en-US": "London Office"}'::jsonb, 'London', NULL, 'GB', 'Europe/London', 'en-GB', 'GBP', FALSE, TRUE, 18),
     ('25dc9e1b-aa1f-59ae-ad80-da21c61c8242', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'IN-BLR', 'Bangalore Delivery Centre', '{"en-US": "Bangalore Delivery Centre"}'::jsonb, 'Bangalore', 'Karnataka', 'IN', 'Asia/Kolkata', 'en-IN', 'INR', FALSE, TRUE, 30);
 
+UPDATE firm_locations SET
+    name_i18n = name_i18n || jsonb_build_object('fr-FR', CASE location_code WHEN 'US-NYC' THEN 'Siege de New York' WHEN 'UK-LON' THEN 'Bureau de Londres' ELSE 'Centre de livraison de Bangalore' END),
+    address_line1 = CASE location_code WHEN 'US-NYC' THEN '120 Madison Avenue' WHEN 'UK-LON' THEN '24 King William Street' ELSE '5 Residency Road' END,
+    postal_code = CASE location_code WHEN 'US-NYC' THEN '10016' WHEN 'UK-LON' THEN 'EC4R 9AT' ELSE '560025' END,
+    working_hours = '{"monday": {"start": "09:00", "end": "17:30"}, "tuesday": {"start": "09:00", "end": "17:30"}, "wednesday": {"start": "09:00", "end": "17:30"}, "thursday": {"start": "09:00", "end": "17:30"}, "friday": {"start": "09:00", "end": "16:00"}}'::jsonb
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
+
 -- Department hierarchy: ENG -> ENG-BE, ENG-FE
 INSERT INTO firm_departments (id, tenant_id, department_code, name, name_i18n, parent_department_code, location_code, cost_center, budget_currency, is_active) VALUES
     ('10cfa606-7c38-5de8-b72a-4ec11d9ae922', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ENG', 'Engineering', '{"en-US": "Engineering"}'::jsonb, NULL, 'US-NYC', 'CC-ENG', 'USD', TRUE),
@@ -69,6 +88,17 @@ INSERT INTO firm_departments (id, tenant_id, department_code, name, name_i18n, p
     ('fc0935fd-6c10-5db1-8e61-e458aeca68c0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CONSULT', 'Consulting', '{"en-US": "Consulting"}'::jsonb, NULL, 'US-NYC', 'CC-CONSULT', 'USD', TRUE),
     ('0e8f258e-562d-586e-9961-0344eab74686', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SALES', 'Sales', '{"en-US": "Sales"}'::jsonb, NULL, 'UK-LON', 'CC-SALES', 'USD', TRUE),
     ('3b5a4d7f-644c-5c03-99a6-8f96582393da', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'GA', 'General & Administrative', '{"en-US": "General & Administrative"}'::jsonb, NULL, 'US-NYC', 'CC-GA', 'USD', TRUE);
+
+UPDATE firm_departments SET
+    name_i18n = name_i18n || jsonb_build_object('fr-FR', name, 'de-DE', name),
+    head_employee_id = CASE department_code
+        WHEN 'ENG' THEN '6d466aa9-e51a-5d52-9015-152600855932'::uuid
+        WHEN 'CONSULT' THEN '11f31511-ad53-59c7-9e90-8ee3b553489b'::uuid
+        WHEN 'SALES' THEN 'e05fd53c-ebdf-5049-810a-28a63369f93a'::uuid
+        WHEN 'GA' THEN 'a87e0200-0849-53b6-a491-e882feace3f5'::uuid
+        ELSE '6d466aa9-e51a-5d52-9015-152600855932'::uuid
+    END
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 
 -- Location-specific holiday calendars
 INSERT INTO firm_holidays (id, tenant_id, holiday_id, location_id, location_code, name, name_i18n, date, is_recurring, is_paid, is_mandatory) VALUES
@@ -84,6 +114,11 @@ INSERT INTO firm_job_titles (id, tenant_id, title, title_i18n, is_exempt, is_act
     ('a3e4f0ee-9884-5876-a7dc-5f61d6eaeaaa', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Account Executive', '{"en-US": "Account Executive"}'::jsonb, TRUE, TRUE),
     ('12d2c82c-1840-5ffa-af93-0a3b146e257f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Engineering Manager', '{"en-US": "Engineering Manager"}'::jsonb, TRUE, TRUE),
     ('7e98e315-82a0-580c-9665-ddcce2945242', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Office Administrator', '{"en-US": "Office Administrator"}'::jsonb, FALSE, TRUE);
+
+UPDATE firm_job_titles SET
+    title_i18n = title_i18n || jsonb_build_object('fr-FR', title, 'de-DE', title),
+    description_i18n = jsonb_build_object('en-US', title || ' role expectations and competencies')
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 
 -- Job levels with multi-currency salary ranges
 INSERT INTO firm_job_levels (id, tenant_id, job_title_id, level_name, level_name_i18n, salary_ranges, sort_order) VALUES
@@ -106,43 +141,55 @@ INSERT INTO employees (id, tenant_id, employee_id, employee_number, first_name, 
     ('56bd1329-6740-572f-aa90-c44d1b27bedf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'E011', 'E011', 'Oliver', 'Grant', 'oliver.grant@northwind.example', '+1-212-555-0011', 'active', 'part_time', '2025-06-15', '1988-02-11', 'ENG-FE', 'Software Engineer', 'L3', 'US-NYC', '6d466aa9-e51a-5d52-9015-152600855932', 'America/New_York', 'USD', 104000, 'salary', 'monthly', FALSE, 165, 0.5, TRUE, '{"shirt_size": "M", "legacy_id": "HR-E011"}'::jsonb, '{"show_birthday": true, "show_age": true, "show_anniversary": true}'::jsonb, '{"annual": {"balance": 12.5, "unit": "days"}}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('385f5ae5-e567-5fb6-98f8-b45007099ff8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'E012', 'E012', 'Nadia', 'Hassan', 'nadia.hassan@northwind.example', '+1-212-555-0012', 'active', 'contractor', '2025-07-05', '1989-03-12', 'CONSULT', 'Senior Consultant', 'C2', 'US-NYC', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'America/New_York', 'USD', 96000, 'salary', 'monthly', FALSE, 210, 1.0, TRUE, '{"shirt_size": "M", "legacy_id": "HR-E012"}'::jsonb, '{"show_birthday": true, "show_age": true, "show_anniversary": true}'::jsonb, '{"annual": {"balance": 12.5, "unit": "days"}}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
+UPDATE employees SET
+    profile_picture = '/storage/employees/' || employee_id || '/profile.jpg'
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1'
+  AND employee_id IN ('E001','E002','E004');
+
+UPDATE employees SET
+    employment_status = 'terminated',
+    end_date = '2026-01-15',
+    is_active = FALSE
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1'
+  AND employee_id = 'E012';
+
 -- RESTORED table: two effective-dated rows per employee. A payslip reissued for a period before 2025-12-02 must use the earlier amount - impossible with D1 inlining.
 INSERT INTO compensation_base (id, tenant_id, employee_id, effective_from, effective_to, compensation_type, amount, currency, pay_frequency, annual_equivalent, overtime_eligible, change_reason, created_by) VALUES
-    ('143c42f7-486d-500f-b8a3-4e0400b6f277', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', '2024-11-27', '2025-12-01', 'salary', 173900, 'USD', 'monthly', 173900, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('143c42f7-486d-500f-b8a3-4e0400b6f277', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', '2024-11-27', '2025-12-01', 'salary', 173900, 'USD', 'monthly', 173900, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('e2c1dcf2-ca82-5b8b-9360-c2a0cf3232ab', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', '2025-12-02', NULL, 'salary', 185000, 'USD', 'monthly', 185000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('62bd1982-0827-5003-9ede-1a9e6cd41236', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2024-11-27', '2025-12-01', 'salary', 3008000, 'INR', 'monthly', 3008000, TRUE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('62bd1982-0827-5003-9ede-1a9e6cd41236', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2024-11-27', '2025-12-01', 'salary', 3008000, 'INR', 'monthly', 3008000, TRUE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('ff54a17b-03e5-543a-b5e9-5d28d00499c0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2025-12-02', NULL, 'salary', 3200000, 'INR', 'monthly', 3200000, TRUE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('e3557614-a73f-51f1-8054-55a551f8906a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2024-11-27', '2025-12-01', 'salary', 1974000, 'INR', 'monthly', 1974000, TRUE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e3557614-a73f-51f1-8054-55a551f8906a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2024-11-27', '2025-12-01', 'salary', 1974000, 'INR', 'monthly', 1974000, TRUE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('3ca15858-1475-5c1b-8f4b-e3903f77438b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2025-12-02', NULL, 'salary', 2100000, 'INR', 'monthly', 2100000, TRUE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('698bf459-9bd0-5b44-835c-0475b343b885', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2024-11-27', '2025-12-01', 'salary', 139120, 'USD', 'monthly', 139120, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('698bf459-9bd0-5b44-835c-0475b343b885', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2024-11-27', '2025-12-01', 'salary', 139120, 'USD', 'monthly', 139120, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('a73e9ec8-85df-58a6-8654-3e12493944ee', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2025-12-02', NULL, 'salary', 148000, 'USD', 'monthly', 148000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('8d8e2f35-f8c0-57e5-a2f0-5ecd1b88e5a2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '2024-11-27', '2025-12-01', 'salary', 133480, 'USD', 'monthly', 133480, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('8d8e2f35-f8c0-57e5-a2f0-5ecd1b88e5a2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '2024-11-27', '2025-12-01', 'salary', 133480, 'USD', 'monthly', 133480, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('389d9606-f947-503d-98ad-f0fc8aac36d2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '2025-12-02', NULL, 'salary', 142000, 'USD', 'monthly', 142000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('d4a8801e-bc54-528b-bd50-0f695e93efde', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '2024-11-27', '2025-12-01', 'salary', 82720, 'GBP', 'monthly', 82720, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('d4a8801e-bc54-528b-bd50-0f695e93efde', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '2024-11-27', '2025-12-01', 'salary', 82720, 'GBP', 'monthly', 82720, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('964af5c9-d2a1-5c08-9291-f47f2c83873e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '2025-12-02', NULL, 'salary', 88000, 'GBP', 'monthly', 88000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('98f76243-5db8-5dfd-aa94-b7f5c6028fce', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', '2024-11-27', '2025-12-01', 'salary', 77080, 'GBP', 'monthly', 77080, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('98f76243-5db8-5dfd-aa94-b7f5c6028fce', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', '2024-11-27', '2025-12-01', 'salary', 77080, 'GBP', 'monthly', 77080, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('57fc8797-3c9a-5b47-90a8-cafb847e5ceb', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', '2025-12-02', NULL, 'salary', 82000, 'GBP', 'monthly', 82000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('a4dfef96-7936-575f-9407-fc8b054b00b0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2024-11-27', '2025-12-01', 'salary', 66740, 'GBP', 'monthly', 66740, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('a4dfef96-7936-575f-9407-fc8b054b00b0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2024-11-27', '2025-12-01', 'salary', 66740, 'GBP', 'monthly', 66740, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('6f200743-e4a9-5290-90b9-b458700fc3a2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2025-12-02', NULL, 'salary', 71000, 'GBP', 'monthly', 71000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('ef63423e-5c7f-559c-ba7f-190968cefef6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2024-11-27', '2025-12-01', 'salary', 110920, 'USD', 'monthly', 110920, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('ef63423e-5c7f-559c-ba7f-190968cefef6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2024-11-27', '2025-12-01', 'salary', 110920, 'USD', 'monthly', 110920, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('11669902-8e51-528e-a796-59ad223ccf5d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2025-12-02', NULL, 'salary', 118000, 'USD', 'monthly', 118000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('89364685-dd04-573b-85fe-b49fc2cf7e7e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2024-11-27', '2025-12-01', 'salary', 63920, 'USD', 'monthly', 63920, TRUE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('89364685-dd04-573b-85fe-b49fc2cf7e7e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2024-11-27', '2025-12-01', 'salary', 63920, 'USD', 'monthly', 63920, TRUE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('2c3e9e38-4a34-5de4-850a-5b24826960d1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2025-12-02', NULL, 'salary', 68000, 'USD', 'monthly', 68000, TRUE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('f2447a3c-7840-53bf-b001-deaa9fafe2a0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2024-11-27', '2025-12-01', 'salary', 97760, 'USD', 'monthly', 97760, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f2447a3c-7840-53bf-b001-deaa9fafe2a0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2024-11-27', '2025-12-01', 'salary', 97760, 'USD', 'monthly', 97760, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('218fdaf4-cb5c-5017-823b-904c541520fc', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2025-12-02', NULL, 'salary', 104000, 'USD', 'monthly', 104000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('38bdc9b4-506c-5339-9b4a-6d0d06763a40', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', '2024-11-27', '2025-12-01', 'salary', 90240, 'USD', 'monthly', 90240, FALSE, 'initial_offer', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('38bdc9b4-506c-5339-9b4a-6d0d06763a40', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', '2024-11-27', '2025-12-01', 'salary', 90240, 'USD', 'monthly', 90240, FALSE, 'new_hire', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('ca3ce8d1-681d-5529-8ed5-8518f70cf093', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', '2025-12-02', NULL, 'salary', 96000, 'USD', 'monthly', 96000, FALSE, 'annual_review', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- RESTORED table: work authorization expiry is a compliance obligation D1 had dropped
 INSERT INTO employment_terms (id, tenant_id, employee_id, employment_type, start_date, contract_type, probation_period_days, probation_end_date, notice_period_days, work_authorization_type, work_authorization_expiry, fte) VALUES
     ('dc3b2bd4-43d5-57d2-ac07-145993fe8fea', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'full_time', '2024-11-27', 'permanent', 90, '2025-02-25', 30, 'citizen', NULL, 1.0),
-    ('fa32e689-d93e-5108-b74f-d8b645f47490', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'full_time', '2024-12-17', 'permanent', 90, '2025-03-17', 30, 'work_permit', '2027-05-26', 1.0),
-    ('3e2600d8-ec5b-5021-9495-55e7b6f11cc7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'full_time', '2025-01-06', 'permanent', 90, '2025-04-06', 30, 'work_permit', '2027-06-05', 1.0),
+    ('fa32e689-d93e-5108-b74f-d8b645f47490', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'full_time', '2024-12-17', 'permanent', 90, '2025-03-17', 30, 'work_visa', '2027-05-26', 1.0),
+    ('3e2600d8-ec5b-5021-9495-55e7b6f11cc7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'full_time', '2025-01-06', 'permanent', 90, '2025-04-06', 30, 'work_visa', '2027-06-05', 1.0),
     ('7c20ec10-34bf-5dbd-a0f0-93cde5ccab49', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'full_time', '2025-01-26', 'permanent', 90, '2025-04-26', 30, 'citizen', NULL, 1.0),
     ('11dd17a2-33a5-5020-ad69-221cedb9c496', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'full_time', '2025-02-15', 'permanent', 90, '2025-05-16', 30, 'citizen', NULL, 1.0),
-    ('a38702a9-50f3-52de-b857-513d7e01b145', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'full_time', '2025-03-07', 'permanent', 90, '2025-06-05', 30, 'work_permit', '2027-07-05', 1.0),
-    ('867f320c-77dc-5029-9e81-b64ca1887935', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', 'full_time', '2025-03-27', 'permanent', 90, '2025-06-25', 30, 'work_permit', '2027-07-15', 1.0),
-    ('fc990a82-ba3e-5448-ae0a-a5b1dc6cb5f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', 'full_time', '2025-04-16', 'permanent', 90, '2025-07-15', 30, 'work_permit', '2027-07-25', 1.0),
+    ('a38702a9-50f3-52de-b857-513d7e01b145', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'full_time', '2025-03-07', 'permanent', 90, '2025-06-05', 30, 'work_visa', '2027-07-05', 1.0),
+    ('867f320c-77dc-5029-9e81-b64ca1887935', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', 'full_time', '2025-03-27', 'permanent', 90, '2025-06-25', 30, 'work_visa', '2027-07-15', 1.0),
+    ('fc990a82-ba3e-5448-ae0a-a5b1dc6cb5f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', 'full_time', '2025-04-16', 'permanent', 90, '2025-07-15', 30, 'work_visa', '2027-07-25', 1.0),
     ('7b5321eb-83fa-517c-895c-dd7c42f192f9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', 'full_time', '2025-05-06', 'permanent', 90, '2025-08-04', 30, 'citizen', NULL, 1.0),
     ('da977090-28e3-5de5-af25-4d728876b2a7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', 'full_time', '2025-05-26', 'permanent', 90, '2025-08-24', 30, 'citizen', NULL, 1.0),
     ('5c1c5f95-afd9-5c6a-8ae8-8bd13df81a07', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'part_time', '2025-06-15', 'permanent', 90, '2025-09-13', 30, 'citizen', NULL, 0.5),
@@ -199,10 +246,10 @@ INSERT INTO pm_objectives (id, tenant_id, objective_id, objective_number, object
 
 -- Four projects linked to clients and the company objective
 INSERT INTO projects (id, tenant_id, project_id, project_number, project_name, objective_id, client_id, project_manager_id, department_code, location_code, start_date, target_end_date, status, priority, progress_percentage, health_status, budget, currency, estimated_hours, actual_hours, billing_method, is_billable, hourly_rate, client_visible, custom_fields, task_count, completed_task_count, created_at, updated_at, created_by) VALUES
-    ('8257009f-6a91-5fd1-9efb-518198c08e2a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-001', 'PRJ-001', 'Acme ERP Integration', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 180000, 'USD', 1200, 408, 'time_and_materials', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('fda698f3-bf14-5aae-bed6-330c8b5a6a70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-002', 'PRJ-002', 'Britannia Loyalty Platform', '960d66b2-8a52-59d0-8cf8-5c383d031244', '8594031f-d3f3-5d62-a5ab-f99b3a89c720', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 140000, 'GBP', 900, 306, 'time_and_materials', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('f606af3e-f56f-5050-b663-02471b9f9dbd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-003', 'PRJ-003', 'Helios Data Migration', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'e22e6459-7c1d-5857-9908-89d775c82245', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 95000, 'USD', 620, 211, 'time_and_materials', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('1da967fa-e086-53c7-b9d1-7605759dfda3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-004', 'PRJ-004', 'Internal Tooling', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '6d466aa9-e51a-5d52-9015-152600855932', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'on_hold', 'high', 35.0, 'on_track', 0, 'USD', 300, 102, 'time_and_materials', FALSE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+    ('8257009f-6a91-5fd1-9efb-518198c08e2a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-001', 'PRJ-001', 'Acme ERP Integration', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 180000, 'USD', 1200, 408, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('fda698f3-bf14-5aae-bed6-330c8b5a6a70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-002', 'PRJ-002', 'Britannia Loyalty Platform', '960d66b2-8a52-59d0-8cf8-5c383d031244', '8594031f-d3f3-5d62-a5ab-f99b3a89c720', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 140000, 'GBP', 900, 306, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f606af3e-f56f-5050-b663-02471b9f9dbd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-003', 'PRJ-003', 'Helios Data Migration', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'e22e6459-7c1d-5857-9908-89d775c82245', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 95000, 'USD', 620, 211, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('1da967fa-e086-53c7-b9d1-7605759dfda3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-004', 'PRJ-004', 'Internal Tooling', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '6d466aa9-e51a-5d52-9015-152600855932', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'on_hold', 'high', 35.0, 'on_track', 0, 'USD', 300, 102, 'hourly', FALSE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Tasks across projects, mixed statuses
 INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, task_name, status, priority, assigned_to, estimated_hours, actual_hours, progress_percentage, is_billable, due_date, custom_fields, created_at, updated_at, created_by) VALUES
@@ -240,11 +287,24 @@ INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, timeshe
     ('6fe05d7d-a1ea-5532-84cd-1e6d2b7bf4a9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-008', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'e40b5ae5-586e-5cf5-b086-c8acf146e0da', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, '2026-01-08', 7.0, 7.0, TRUE, 150, 1050.0, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('990702ae-fed9-57b0-8b5e-769ed2c28f8b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-009', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'd634105b-83dc-55f4-944b-ea9dcb78d1f6', 'f606af3e-f56f-5050-b663-02471b9f9dbd', 'd144cb33-1f61-5317-993c-074c63e6716e', NULL, '2026-01-09', 8.0, 8.0, TRUE, 260, 2080.0, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
+INSERT INTO time_tracking_billable_expenses (id, tenant_id, expense_id, employee_id, project_id, client_id, expense_date, description, expense_type, category, amount, currency, markup_percentage, markup_amount, billable_amount, has_receipt, receipt_url, is_billable, is_reimbursable, status, approved_by, approved_at, submitted_at, created_at, updated_at) VALUES
+    ('a3fb770c-9ae9-58ab-8104-29a642d613e2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TT-EXP-001', '11f31511-ad53-59c7-9e90-8ee3b553489b', '8257009f-6a91-5fd1-9efb-518198c08e2a', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '2026-01-16', 'Acme onsite workshop airfare', 'travel', 'travel', 845.20, 'USD', 0.00, 0.00, 845.20, TRUE, '/storage/receipts/TT-EXP-001.pdf', TRUE, TRUE, 'approved', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-17T09:00:00Z', '2026-01-16T18:00:00Z', '2026-01-16T18:00:00Z', '2026-01-17T09:00:00Z');
+
 -- Ticketing business areas with per-area number sequences
 INSERT INTO ticketing_business_areas (id, tenant_id, prefix, name, description, active, current_sequence, is_active, created_at, created_by, updated_at) VALUES
     ('872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'IT', 'IT Support', 'Internal IT and equipment requests', TRUE, 3, TRUE, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-01T09:00:00Z'),
     ('2e90b722-25ef-51b7-866b-e93d3bcca1c3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FAC', 'Facilities', 'Office and facilities requests', TRUE, 1, TRUE, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-01T09:00:00Z'),
     ('c9800088-b86b-5ddd-acdc-5b9fbe32f268', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CS', 'Client Support', 'Client-raised support tickets', TRUE, 2, TRUE, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-01T09:00:00Z');
+
+UPDATE ticketing_business_areas SET
+    categories = CASE prefix
+        WHEN 'IT' THEN '[{"key": "hardware", "label": "Hardware"}, {"key": "access", "label": "Access"}]'::jsonb
+        WHEN 'CS' THEN '[{"key": "performance", "label": "Performance"}, {"key": "question", "label": "Question"}]'::jsonb
+        ELSE '[{"key": "facilities", "label": "Facilities"}]'::jsonb
+    END,
+    custom_fields = '{"impact": {"type": "select", "required": true}, "client_visible": {"type": "boolean"}}'::jsonb,
+    roles = '{"agent": ["update", "assign"], "manager": ["close", "reopen"]}'::jsonb
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 
 -- Tickets across three business areas. search_vector is populated by trigger on insert.
 INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, prefix, sequence_number, title, subject, description, category, status, priority, severity, internal_summary, external_summary, private, due_date, logged_at, updated_at, resolved_at, reported_by, logger_id, last_updated_by, assignees, custom_fields, version, created_at) VALUES
@@ -254,6 +314,20 @@ INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, p
     ('7cf9d829-a0aa-5a22-a1f5-f8f7d7464977', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'FAC-0001', 'FAC', 1, 'Meeting room booking system down', 'Meeting room booking system down', 'Meeting room booking system down', 'facilities', 'in_progress', 'medium', 'medium', 'Internal notes for Meeting room booking system down', 'Meeting room booking system down', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
     ('fbc213ca-f362-58d3-aa36-45db45958e60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0001', 'CS', 1, 'Acme reports slow report generation', 'Acme reports slow report generation', 'Acme reports slow report generation', 'performance', 'in_progress', 'high', 'high', 'Internal notes for Acme reports slow report generation', 'Acme reports slow report generation', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '["db1f1f2b-b140-5948-a34e-1c998ed98757"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
     ('6e78ba43-d504-546e-933d-4a5dce8d3313', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0002', 'CS', 2, 'Britannia data export format query', 'Britannia data export format query', 'Britannia data export format query', 'question', 'resolved', 'low', 'low', 'Internal notes for Britannia data export format query', 'Britannia data export format query', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '["b9b84064-a67a-5048-8282-8fc048b4dbfb"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+
+UPDATE ticketing_tickets SET
+    private = TRUE,
+    subscribers = '["6d466aa9-e51a-5d52-9015-152600855932", "a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb,
+    request_type = 'bug_fix',
+    custom_fields = '{"impact": "department", "client_visible": false}'::jsonb
+WHERE ticket_number = 'IT-0003';
+
+UPDATE ticketing_tickets SET
+    parent_ticket_number = 'CS-0001',
+    linked_tickets = '["IT-0001"]'::jsonb,
+    request_type = 'support',
+    custom_fields = '{"impact": "client", "client_visible": true}'::jsonb
+WHERE ticket_number = 'CS-0002';
 
 -- Ticket updates - also trigger-indexed for full-text search
 INSERT INTO ticketing_updates (id, tenant_id, update_id, ticket_id, ticket_number, update_type, author_id, author_employee_id, author_name, comment_text, content_text, visibility, is_internal, created_at) VALUES
@@ -268,16 +342,30 @@ INSERT INTO ticketing_updates (id, tenant_id, update_id, ticket_id, ticket_numbe
 INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, account_name_i18n, account_type, account_subtype, is_bank_account, is_active, currency, current_balance) VALUES
     ('eef02e95-6acb-5039-8acc-56340013e53a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1000', 'Cash at Bank', '{"en-US": "Cash at Bank"}'::jsonb, 'asset', 'current_asset', TRUE, TRUE, 'USD', 0),
     ('a6ecad5d-10af-5286-807b-cd31b3266d99', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1100', 'Accounts Receivable', '{"en-US": "Accounts Receivable"}'::jsonb, 'asset', 'current_asset', FALSE, TRUE, 'USD', 0),
+    ('b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1200', 'Input Tax Recoverable', '{"en-US": "Input Tax Recoverable"}'::jsonb, 'asset', 'current_asset', FALSE, TRUE, 'USD', 0),
     ('3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2000', 'Accounts Payable', '{"en-US": "Accounts Payable"}'::jsonb, 'liability', 'current_liability', FALSE, TRUE, 'USD', 0),
     ('b4399f41-0f93-5eda-8475-df032080505f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2100', 'Payroll Liabilities', '{"en-US": "Payroll Liabilities"}'::jsonb, 'liability', 'current_liability', FALSE, TRUE, 'USD', 0),
+    ('c93f0bd3-06a7-51d0-a670-159daf6420fa', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2200', 'Sales Tax Payable', '{"en-US": "Sales Tax Payable"}'::jsonb, 'liability', 'current_liability', FALSE, TRUE, 'USD', 0),
     ('f272fefe-ad92-5d94-bf3f-b834568c0586', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '3000', 'Retained Earnings', '{"en-US": "Retained Earnings"}'::jsonb, 'equity', 'retained_earnings', FALSE, TRUE, 'USD', 0),
     ('6d1ef213-cb96-5ad4-beaf-1d4e07242d65', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '4000', 'Consulting Revenue', '{"en-US": "Consulting Revenue"}'::jsonb, 'revenue', 'operating_revenue', FALSE, TRUE, 'USD', 0),
     ('8e5bbb5d-e1c7-521a-b4d3-98b8cf3b40e4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '4100', 'Software Revenue', '{"en-US": "Software Revenue"}'::jsonb, 'revenue', 'operating_revenue', FALSE, TRUE, 'USD', 0),
+    ('d7b8a8d7-d0c0-58cf-8ac0-985c1d7520d3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '4200', 'Foreign Exchange Gain', '{"en-US": "Foreign Exchange Gain"}'::jsonb, 'revenue', 'other_income', FALSE, TRUE, 'USD', 0),
     ('169fb687-1575-5bcc-8e1b-2e32cdfc65c2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5000', 'Salaries & Wages', '{"en-US": "Salaries & Wages"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('2f318c15-7833-53a7-a0a1-71a84087dd17', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5100', 'Contractor Costs', '{"en-US": "Contractor Costs"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('c1158fe0-38ae-5741-a84f-a76381cebae3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5200', 'Travel & Entertainment', '{"en-US": "Travel & Entertainment"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('030e294b-88ad-544e-841a-cfda187885ac', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5300', 'Software Subscriptions', '{"en-US": "Software Subscriptions"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
-    ('9d558ace-8adc-52ed-811a-de519ad88a29', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5400', 'Office & Facilities', '{"en-US": "Office & Facilities"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0);
+    ('9d558ace-8adc-52ed-811a-de519ad88a29', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5400', 'Office & Facilities', '{"en-US": "Office & Facilities"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
+    ('47289db6-a99e-5207-8f78-a62e982f8e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5600', 'Payment Processing Fees', '{"en-US": "Payment Processing Fees"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0);
+
+INSERT INTO payroll_tax_rates (id, tenant_id, tax_rate_id, tax_name, tax_name_i18n, tax_type, rate, country_code, country, region, jurisdiction, jurisdiction_type, jurisdiction_code, effective_from, tax_year, tax_collected_account_id, tax_paid_account_id, is_reverse_charge, rate_structure, is_active) VALUES
+    ('a1952ec4-9252-5bbf-89aa-9f2e89d7ef53', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-US-NY-2026', 'New York Sales Tax', '{"en-US": "New York Sales Tax"}'::jsonb, 'sales_tax', 0.08875, 'US', 'US', 'NY', 'US-NY-New York City', 'state_local', 'NYC', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '{"components": [{"name": "state", "rate": 0.04}, {"name": "city", "rate": 0.04875}]}'::jsonb, TRUE),
+    ('f740baac-f88d-557d-b54d-ea24fe1a0b91', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-VAT-2026', 'UK VAT Standard', '{"en-US": "UK VAT Standard"}'::jsonb, 'vat', 0.20000, 'GB', 'GB', NULL, 'GB-HMRC', 'country', 'GB', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '{"components": [{"name": "standard_vat", "rate": 0.20}]}'::jsonb, TRUE),
+    ('10ef757c-3aa2-5c25-8c18-7f7c19bc0ac3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-RC-2026', 'UK VAT Reverse Charge', '{"en-US": "UK VAT Reverse Charge"}'::jsonb, 'vat', 0.00000, 'GB', 'GB', NULL, 'GB-HMRC-REVERSE-CHARGE', 'country', 'GB', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', TRUE, '{"reverse_charge": true, "customer_self_assesses": true}'::jsonb, TRUE);
+
+INSERT INTO exchange_rates (id, from_currency, to_currency, rate_date, rate, inverse_rate, source, is_manual, created_at, created_by) VALUES
+    ('4f4ff4ab-e64c-50f8-9d84-d926f3494dc1', 'GBP', 'USD', '2026-01-21', 1.270000, 0.787402, 'ECB', FALSE, '2026-01-21T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('4ba04769-06cb-520b-a140-c677582102b0', 'GBP', 'USD', '2026-02-07', 1.280000, 0.781250, 'ECB', FALSE, '2026-02-07T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('13639ff8-f902-5e32-b1a0-fde77b5e54aa', 'EUR', 'USD', '2026-01-24', 1.090000, 0.917431, 'ECB', FALSE, '2026-01-24T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Billing customers (mirror of clients)
 INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_name, email, currency, payment_terms, ar_account_id, is_active, custom_fields) VALUES
@@ -285,12 +373,30 @@ INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_na
     ('ac7a04b4-a28e-5a15-9993-596db32c8d4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'BRITCO', 'Britannia Retail Group', 'Britannia Retail Group', 'ap@britco.example', 'GBP', 'net_30', 'a6ecad5d-10af-5286-807b-cd31b3266d99', TRUE, '{}'::jsonb),
     ('df492f8b-55ce-504f-869d-52f5ffc6292d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'Helios Energy', 'ap@helios.example', 'USD', 'net_30', 'a6ecad5d-10af-5286-807b-cd31b3266d99', TRUE, '{}'::jsonb);
 
+UPDATE customers SET
+    billing_address = '{"city": "New York", "state": "NY", "country": "US"}'::jsonb,
+    tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53'
+WHERE customer_number = 'ACME';
+
+UPDATE customers SET
+    billing_address = '{"city": "London", "country": "GB"}'::jsonb,
+    tax_number = 'GB123456789',
+    tax_rate_id = 'f740baac-f88d-557d-b54d-ea24fe1a0b91'
+WHERE customer_number = 'BRITCO';
+
+UPDATE customers SET
+    billing_address = '{"city": "Austin", "state": "TX", "country": "US"}'::jsonb,
+    is_tax_exempt = TRUE,
+    custom_fields = '{"tax_exemption_certificate": "EXEMPT-HELIOS-2026"}'::jsonb
+WHERE customer_number = 'HELIOS';
+
 -- Invoices in mixed states, multi-currency with base conversion
 INSERT INTO invoices (id, tenant_id, customer_id, invoice_number, invoice_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, payment_terms) VALUES
     ('c72699f8-700c-5760-a8e8-19ae6dfd53c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-001', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 42300.0, 0, 42300.0, 42300.0, 0, 42300.0, 0, 42300.0, 42300.0, 0, 'paid', 'net_30'),
-    ('a31732ea-dadb-575f-bd99-cbcfeaba29da', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'INV-2026-002', '2026-01-21', '2026-02-20', 'GBP', 1.27, 'USD', 28860.0, 0, 28860.0, 0, 28860.0, 36652.2, 0, 36652.2, 0, 36652.2, 'sent', 'net_30'),
+    ('a31732ea-dadb-575f-bd99-cbcfeaba29da', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'INV-2026-002', '2026-01-21', '2026-02-20', 'GBP', 1.27, 'USD', 28860.0, 0, 28860.0, 10000.0, 18860.0, 36652.2, 0, 36652.2, 12800.0, 23852.2, 'overdue', 'net_30'),
     ('bee0d3ca-72f7-5ba2-9a31-3bbf17daf320', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'INV-2026-003', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 19760.0, 0, 19760.0, 0, 19760.0, 19760.0, 0, 19760.0, 0, 19760.0, 'draft', 'net_30'),
-    ('37bd63c2-86a1-513c-8404-b731dd666b28', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-004', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 36225.0, 0, 36225.0, 0, 36225.0, 36225.0, 0, 36225.0, 0, 36225.0, 'sent', 'net_30');
+    ('37bd63c2-86a1-513c-8404-b731dd666b28', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-004', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 36225.0, 3214.97, 39439.97, 7000.0, 32439.97, 36225.0, 3214.97, 39439.97, 7000.0, 32439.97, 'partial', 'net_30'),
+    ('a3ff49bc-30c8-57c3-ae07-c0fd6813df3e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-005', '2026-02-05', '2026-02-20', 'USD', 1.0, 'USD', 5000.0, 443.75, 5443.75, 3000.0, 2443.75, 5000.0, 443.75, 5443.75, 3000.0, 2443.75, 'partial', 'net_30');
 
 -- Invoice line items. Invoice subtotal/total are DERIVED from these.
 INSERT INTO invoice_lines (tenant_id, id, invoice_id, line_number, description, quantity, unit_price, amount, revenue_account_id) VALUES
@@ -300,20 +406,83 @@ INSERT INTO invoice_lines (tenant_id, id, invoice_id, line_number, description, 
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '38a295f5-cc12-5286-900a-eb30c0258994', 'bee0d3ca-72f7-5ba2-9a31-3bbf17daf320', 1, 'Data migration services', 76.0, 260, 19760.0, '6d1ef213-cb96-5ad4-beaf-1d4e07242d65'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '9ce4ba89-2258-53c2-94e7-f9afee5aa317', '37bd63c2-86a1-513c-8404-b731dd666b28', 1, 'Integration build - phase 1', 161.0, 225, 36225.0, '6d1ef213-cb96-5ad4-beaf-1d4e07242d65');
 
+INSERT INTO invoice_lines (tenant_id, id, invoice_id, line_number, description, quantity, unit_price, amount, tax_rate_id, tax_amount, revenue_account_id, tracking_categories) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a80c5d4e-d7fc-5e8a-9d10-12db6be8e308', 'a3ff49bc-30c8-57c3-ae07-c0fd6813df3e', 1, 'Recurring support retainer', 1.0, 5000.0, 5000.0, 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53', 443.75, '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', '{"region": "US", "project": "support-retainer"}'::jsonb);
+
+UPDATE invoice_lines SET
+    tracking_categories = '{"region": "US", "project": "acme-erp"}'::jsonb
+WHERE invoice_id IN ('c72699f8-700c-5760-a8e8-19ae6dfd53c5', '37bd63c2-86a1-513c-8404-b731dd666b28');
+
+UPDATE invoice_lines SET
+    tracking_categories = '{"region": "UK", "project": "britannia-loyalty"}'::jsonb
+WHERE invoice_id = 'a31732ea-dadb-575f-bd99-cbcfeaba29da';
+
+UPDATE invoice_lines SET
+    tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53',
+    tax_amount = 3214.97
+WHERE id = '9ce4ba89-2258-53c2-94e7-f9afee5aa317';
+
+UPDATE invoices SET
+    payment_url = 'https://pay.northwind.example/invoices/' || lower(invoice_number),
+    payment_gateway = CASE WHEN customer_id = 'ac7a04b4-a28e-5a15-9993-596db32c8d4e' THEN 'GoCardless' ELSE 'Stripe' END,
+    payment_gateway_id = 'gw_' || lower(replace(invoice_number, '-', '_')),
+    footer_text = 'Thank you for your business.',
+    tracking_categories = '{"segment": "professional_services"}'::jsonb,
+    pdf_url = '/storage/invoices/' || invoice_number || '.pdf',
+    sent_at = invoice_date::timestamptz + INTERVAL '1 hour',
+    viewed_at = invoice_date::timestamptz + INTERVAL '2 days',
+    paid_at = CASE WHEN status='paid' THEN invoice_date::timestamptz + INTERVAL '1 day' ELSE NULL END,
+    is_recurring = CASE WHEN invoice_number='INV-2026-005' THEN TRUE ELSE is_recurring END,
+    recurring_schedule_id = CASE WHEN invoice_number='INV-2026-005' THEN '4d83e8af-2f37-52ff-8971-5e10e9e651b9'::uuid ELSE recurring_schedule_id END
+WHERE invoice_number IN ('INV-2026-001','INV-2026-002','INV-2026-004','INV-2026-005');
+
 -- Journal entries
 INSERT INTO journal_entries (id, tenant_id, entry_number, entry_date, description, source_type, status, accounting_period, fiscal_year, posted_at) VALUES
     ('c1c96d31-cfa4-57d3-9048-06e3ae1725e6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0001', '2026-01-21', 'Invoice INV-2026-001 raised', 'invoice', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
     ('7d5527ea-8449-5a3c-8819-e93caf4073b5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0002', '2026-01-21', 'Payment received - Acme', 'payment', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
-    ('9a2fac71-4b74-5342-8c43-46fb77267929', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0003', '2026-01-21', 'January payroll accrual', 'payroll', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z');
+    ('9a2fac71-4b74-5342-8c43-46fb77267929', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0003', '2026-01-21', 'January payroll accrual', 'payroll', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
+    ('342f47a2-7820-5fa2-9f92-30e641731b41', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0004', '2026-02-07', 'Partial payment allocated across Acme invoices', 'payment', 'posted', '2026-02', 2026, '2026-02-07T13:00:00Z'),
+    ('2a21de82-b959-5412-99ac-89012024b59b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0005', '2026-01-25', 'Bill BILL-AWS-2026-01 approved', 'bill', 'posted', '2026-01', 2026, '2026-01-25T09:00:00Z'),
+    ('52034898-f3d8-542e-8202-97395e16e7df', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0006', '2026-02-10', 'AWS batch vendor payment', 'payment', 'posted', '2026-02', 2026, '2026-02-10T15:00:00Z'),
+    ('d6b96dae-b54e-5c68-b377-1e8caf7bb90f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0007', '2026-02-12', '1099 contractor bill approved', 'bill', 'posted', '2026-02', 2026, '2026-02-12T10:00:00Z'),
+    ('731804dc-b1b9-59a0-9449-14014d9aec92', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0008', '2026-02-15', '1099 contractor payment', 'payment', 'posted', '2026-02', 2026, '2026-02-15T15:00:00Z');
 
 -- Balanced double-entry lines (each entry nets to zero)
 INSERT INTO journal_entry_lines (tenant_id, id, entry_id, account_id, line_number, currency, debit_amount, credit_amount, exchange_rate, base_currency, base_debit_amount, base_credit_amount, description) VALUES
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '34dd6b71-7040-5aa7-98c2-2fb1a0a06e48', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 1, 'USD', 42500, 0, 1.0, 'USD', 42500, 0, 'AR - Acme'),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac4e339f-1054-56ed-8137-9079dd19062c', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 2, 'USD', 0, 42500, 1.0, 'USD', 0, 42500, 'Consulting revenue'),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '3e74ed8d-79d4-5a21-b1a1-7c0fda6f5a1b', '7d5527ea-8449-5a3c-8819-e93caf4073b5', 'eef02e95-6acb-5039-8acc-56340013e53a', 1, 'USD', 42500, 0, 1.0, 'USD', 42500, 0, 'Cash received'),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1f96c924-a682-5c9e-86ce-52a29ad5ecdd', '7d5527ea-8449-5a3c-8819-e93caf4073b5', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 2, 'USD', 0, 42500, 1.0, 'USD', 0, 42500, 'AR cleared'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '34dd6b71-7040-5aa7-98c2-2fb1a0a06e48', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 1, 'USD', 42300, 0, 1.0, 'USD', 42300, 0, 'AR - Acme'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac4e339f-1054-56ed-8137-9079dd19062c', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 2, 'USD', 0, 42300, 1.0, 'USD', 0, 42300, 'Consulting revenue'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '3e74ed8d-79d4-5a21-b1a1-7c0fda6f5a1b', '7d5527ea-8449-5a3c-8819-e93caf4073b5', 'eef02e95-6acb-5039-8acc-56340013e53a', 1, 'USD', 42300, 0, 1.0, 'USD', 42300, 0, 'Cash received'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1f96c924-a682-5c9e-86ce-52a29ad5ecdd', '7d5527ea-8449-5a3c-8819-e93caf4073b5', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 2, 'USD', 0, 42300, 1.0, 'USD', 0, 42300, 'AR cleared'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bc01c486-4fee-5e62-abea-ae7654475e89', '9a2fac71-4b74-5342-8c43-46fb77267929', '169fb687-1575-5bcc-8e1b-2e32cdfc65c2', 1, 'USD', 96500, 0, 1.0, 'USD', 96500, 0, 'Salaries expense'),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf47dc80-aff7-5635-9faf-a46a24a52094', '9a2fac71-4b74-5342-8c43-46fb77267929', 'b4399f41-0f93-5eda-8475-df032080505f', 2, 'USD', 0, 96500, 1.0, 'USD', 0, 96500, 'Payroll liability');
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf47dc80-aff7-5635-9faf-a46a24a52094', '9a2fac71-4b74-5342-8c43-46fb77267929', 'b4399f41-0f93-5eda-8475-df032080505f', 2, 'USD', 0, 96500, 1.0, 'USD', 0, 96500, 'Payroll liability'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '72c7ef17-523f-57ee-8aad-e425438717dc', '342f47a2-7820-5fa2-9f92-30e641731b41', 'eef02e95-6acb-5039-8acc-56340013e53a', 1, 'USD', 10000, 0, 1.0, 'USD', 10000, 0, 'Cash received for Acme invoices'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1a486efa-2451-57ab-b0d1-dd08bb2c0779', '342f47a2-7820-5fa2-9f92-30e641731b41', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 2, 'USD', 0, 10000, 1.0, 'USD', 0, 10000, 'AR cleared across two invoices'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ec4f044a-3361-53e9-97ab-6fefb7d40cf9', '2a21de82-b959-5412-99ac-89012024b59b', '030e294b-88ad-544e-841a-cfda187885ac', 1, 'USD', 1820, 0, 1.0, 'USD', 1820, 0, 'Cloud hosting expense'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6318e165-71e7-58fb-8873-6a24ea97e7b3', '2a21de82-b959-5412-99ac-89012024b59b', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', 2, 'USD', 161.53, 0, 1.0, 'USD', 161.53, 0, 'Recoverable input tax'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'cc3bf7e7-7449-551a-872e-f1cb383ebd3f', '2a21de82-b959-5412-99ac-89012024b59b', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 3, 'USD', 0, 1981.53, 1.0, 'USD', 0, 1981.53, 'AP recognized'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2ea421da-d973-5843-8736-25f6a52dfb12', '52034898-f3d8-542e-8202-97395e16e7df', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 1, 'USD', 2500, 0, 1.0, 'USD', 2500, 0, 'AP cleared in vendor batch'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c357204d-832a-5143-8d34-284c7d34c2a1', '52034898-f3d8-542e-8202-97395e16e7df', 'eef02e95-6acb-5039-8acc-56340013e53a', 2, 'USD', 0, 2500, 1.0, 'USD', 0, 2500, 'Cash paid to AWS'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '64e7ff14-c50e-5f33-9d82-a75850148b18', 'd6b96dae-b54e-5c68-b377-1e8caf7bb90f', '2f318c15-7833-53a7-a0a1-71a84087dd17', 1, 'USD', 900, 0, 1.0, 'USD', 900, 0, '1099 contractor services'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a944d19e-7b99-5982-90a8-9627db39f135', 'd6b96dae-b54e-5c68-b377-1e8caf7bb90f', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 2, 'USD', 0, 900, 1.0, 'USD', 0, 900, 'AP recognized for 1099 vendor'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0df584b-5e52-5a19-a45e-e4892262ad32', '731804dc-b1b9-59a0-9449-14014d9aec92', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 1, 'USD', 900, 0, 1.0, 'USD', 900, 0, 'AP cleared for contractor'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'dc41be53-0c9a-5d74-a45d-4d9cd6634d36', '731804dc-b1b9-59a0-9449-14014d9aec92', 'eef02e95-6acb-5039-8acc-56340013e53a', 2, 'USD', 0, 900, 1.0, 'USD', 0, 900, 'Cash paid to 1099 contractor');
+
+UPDATE journal_entries SET
+    source_id = CASE entry_number
+        WHEN 'JE-2026-0001' THEN 'c72699f8-700c-5760-a8e8-19ae6dfd53c5'::uuid
+        WHEN 'JE-2026-0002' THEN '26361e4b-8a87-5b2a-a692-10ec68e02875'::uuid
+        WHEN 'JE-2026-0004' THEN '4c3b0a1e-770f-55b6-820d-d6ba91c6bf73'::uuid
+        WHEN 'JE-2026-0005' THEN 'fdab0a8b-c4d8-5601-bf23-59c3028e9359'::uuid
+        WHEN 'JE-2026-0006' THEN 'c147933d-3de1-5a49-b045-3645d4bc5eaf'::uuid
+        WHEN 'JE-2026-0007' THEN '0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a'::uuid
+        WHEN 'JE-2026-0008' THEN '0b67be47-d010-5fb5-9766-c4bb19e30878'::uuid
+        ELSE source_id
+    END
+WHERE entry_number IN ('JE-2026-0001','JE-2026-0002','JE-2026-0004','JE-2026-0005','JE-2026-0006','JE-2026-0007','JE-2026-0008');
+
+UPDATE invoices SET
+    journal_entry_id = 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6'
+WHERE invoice_number = 'INV-2026-001';
 
 -- Employee expenses posted against expense accounts
 INSERT INTO expenses (id, tenant_id, employee_id, expense_date, vendor_name, currency, amount, exchange_rate, base_amount, category_account_id, description, expense_type, is_reimbursable, reimbursement_status) VALUES
@@ -321,6 +490,15 @@ INSERT INTO expenses (id, tenant_id, employee_id, expense_date, vendor_name, cur
     ('79b3bb69-0f9c-51e8-896e-4b77a71c65b7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '2026-01-16', 'Great Western Railway', 'GBP', 142.5, 1.27, 180.97, 'c1158fe0-38ae-5741-a84f-a76381cebae3', 'Client site visit - Britannia', 'travel', TRUE, 'approved'),
     ('aff8d2a4-1126-5e99-a284-a17fe510b356', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-16', 'JetBrains', 'USD', 299.0, 1.0, 299.0, '030e294b-88ad-544e-841a-cfda187885ac', 'IDE licences', 'software', TRUE, 'pending'),
     ('f5fe924a-9b92-551f-99b3-a4086f3a247d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-16', 'Staples', 'USD', 86.4, 1.0, 86.4, '9d558ace-8adc-52ed-811a-de519ad88a29', 'Office supplies', 'office', TRUE, 'approved');
+
+UPDATE expenses SET
+    receipt_url = '/storage/receipts/delta-acme-2026-01.jpg',
+    receipt_ocr_data = '{"vendor": "Delta Airlines", "amount": 845.20, "confidence": 0.94}'::jsonb,
+    approved_by = '6d466aa9-e51a-5d52-9015-152600855932',
+    approved_at = '2026-01-17T09:00:00Z',
+    department_id = 'fc0935fd-6c10-5db1-8e61-e458aeca68c0',
+    tracking_categories = '{"client": "ACME", "project": "PRJ-001"}'::jsonb
+WHERE id = '0322e10e-37fd-51cc-af9c-cade3b267676';
 
 -- Timezone-aware pay schedules, one per country
 INSERT INTO payroll_pay_schedules (id, tenant_id, name, name_i18n, frequency, anchor_date, timezone, currency, location_ids, pay_day_of_month, is_active, is_default, description) VALUES
@@ -349,6 +527,20 @@ INSERT INTO payroll_run_employees (id, tenant_id, payroll_run_id, employee_id, s
     ('0c959f40-718e-5922-8acc-2629c44307ec', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'cf6699a0-43f1-5002-b44f-64f4b8ff7e43', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'calculated', 'IN', 'KA', 160.0, '{"base": 266667.0}'::jsonb, 266667.0, '266667.0'::jsonb, '{"income_tax": 26133.37, "social": 11200.01}'::jsonb, 37333.38, '{"pension": 13333.35}'::jsonb, 13333.35, 216000.27, 'direct_deposit', 266667.0),
     ('3d63bb34-f6c8-5947-a1e2-171ed3961aa3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'cf6699a0-43f1-5002-b44f-64f4b8ff7e43', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'calculated', 'IN', 'KA', 160.0, '{"base": 175000.0}'::jsonb, 175000.0, '175000.0'::jsonb, '{"income_tax": 17150.0, "social": 7350.0}'::jsonb, 24500.0, '{"pension": 8750.0}'::jsonb, 8750.0, 141750.0, 'direct_deposit', 175000.0);
 
+UPDATE payroll_run_employees SET
+    pay_stub_url = '/storage/payroll/' || id || '.pdf',
+    pay_stub_generated_at = '2026-02-01T14:00:00Z',
+    calculation_details = '{"engine": "mock-payroll", "version": "2026.01"}'::jsonb
+WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
+
+-- Off-cycle payroll run for a bonus correction (US-PAY-003)
+INSERT INTO payroll_runs (id, tenant_id, run_id, run_number, pay_period_start, pay_period_end, pay_date, run_type, country, pay_schedule_id, currency, run_status, status, employee_count, total_gross_pay, total_net_pay, total_taxes, total_deductions, calculated_at, approved_at) VALUES
+    ('30da1814-aa14-5b7a-b970-d54897fb2a41', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PR-2026-01-BONUS-US', 'PR-2026-01-BONUS-US', '2026-01-15', '2026-01-15', '2026-01-19', 'off_cycle', 'US', 'b57b7e37-7192-5e00-ad55-4ef5ec240a74', 'USD', 'approved', 'approved', 1, 2500.00, 1750.00, 750.00, 0.00, '2026-01-15T16:00:00Z', '2026-01-15T17:00:00Z');
+
+INSERT INTO payroll_tax_deposits (id, tenant_id, deposit_id, deposit_type, jurisdiction, tax_period, period_start, period_end, amount, currency, due_date, payment_status, status, tax_breakdown, related_payroll_runs, created_at, updated_at, created_by) VALUES
+    ('969915c1-5b58-5562-bc42-6eef6997a20b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAXDEP-US-Q1-2026', '941', 'US-FED', '2026-Q1', '2026-01-01', '2026-03-31', 15854.16, 'USD', CURRENT_DATE + 15, 'pending', 'pending', '{"federal_income_tax": 9210.0, "fica": 6644.16}'::jsonb, ARRAY['953095ac-deb3-54dc-baf2-09a7e3829e82']::UUID[], '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('8c130334-a06f-5561-b1c1-92d04e5e8f90', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAXDEP-IN-24Q-Q4', '24Q', 'IN-TDS', '2026-Q1', '2026-01-01', '2026-03-31', 61833.38, 'INR', CURRENT_DATE + 20, 'pending', 'pending', '{"tds": 43283.37, "epf": 18550.01}'::jsonb, ARRAY['cf6699a0-43f1-5002-b44f-64f4b8ff7e43']::UUID[], '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
 -- Review cycle
 INSERT INTO hr_review_cycles (id, tenant_id, cycle_code, cycle_name, review_type, start_date, self_assessment_due, manager_assessment_due, cycle_close_date, status, is_active, created_at, updated_at, created_by) VALUES
     ('c3f210c4-dfe6-5a9a-9614-53c907fd6187', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2026-H1', 'H1 2026 Performance Review', 'semi_annual', '2026-05-31', '2026-06-15', '2026-06-25', '2026-07-10', 'open', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
@@ -359,6 +551,11 @@ INSERT INTO hr_reviews (id, tenant_id, review_id, employee_id, reviewer_id, cycl
     ('568f6664-334c-564a-a5aa-37498ef233dd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'REV-E004', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '6d466aa9-e51a-5d52-9015-152600855932', '2026-H1', 'semi_annual', '2026-06-20', '{"strengths": "Strong delivery focus", "development": "More cross-team visibility"}'::jsonb, '{"summary": "Consistently exceeds expectations", "rating": 4.5}'::jsonb, '{"technical": 4.5, "communication": 4.3, "ownership": 4.5}'::jsonb, 4.5, 'submitted', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('92decf94-143b-5159-8e6e-06b8d243fba1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'REV-E006', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '2026-H1', 'semi_annual', '2026-06-20', '{"strengths": "Strong delivery focus", "development": "More cross-team visibility"}'::jsonb, '{"summary": "Consistently exceeds expectations", "rating": 3.9}'::jsonb, '{"technical": 3.9, "communication": 3.6999999999999997, "ownership": 3.9}'::jsonb, 3.9, 'draft', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('f25614d5-256e-502d-9979-7245769eaf56', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'REV-E003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '6d466aa9-e51a-5d52-9015-152600855932', '2026-H1', 'semi_annual', '2026-06-20', '{"strengths": "Strong delivery focus", "development": "More cross-team visibility"}'::jsonb, '{"summary": "Consistently exceeds expectations", "rating": 4.0}'::jsonb, '{"technical": 4.0, "communication": 3.8, "ownership": 4.0}'::jsonb, 4.0, 'draft', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+UPDATE hr_reviews SET
+    status = 'acknowledged',
+    manager_assessment = manager_assessment || '{"acknowledged_at": "2026-06-22T15:30:00Z", "acknowledged_by": "db1f1f2b-b140-5948-a34e-1c998ed98757"}'::jsonb
+WHERE review_id = 'REV-E002';
 
 -- RESTORED table: goals link to pm_objectives - impossible when nested in hr_reviews JSONB
 INSERT INTO hr_goals (id, tenant_id, employee_id, review_id, objective_id, goal_title, category, measurement_type, target_value, current_value, weight, status, progress_percentage, start_date, target_date) VALUES
@@ -393,7 +590,10 @@ INSERT INTO cross_module_links (id, tenant_id, source_module, source_entity_type
 INSERT INTO audit_log (tenant_id, actor_user_id, actor_employee_id, action, entity_type, entity_id, module, changes) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'update', 'employee', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'hr', '{"base_amount": {"from": 139000, "to": 148000}}'::jsonb),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'create', 'ticket', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'ticketing', NULL),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'approve', 'time_off_request', '70aa9eff-61f7-5867-a657-3a6940cde2bd', 'hr', '{"status": {"from": "pending", "to": "approved"}}'::jsonb);
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'approve', 'time_off_request', '70aa9eff-61f7-5867-a657-3a6940cde2bd', 'hr', '{"status": {"from": "pending", "to": "approved"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'send', 'invoice', 'c72699f8-700c-5760-a8e8-19ae6dfd53c5', 'accounting', '{"status": {"from": "draft", "to": "sent"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'record_payment', 'payment', '26361e4b-8a87-5b2a-a692-10ec68e02875', 'accounting', '{"amount": {"to": 42300.00}, "payment_gateway": {"to": "Stripe"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'close_period', 'accounting_period', '957b6ce4-6f44-50c1-84b1-d9bdb8892585', 'accounting', '{"status": {"from": "closed", "to": "locked"}}'::jsonb);
 
 -- Employee direct-deposit accounts (FR-PAY-005). E001 splits 15% to savings; the primary account takes the remainder. Account numbers are stored encrypted.
 INSERT INTO employee_bank_accounts (id, tenant_id, employee_id, account_holder_name, bank_name, country, currency, account_type, account_number_encrypted, account_number_last4, routing_number, ifsc_code, sort_code, iban, is_primary, allocation_type, allocation_value, priority, verification_status, verified_at, is_active, effective_from, created_by) VALUES
@@ -438,6 +638,11 @@ INSERT INTO hr_onboarding_template_tasks (id, tenant_id, template_id, task_name,
     ('068874f4-ee1b-56e3-8847-85dc17357ae4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7d80186b-19d4-53e9-af75-6beb92fa0350', 'Repository and CI access', '{"en-US": "Repository and CI access"}'::jsonb, 'equipment_request', 'first_day', 'it', 0, 2, TRUE, 2, '{}'::jsonb, TRUE),
     ('97ab2203-e302-5eae-ae64-8487c1f8bf14', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7d80186b-19d4-53e9-af75-6beb92fa0350', 'Ship first pull request', '{"en-US": "Ship first pull request"}'::jsonb, 'other', 'first_week', 'employee', 5, 3, FALSE, NULL, '{}'::jsonb, TRUE);
 
+INSERT INTO hr_onboarding_tasks (id, tenant_id, task_id, employee_id, task_name, description, task_type, assigned_to_employee_id, due_date, completion_date, status, template_data, result_data, priority, created_at, updated_at) VALUES
+    ('4dcb5442-4bf7-51b1-bf11-279c34eb58f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'OB-E011-001', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'Sign employment contract', 'Generated from the Standard New Hire template.', 'approval', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2026-01-01', '2026-01-01', 'completed', '{"template_code": "STANDARD", "phase": "pre_boarding", "buddy_employee_id": "b9b84064-a67a-5048-8282-8fc048b4dbfb"}'::jsonb, '{"document_id": "DOC-E011-HANDBOOK"}'::jsonb, 'high', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('2a00daef-3798-50bf-a8e4-cb26def3b6b6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'OB-E011-002', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'Complete security training', 'Generated from the Standard New Hire template.', 'task', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2026-01-31', '2026-01-12', 'completed', '{"template_code": "STANDARD", "phase": "first_30_days", "training_record_id": "TR-001"}'::jsonb, '{"training_record_id": "TR-001"}'::jsonb, 'medium', '2026-01-01T09:00:00Z', '2026-01-12T09:00:00Z'),
+    ('f8a3342d-1efc-5d09-abab-cf5dd10592a2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'OB-E011-003', '56bd1329-6740-572f-aa90-c44d1b27bedf', '90-day performance conversation', 'Manager check-in scheduled from onboarding template.', 'review', '6d466aa9-e51a-5d52-9015-152600855932', '2026-03-15', NULL, 'pending', '{"template_code": "STANDARD", "phase": "first_90_days", "buddy_employee_id": "b9b84064-a67a-5048-8282-8fc048b4dbfb"}'::jsonb, '{}'::jsonb, 'medium', '2026-01-01T09:00:00Z', '2026-01-12T09:00:00Z');
+
 -- Company news feed (FR-HR-011). Birthdays and anniversaries are NOT stored here — they are derived by the v_upcoming_celebrations view.
 INSERT INTO hr_company_news (id, tenant_id, title, title_i18n, body, summary, post_type, subject_employee_id, event_date, is_pinned, publish_at, status, attachments, created_by, author_employee_id) VALUES
     ('f4b41e42-a1f2-5a7d-9111-58568cb99854', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Q1 all-hands on 12 February', '{"en-US": "Q1 all-hands on 12 February"}'::jsonb, 'Join us for the quarterly all-hands. Remote attendance available.', 'Join us for the quarterly all-hands. Remote attendance available.', 'event', NULL, '2026-02-12', TRUE, '2026-01-01T09:00:00Z', 'published', '[]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5'),
@@ -445,6 +650,296 @@ INSERT INTO hr_company_news (id, tenant_id, title, title_i18n, body, summary, po
     ('4fe8a6b0-f0f5-5bcd-9d70-25516184ba92', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Updated expense policy', '{"en-US": "Updated expense policy"}'::jsonb, 'Expenses above $5,000 now require a second approver. See the policy page.', 'Expenses above $5,000 now require a second approver. See the policy page.', 'policy_update', NULL, NULL, FALSE, '2026-01-01T09:00:00Z', 'published', '[]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5'),
     ('991aef6d-6151-555f-af28-beb2eb4cc552', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Bangalore office expansion', '{"en-US": "Bangalore office expansion"}'::jsonb, 'Our Bangalore delivery centre expands to a second floor in March.', 'Our Bangalore delivery centre expands to a second floor in March.', 'announcement', NULL, NULL, FALSE, '2026-01-01T09:00:00Z', 'published', '[]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5'),
     ('8cbc011a-36e8-57fd-b9cc-81cd5d50dc2e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Northwind turns three', '{"en-US": "Northwind turns three"}'::jsonb, 'Three years since incorporation. Thank you all.', 'Three years since incorporation. Thank you all.', 'milestone', NULL, '2026-03-02', FALSE, '2026-01-01T09:00:00Z', 'published', '[]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5');
+
+-- Approved leave spanning today, so the "Who is Out Today" widget has data
+INSERT INTO hr_time_off_requests (id, tenant_id, request_id, employee_id, policy_code, start_date, end_date, total_hours, status, reason, approver_id, approved_at, submitted_at, updated_at) VALUES
+    ('52ad181d-6589-5c51-a179-14c246a4b2c8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TOR-006', '18503470-ba5c-5450-bc3e-b0a2454d757f', 'UK-ANNUAL', (CURRENT_DATE - 1), (CURRENT_DATE + 2), 24.0, 'approved', 'Family commitment', '11f31511-ad53-59c7-9e90-8ee3b553489b', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- User groups: department, security and distribution types
+INSERT INTO employee_user_groups (id, tenant_id, group_name, display_name, description, group_type, approver_id, backup_approver_id, is_active, created_at, updated_at, created_by) VALUES
+    ('0158d8de-be1c-565f-a3c4-78624d177e7f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', 'Engineering', 'All engineering staff', 'department', '6d466aa9-e51a-5d52-9015-152600855932', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('7fbde845-a1ae-5000-b476-907b24b26788', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'consulting@northwind.example', 'Consulting', 'Client-facing consultants', 'department', '11f31511-ad53-59c7-9e90-8ee3b553489b', '385f5ae5-e567-5fb6-98f8-b45007099ff8', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b1767520-bcaf-5a97-812e-7fe119d6b791', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', 'Payroll Approvers', 'Can approve payroll runs', 'functional', '6d466aa9-e51a-5d52-9015-152600855932', 'a87e0200-0849-53b6-a491-e882feace3f5', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('46c7bd0b-08e5-541d-9942-f8ffee9f772f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'all-staff@northwind.example', 'All Staff', 'Everyone', 'custom', 'a87e0200-0849-53b6-a491-e882feace3f5', '6d466aa9-e51a-5d52-9015-152600855932', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Group membership — RBAC resolution queries depend on this
+INSERT INTO employee_group_members (id, tenant_id, group_name, employee_id, role, joined_at, joined_by) VALUES
+    ('bf729913-ed3b-5bc5-9875-186102de7bb2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('4cc13d94-8b1b-5a2b-8b58-cbae900e6e6a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('60f45c25-5829-5e5c-ac74-dd30aa09ca40', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('4c5a56c1-89ce-56c9-a9f5-7e26ffa59721', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'consulting@northwind.example', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('6807dba6-48a6-5935-98cd-441ec0056c4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'consulting@northwind.example', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('17009da4-bdc6-5aca-b916-3b5a178aefd1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('37be0809-41ec-5de0-a662-06718ad05db4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', 'a87e0200-0849-53b6-a491-e882feace3f5', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('4a0507b1-3a84-5f42-ab61-ec0678d62769', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'all-staff@northwind.example', 'a87e0200-0849-53b6-a491-e882feace3f5', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO employee_group_roles (id, tenant_id, group_role_id, group_name, role_name, department_code, location_code, granted_at, granted_by) VALUES
+    ('2e0328b4-9324-5786-8538-51952e3a319e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'GR-001', 'engineering@northwind.example', 'project_member', 'ENG', NULL, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('3f0211af-a43b-5036-94da-c97a4e61d030', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'GR-002', 'payroll-approvers@northwind.example', 'payroll_approver', NULL, 'US-NYC', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Self-service change requests with approval chains, one mid-flight (Phase 1 module #8)
+INSERT INTO hr_change_requests (id, tenant_id, request_id, requested_by, requested_for, request_type, status, request_details, approval_chain, comments, attached_documents, created_at, updated_at) VALUES
+    ('84dc918d-401d-55a3-9c58-ced45ae50f27', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CR-001', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'address_change', 'approved', '{"field": "address_line1", "currentValue": "12 Old St", "requestedValue": "88 New Ave", "reason": "Moved house"}'::jsonb, '[{"approver_id": "a87e0200-0849-53b6-a491-e882feace3f5", "role": "hr_admin", "status": "approved", "approved_at": "2026-01-01T09:00:00Z"}]'::jsonb, '[{"user_id": "b9b84064-a67a-5048-8282-8fc048b4dbfb", "comment": "Moved house", "created_at": "2026-01-01T09:00:00Z"}]'::jsonb, '[]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('9c07fa0d-629c-5209-ad50-9c6df0364e1f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CR-002', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'bank_details', 'pending', '{"field": "account_number", "currentValue": "****1104", "requestedValue": "****7788", "reason": "Switched bank"}'::jsonb, '[{"approver_id": "a87e0200-0849-53b6-a491-e882feace3f5", "role": "hr_admin", "status": "pending", "approved_at": null}]'::jsonb, '[{"user_id": "c095eafa-952e-5047-961a-82ce7b45cbf1", "comment": "Switched bank", "created_at": "2026-01-01T09:00:00Z"}]'::jsonb, '[]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('2ebe3bba-ab7a-5999-8a97-5626214170a8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CR-003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'name_change', 'pending', '{"field": "last_name", "currentValue": "Raman", "requestedValue": "Raman-Iyer", "reason": "Marriage"}'::jsonb, '[{"approver_id": "a87e0200-0849-53b6-a491-e882feace3f5", "role": "hr_admin", "status": "pending", "approved_at": null}]'::jsonb, '[{"user_id": "bf17b1af-963b-53ef-9083-21506fb34e9c", "comment": "Marriage", "created_at": "2026-01-01T09:00:00Z"}]'::jsonb, '[{"document_type": "marriage_certificate", "file_url": "/storage/change-requests/CR-003/marriage-certificate.pdf"}]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Clock in/out attendance records (FR-HR)
+INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in_time, clock_out_time, break_minutes, total_hours, regular_hours, status, created_at, updated_at) VALUES
+    ('cf64fb8a-ec72-5b98-942f-ab43e406d329', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-06', '2026-01-06T09:00:00Z', '2026-01-06T17:30:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('7474f042-c201-579c-ab38-40c9e2b92930', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07', '2026-01-07T09:01:00Z', '2026-01-07T17:31:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('967a2bf5-6529-58a6-9f4e-c3e336643080', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-08', '2026-01-08T09:02:00Z', '2026-01-08T17:32:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('8590ba46-72f8-5da4-a045-caea4064ee32', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-06', '2026-01-06T09:00:00Z', '2026-01-06T17:30:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('5deac028-5785-5f13-b0d3-cc571169bbba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-07', '2026-01-07T09:01:00Z', '2026-01-07T17:31:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e2b2e36c-224e-5181-a638-a9a10b3b0a1e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-08', '2026-01-08T09:02:00Z', '2026-01-08T17:32:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e39d3de1-81f0-58d8-a050-d579c8b8549a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-08', '2026-01-08T09:34:00Z', '2026-01-08T17:00:00Z', 30, 6.93, 6.93, 'late', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Benefits enrolments with dependents and beneficiaries as queryable JSONB (FR-HR-008)
+INSERT INTO hr_benefits_enrollments (id, tenant_id, employee_id, plan_year, benefit_type, plan_name, coverage_level, enrollment_date, effective_date, dependents, beneficiaries, election_details, status, created_at, updated_at) VALUES
+    ('9d6873bb-fd7f-5272-b7b0-6b056c8fffb4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 2026, 'medical', 'Blue Cross PPO', 'employee_family', '2025-12-12', '2026-01-01', '[{"name": "Michael Johnson", "relationship": "spouse", "date_of_birth": "1984-05-11"}, {"name": "Ava Johnson", "relationship": "child", "date_of_birth": "2016-09-02"}]'::jsonb, '[{"name": "Michael Johnson", "relationship": "spouse", "percentage": 100}]'::jsonb, '{"employee_contribution": 220, "employer_contribution": 880, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('84e8284d-c8d2-5652-bda5-c272e3500f11', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 2026, 'medical', 'Blue Cross PPO', 'employee_only', '2025-12-12', '2026-01-01', '[]'::jsonb, '[{"name": "Estate", "relationship": "other", "percentage": 100}]'::jsonb, '{"employee_contribution": 95, "employer_contribution": 505, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('caf6cb8e-d651-5049-be4f-1bf90d4d4528', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 2026, 'dental', 'Delta Dental', 'employee_spouse', '2025-12-12', '2026-01-01', '[{"name": "Chidi Okafor", "relationship": "spouse", "date_of_birth": "1990-02-18"}]'::jsonb, '[]'::jsonb, '{"employee_contribution": 40, "employer_contribution": 110, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Continuous feedback (FR-HR-010)
+INSERT INTO hr_feedback (id, tenant_id, feedback_id, from_employee_id, to_employee_id, feedback_type, content, visibility, tags, created_at, updated_at) VALUES
+    ('51421c2a-17e8-573a-ad83-c60d4f036728', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-001', '6d466aa9-e51a-5d52-9015-152600855932', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'praise', 'Excellent work untangling the Acme data model.', 'manager_only', '["technical"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('a88349a8-db1c-5492-a864-2adeca2ba609', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'praise', 'Client specifically called out your responsiveness.', 'public', '["client", "communication"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('17fc284f-0a5d-530b-9123-a65483de7f5b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-003', '6d466aa9-e51a-5d52-9015-152600855932', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'constructive', 'Consider bringing the team in earlier on design decisions.', 'private', '["collaboration"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Pulse surveys with questions as JSONB
+INSERT INTO hr_surveys (id, tenant_id, survey_id, survey_name, survey_type, questions, start_date, end_date, is_anonymous, status, response_count, created_at, updated_at, created_by) VALUES
+    ('4967f53e-36f1-5ed3-9e71-203b94380e89', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SV-001', 'Q1 Pulse Check', 'pulse', '[{"id": "q1", "text": "How supported do you feel?", "type": "scale", "scale": 5}, {"id": "q2", "text": "What should we change?", "type": "text"}]'::jsonb, '2026-01-21', '2026-02-04', TRUE, 'closed', 9, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f073295a-6b90-5915-9f36-139073507cf1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SV-002', 'Onboarding Experience', 'onboarding', '[{"id": "q1", "text": "Was your first week clear?", "type": "scale", "scale": 5}]'::jsonb, '2026-01-21', '2026-02-04', FALSE, 'closed', 3, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Survey responses, anonymous where the survey requires it
+INSERT INTO hr_survey_responses (id, tenant_id, response_id, survey_id, respondent_id, responses, is_complete, submitted_at, created_at, updated_at) VALUES
+    ('bd720a03-1032-5ac6-bfae-5f7d8c22a6f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SV-001-R1', '4967f53e-36f1-5ed3-9e71-203b94380e89', NULL, '{"q1": 4}', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('fd232028-8914-5f19-a373-6c0e52903ed4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SV-001-R2', '4967f53e-36f1-5ed3-9e71-203b94380e89', NULL, '{"q1": 5}', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('55932ff6-0df3-5e89-89a2-5378d2e91251', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'SV-002-R1', 'f073295a-6b90-5915-9f36-139073507cf1', '56bd1329-6740-572f-aa90-c44d1b27bedf', '{"q1": 4}', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Variable compensation with tiered commission structures
+INSERT INTO compensation_variable (id, tenant_id, employee_id, component_type, comp_type, component_name, comp_name, effective_from, target_amount, currency, payment_frequency, frequency, commission_structure, quota_structure, status, created_at, updated_at, created_by) VALUES
+    ('48c7f07e-1c76-5838-a847-6c25ec37e1a4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e05fd53c-ebdf-5049-810a-28a63369f93a', 'commission', 'commission', 'Sales Commission', 'Sales Commission', '2026-01-01', 45000, 'GBP', 'quarterly', 'quarterly', '{"tiers": [{"threshold_pct": 80, "payout_pct": 50}, {"threshold_pct": 100, "payout_pct": 100}, {"threshold_pct": 120, "payout_pct": 150}]}'::jsonb, '{"annual_quota": 360000, "currency": "GBP"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('364de8f8-e21c-5d79-bf4d-9409309f888e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', 'commission', 'commission', 'Sales Commission', 'Sales Commission', '2026-01-01', 52000, 'USD', 'quarterly', 'quarterly', '{"tiers": [{"threshold_pct": 80, "payout_pct": 50}, {"threshold_pct": 100, "payout_pct": 100}, {"threshold_pct": 120, "payout_pct": 150}]}'::jsonb, '{"annual_quota": 416000, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e0fcc8ea-361e-52d4-b1b8-b73cc5653db7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'performance_bonus', 'performance_bonus', 'Annual Performance Bonus', 'Annual Performance Bonus', '2026-01-01', 30000, 'USD', 'annual', 'annual', '{"tiers": [{"threshold_pct": 80, "payout_pct": 50}, {"threshold_pct": 100, "payout_pct": 100}, {"threshold_pct": 120, "payout_pct": 150}]}'::jsonb, '{"annual_quota": 240000, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('d7d39bb2-cd62-5336-9d34-33de81b035fe', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'bonus', 'bonus', 'Delivery Bonus', 'Delivery Bonus', '2026-01-01', 18000, 'USD', 'annual', 'annual', '{"tiers": [{"threshold_pct": 80, "payout_pct": 50}, {"threshold_pct": 100, "payout_pct": 100}, {"threshold_pct": 120, "payout_pct": 150}]}'::jsonb, '{"annual_quota": 144000, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Equity grants: 1-year cliff then monthly vesting over 4 years
+INSERT INTO compensation_equity (id, tenant_id, employee_id, grant_type, equity_type, grant_number, grant_date, shares_granted, total_shares, shares_vested, strike_price, exercise_price, currency, vesting_type, vesting_start_date, vesting_cliff_months, vesting_period_months, vesting_schedule, status, created_at, updated_at, created_by) VALUES
+    ('a76cf8b9-9812-5154-8a7f-61ded22cf692', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'iso', 'iso', 'GRANT-E001', '2025-01-06', 40000, 40000, 10000, 1.25, 1.25, 'USD', 'cliff_then_monthly', '2025-01-06', 12, 48, '{"cliff_months": 12, "total_months": 48, "frequency": "monthly"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('6d3a6739-6abb-5a90-accc-772414d330cb', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'rsu', 'rsu', 'GRANT-E005', '2025-01-06', 12000, 12000, 3000, NULL, NULL, 'USD', 'cliff_then_monthly', '2025-01-06', 12, 48, '{"cliff_months": 12, "total_months": 48, "frequency": "monthly"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('111d5707-3d5a-5a90-a6cd-04c88efc7e6c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'nso', 'nso', 'GRANT-E004', '2025-01-06', 18000, 18000, 4500, 1.25, 1.25, 'USD', 'cliff_then_monthly', '2025-01-06', 12, 48, '{"cliff_months": 12, "total_months": 48, "frequency": "monthly"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Work schedules: standard, flexible, remote and hybrid
+INSERT INTO compensation_work_schedules (id, tenant_id, employee_id, schedule_name, schedule_type, effective_from, standard_hours_per_week, timezone, time_tracking_required, weekly_schedule, is_active, created_at, updated_at, created_by) VALUES
+    ('25de894c-f69b-5f88-851c-70565979f6d7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'Standard NYC', 'standard', '2025-03-07', 40, 'America/New_York', 'hours_only', '{"monday": {"start": "09:00", "end": "17:30"}, "friday": {"start": "09:00", "end": "16:00"}}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('c3bc544a-f2fb-5eff-81bd-ab857709a50e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'Part-time flexible', 'flexible', '2025-03-07', 20, 'America/New_York', 'hours_only', '{"monday": {"start": "09:00", "end": "17:30"}, "friday": {"start": "09:00", "end": "16:00"}}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('44437e43-50a7-5b2f-8fe0-5e27b1d2dc58', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'Remote Bangalore', 'remote', '2025-03-07', 40, 'Asia/Kolkata', 'hours_only', '{"monday": {"start": "09:00", "end": "17:30"}, "friday": {"start": "09:00", "end": "16:00"}}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('09d17647-5390-57ca-b4b1-093ce942defa', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'Hybrid London', 'hybrid', '2025-03-07', 37.5, 'Europe/London', 'hours_only', '{"monday": {"start": "09:00", "end": "17:30"}, "friday": {"start": "09:00", "end": "16:00"}}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Deduction definitions across US (401k + match), India (EPF/ESI), UK pension, garnishment
+INSERT INTO payroll_deduction_definitions (id, tenant_id, deduction_code, deduction_name, category, deduction_type, calculation_method, default_percentage, default_amount, is_pretax, reduces_federal_taxable, reduces_fica_taxable, reduces_india_taxable, has_employer_match, employer_match_config, is_active, created_at, updated_at) VALUES
+    ('979e3ee1-9097-5a82-93d9-345f9fa50fc9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '401K', '401(k) Retirement', 'retirement', 'pretax', 'percentage', 6, NULL, TRUE, TRUE, TRUE, FALSE, TRUE, '{"match_pct": 100, "up_to_pct": 4}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('d26ea8ce-8fdf-550b-9b37-84da469c4e5e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'MEDICAL', 'Medical Premium', 'health', 'pretax', 'fixed', NULL, 220, TRUE, TRUE, TRUE, FALSE, FALSE, NULL, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('0459dc14-156b-5ca5-9fb3-0250fa715eb9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'EPF', 'Employee Provident Fund', 'retirement', 'pretax', 'percentage', 12, NULL, TRUE, FALSE, FALSE, TRUE, FALSE, NULL, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e2e25807-5fdb-50b5-ab01-63588282c8b1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ESI', 'Employee State Insurance', 'health', 'pretax', 'percentage', 0.75, NULL, TRUE, FALSE, FALSE, TRUE, FALSE, NULL, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('cfdaba7e-eab4-5f81-be39-bdbdc1f9d184', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PENSION-UK', 'Workplace Pension', 'retirement', 'pretax', 'percentage', 5, NULL, TRUE, FALSE, FALSE, FALSE, FALSE, NULL, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('fd87bdfd-305e-570c-b55e-193d2bc5f107', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'GARNISH', 'Wage Garnishment', 'garnishment', 'posttax', 'fixed', NULL, 400, FALSE, FALSE, FALSE, FALSE, FALSE, NULL, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Per-employee deduction elections with year-to-date accumulation
+INSERT INTO payroll_employee_deductions (id, tenant_id, employee_id, deduction_id, deduction_def_id, deduction_type, calculation_method, effective_from, percentage, amount, frequency, ytd_deducted, is_active, created_at, updated_at) VALUES
+    ('51287eaf-e002-5399-ac0c-0ecec0f801a9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', '979e3ee1-9097-5a82-93d9-345f9fa50fc9', '979e3ee1-9097-5a82-93d9-345f9fa50fc9', 'pretax', 'percentage', '2025-03-07', 6, NULL, 'monthly', 925.0, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('dbecae2d-6b24-5820-92f5-d2826273c24c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'd26ea8ce-8fdf-550b-9b37-84da469c4e5e', 'd26ea8ce-8fdf-550b-9b37-84da469c4e5e', 'pretax', 'fixed', '2025-03-07', NULL, 220, 'monthly', 220.0, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('03cf6767-8406-5793-91a2-a40390616170', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '979e3ee1-9097-5a82-93d9-345f9fa50fc9', '979e3ee1-9097-5a82-93d9-345f9fa50fc9', 'pretax', 'percentage', '2025-03-07', 4, NULL, 'monthly', 493.33, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('b3ffa019-20d0-5b8f-8430-28e277a24628', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '0459dc14-156b-5ca5-9fb3-0250fa715eb9', '0459dc14-156b-5ca5-9fb3-0250fa715eb9', 'pretax', 'percentage', '2025-03-07', 12, NULL, 'monthly', 32000.0, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('7baeff80-cb7d-5a84-9dc6-9431bfb517ce', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'e2e25807-5fdb-50b5-ab01-63588282c8b1', 'e2e25807-5fdb-50b5-ab01-63588282c8b1', 'pretax', 'percentage', '2025-03-07', 0.75, NULL, 'monthly', 2000.0, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('59b2eec5-344e-57e4-b49d-1250a20f4dc8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '0459dc14-156b-5ca5-9fb3-0250fa715eb9', '0459dc14-156b-5ca5-9fb3-0250fa715eb9', 'pretax', 'percentage', '2025-03-07', 12, NULL, 'monthly', 21000.0, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('1f385439-73f7-597c-b2e4-7d28f8b8973e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'cfdaba7e-eab4-5f81-be39-bdbdc1f9d184', 'cfdaba7e-eab4-5f81-be39-bdbdc1f9d184', 'pretax', 'percentage', '2025-03-07', 5, NULL, 'monthly', 366.67, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+INSERT INTO payroll_employee_deductions (id, tenant_id, employee_id, deduction_id, deduction_def_id, deduction_type, calculation_method, effective_from, amount, frequency, ytd_deducted, garnishment_case_number, garnishment_authority, garnishment_total_amount, garnishment_amount_remaining, is_active, employee_deduction_id, created_at, updated_at) VALUES
+    ('4d3f96c0-9264-563f-b66c-a67837e806e2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', 'fd87bdfd-305e-570c-b55e-193d2bc5f107', 'fd87bdfd-305e-570c-b55e-193d2bc5f107', 'garnishment', 'fixed', '2026-01-01', 400, 'monthly', 800.00, 'NY-FAM-2025-1842', 'New York Family Court', 4800.00, 4000.00, TRUE, 'DED-E010-GARNISH-001', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Withholding certificates: US W-4 (2020+ steps) and India Form 12BB declarations
+INSERT INTO payroll_tax_withholding_certificates (id, tenant_id, employee_id, tax_year, country, effective_from, us_filing_status, us_multiple_jobs, us_step3_dependents, us_step4c_extra_withholding, us_exempt, india_tax_regime, india_section_declarations, submitted_at, created_at, updated_at) VALUES
+    ('d3abbb2d-49c1-5394-8017-2c6ef90e9a04', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 2026, 'US', '2025-03-07', 'married_filing_jointly', FALSE, 2000, 150, FALSE, NULL, NULL, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('9a2d9346-68dd-5b99-9d9d-359a44231f09', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 2026, 'US', '2025-03-07', 'single', TRUE, 0, 0, FALSE, NULL, NULL, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('ff7f45af-540f-5275-b55e-95b54a57afe8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 2026, 'US', '2025-03-07', 'head_of_household', FALSE, 2000, 0, FALSE, NULL, NULL, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('0d7ac1a7-2d4b-5b48-b8f3-920170473a08', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 2026, 'IN', '2025-03-07', NULL, FALSE, 0, 0, FALSE, 'new_regime', '{"80C": 150000, "80D": 25000}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+UPDATE payroll_tax_withholding_certificates SET
+    state_withholding = '{"NY": {"additional_withholding": 50}, "NJ": {"allocation_pct": 20}}'::jsonb
+WHERE id = '9a2d9346-68dd-5b99-9d9d-359a44231f09';
+
+INSERT INTO payroll_india_salary_structure (id, tenant_id, employee_id, effective_from, annual_ctc, currency, basic_salary, hra, conveyance_allowance, special_allowance, employer_epf, employer_esi, monthly_gross, created_at, updated_at) VALUES
+    ('0f9ab83e-a353-5970-bd3c-343e90b67df5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-01', 3200000.00, 'INR', 1280000.00, 640000.00, 19200.00, 900800.00, 153600.00, 0.00, 266667.00, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('4cfd8fab-2753-56a0-a7a5-b3cf48740e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-01', 2100000.00, 'INR', 840000.00, 420000.00, 19200.00, 610800.00, 100800.00, 0.00, 175000.00, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+INSERT INTO payroll_india_tax_declarations (id, tenant_id, employee_id, financial_year, tax_regime, section_80c, section_80d, hra_exemption_claimed, rent_paid_monthly, metro_city, documents, status, submitted_at, created_at, updated_at) VALUES
+    ('8cebd33e-c4eb-5739-b4fe-36c7839c2ef6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2025-2026', 'new_regime', 150000.00, 25000.00, 0.00, 42000.00, TRUE, '[{"type": "rent_receipt", "url": "/storage/payroll/india/rent-e002.pdf"}]'::jsonb, 'submitted', '2026-01-10T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Assigned equipment
+INSERT INTO employee_assets (id, tenant_id, asset_id, employee_id, asset_type, make_model, serial_number, asset_tag, assigned_date, condition, created_at, updated_at) VALUES
+    ('8039d811-be83-5f28-a161-2ed445281c3d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AS-001', '6d466aa9-e51a-5d52-9015-152600855932', 'laptop', 'MacBook Pro 16 M4', 'C02XK1QZ', 'AS-001', '2025-06-15', 'good', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('fb09ebdf-7d7d-540f-962c-1d3253b4ac68', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AS-002', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'laptop', 'MacBook Pro 14 M4', 'C02XK2RA', 'AS-002', '2025-06-15', 'good', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('8e36b7aa-d5cd-5563-92bd-cf241e60f2cc', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AS-003', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'laptop', 'Dell XPS 15', 'DXPS7742', 'AS-003', '2025-06-15', 'good', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('053ba0ff-8ca5-5e07-9c6e-94051ecacb82', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AS-004', '6d466aa9-e51a-5d52-9015-152600855932', 'phone', 'iPhone 16', 'IP16A19X', 'AS-004', '2025-06-15', 'good', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Certifications with expiry tracking
+INSERT INTO employee_certifications (id, tenant_id, certification_id, employee_id, certification_name, issuing_organization, certification_number, issue_date, expiration_date, status, created_at, updated_at) VALUES
+    ('a4a7e7df-fe19-5b21-9a64-64790d003650', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CE-001', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'AWS Solutions Architect', 'Amazon Web Services', 'CE-001-NUM', '2024-08-19', '2027-02-05', 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('5c4f5df7-3719-59d4-84d8-ddd15ed7c9d5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CE-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'PMP', 'Project Management Institute', 'CE-002-NUM', '2024-08-19', '2027-02-05', 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('68ec8b34-baee-5ffc-8d3b-b7b2a545e185', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CE-003', 'a87e0200-0849-53b6-a491-e882feace3f5', 'SHRM-CP', 'SHRM', 'CE-003-NUM', '2024-08-19', '2027-02-05', 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+INSERT INTO employee_training_records (id, tenant_id, training_record_id, employee_id, training_name, training_type, provider, assigned_date, due_date, completion_date, status, certificate_url, credits_hours, created_at, updated_at) VALUES
+    ('a2d0755c-872d-519c-a96c-e628e080829c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TR-001', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'Security Awareness', 'compliance', 'Northwind Learning', '2026-01-01', '2026-01-31', '2026-01-12', 'completed', '/storage/training/TR-001-certificate.pdf', 1.5, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('02dc959e-0197-55cf-805b-e1c804b5a47d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TR-002', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'Client Data Handling', 'policy', 'Northwind Learning', '2026-01-01', '2026-02-15', NULL, 'assigned', NULL, 2.0, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+INSERT INTO hr_employee_documents (id, tenant_id, document_id, employee_id, document_type, document_name, file_url, file_size_bytes, mime_type, uploaded_by, upload_date, status, created_at, updated_at) VALUES
+    ('e5173561-a0e8-560e-9082-d7150e708195', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DOC-E011-I9', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'i9', 'Form I-9 Verification', '/storage/employees/E011/i9.pdf', 184221, 'application/pdf', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2026-01-03', 'verified', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('3a542a7c-8169-5395-872e-6b7771100a8c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DOC-E011-HANDBOOK', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'policy_acknowledgment', 'Employee Handbook Acknowledgment', '/storage/employees/E011/handbook-signature.pdf', 98221, 'application/pdf', '56bd1329-6740-572f-aa90-c44d1b27bedf', '2026-01-06', 'signed', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Company bank accounts for reconciliation
+INSERT INTO bank_accounts (id, tenant_id, account_name, bank_name, account_number, account_number_encrypted, routing_number, currency, current_balance, available_balance, gl_account_id, feed_enabled, is_active, created_at, updated_at, created_by) VALUES
+    ('6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Operating Account USD', 'First National', '****8812', 'enc:6d55e7d0-f085-5951-9f28-', '021000021', 'USD', 248500.0, 248500.0, 'eef02e95-6acb-5039-8acc-56340013e53a', TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('7585ab47-4908-5830-a959-65711784fc61', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Operating Account GBP', 'Barclays', '****4471', 'enc:7585ab47-4908-5830-a959-', NULL, 'GBP', 61200.0, 61200.0, 'eef02e95-6acb-5039-8acc-56340013e53a', TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('d189279d-45d2-5e98-85bf-e03f3dbe04e3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Payroll Account', 'First National', '****9930', 'enc:d189279d-45d2-5e98-85bf-', '021000021', 'USD', 95000.0, 95000.0, 'eef02e95-6acb-5039-8acc-56340013e53a', TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+UPDATE bank_accounts SET
+    feed_provider = CASE currency WHEN 'GBP' THEN 'yodlee' ELSE 'plaid' END,
+    feed_connection_id = 'feed_' || lower(replace(account_name, ' ', '_')),
+    last_synced_at = '2026-02-08T09:00:00Z'
+WHERE feed_enabled;
+
+INSERT INTO bank_reconciliation_rules (id, tenant_id, bank_account_id, rule_name, description_contains, action_type, category_account_id, auto_match, create_transaction, priority, created_at, updated_at, created_by) VALUES
+    ('73d3f520-f923-54bd-aab7-9f75d145f087', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'Categorize software subscriptions', 'JetBrains', 'categorize', '030e294b-88ad-544e-841a-cfda187885ac', TRUE, TRUE, 10, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO bank_transactions (id, tenant_id, bank_account_id, transaction_date, value_date, description, reference, amount, balance, transaction_type, category_account_id, status, matched_to_type, matched_to_id, match_confidence, matching_rule_id, imported_at, created_at, updated_at) VALUES
+    ('ba95034d-6bfa-57cb-95ec-74c7779a11a4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-01-22', '2026-01-22', 'ACME PAYMENT INV-2026-001', 'ACH-ACME-001', 42300.00, 248500.00, 'credit', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 'reconciled', 'payment', '26361e4b-8a87-5b2a-a692-10ec68e02875', 0.98, NULL, '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z'),
+    ('ee8b9238-21a3-5c86-9a26-b3d121526ecf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-01-23', '2026-01-23', 'JetBrains subscription', 'CARD-JB-001', -299.00, 248201.00, 'debit', '030e294b-88ad-544e-841a-cfda187885ac', 'categorized', NULL, NULL, 0.91, '73d3f520-f923-54bd-aab7-9f75d145f087', '2026-01-23T09:00:00Z', '2026-01-23T09:00:00Z', '2026-01-23T09:00:00Z'),
+    ('77706d29-15b8-5bcd-9e80-0f07016e582b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', '2026-02-07', '2026-02-07', 'Britannia partial payment', 'FPS-BRITCO-001', 10000.00, 71200.00, 'credit', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 'matched', 'payment', 'f615bb1d-dc3a-563f-b1ff-7205a9f70587', 0.94, NULL, '2026-02-07T14:00:00Z', '2026-02-07T14:00:00Z', '2026-02-07T14:00:00Z'),
+    ('dc9d747d-7760-5046-b1bf-27c2c482305a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', '2026-02-08', '2026-02-08', 'Unidentified client remittance', 'FPS-UNKNOWN-002', 12000.00, 83200.00, 'credit', NULL, 'unmatched', NULL, NULL, 0.62, NULL, '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z');
+
+UPDATE bank_transactions SET
+    bank_transaction_id = CASE reference
+        WHEN 'ACH-ACME-001' THEN 'bnk_txn_acme_001'
+        WHEN 'CARD-JB-001' THEN 'bnk_txn_jetbrains_001'
+        WHEN 'FPS-BRITCO-001' THEN 'bnk_txn_britco_001'
+        WHEN 'FPS-UNKNOWN-002' THEN 'bnk_txn_unknown_002'
+        ELSE bank_transaction_id
+    END
+WHERE reference IN ('ACH-ACME-001','CARD-JB-001','FPS-BRITCO-001','FPS-UNKNOWN-002');
+
+-- Accounting periods, one closed to exercise period-close logic
+INSERT INTO accounting_periods (id, tenant_id, period_name, period_type, start_date, end_date, fiscal_year, status, closed_at, closed_by, created_at, updated_at) VALUES
+    ('957b6ce4-6f44-50c1-84b1-d9bdb8892585', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'December 2025', 'monthly', '2025-12-01', '2025-12-31', 2025, 'locked', '2026-01-05T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-05T09:00:00Z', '2026-01-05T09:00:00Z'),
+    ('c4fff2b2-1b53-592f-84f6-586e3b2ca0dc', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'January 2026', 'monthly', '2026-01-01', '2026-01-31', 2026, 'closed', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('5b1446f7-7db5-54f5-bf88-a3c4527d6027', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'February 2026', 'monthly', '2026-02-01', '2026-02-28', 2026, 'open', NULL, NULL, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('00c27197-c84b-5af8-b168-1799c7df579d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'March 2026', 'monthly', '2026-03-01', '2026-03-31', 2026, 'open', NULL, NULL, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+-- Vendors for accounts payable
+INSERT INTO vendors (id, tenant_id, vendor_number, vendor_name, display_name, email, currency, payment_terms, ap_account_id, tax_number, is_1099_vendor, is_active, created_at, updated_at) VALUES
+    ('8a0bb1a6-448e-50f5-bbc0-1a41850d2e92', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AWS', 'Amazon Web Services', 'Amazon Web Services', 'ap@aws.example', 'USD', 'net_30', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 'US-91-1646860', FALSE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e21a30e8-9dfd-5817-8479-c7d574417831', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'WEWORK', 'WeWork', 'WeWork', 'ap@wework.example', 'USD', 'net_30', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 'US-45-5559999', FALSE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('77464d71-79dd-5490-93a3-a62c9df1d027', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JETBRAINS', 'JetBrains', 'JetBrains', 'ap@jetbrains.example', 'EUR', 'net_30', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 'CZ-26502275', FALSE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e7b05d84-68ef-584f-beb7-69a4f4c34bd1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'UXFREELANCE', 'Rivera UX Studio', 'Rivera UX Studio', 'billing@riveraux.example', 'USD', 'due_on_receipt', '3c95d136-b7f3-5c7e-bc55-e1abbe33af8b', 'US-88-7711001', TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+
+INSERT INTO bills (id, tenant_id, vendor_id, bill_number, reference, bill_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, requires_approval, approved_by, approved_at, payment_terms, file_url, ocr_processed, ocr_data, payment_scheduled_date, created_at, updated_at, created_by) VALUES
+    ('fdab0a8b-c4d8-5601-bf23-59c3028e9359', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92', 'BILL-AWS-2026-01', 'AWS-2026-01', '2026-01-24', CURRENT_DATE + 10, 'USD', 1.0, 'USD', 1820.00, 161.53, 1981.53, 0.00, 1981.53, 1820.00, 161.53, 1981.53, 0.00, 1981.53, 'approved', TRUE, '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-25T09:00:00Z', 'net_30', '/storage/bills/aws-2026-01.pdf', TRUE, '{"vendor": "AWS", "confidence": 0.96}'::jsonb, CURRENT_DATE + 8, '2026-01-24T09:00:00Z', '2026-01-25T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b07bca71-9562-5a5f-91b1-b749912c242d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92', 'BILL-AWS-2026-02A', 'AWS-2026-02A', '2026-02-01', '2026-02-15', 'USD', 1.0, 'USD', 1000.00, 0.00, 1000.00, 1000.00, 0.00, 1000.00, 0.00, 1000.00, 1000.00, 0.00, 'paid', TRUE, '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-02T09:00:00Z', 'net_15', '/storage/bills/aws-2026-02a.pdf', TRUE, '{"vendor": "AWS", "confidence": 0.97}'::jsonb, '2026-02-10', '2026-02-01T09:00:00Z', '2026-02-10T15:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('a0c8a1c4-9d92-5f29-8fd9-2b164de81429', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92', 'BILL-AWS-2026-02B', 'AWS-2026-02B', '2026-02-01', '2026-02-15', 'USD', 1.0, 'USD', 1500.00, 0.00, 1500.00, 1500.00, 0.00, 1500.00, 0.00, 1500.00, 1500.00, 0.00, 'paid', TRUE, '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-02T09:00:00Z', 'net_15', '/storage/bills/aws-2026-02b.pdf', TRUE, '{"vendor": "AWS", "confidence": 0.97}'::jsonb, '2026-02-10', '2026-02-01T09:00:00Z', '2026-02-10T15:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1', 'BILL-UX-2026-001', 'UX-2026-001', '2026-02-12', '2026-02-12', 'USD', 1.0, 'USD', 900.00, 0.00, 900.00, 900.00, 0.00, 900.00, 0.00, 900.00, 900.00, 0.00, 'paid', TRUE, '11f31511-ad53-59c7-9e90-8ee3b553489b', '2026-02-12T10:00:00Z', 'due_on_receipt', '/storage/bills/rivera-ux-2026-001.pdf', TRUE, '{"vendor": "Rivera UX Studio", "confidence": 0.93}'::jsonb, '2026-02-15', '2026-02-12T09:00:00Z', '2026-02-15T15:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO bill_lines (tenant_id, id, bill_id, line_number, description, quantity, unit_price, amount, expense_account_id, created_at) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c1386ffc-8a26-55fc-a32a-d311602d892e', 'fdab0a8b-c4d8-5601-bf23-59c3028e9359', 1, 'Cloud hosting', 1, 1820.00, 1820.00, '030e294b-88ad-544e-841a-cfda187885ac', '2026-01-24T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bb0d6278-aec4-5d5f-8e4d-c69b33305d54', 'b07bca71-9562-5a5f-91b1-b749912c242d', 1, 'February cloud hosting', 1, 1000.00, 1000.00, '030e294b-88ad-544e-841a-cfda187885ac', '2026-02-01T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7fe155be-d5b8-5c0d-81e0-5f174ad8f6c9', 'a0c8a1c4-9d92-5f29-8fd9-2b164de81429', 1, 'February data transfer', 1, 1500.00, 1500.00, '030e294b-88ad-544e-841a-cfda187885ac', '2026-02-01T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1f67be47-a613-544e-9663-15050d708a5e', '0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a', 1, 'UX research sprint', 1, 900.00, 900.00, '2f318c15-7833-53a7-a0a1-71a84087dd17', '2026-02-12T09:00:00Z');
+
+UPDATE bill_lines SET
+    tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53',
+    tax_amount = 161.53
+WHERE id = 'c1386ffc-8a26-55fc-a32a-d311602d892e';
+
+UPDATE bills SET
+    journal_entry_id = CASE bill_number
+        WHEN 'BILL-AWS-2026-01' THEN '2a21de82-b959-5412-99ac-89012024b59b'::uuid
+        WHEN 'BILL-UX-2026-001' THEN 'd6b96dae-b54e-5c68-b377-1e8caf7bb90f'::uuid
+        ELSE journal_entry_id
+    END
+WHERE bill_number IN ('BILL-AWS-2026-01','BILL-UX-2026-001');
+
+INSERT INTO payments (id, tenant_id, payment_number, payment_date, reference, customer_id, vendor_id, currency, amount, exchange_rate, base_amount, payment_method, payment_gateway, payment_gateway_id, gateway_fee, bank_account_id, status, notes, journal_entry_id, created_at, updated_at, created_by) VALUES
+    ('26361e4b-8a87-5b2a-a692-10ec68e02875', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PAY-2026-001', '2026-01-22', 'ACH-ACME-001', 'e40d0f18-1333-5cd1-a969-f5113df51e70', NULL, 'USD', 42300.00, 1.0, 42300.00, 'direct_deposit', 'Stripe', 'pi_acme_001', 650.17, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', 'Online payment for INV-2026-001', '7d5527ea-8449-5a3c-8819-e93caf4073b5', '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('4c3b0a1e-770f-55b6-820d-d6ba91c6bf73', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PAY-2026-002', '2026-02-07', 'ACH-ACME-002', 'e40d0f18-1333-5cd1-a969-f5113df51e70', NULL, 'USD', 10000.00, 1.0, 10000.00, 'direct_deposit', 'Stripe', 'pi_acme_002', 295.30, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', 'Partial payment split across INV-2026-004 and INV-2026-005', '342f47a2-7820-5fa2-9f92-30e641731b41', '2026-02-07T13:00:00Z', '2026-02-07T13:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f615bb1d-dc3a-563f-b1ff-7205a9f70587', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PAY-2026-003', '2026-02-07', 'FPS-BRITCO-001', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', NULL, 'GBP', 10000.00, 1.28, 12800.00, 'wire_transfer', 'GoCardless', 'pm_britco_001', 0.00, '7585ab47-4908-5830-a959-65711784fc61', 'completed', 'Partial foreign-currency receipt with realized FX gain', NULL, '2026-02-07T14:00:00Z', '2026-02-07T14:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('c147933d-3de1-5a49-b045-3645d4bc5eaf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'VPAY-2026-001', '2026-02-10', 'WIRE-AWS-BATCH-001', NULL, '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92', 'USD', 2500.00, 1.0, 2500.00, 'wire_transfer', NULL, NULL, 0.00, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', 'Vendor payment allocated across two AWS bills', '52034898-f3d8-542e-8202-97395e16e7df', '2026-02-10T15:00:00Z', '2026-02-10T15:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('0b67be47-d010-5fb5-9766-c4bb19e30878', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'VPAY-2026-002', '2026-02-15', 'CHK-1099-001', NULL, 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1', 'USD', 900.00, 1.0, 900.00, 'check', NULL, NULL, 0.00, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', '1099 contractor payment above annual threshold', '731804dc-b1b9-59a0-9449-14014d9aec92', '2026-02-15T15:00:00Z', '2026-02-15T15:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO payment_allocations (tenant_id, id, payment_id, invoice_id, bill_id, amount, base_amount, fx_gain_loss, created_at) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d7fe617-7cb2-5510-a09f-578cbd768ae4', '26361e4b-8a87-5b2a-a692-10ec68e02875', 'c72699f8-700c-5760-a8e8-19ae6dfd53c5', NULL, 42300.00, 42300.00, 0.00, '2026-01-22T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '8368b9d2-3603-5c98-8daa-2acee0c35c73', '4c3b0a1e-770f-55b6-820d-d6ba91c6bf73', '37bd63c2-86a1-513c-8404-b731dd666b28', NULL, 7000.00, 7000.00, 0.00, '2026-02-07T13:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ed6fd918-f560-535c-a329-c7995eb1cff0', '4c3b0a1e-770f-55b6-820d-d6ba91c6bf73', 'a3ff49bc-30c8-57c3-ae07-c0fd6813df3e', NULL, 3000.00, 3000.00, 0.00, '2026-02-07T13:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '0d72e3bf-78c9-5bd7-9228-79274dc5266f', 'f615bb1d-dc3a-563f-b1ff-7205a9f70587', 'a31732ea-dadb-575f-bd99-cbcfeaba29da', NULL, 10000.00, 12800.00, 100.00, '2026-02-07T14:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7f4a0e1c-2158-5695-93a7-dd4e3e60a122', 'c147933d-3de1-5a49-b045-3645d4bc5eaf', NULL, 'b07bca71-9562-5a5f-91b1-b749912c242d', 1000.00, 1000.00, 0.00, '2026-02-10T15:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5f7aa674-f190-5ff4-9b82-30a56d8c9bd0', 'c147933d-3de1-5a49-b045-3645d4bc5eaf', NULL, 'a0c8a1c4-9d92-5f29-8fd9-2b164de81429', 1500.00, 1500.00, 0.00, '2026-02-10T15:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '642fed20-dd4c-573e-a8f2-16647870d8d3', '0b67be47-d010-5fb5-9766-c4bb19e30878', NULL, '0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a', 900.00, 900.00, 0.00, '2026-02-15T15:00:00Z');
+
+-- Dashboards scoped to an objective and to a team
+INSERT INTO pm_dashboards (id, tenant_id, dashboard_id, scope, dashboard_name, objective_id, owner_employee_id, layout_type, widget_count, visibility, is_default, view_count, created_at, updated_at, created_by) VALUES
+    ('d5724fd4-6003-5b3d-a8f4-e21f5f720a53', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-001', 'objective', 'Delivery Overview', '960d66b2-8a52-59d0-8cf8-5c383d031244', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'grid', 3, 'tenant', TRUE, 42, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('7d22d488-6cdc-5fd1-a947-75bff92afec0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-002', 'team', 'Engineering Health', NULL, '6d466aa9-e51a-5d52-9015-152600855932', 'grid', 2, 'tenant', FALSE, 17, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Dashboard widgets with cached data as JSONB
+INSERT INTO pm_dashboard_widgets (id, tenant_id, widget_id, dashboard_id, widget_type, widget_title, position_x, position_y, width, height, display_order, show_title, data_sources, config, cached_data, cache_enabled, created_at, updated_at, created_by) VALUES
+    ('e8ca06c1-1f22-5b9e-9305-3cafa7f78b30', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-001-W1', 'd5724fd4-6003-5b3d-a8f4-e21f5f720a53', 'metric', 'Revenue vs Target', 0, 0, 6, 4, 1, TRUE, '{"table": "pm_objectives"}'::jsonb, '{"metric": "revenue", "period": "quarter"}'::jsonb, '{"value": 1010000}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('8e1eb5e9-5460-5d70-8a3e-6df47af94136', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-001-W2', 'd5724fd4-6003-5b3d-a8f4-e21f5f720a53', 'chart', 'Hours by Project', 0, 1, 6, 4, 2, TRUE, '{"table": "time_tracking_entries"}'::jsonb, '{"metric": "hours", "period": "quarter"}'::jsonb, '{"value": null}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('7b7d65e5-e7b9-5137-8a09-e49c42663206', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-001-W3', 'd5724fd4-6003-5b3d-a8f4-e21f5f720a53', 'list', 'At-Risk Tasks', 0, 2, 6, 4, 3, TRUE, '{"table": "tasks"}'::jsonb, '{"metric": "risk", "period": "quarter"}'::jsonb, '{"value": null}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('995f6521-221e-5753-9f05-e1f068f82b15', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-002-W1', '7d22d488-6cdc-5fd1-a947-75bff92afec0', 'metric', 'Open Tickets', 0, 0, 6, 4, 1, TRUE, '{"table": "ticketing_tickets"}'::jsonb, '{"metric": "tickets", "period": "quarter"}'::jsonb, '{"value": 4}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('a90f9201-ea3d-5374-9cae-85a028efa4ac', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-002-W2', '7d22d488-6cdc-5fd1-a947-75bff92afec0', 'chart', 'Cycle Time', 0, 1, 6, 4, 2, TRUE, '{"table": "tasks"}'::jsonb, '{"metric": "cycle_time", "period": "quarter"}'::jsonb, '{"value": null}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO pm_task_comments (id, tenant_id, comment_id, task_id, project_id, comment_type, comment_text, author_type, author_employee_id, author_client_id, mentioned_users, is_internal, is_pinned, created_at, updated_at) VALUES
+    ('77470cf2-dc9b-5cc0-a71a-5e20d99b5aa1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TC-001', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'comment', 'Client confirmed source-system access for the mapping workshop.', 'employee', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, '["db1f1f2b-b140-5948-a34e-1c998ed98757"]'::jsonb, FALSE, FALSE, '2026-01-12T10:00:00Z', '2026-01-12T10:00:00Z'),
+    ('b8272a42-2627-5d55-acbb-8406d5c7d1f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TC-002', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'risk', 'Internal note: confirm edge-case mappings before showing the draft to Acme.', 'employee', '6d466aa9-e51a-5d52-9015-152600855932', NULL, '[]'::jsonb, TRUE, TRUE, '2026-01-12T11:00:00Z', '2026-01-12T11:00:00Z');
+
+INSERT INTO pm_task_attachments (id, tenant_id, attachment_id, task_id, project_id, file_name, file_url, file_size_bytes, mime_type, file_type, version_number, client_visible, requires_approval, uploaded_by, uploaded_at, description) VALUES
+    ('2ab3f543-a327-5442-8e49-5ad9404b6acd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PM-ATT-001', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'acme-data-map-v1.xlsx', '/storage/projects/PRJ-001/acme-data-map-v1.xlsx', 231144, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'deliverable', 1, TRUE, TRUE, 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-13T09:00:00Z', 'Client-visible data mapping deliverable');
+
+INSERT INTO pm_automations (id, tenant_id, automation_id, scope, project_id, automation_name, description, trigger, conditions, actions, execution_count, last_executed_at, suggested_by_ai, ai_confidence, created_from_natural_language, created_at, updated_at, created_by) VALUES
+    ('fb6f1e74-d24b-5826-baf8-01ce025828cd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AUTO-001', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'Notify PM when client-visible task completes', 'Send a project-manager notification when a client-visible deliverable task is done.', '{"event": "task.status_changed"}'::jsonb, '[{"field": "client_visible", "equals": true}, {"field": "status", "equals": "done"}]'::jsonb, '[{"type": "notify", "target": "project_manager"}]'::jsonb, 1, '2026-01-13T09:05:00Z', TRUE, 0.86, 'Tell the PM when a client deliverable is ready.', '2026-01-01T09:00:00Z', '2026-01-13T09:05:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO pm_automation_executions (id, tenant_id, execution_id, automation_id, triggered_at, triggered_by, entity_type, entity_id, trigger_data, execution_status, actions_executed, action_results, executed_at, completed_at, created_at) VALUES
+    ('6b7a370e-6363-5e69-8bf7-b51372243835', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'AUTO-EXEC-001', 'fb6f1e74-d24b-5826-baf8-01ce025828cd', '2026-01-13T09:05:00Z', 'system', 'task', '48961ce2-d17a-5ebe-81db-f608b4b6b125', '{"from": "in_progress", "to": "done"}'::jsonb, 'succeeded', 1, '[{"type": "notify", "status": "sent"}]'::jsonb, '2026-01-13T09:05:01Z', '2026-01-13T09:05:02Z', '2026-01-13T09:05:02Z');
+
+-- Ticket attachments
+INSERT INTO ticketing_attachments (id, tenant_id, attachment_id, ticket_id, ticket_number, file_name, file_url, file_size, mime_type, storage_key, uploaded_by, uploaded_at) VALUES
+    ('0f9f07fe-cbd1-503e-a2ce-1ba81619e0c3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TA-001', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'IT-0001', 'boot-error.png', '/storage/TA-001/boot-error.png', 284133, 'image/png', 'tickets/IT-0001/TA-001', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-01T09:00:00Z'),
+    ('f0c3481c-869a-5c59-bd22-1422e4028cdf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TA-002', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'IT-0001', 'system-log.txt', '/storage/TA-002/system-log.txt', 18422, 'text/plain', 'tickets/IT-0001/TA-002', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-01T09:00:00Z');
+
+-- SLA targets and first-response times, so /reports/sla-compliance has data.
+-- Set as an UPDATE because the values are relative to each ticket's logged_at.
+UPDATE ticketing_tickets SET
+    sla_response_due_at = logged_at + (CASE priority WHEN 'high' THEN INTERVAL '4 hours'
+                                                     WHEN 'medium' THEN INTERVAL '8 hours'
+                                                     ELSE INTERVAL '24 hours' END),
+    sla_due_at          = logged_at + (CASE priority WHEN 'high' THEN INTERVAL '24 hours'
+                                                     WHEN 'medium' THEN INTERVAL '72 hours'
+                                                     ELSE INTERVAL '120 hours' END),
+    first_response_at   = logged_at + INTERVAL '90 minutes'
+WHERE status <> 'open' OR priority = 'high';
+
+-- One deliberate breach so the report has a non-zero failure case.
+UPDATE ticketing_tickets SET
+    first_response_at       = logged_at + INTERVAL '10 hours',
+    sla_response_breached   = TRUE,
+    sla_resolution_breached = FALSE
+WHERE ticket_number = 'IT-0003';
+
+UPDATE ticketing_tickets SET
+    sla_response_breached = COALESCE(sla_response_breached,
+                                     first_response_at > sla_response_due_at),
+    sla_resolution_breached = COALESCE(sla_resolution_breached,
+                                     resolved_at IS NOT NULL AND resolved_at > sla_due_at)
+WHERE sla_due_at IS NOT NULL;
+
 
 -- =============================================================================
 -- VERIFICATION — runs on every load; the transaction aborts if anything is off

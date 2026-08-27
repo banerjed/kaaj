@@ -45,6 +45,248 @@ CREATE SCHEMA IF NOT EXISTS app;
 -- Values generated from enumerations.json.
 -- NOTE: data-models.md referenced these types but never defined them.
 
+
+-- -----------------------------------------------------------------------------
+-- Enumerated types generated from enumerations.json (2026-08-27)
+-- -----------------------------------------------------------------------------
+-- Native Postgres enums, per https://supabase.com/docs/guides/database/postgres/enums
+--
+-- Only STABLE, SYSTEM-DEFINED value sets are enums. Postgres has no
+-- ALTER TYPE ... DROP VALUE — removed values can persist in index pages — so an
+-- enum is a one-way door. Adding is fine:
+--     ALTER TYPE employment_status ADD VALUE 'sabbatical';
+--
+-- Deliberately NOT enums:
+--   * tenant-customizable values (benefit_type, time_off_type, expense_type,
+--     asset_type, training_type, feedback_type, account_subtype) — these are
+--     Tier 1 reference-table candidates, see ../06-customization-model.md
+--   * external standards that grow (currency, locale, timezone, country) —
+--     ISO/IANA lists change without our involvement
+
+CREATE TYPE account_type AS ENUM (
+    'asset',
+    'equity',
+    'expense',
+    'liability',
+    'revenue'
+);
+
+CREATE TYPE activity_type AS ENUM (
+    'call',
+    'demo',
+    'email',
+    'meeting',
+    'note',
+    'presentation',
+    'task'
+);
+
+CREATE TYPE billing_method AS ENUM (
+    'fixed',
+    'hourly',
+    'milestone',
+    'retainer',
+    'value_based'
+);
+
+CREATE TYPE billing_status AS ENUM (
+    'active',
+    'cancelled',
+    'past_due',
+    'suspended',
+    'trial'
+);
+
+CREATE TYPE budget_type AS ENUM (
+    'fixed_price',
+    'milestone_based',
+    'not_to_exceed',
+    'retainer',
+    'time_and_materials'
+);
+
+CREATE TYPE change_reason AS ENUM (
+    'annual_review',
+    'contract_renewal',
+    'correction',
+    'cost_of_living',
+    'demotion',
+    'equity_adjustment',
+    'market_adjustment',
+    'merit_increase',
+    'new_hire',
+    'promotion',
+    'retention',
+    'transfer'
+);
+
+CREATE TYPE contract_type AS ENUM (
+    'licensing',
+    'msa',
+    'nda',
+    'partnership',
+    'retainer_agreement',
+    'service_agreement',
+    'sow'
+);
+
+CREATE TYPE coverage_level AS ENUM (
+    'employee_children',
+    'employee_family',
+    'employee_only',
+    'employee_spouse'
+);
+
+CREATE TYPE eeoc_category AS ENUM (
+    'administrative_support',
+    'craft_workers',
+    'executive_senior_officials_managers',
+    'first_mid_level_officials_managers',
+    'laborers_helpers',
+    'operatives',
+    'professionals',
+    'sales_workers',
+    'service_workers',
+    'technicians'
+);
+
+CREATE TYPE employment_status AS ENUM (
+    'active',
+    'deceased',
+    'on_leave',
+    'retired',
+    'suspended',
+    'terminated'
+);
+
+CREATE TYPE gender AS ENUM (
+    'female',
+    'male',
+    'non_binary',
+    'other',
+    'prefer_not_to_say'
+);
+
+CREATE TYPE group_type AS ENUM (
+    'affinity',
+    'custom',
+    'department',
+    'functional',
+    'project',
+    'team'
+);
+
+CREATE TYPE india_tax_regime AS ENUM (
+    'new_regime',
+    'old_regime'
+);
+
+CREATE TYPE marital_status AS ENUM (
+    'divorced',
+    'domestic_partnership',
+    'married',
+    'prefer_not_to_say',
+    'separated',
+    'single',
+    'widowed'
+);
+
+CREATE TYPE pay_frequency AS ENUM (
+    'annually',
+    'bi-weekly',
+    'monthly',
+    'quarterly',
+    'semi-monthly',
+    'weekly'
+);
+
+CREATE TYPE payment_method AS ENUM (
+    'cash',
+    'check',
+    'direct_deposit',
+    'mobile_payment',
+    'paycard',
+    'wire_transfer'
+);
+
+CREATE TYPE payment_status AS ENUM (
+    'cancelled',
+    'completed',
+    'failed',
+    'pending',
+    'processing',
+    'refunded'
+);
+
+CREATE TYPE period_type AS ENUM (
+    'bi_weekly',
+    'monthly',
+    'weekly'
+);
+
+CREATE TYPE plan_tier AS ENUM (
+    'custom',
+    'enterprise',
+    'professional',
+    'starter'
+);
+
+CREATE TYPE project_type AS ENUM (
+    'client_project',
+    'internal',
+    'marketing_campaign',
+    'product_development',
+    'research'
+);
+
+CREATE TYPE pronouns AS ENUM (
+    'he_him',
+    'other',
+    'prefer_not_to_say',
+    'she_her',
+    'they_them',
+    'ze_hir'
+);
+
+CREATE TYPE reimbursement_status AS ENUM (
+    'approved',
+    'cancelled',
+    'paid',
+    'pending',
+    'rejected'
+);
+
+CREATE TYPE task_type AS ENUM (
+    'approval',
+    'bug',
+    'deliverable',
+    'feature',
+    'milestone',
+    'review',
+    'task'
+);
+
+CREATE TYPE tax_type AS ENUM (
+    'customs',
+    'excise',
+    'gst',
+    'none',
+    'sales_tax',
+    'use_tax',
+    'vat'
+);
+
+CREATE TYPE work_authorization_type AS ENUM (
+    'citizen',
+    'ead',
+    'h1b',
+    'other',
+    'permanent_resident',
+    'student_visa',
+    'tn',
+    'work_visa'
+);
+
 CREATE TYPE vesting_type AS ENUM (
     'time_based',
     'milestone_based',
@@ -197,13 +439,13 @@ CREATE TABLE tenants (
     date_format           VARCHAR(50) DEFAULT 'MM/DD/YYYY',
     time_format           VARCHAR(10) DEFAULT '12h',
     number_format         VARCHAR(50) DEFAULT 'en-US',
-    plan_tier             VARCHAR(50) NOT NULL DEFAULT 'starter',
+    plan_tier             plan_tier NOT NULL DEFAULT 'starter',
     max_employees         INT DEFAULT 50,
     max_storage_gb        INT DEFAULT 10,
     features              JSONB DEFAULT '{}',
     billing_email         VARCHAR(255),
     billing_currency      VARCHAR(3) DEFAULT 'USD',
-    billing_status        VARCHAR(50) DEFAULT 'active',
+    billing_status        billing_status DEFAULT 'active',
     is_active             BOOLEAN DEFAULT TRUE,
     is_suspended          BOOLEAN DEFAULT FALSE,
     gdpr_applicable       BOOLEAN DEFAULT FALSE,
@@ -290,7 +532,7 @@ CREATE TABLE firm_job_titles (
     description           TEXT,
     description_i18n      JSONB,
     is_exempt             BOOLEAN DEFAULT FALSE,
-    eeoc_category         VARCHAR(50),
+    eeoc_category         eeoc_category,
     isco_code             VARCHAR(10),
     is_active             BOOLEAN DEFAULT TRUE,
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -324,12 +566,12 @@ CREATE TABLE employees (
     email                 TEXT NOT NULL,
     phone                 TEXT,
     employee_number       TEXT,
-    gender                TEXT,
-    marital_status        TEXT,
+    gender                gender,
+    marital_status        marital_status,
     ssn_tax_id            TEXT,
     social_media_links    JSONB DEFAULT '{}'::jsonb,
     timezone              TEXT DEFAULT 'America/New_York',
-    employment_status     TEXT NOT NULL DEFAULT 'active',
+    employment_status     employment_status NOT NULL DEFAULT 'active',
     employment_type       TEXT NOT NULL DEFAULT 'full_time',
     start_date            DATE NOT NULL,
     end_date              DATE,
@@ -338,9 +580,9 @@ CREATE TABLE employees (
     job_level             TEXT,
     manager_id            UUID,
     location_code         TEXT,
-    pay_frequency         TEXT DEFAULT 'bi-weekly',
+    pay_frequency         pay_frequency DEFAULT 'bi-weekly',
     compensation_band     TEXT,
-    pronouns              TEXT,
+    pronouns              pronouns,
     profile_picture       TEXT,
     prior_employers       JSONB DEFAULT '[]'::jsonb,
     prior_education       JSONB DEFAULT '[]'::jsonb,
@@ -374,7 +616,7 @@ CREATE TABLE accounting_periods (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     period_name           VARCHAR(50) NOT NULL,
-    period_type           VARCHAR(20) NOT NULL,
+    period_type           period_type NOT NULL,
     start_date            DATE NOT NULL,
     end_date              DATE NOT NULL,
     fiscal_year           INT NOT NULL,
@@ -526,7 +768,7 @@ CREATE TABLE chart_of_accounts (
     account_code          VARCHAR(50) NOT NULL,
     account_name          VARCHAR(255) NOT NULL,
     account_name_i18n     JSONB,
-    account_type          VARCHAR(50) NOT NULL,
+    account_type          account_type NOT NULL,
     account_subtype       VARCHAR(50),
     parent_account_id     UUID,
     currency              VARCHAR(3),
@@ -619,13 +861,13 @@ CREATE TABLE compensation_base (
     compensation_type     compensation_type NOT NULL,
     amount                DECIMAL(12, 2) NOT NULL,
     currency              VARCHAR(3) NOT NULL DEFAULT 'USD',
-    pay_frequency         VARCHAR(20),
+    pay_frequency         pay_frequency,
     standard_hours_per_day DECIMAL(5, 2),
     standard_days_per_week DECIMAL(4, 2),
     annual_equivalent     DECIMAL(12, 2),
     overtime_eligible     BOOLEAN DEFAULT FALSE,
     overtime_rules        JSONB,
-    change_reason         VARCHAR(100),
+    change_reason         change_reason,
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_by            UUID
 );
@@ -854,7 +1096,7 @@ CREATE TABLE employee_user_groups (
     group_name            TEXT,
     display_name          TEXT NOT NULL,
     description           TEXT,
-    group_type            TEXT NOT NULL DEFAULT 'custom',
+    group_type            group_type NOT NULL DEFAULT 'custom',
     parent_group_name     TEXT,
     department_code       TEXT,
     location_code         TEXT,
@@ -876,12 +1118,14 @@ CREATE TABLE employment_terms (
     start_date            DATE NOT NULL,
     planned_end_date      DATE,
     actual_end_date       DATE,
-    contract_type         VARCHAR(50),
+    -- NOT the client `contract_type` enum (MSA/NDA/SOW). Employment contract kind.
+    contract_type         TEXT,
+        CHECK (contract_type IN ('permanent','fixed_term','probationary','casual','apprenticeship')),
     renewal_option        BOOLEAN DEFAULT FALSE,
     probation_period_days INT DEFAULT 90,
     probation_end_date    DATE,
     notice_period_days    INT,
-    work_authorization_type VARCHAR(50),
+    work_authorization_type work_authorization_type,
     work_authorization_expiry DATE,
     fte                   DECIMAL(4, 2) DEFAULT 1.00,
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -920,7 +1164,7 @@ CREATE TABLE expenses (
     mileage_distance      DECIMAL(10, 2),
     mileage_rate          DECIMAL(10, 4),
     is_reimbursable       BOOLEAN DEFAULT TRUE,
-    reimbursement_status  VARCHAR(50) DEFAULT 'pending',
+    reimbursement_status  reimbursement_status DEFAULT 'pending',
     approved_by           UUID,
     approved_at           TIMESTAMPTZ,
     rejection_reason      TEXT,
@@ -1071,7 +1315,7 @@ CREATE TABLE hr_benefits_enrollments (
     benefit_type          TEXT NOT NULL,
     plan_name             TEXT NOT NULL,
     carrier               TEXT,
-    coverage_level        TEXT,
+    coverage_level        coverage_level,
     employee_cost_monthly NUMERIC(18,4),
     employer_cost_monthly NUMERIC(18,4),
     annual_election_amount NUMERIC(18,4),
@@ -1169,7 +1413,7 @@ CREATE TABLE hr_onboarding_tasks (
     employee_id           UUID NOT NULL,
     task_name             TEXT NOT NULL,
     description           TEXT,
-    task_type             TEXT NOT NULL,
+    task_type             task_type NOT NULL,
     assigned_to_employee_id UUID,
     due_date              DATE,
     completion_date       DATE,
@@ -1422,7 +1666,7 @@ CREATE TABLE payments (
     amount                DECIMAL(15, 2) NOT NULL,
     exchange_rate         DECIMAL(12, 6) DEFAULT 1.0,
     base_amount           DECIMAL(15, 2) NOT NULL,
-    payment_method        VARCHAR(50) NOT NULL,
+    payment_method        payment_method NOT NULL,
     payment_gateway       VARCHAR(50),
     payment_gateway_id    VARCHAR(100),
     gateway_fee           DECIMAL(15, 2) DEFAULT 0,
@@ -1606,7 +1850,7 @@ CREATE TABLE payroll_run_employees (
     posttax_deductions    JSONB,
     total_posttax_deductions DECIMAL(12, 2) DEFAULT 0,
     net_pay               DECIMAL(12, 2) NOT NULL,
-    payment_method        VARCHAR(50),
+    payment_method        payment_method,
     payment_details       JSONB,
     ytd_gross             DECIMAL(15, 2),
     ytd_federal_wages     DECIMAL(15, 2),
@@ -1686,9 +1930,9 @@ CREATE TABLE payroll_tax_deposits (
     currency              VARCHAR(3) NOT NULL,
     due_date              DATE NOT NULL,
     payment_date          DATE,
-    payment_method        VARCHAR(50),
+    payment_method        payment_method,
     confirmation_number   VARCHAR(100),
-    payment_status        VARCHAR(50),
+    payment_status        payment_status,
     tax_breakdown         JSONB,
     related_payroll_runs  UUID[],
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1710,7 +1954,7 @@ CREATE TABLE payroll_tax_rates (
     tenant_id             UUID REFERENCES tenants(id) ON DELETE CASCADE,
     tax_name              VARCHAR(255) NOT NULL,
     tax_name_i18n         JSONB,
-    tax_type              VARCHAR(50) NOT NULL,
+    tax_type              tax_type NOT NULL,
     rate                  DECIMAL(8, 5) NOT NULL,
     is_compound           BOOLEAN DEFAULT FALSE,
     components            JSONB,
@@ -1756,7 +2000,7 @@ CREATE TABLE payroll_tax_withholding_certificates (
     us_step4c_extra_withholding DECIMAL(12, 2),
     us_exempt             BOOLEAN DEFAULT FALSE,
     state_withholding     JSONB,
-    india_tax_regime      VARCHAR(20),
+    india_tax_regime      india_tax_regime,
     india_section_declarations JSONB,
     india_previous_employer_income DECIMAL(15, 2),
     india_previous_employer_tds DECIMAL(15, 2),
@@ -2019,7 +2263,7 @@ CREATE TABLE projects (
     objective_id          UUID,
     parent_project_id     UUID,
     description           TEXT,
-    project_type          TEXT NOT NULL DEFAULT 'client_project',
+    project_type          project_type NOT NULL DEFAULT 'client_project',
     client_id             UUID,
     contact_person_id     UUID,
     service_type          TEXT,
@@ -2037,13 +2281,13 @@ CREATE TABLE projects (
     priority              TEXT NOT NULL DEFAULT 'medium',
     progress_percentage   NUMERIC(18,4) DEFAULT 0.00,
     health_status         TEXT NOT NULL DEFAULT 'on_track',
-    budget_type           TEXT,
+    budget_type           budget_type,
     budget                NUMERIC(18,4),
     estimated_hours       NUMERIC(18,4),
     actual_hours          NUMERIC(18,4) DEFAULT 0.00,
     actual_cost           NUMERIC(18,4) DEFAULT 0.00,
     currency              TEXT DEFAULT 'USD',
-    billing_method        TEXT,
+    billing_method        billing_method,
     hourly_rate           NUMERIC(18,4),
     is_billable           BOOLEAN DEFAULT TRUE,
     total_billed          NUMERIC(18,4) DEFAULT 0.00,
@@ -2087,7 +2331,7 @@ CREATE TABLE tasks (
     position              INTEGER,
     depth_level           INTEGER DEFAULT 0,
     description           TEXT,
-    task_type             TEXT DEFAULT 'task',
+    task_type             task_type DEFAULT 'task',
     status                TEXT NOT NULL DEFAULT 'todo',
     priority              TEXT DEFAULT 'medium',
     assigned_to           TEXT,
@@ -2298,7 +2542,7 @@ CREATE TABLE time_tracking_entries (
     amount                NUMERIC(18,4),
     currency              TEXT DEFAULT 'USD',
     rate_source           TEXT,
-    activity_type         TEXT,
+    activity_type         activity_type,
     tags                  JSONB,
     status                TEXT DEFAULT 'draft',
     submitted_at          TIMESTAMPTZ,
@@ -2324,7 +2568,7 @@ CREATE TABLE time_tracking_timesheets (
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     timesheet_number      TEXT,
     employee_id           UUID NOT NULL,
-    period_type           TEXT NOT NULL,
+    period_type           period_type NOT NULL,
     period_start          TEXT NOT NULL,
     period_end            TEXT NOT NULL,
     total_hours           NUMERIC(18,4) DEFAULT 0.00,
@@ -2599,6 +2843,7 @@ CREATE TABLE time_tracking_hourly_rates (
     currency              VARCHAR(3) NOT NULL DEFAULT 'USD',
     effective_from        DATE NOT NULL,
     effective_to          DATE,
+    -- NOT the compensation `change_reason` enum. Free-text rate-card reason.
     change_reason         TEXT,
     is_active             BOOLEAN NOT NULL DEFAULT TRUE,
     created_by            UUID,
@@ -2637,6 +2882,8 @@ CREATE TABLE employee_bank_accounts (
     branch_name           TEXT,
     country               VARCHAR(2) NOT NULL,
     currency              VARCHAR(3) NOT NULL,
+    -- NOTE: deliberately NOT the accounting `account_type` enum. Same column
+    -- name, unrelated concept (bank account kind vs. ledger account class).
     account_type          TEXT NOT NULL DEFAULT 'checking'
         CHECK (account_type IN ('checking','savings','paycard')),
 
@@ -2786,6 +3033,7 @@ CREATE TABLE hr_onboarding_template_tasks (
     description           TEXT,
 
     -- FR-HR-009 task types
+    -- NOT the project `task_type` enum (bug/feature/milestone). Onboarding task kind.
     task_type             TEXT NOT NULL
         CHECK (task_type IN ('document_upload','form_completion','training',
                              'meeting','equipment_request','e_signature',
@@ -3871,6 +4119,31 @@ CREATE UNIQUE INDEX idx_pm_objectives_number
 CREATE UNIQUE INDEX idx_projects_number
     ON projects (tenant_id, project_number);
 
+-- Accounting business documents must be uniquely addressable inside a tenant.
+-- Without these, duplicate invoice/payment/journal numbers make audit trails,
+-- reconciliation, and external filings ambiguous.
+CREATE UNIQUE INDEX idx_chart_of_accounts_code
+    ON chart_of_accounts (tenant_id, account_code);
+CREATE UNIQUE INDEX idx_customers_number
+    ON customers (tenant_id, customer_number);
+CREATE UNIQUE INDEX idx_invoices_number
+    ON invoices (tenant_id, invoice_number);
+CREATE UNIQUE INDEX idx_journal_entries_number
+    ON journal_entries (tenant_id, entry_number);
+CREATE UNIQUE INDEX idx_payments_number
+    ON payments (tenant_id, payment_number)
+    WHERE payment_number IS NOT NULL;
+CREATE UNIQUE INDEX idx_vendors_number
+    ON vendors (tenant_id, vendor_number)
+    WHERE vendor_number IS NOT NULL;
+CREATE UNIQUE INDEX idx_bills_vendor_number
+    ON bills (tenant_id, vendor_id, bill_number);
+CREATE UNIQUE INDEX idx_bank_transactions_external_id
+    ON bank_transactions (tenant_id, bank_account_id, bank_transaction_id)
+    WHERE bank_transaction_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_exchange_rates_pair_date_source
+    ON exchange_rates (from_currency, to_currency, rate_date, source);
+
 -- Statutory tax rates are global (tenant_id IS NULL); tenant overrides are not.
 CREATE UNIQUE INDEX idx_payroll_tax_rates_statutory
     ON payroll_tax_rates (jurisdiction, tax_type, effective_from)
@@ -3895,6 +4168,15 @@ ALTER TABLE bank_transactions ADD CONSTRAINT fk_bank_transactions_category_accou
 ALTER TABLE bill_lines ADD CONSTRAINT fk_bill_lines_bill_id FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE;
 ALTER TABLE bill_lines ADD CONSTRAINT fk_bill_lines_tax_rate_id FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id);
 ALTER TABLE bill_lines ADD CONSTRAINT fk_bill_lines_expense_account_id FOREIGN KEY (expense_account_id) REFERENCES chart_of_accounts(id);
+ALTER TABLE bills ADD CONSTRAINT ck_bills_amounts_reconcile CHECK (
+    subtotal >= 0
+    AND tax_total >= 0
+    AND total >= 0
+    AND amount_paid >= 0
+    AND amount_due >= 0
+    AND total = subtotal + tax_total
+    AND amount_due = total - amount_paid
+);
 ALTER TABLE bills ADD CONSTRAINT fk_bills_vendor_id FOREIGN KEY (vendor_id) REFERENCES vendors(id);
 ALTER TABLE bills ADD CONSTRAINT fk_bills_journal_entry_id FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id);
 ALTER TABLE chart_of_accounts ADD CONSTRAINT fk_chart_of_accounts_parent_account_id FOREIGN KEY (parent_account_id) REFERENCES chart_of_accounts(id);
@@ -3921,16 +4203,56 @@ ALTER TABLE firm_payroll_policies ADD CONSTRAINT fk_firm_payroll_policies_locati
 ALTER TABLE invoice_lines ADD CONSTRAINT fk_invoice_lines_invoice_id FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE;
 ALTER TABLE invoice_lines ADD CONSTRAINT fk_invoice_lines_tax_rate_id FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id);
 ALTER TABLE invoice_lines ADD CONSTRAINT fk_invoice_lines_revenue_account_id FOREIGN KEY (revenue_account_id) REFERENCES chart_of_accounts(id);
+ALTER TABLE invoices ADD CONSTRAINT ck_invoices_amounts_reconcile CHECK (
+    subtotal >= 0
+    AND tax_total >= 0
+    AND total >= 0
+    AND amount_paid >= 0
+    AND amount_due >= 0
+    AND base_subtotal >= 0
+    AND base_tax_total >= 0
+    AND base_total >= 0
+    AND base_amount_paid >= 0
+    AND base_amount_due >= 0
+    AND total = subtotal + tax_total
+    AND amount_due = total - amount_paid
+    AND base_total = base_subtotal + base_tax_total
+    AND base_amount_due = base_total - base_amount_paid
+);
 ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id);
 ALTER TABLE invoices ADD CONSTRAINT fk_invoices_journal_entry_id FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id);
 ALTER TABLE journal_entry_lines ADD CONSTRAINT fk_journal_entry_lines_entry_id FOREIGN KEY (entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE;
 ALTER TABLE journal_entry_lines ADD CONSTRAINT fk_journal_entry_lines_account_id FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id);
+ALTER TABLE journal_entry_lines ADD CONSTRAINT ck_journal_entry_lines_one_sided_positive CHECK (
+    debit_amount >= 0
+    AND credit_amount >= 0
+    AND base_debit_amount >= 0
+    AND base_credit_amount >= 0
+    AND (
+        (debit_amount > 0 AND credit_amount = 0)
+        OR (credit_amount > 0 AND debit_amount = 0)
+    )
+    AND (
+        (base_debit_amount > 0 AND base_credit_amount = 0)
+        OR (base_credit_amount > 0 AND base_debit_amount = 0)
+    )
+);
 ALTER TABLE journal_entry_lines ADD CONSTRAINT fk_journal_entry_lines_department_id FOREIGN KEY (department_id) REFERENCES firm_departments(id);
 ALTER TABLE journal_entry_lines ADD CONSTRAINT fk_journal_entry_lines_location_id FOREIGN KEY (location_id) REFERENCES firm_locations(id);
 ALTER TABLE journal_entry_lines ADD CONSTRAINT fk_journal_entry_lines_tax_rate_id FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id);
+ALTER TABLE payment_allocations ADD CONSTRAINT ck_payment_allocations_one_document CHECK (
+    amount > 0
+    AND base_amount > 0
+    AND ((invoice_id IS NOT NULL)::int + (bill_id IS NOT NULL)::int) = 1
+);
 ALTER TABLE payment_allocations ADD CONSTRAINT fk_payment_allocations_payment_id FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE;
 ALTER TABLE payment_allocations ADD CONSTRAINT fk_payment_allocations_invoice_id FOREIGN KEY (invoice_id) REFERENCES invoices(id);
 ALTER TABLE payment_allocations ADD CONSTRAINT fk_payment_allocations_bill_id FOREIGN KEY (bill_id) REFERENCES bills(id);
+ALTER TABLE payments ADD CONSTRAINT ck_payments_positive_amounts CHECK (
+    amount > 0
+    AND base_amount > 0
+    AND gateway_fee >= 0
+);
 ALTER TABLE payments ADD CONSTRAINT fk_payments_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id);
 ALTER TABLE payments ADD CONSTRAINT fk_payments_vendor_id FOREIGN KEY (vendor_id) REFERENCES vendors(id);
 ALTER TABLE payments ADD CONSTRAINT fk_payments_bank_account_id FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id);

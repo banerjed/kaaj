@@ -78,15 +78,32 @@ SELECT _check('US-FIRM-loc','SCHEMA','firm-profile',
 SELECT _check('US-FIRM-loc-data','DATA','firm-profile',
   'At least two countries represented',
   $$SELECT count(DISTINCT country)>=2 FROM firm_locations$$);
+SELECT _check('US-FP-003','DATA','firm-profile',
+  'Tenant enables multiple locales for a global workforce',
+  $$SELECT count(*)>0 FROM tenants WHERE cardinality(supported_locales)>=3$$);
+SELECT _check('US-FP-004','DATA','firm-profile',
+  'Company profile includes brand and web identity fields',
+  $$SELECT count(*)>0 FROM tenants
+     WHERE legal_entity_name IS NOT NULL AND primary_contact_email IS NOT NULL$$);
 SELECT _check('US-FIRM-hq','SCHEMA','firm-profile',
   'Exactly one headquarters per tenant (not one globally)',
   $$SELECT count(*)<=1 FROM firm_locations WHERE is_headquarters$$);
+SELECT _check('US-FP-007','DATA','firm-profile',
+  'Office locations carry working hours for timezone-aware scheduling',
+  $$SELECT count(*)>0 FROM firm_locations WHERE working_hours ? 'monday'$$);
 SELECT _check('US-FIRM-dept-tree','DATA','firm-profile',
   'Department hierarchy is navigable (a child references a parent)',
   $$SELECT count(*)>0 FROM firm_departments WHERE parent_department_code IS NOT NULL$$);
 SELECT _check('US-FIRM-i18n','SCHEMA','firm-profile',
   'Departments carry multilingual names (Global by Design)',
   $$SELECT count(*)>0 FROM firm_departments WHERE name_i18n IS NOT NULL$$);
+SELECT _check('US-FP-013','DATA','firm-profile',
+  'Departments identify a department head',
+  $$SELECT count(*)>0 FROM firm_departments WHERE head_employee_id IS NOT NULL$$);
+SELECT _check('US-FP-016','DATA','firm-profile',
+  'Job titles have localized labels and descriptions',
+  $$SELECT count(*)>0 FROM firm_job_titles
+     WHERE title_i18n ? 'de-DE' AND description_i18n ? 'en-US'$$);
 SELECT _check('US-FIRM-title-range','SCHEMA','firm-profile',
   'Job levels carry multi-currency salary ranges',
   $$SELECT count(*)>0 FROM firm_job_levels WHERE salary_ranges ? 'USD'$$);
@@ -120,6 +137,9 @@ SELECT _check('EMP-assets','DATA','employee-profile',
 SELECT _check('EMP-certs','DATA','employee-profile',
   'Certifications and training records are tracked',
   $$SELECT count(*)>0 FROM employee_certifications$$);
+SELECT _check('EMP-training','DATA','employee-profile',
+  'Training assignments and completion status are tracked',
+  $$SELECT count(*)>0 FROM employee_training_records$$);
 SELECT _check('EMP-emergency','DATA','employee-profile',
   'Emergency contacts recorded',
   $$SELECT count(*)>0 FROM hr_emergency_contacts$$);
@@ -134,6 +154,17 @@ SELECT _check('US-HR-008','DATA','hr',
   'A job change (promotion/transfer) is recorded with before and after state',
   $$SELECT count(*)>0 FROM hr_employment_history
      WHERE change_type IN ('promotion','transfer') AND previous_job_title IS NOT NULL$$);
+SELECT _check('US-HR-003','DATA','hr',
+  'Employee documents are uploaded and associated to employee profiles',
+  $$SELECT count(*)>0 FROM hr_employee_documents
+     WHERE document_type IN ('contract','i9','certification','policy_acknowledgment')$$);
+SELECT _check('US-HR-004','DATA','hr',
+  'Profile photos are available for employee recognition',
+  $$SELECT count(*)>0 FROM employees WHERE profile_picture IS NOT NULL$$);
+SELECT _check('US-HR-006','DATA','hr',
+  'Terminated employees retain a last day for access revocation',
+  $$SELECT count(*)>0 FROM employees
+     WHERE employment_status='terminated' AND end_date IS NOT NULL AND NOT is_active$$);
 SELECT _check('US-HR-011','DATA','hr',
   'Employment changes record a reason for compensation-trend analysis',
   $$SELECT count(DISTINCT reason)>1 FROM hr_employment_history$$);
@@ -199,9 +230,33 @@ SELECT _check('FR-HR-goals','DATA','hr',
 SELECT _check('FR-HR-attendance','DATA','hr',
   'Attendance clock in/out is recorded',
   $$SELECT count(*)>0 FROM hr_attendance$$);
+SELECT _check('US-HR-024','DATA','hr',
+  'Attendance reports can show exceptions like late arrivals or absences',
+  $$SELECT count(*)>0 FROM hr_attendance WHERE status IN ('late','absent','early_departure')$$);
+SELECT _check('US-HR-047','DATA','hr',
+  'Performance review acknowledgement is recorded electronically',
+  $$SELECT count(*)>0 FROM hr_reviews
+     WHERE status='acknowledged' OR manager_assessment ? 'acknowledged_at'$$);
+SELECT _check('US-HR-049','DATA','hr',
+  'New-hire onboarding task instances exist and can be completed',
+  $$SELECT count(*)>0 FROM hr_onboarding_tasks
+     WHERE status='completed' AND completion_date IS NOT NULL$$);
+SELECT _check('US-HR-050','DATA','hr',
+  'Onboarding can assign a buddy as a point of contact',
+  $$SELECT count(*)>0 FROM hr_onboarding_tasks
+     WHERE template_data ? 'buddy_employee_id'$$);
+SELECT _check('US-HR-058','DATA','hr',
+  'Anonymous pulse survey responses do not expose respondent identity',
+  $$SELECT count(*)>0 FROM hr_surveys s
+      JOIN hr_survey_responses r ON r.survey_id=s.id
+     WHERE s.is_anonymous AND r.respondent_id IS NULL$$);
 SELECT _check('CR-module','DATA','change-requests',
   'Employee self-service change requests exist with an approval chain',
   $$SELECT count(*)>0 FROM hr_change_requests$$);
+SELECT _check('US-HR-066','DATA','change-requests',
+  'Change requests can include supporting documents',
+  $$SELECT count(*)>0 FROM hr_change_requests
+     WHERE jsonb_array_length(coalesce(attached_documents,'[]'::jsonb))>0$$);
 
 -- =============================================================================
 -- COMPENSATION  (module-compensation.md)
@@ -251,6 +306,9 @@ SELECT _check('FR-PAY-005-intl','DATA','payroll',
 SELECT _check('PAY-run','DATA','payroll',
   'Payroll runs exist for more than one country',
   $$SELECT count(DISTINCT country)>1 FROM payroll_runs$$);
+SELECT _check('US-PAY-003','DATA','payroll',
+  'Off-cycle payroll runs exist for bonuses or corrections',
+  $$SELECT count(*)>0 FROM payroll_runs WHERE run_type='off_cycle'$$);
 SELECT _check('PAY-math','DATA','payroll',
   'gross = net + taxes + deductions for every payroll line',
   $$SELECT bool_and(abs(gross_pay-(net_pay+total_taxes+total_posttax_deductions))<0.02)
@@ -264,18 +322,38 @@ SELECT _check('PAY-rollup','DATA','payroll',
 SELECT _check('PAY-ytd','SCHEMA','payroll',
   'Year-to-date figures tracked for tax forms',
   $$SELECT count(*)>0 FROM payroll_run_employees WHERE ytd_gross IS NOT NULL$$);
+SELECT _check('US-PAY-006','DATA','payroll',
+  'Pay stubs are generated with tax withholding details',
+  $$SELECT count(*)>0 FROM payroll_run_employees
+     WHERE pay_stub_url IS NOT NULL AND taxes <> '{}'::jsonb$$);
 SELECT _check('PAY-deduct-def','DATA','payroll',
   'Deduction definitions exist (401k, EPF, ESI and similar)',
   $$SELECT count(*)>0 FROM payroll_deduction_definitions$$);
+SELECT _check('US-PAY-017','DATA','payroll',
+  'Court-ordered garnishment deductions carry case and priority details',
+  $$SELECT count(*)>0 FROM payroll_employee_deductions
+     WHERE garnishment_case_number IS NOT NULL AND amount IS NOT NULL$$);
 SELECT _check('PAY-deduct-emp','DATA','payroll',
   'Employees have deduction elections',
   $$SELECT count(*)>0 FROM payroll_employee_deductions$$);
 SELECT _check('PAY-withholding','DATA','payroll',
   'Tax withholding certificates (W-4 / Form 12BB) recorded',
   $$SELECT count(*)>0 FROM payroll_tax_withholding_certificates$$);
+SELECT _check('US-PAY-013','DATA','payroll',
+  'US multi-state tax withholding is represented',
+  $$SELECT count(*)>0 FROM payroll_tax_withholding_certificates
+     WHERE country='US' AND state_withholding IS NOT NULL$$);
 SELECT _check('PAY-india','SCHEMA','payroll',
   'India statutory payroll modelled (not flattened into JSONB)',
   $$SELECT to_regclass('payroll_india_salary_structure') IS NOT NULL$$);
+SELECT _check('US-PAY-014','DATA','payroll',
+  'India salary slips can show salary structure and TDS declarations',
+  $$SELECT count(*)>0 FROM payroll_india_salary_structure s
+      JOIN payroll_india_tax_declarations d ON d.employee_id=s.employee_id$$);
+SELECT _check('US-PAY-015','DATA','payroll',
+  'Tax deposit deadlines are tracked for compliance alerts',
+  $$SELECT count(*)>0 FROM payroll_tax_deposits
+     WHERE due_date>=CURRENT_DATE AND payment_status='pending'$$);
 
 -- =============================================================================
 -- TICKETING  (module-ticketing.md)
@@ -312,6 +390,22 @@ SELECT _check('TIX-sla-data','DATA','ticketing',
 SELECT _check('TIX-attach','DATA','ticketing',
   'Ticket attachments are recorded',
   $$SELECT count(*)>0 FROM ticketing_attachments$$);
+SELECT _check('TIX-private','DATA','ticketing',
+  'Private tickets are represented and filterable',
+  $$SELECT count(*)>0 FROM ticketing_tickets WHERE private$$);
+SELECT _check('TIX-subscribers','DATA','ticketing',
+  'Ticket subscribers/watchers are represented',
+  $$SELECT count(*)>0 FROM ticketing_tickets
+     WHERE jsonb_array_length(coalesce(subscribers,'[]'::jsonb))>0$$);
+SELECT _check('TIX-linking','DATA','ticketing',
+  'Tickets can reference parent or linked tickets',
+  $$SELECT count(*)>0 FROM ticketing_tickets
+     WHERE parent_ticket_number IS NOT NULL
+        OR jsonb_array_length(coalesce(linked_tickets,'[]'::jsonb))>0$$);
+SELECT _check('TIX-workflow','DATA','ticketing',
+  'Business-area categories and custom fields can drive workflows',
+  $$SELECT count(*)>0 FROM ticketing_business_areas
+     WHERE jsonb_array_length(categories)>0 AND custom_fields <> '{}'::jsonb$$);
 
 -- =============================================================================
 -- PROJECTS & TIME TRACKING  (module-project-management-v2.md, module-time-tracking.md)
@@ -335,6 +429,16 @@ SELECT _check('PM-no-eav','SCHEMA','projects',
 SELECT _check('PM-dashboards','DATA','projects',
   'Dashboards and widgets exist',
   $$SELECT count(*)>0 FROM pm_dashboards$$);
+SELECT _check('PM-comments','DATA','projects',
+  'Task discussions include internal and client-visible comments',
+  $$SELECT count(DISTINCT is_internal)=2 FROM pm_task_comments$$);
+SELECT _check('PM-attachments','DATA','projects',
+  'Task deliverables/attachments are tracked with client visibility',
+  $$SELECT count(*)>0 FROM pm_task_attachments WHERE client_visible$$);
+SELECT _check('PM-automations','DATA','projects',
+  'Project/task automations and execution history are represented',
+  $$SELECT count(*)>0 FROM pm_automations a
+      JOIN pm_automation_executions e ON e.automation_id=a.id$$);
 SELECT _check('TT-entries','DATA','time-tracking',
   'Time entries linked to project, task and timesheet',
   $$SELECT count(*)>0 FROM time_tracking_entries
@@ -354,6 +458,10 @@ SELECT _check('TT-rate-per-client','DATA','time-tracking',
 SELECT _check('TT-billable','DATA','time-tracking',
   'Billable and non-billable time are distinguished',
   $$SELECT count(DISTINCT is_billable)=2 FROM time_tracking_entries$$);
+SELECT _check('TT-expenses','DATA','time-tracking',
+  'Billable expenses can be captured for client invoicing',
+  $$SELECT count(*)>0 FROM time_tracking_billable_expenses
+     WHERE is_billable AND receipt_url IS NOT NULL$$);
 
 -- =============================================================================
 -- ACCOUNTING  (module-accounting.md)
@@ -361,6 +469,20 @@ SELECT _check('TT-billable','DATA','time-tracking',
 SELECT _check('ACC-coa','DATA','accounting',
   'Chart of accounts covers all five account types',
   $$SELECT count(DISTINCT account_type)>=5 FROM chart_of_accounts$$);
+SELECT _check('US-ACC-032','SCHEMA','accounting',
+  'Chart of account codes are unique inside a tenant',
+  $$SELECT count(*)>0 FROM pg_indexes
+     WHERE tablename='chart_of_accounts'
+       AND indexdef LIKE '%UNIQUE%'
+       AND indexdef LIKE '%tenant_id%'
+       AND indexdef LIKE '%account_code%'$$);
+SELECT _check('US-ACC-doc-keys','SCHEMA','accounting',
+  'Financial document numbers have tenant-scoped unique indexes',
+  $$SELECT
+      (SELECT count(*)>0 FROM pg_indexes WHERE tablename='invoices' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%invoice_number%')
+  AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='journal_entries' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%entry_number%')
+  AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='payments' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%payment_number%')
+  AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='bills' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%bill_number%')$$);
 SELECT _check('ACC-balance','DATA','accounting',
   'Journal entries balance: total debits equal total credits',
   $$SELECT coalesce(sum(debit_amount),0)=coalesce(sum(credit_amount),0)
@@ -369,10 +491,55 @@ SELECT _check('ACC-balance-per-entry','DATA','accounting',
   'Every individual journal entry balances',
   $$SELECT NOT EXISTS (SELECT 1 FROM journal_entry_lines
       GROUP BY entry_id HAVING sum(debit_amount)<>sum(credit_amount))$$);
+SELECT _check('ACC-base-balance-per-entry','DATA','accounting',
+  'Every journal entry also balances in base currency',
+  $$SELECT NOT EXISTS (SELECT 1 FROM journal_entry_lines
+      GROUP BY entry_id HAVING sum(base_debit_amount)<>sum(base_credit_amount))$$);
+SELECT _check('US-ACC-037','DATA','accounting',
+  'Accounting transactions have source links and audit trail coverage',
+  $$SELECT (SELECT count(*)>0 FROM journal_entries
+             WHERE source_type IN ('invoice','payment','bill') AND source_id IS NOT NULL)
+       AND (SELECT count(*)>0 FROM audit_log WHERE module='accounting')$$);
 SELECT _check('ACC-invoice-lines','DATA','accounting',
   'Invoice subtotal equals the sum of its line items',
   $$SELECT NOT EXISTS (SELECT 1 FROM invoices i JOIN invoice_lines l ON l.invoice_id=i.id
       GROUP BY i.id, i.subtotal HAVING abs(i.subtotal-sum(l.amount))>0.02)$$);
+SELECT _check('ACC-invoice-tax-total','DATA','accounting',
+  'Invoice tax totals equal line-level tax sums',
+  $$SELECT NOT EXISTS (SELECT 1 FROM invoices i LEFT JOIN invoice_lines l ON l.invoice_id=i.id
+      GROUP BY i.id, i.tax_total HAVING abs(i.tax_total-coalesce(sum(l.tax_amount),0))>0.02)$$);
+SELECT _check('ACC-invoice-amounts','DATA','accounting',
+  'Invoice totals and balances due reconcile to subtotal, tax, and payments',
+  $$SELECT NOT EXISTS (SELECT 1 FROM invoices
+      WHERE abs(total-(subtotal+tax_total))>0.02
+         OR abs(amount_due-(total-amount_paid))>0.02
+         OR abs(base_total-(base_subtotal+base_tax_total))>0.02
+         OR abs(base_amount_due-(base_total-base_amount_paid))>0.02)$$);
+SELECT _check('ACC-invoice-journal-tieout','DATA','accounting',
+  'Invoice journal entries tie to the invoice base total they post',
+  $$SELECT NOT EXISTS (
+      SELECT 1
+        FROM invoices i
+        JOIN journal_entry_lines l ON l.entry_id=i.journal_entry_id
+       WHERE i.journal_entry_id IS NOT NULL
+       GROUP BY i.id, i.base_total
+      HAVING abs(i.base_total-sum(l.base_debit_amount))>0.02
+          OR abs(i.base_total-sum(l.base_credit_amount))>0.02)$$);
+SELECT _check('US-ACC-001','DATA','accounting',
+  'Sent invoices include branding-ready PDF/footer data',
+  $$SELECT count(*)>0 FROM invoices
+     WHERE pdf_url IS NOT NULL AND footer_text IS NOT NULL AND sent_at IS NOT NULL$$);
+SELECT _check('US-ACC-002','DATA','accounting',
+  'Customer invoices include online payment links and gateway identifiers',
+  $$SELECT count(*)>0 FROM invoices
+     WHERE payment_url IS NOT NULL AND payment_gateway IS NOT NULL AND payment_gateway_id IS NOT NULL$$);
+SELECT _check('US-ACC-004','DATA','accounting',
+  'Recurring invoices are represented for subscription billing',
+  $$SELECT count(*)>0 FROM invoices WHERE is_recurring AND recurring_schedule_id IS NOT NULL$$);
+SELECT _check('US-ACC-006','DATA','accounting',
+  'Invoice workflow covers draft, paid, partial, and overdue states',
+  $$SELECT count(DISTINCT status)>=4 FROM invoices
+     WHERE status IN ('draft','paid','partial','overdue')$$);
 SELECT _check('ACC-multi-ccy','DATA','accounting',
   'Invoices in more than one currency with base-currency conversion',
   $$SELECT count(DISTINCT currency)>1 FROM invoices$$);
@@ -382,19 +549,133 @@ SELECT _check('ACC-base-ccy','SCHEMA','accounting',
 SELECT _check('ACC-ar-aging','DATA','accounting',
   'Aged receivables computable: unpaid invoices with due dates',
   $$SELECT count(*)>0 FROM invoices WHERE amount_due>0 AND due_date IS NOT NULL$$);
+SELECT _check('US-ACC-016','DATA','accounting',
+  'Overdue AR can be identified by due date and remaining balance',
+  $$SELECT count(*)>0 FROM invoices
+     WHERE status='overdue' AND amount_due>0 AND due_date<CURRENT_DATE$$);
+SELECT _check('US-ACC-018','DATA','accounting',
+  'One customer payment can be allocated across multiple invoices',
+  $$SELECT count(*)>0 FROM (
+      SELECT payment_id FROM payment_allocations
+       WHERE invoice_id IS NOT NULL
+       GROUP BY payment_id HAVING count(DISTINCT invoice_id)>1) x$$);
+SELECT _check('ACC-payment-allocation-total','DATA','accounting',
+  'Payments are not over-allocated',
+  $$SELECT NOT EXISTS (
+      SELECT 1 FROM payments p
+       JOIN payment_allocations a ON a.payment_id=p.id
+       GROUP BY p.id, p.amount
+      HAVING sum(a.amount)>p.amount+0.02)$$);
+SELECT _check('ACC-payment-document-total','DATA','accounting',
+  'Invoice and bill allocations do not exceed document balances',
+  $$SELECT NOT EXISTS (
+      SELECT 1 FROM invoices i
+       JOIN payment_allocations a ON a.invoice_id=i.id
+       GROUP BY i.id, i.total
+      HAVING sum(a.amount)>i.total+0.02)
+   AND NOT EXISTS (
+      SELECT 1 FROM bills b
+       JOIN payment_allocations a ON a.bill_id=b.id
+       GROUP BY b.id, b.total
+      HAVING sum(a.amount)>b.total+0.02)$$);
+SELECT _check('US-ACC-054','DATA','accounting',
+  'Realized FX gain or loss is captured when foreign invoices settle at a different rate',
+  $$SELECT count(*)>0 FROM payment_allocations a
+      JOIN invoices i ON i.id=a.invoice_id
+     WHERE i.currency<>i.base_currency AND abs(a.fx_gain_loss)>0$$);
 SELECT _check('ACC-expenses','DATA','accounting',
   'Employee expenses post against expense accounts',
   $$SELECT count(*)>0 FROM expenses e
       JOIN chart_of_accounts a ON a.id=e.category_account_id$$);
+SELECT _check('US-ACC-009','DATA','accounting',
+  'Expense receipts are attached for mobile capture workflows',
+  $$SELECT count(*)>0 FROM expenses WHERE receipt_url IS NOT NULL$$);
+SELECT _check('US-ACC-010','DATA','accounting',
+  'Expense OCR/categorization data exists for review',
+  $$SELECT count(*)>0 FROM expenses
+     WHERE receipt_ocr_data ? 'confidence' AND category_account_id IS NOT NULL$$);
+SELECT _check('US-ACC-013','DATA','accounting',
+  'Approved reimbursable expenses identify the approver',
+  $$SELECT count(*)>0 FROM expenses
+     WHERE is_reimbursable AND reimbursement_status='approved'
+       AND approved_by IS NOT NULL AND approved_at IS NOT NULL$$);
 SELECT _check('ACC-bank','DATA','accounting',
   'Bank accounts and transactions exist for reconciliation',
-  $$SELECT count(*)>0 FROM bank_accounts$$);
+  $$SELECT (SELECT count(*) FROM bank_accounts)>0
+        AND (SELECT count(*) FROM bank_transactions)>0$$);
+SELECT _check('US-ACC-027','DATA','accounting',
+  'Connected bank feeds store provider sync metadata',
+  $$SELECT count(*)>0 FROM bank_accounts
+     WHERE feed_enabled AND feed_provider IS NOT NULL AND feed_connection_id IS NOT NULL$$);
+SELECT _check('US-ACC-028','DATA','accounting',
+  'Bank transaction matching suggestions are represented',
+  $$SELECT count(*)>0 FROM bank_transactions WHERE match_confidence IS NOT NULL$$);
+SELECT _check('US-ACC-029','DATA','accounting',
+  'Bank reconciliation rules can auto-categorize recurring transactions',
+  $$SELECT count(*)>0 FROM bank_reconciliation_rules WHERE auto_match$$);
+SELECT _check('US-ACC-030','DATA','accounting',
+  'Unreconciled bank transactions remain visible for manual review',
+  $$SELECT count(*)>0 FROM bank_transactions WHERE status='unmatched'$$);
 SELECT _check('ACC-periods','DATA','accounting',
   'Accounting periods defined for close',
   $$SELECT count(*)>0 FROM accounting_periods$$);
+SELECT _check('US-ACC-035','DATA','accounting',
+  'Locked accounting periods are represented for historical protection',
+  $$SELECT count(*)>0 FROM accounting_periods
+     WHERE status='locked' AND closed_at IS NOT NULL AND closed_by IS NOT NULL$$);
 SELECT _check('ACC-vendors','DATA','accounting',
   'Vendors and bills exist (accounts payable)',
-  $$SELECT count(*)>0 FROM vendors$$);
+  $$SELECT (SELECT count(*) FROM vendors)>0 AND (SELECT count(*) FROM bills)>0$$);
+SELECT _check('ACC-bill-lines','DATA','accounting',
+  'Bill totals equal line amounts plus input tax',
+  $$SELECT NOT EXISTS (SELECT 1 FROM bills b LEFT JOIN bill_lines l ON l.bill_id=b.id
+      GROUP BY b.id, b.subtotal, b.tax_total, b.total, b.amount_paid, b.amount_due
+      HAVING abs(b.subtotal-coalesce(sum(l.amount),0))>0.02
+          OR abs(b.tax_total-coalesce(sum(l.tax_amount),0))>0.02
+          OR abs(b.total-(b.subtotal+b.tax_total))>0.02
+          OR abs(b.amount_due-(b.total-b.amount_paid))>0.02)$$);
+SELECT _check('US-ACC-024','DATA','accounting',
+  'Bills due soon can be prioritized for payment',
+  $$SELECT count(*)>0 FROM bills
+     WHERE status IN ('approved','open') AND amount_due>0 AND due_date>=CURRENT_DATE$$);
+SELECT _check('US-ACC-025','DATA','accounting',
+  'Vendor batch-style payments can allocate one payment to multiple bills',
+  $$SELECT count(*)>0 FROM (
+      SELECT payment_id FROM payment_allocations
+       WHERE bill_id IS NOT NULL
+       GROUP BY payment_id HAVING count(DISTINCT bill_id)>1) x$$);
+SELECT _check('US-ACC-049','DATA','accounting',
+  'Output tax on invoices and input tax on bills are both represented',
+  $$SELECT (SELECT count(*)>0 FROM invoice_lines WHERE tax_amount>0 AND tax_rate_id IS NOT NULL)
+      AND (SELECT count(*)>0 FROM bill_lines WHERE tax_amount>0 AND tax_rate_id IS NOT NULL)$$);
+SELECT _check('US-ACC-050','DATA','accounting',
+  'Tax-exempt customers can have zero-tax invoices',
+  $$SELECT count(*)>0 FROM customers c
+      JOIN invoices i ON i.customer_id=c.id
+     WHERE c.is_tax_exempt AND i.tax_total=0$$);
+SELECT _check('US-ACC-046','DATA','accounting',
+  'Sales tax rates are configured by jurisdiction',
+  $$SELECT count(*)>0 FROM payroll_tax_rates
+     WHERE tax_type='sales_tax' AND jurisdiction IS NOT NULL AND rate>0$$);
+SELECT _check('US-ACC-047','DATA','accounting',
+  'Reverse-charge VAT configuration is represented',
+  $$SELECT count(*)>0 FROM payroll_tax_rates
+     WHERE tax_type='vat' AND is_reverse_charge$$);
+SELECT _check('US-ACC-052','DATA','accounting',
+  'Exchange-rate snapshots exist for foreign-currency transaction dates',
+  $$SELECT count(*)>0 FROM exchange_rates
+     WHERE from_currency<>to_currency AND rate_date IS NOT NULL AND source IS NOT NULL$$);
+SELECT _check('US-ACC-1099','DATA','accounting',
+  '1099 vendors with payments above the reporting threshold are identifiable',
+  $$SELECT EXISTS (
+      SELECT 1 FROM vendors v
+        JOIN payments p ON p.vendor_id=v.id
+       WHERE v.is_1099_vendor
+       GROUP BY v.id
+      HAVING sum(p.amount)>=600)$$);
+SELECT _check('US-ACC-031','DATA','accounting',
+  'Multiple bank accounts, including foreign-currency accounts, can be reconciled',
+  $$SELECT count(DISTINCT currency)>1 FROM bank_accounts$$);
 
 -- =============================================================================
 -- USER GROUPS  (module-user-groups.md)
@@ -405,6 +686,9 @@ SELECT _check('UG-groups','DATA','user-groups',
 SELECT _check('UG-members','DATA','user-groups',
   'Group membership is populated (RBAC resolution depends on it)',
   $$SELECT count(*)>0 FROM employee_group_members$$);
+SELECT _check('UG-roles','DATA','user-groups',
+  'Group role assignments exist for RBAC resolution',
+  $$SELECT count(*)>0 FROM employee_group_roles$$);
 
 -- =============================================================================
 -- CROSS-CUTTING  (product-specification.md, ADRs)
@@ -484,6 +768,10 @@ BEGIN
 END $$;
 
 -- Fail the run when invoked with -v strict=1, for CI.
+-- ON_ERROR_STOP must be re-enabled here: it is off for the whole file so that a
+-- failing check cannot abort the run, but that also swallows the exception
+-- below and the process would exit 0 with failures present.
+\set ON_ERROR_STOP on
 \if :{?strict}
 DO $$
 DECLARE f INT;
