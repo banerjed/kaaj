@@ -123,12 +123,11 @@
     - What we refuse to support (per-tenant DDL, EAV, per-tenant code)
     - The financial-calculation boundary
 
-### Process
+### Application
 
-13. **[07-vendor-branch-workflow.md](./07-vendor-branch-workflow.md)** - Vendor branch workflow
-    - How `app/` tracks the CMSaasStarter template upstream
-    - Pulling upstream releases without losing local changes
-    - Where we deliberately diverge, and when to retire the branch
+13. **[07-app-provenance.md](./07-app-provenance.md)** - `app/` provenance & planned modifications
+    - Where the code came from (CMSaasStarter, MIT) and the attribution we keep
+    - The planned modifications list — doubles as the first work list
 
 ### Data Model
 
