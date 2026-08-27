@@ -450,7 +450,10 @@ if (schemaShipped) {
 w();
 w('```bash');
 w('# prove the tenancy guarantees locally first — no cloud project needed');
-w('./scripts/verify-migrations.sh');
+w('./scripts/verify-migrations.sh --with-mock-data');
+w();
+w('# then confirm the same things on the live database (read-only, safe on prod)');
+w('./scripts/verify-remote.sh "$SUPABASE_DB_URL"');
 w();
 w('# the exact reflected surface, as OpenAPI');
 w('curl -s "https://<project-ref>.supabase.co/rest/v1/" \\');

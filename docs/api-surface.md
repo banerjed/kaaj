@@ -70,7 +70,10 @@ Once applied to your Supabase project, verify this document against the live dat
 
 ```bash
 # prove the tenancy guarantees locally first — no cloud project needed
-./scripts/verify-migrations.sh
+./scripts/verify-migrations.sh --with-mock-data
+
+# then confirm the same things on the live database (read-only, safe on prod)
+./scripts/verify-remote.sh "$SUPABASE_DB_URL"
 
 # the exact reflected surface, as OpenAPI
 curl -s "https://<project-ref>.supabase.co/rest/v1/" \
