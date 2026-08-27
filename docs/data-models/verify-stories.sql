@@ -483,6 +483,19 @@ SELECT _check('US-ACC-doc-keys','SCHEMA','accounting',
   AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='journal_entries' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%entry_number%')
   AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='payments' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%payment_number%')
   AND (SELECT count(*)>0 FROM pg_indexes WHERE tablename='bills' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%tenant_id%' AND indexdef LIKE '%bill_number%')$$);
+SELECT _check('ACC-document-amount-constraints','SCHEMA','accounting',
+  'Invoice and bill amount columns are protected by reconciliation constraints',
+  $$SELECT
+      (SELECT count(*)>0 FROM pg_constraint WHERE conname='ck_invoices_amounts_reconcile')
+  AND (SELECT count(*)>0 FROM pg_constraint WHERE conname='ck_bills_amounts_reconcile')$$);
+SELECT _check('ACC-journal-line-constraint','SCHEMA','accounting',
+  'Journal lines require one positive debit or one positive credit',
+  $$SELECT count(*)>0 FROM pg_constraint
+     WHERE conname='ck_journal_entry_lines_one_sided_positive'$$);
+SELECT _check('ACC-payment-allocation-constraint','SCHEMA','accounting',
+  'Payment allocations must target exactly one invoice or bill',
+  $$SELECT count(*)>0 FROM pg_constraint
+     WHERE conname='ck_payment_allocations_one_document'$$);
 SELECT _check('ACC-balance','DATA','accounting',
   'Journal entries balance: total debits equal total credits',
   $$SELECT coalesce(sum(debit_amount),0)=coalesce(sum(credit_amount),0)

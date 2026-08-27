@@ -955,6 +955,12 @@ BEGIN
     SELECT sum(debit_amount), sum(credit_amount) INTO a, b FROM journal_entry_lines;
     IF a <> b THEN RAISE EXCEPTION 'journal unbalanced: debits % credits %', a, b; END IF;
 
+    SELECT count(*) INTO n FROM (
+        SELECT entry_id FROM journal_entry_lines
+        GROUP BY entry_id
+        HAVING abs(sum(base_debit_amount) - sum(base_credit_amount)) > 0.02) j;
+    IF n > 0 THEN RAISE EXCEPTION '% journal entries whose base-currency lines do not balance', n; END IF;
+
     SELECT count(*) INTO n FROM payroll_run_employees
      WHERE abs(gross_pay - (net_pay + total_taxes + total_posttax_deductions)) > 0.02;
     IF n > 0 THEN RAISE EXCEPTION '% payroll lines where gross <> net+taxes+deductions', n; END IF;
@@ -969,6 +975,60 @@ BEGIN
         SELECT i.id FROM invoices i JOIN invoice_lines l ON l.invoice_id = i.id
         GROUP BY i.id, i.subtotal HAVING abs(i.subtotal - sum(l.amount)) > 0.02) y;
     IF n > 0 THEN RAISE EXCEPTION '% invoices whose subtotal does not match their lines', n; END IF;
+
+    SELECT count(*) INTO n FROM (
+        SELECT i.id FROM invoices i LEFT JOIN invoice_lines l ON l.invoice_id = i.id
+        GROUP BY i.id, i.tax_total, i.total, i.amount_paid, i.amount_due,
+                 i.base_subtotal, i.base_tax_total, i.base_total, i.base_amount_paid, i.base_amount_due
+        HAVING abs(i.tax_total - coalesce(sum(l.tax_amount), 0)) > 0.02
+            OR abs(i.total - (i.subtotal + i.tax_total)) > 0.02
+            OR abs(i.amount_due - (i.total - i.amount_paid)) > 0.02
+            OR abs(i.base_total - (i.base_subtotal + i.base_tax_total)) > 0.02
+            OR abs(i.base_amount_due - (i.base_total - i.base_amount_paid)) > 0.02) inv;
+    IF n > 0 THEN RAISE EXCEPTION '% invoices whose tax, total, due, or base amounts do not reconcile', n; END IF;
+
+    SELECT count(*) INTO n FROM (
+        SELECT i.id FROM invoices i JOIN journal_entry_lines l ON l.entry_id = i.journal_entry_id
+        WHERE i.journal_entry_id IS NOT NULL
+        GROUP BY i.id, i.base_total
+        HAVING abs(i.base_total - sum(l.base_debit_amount)) > 0.02
+            OR abs(i.base_total - sum(l.base_credit_amount)) > 0.02) ij;
+    IF n > 0 THEN RAISE EXCEPTION '% invoices whose linked journal entry does not tie to base total', n; END IF;
+
+    SELECT count(*) INTO n FROM (
+        SELECT b.id FROM bills b LEFT JOIN bill_lines l ON l.bill_id = b.id
+        GROUP BY b.id, b.subtotal, b.tax_total, b.total, b.amount_paid, b.amount_due
+        HAVING abs(b.subtotal - coalesce(sum(l.amount), 0)) > 0.02
+            OR abs(b.tax_total - coalesce(sum(l.tax_amount), 0)) > 0.02
+            OR abs(b.total - (b.subtotal + b.tax_total)) > 0.02
+            OR abs(b.amount_due - (b.total - b.amount_paid)) > 0.02) bl;
+    IF n > 0 THEN RAISE EXCEPTION '% bills whose lines, tax, total, or due amount do not reconcile', n; END IF;
+
+    SELECT count(*) INTO n FROM payment_allocations
+     WHERE amount <= 0
+        OR base_amount <= 0
+        OR ((invoice_id IS NOT NULL)::int + (bill_id IS NOT NULL)::int) <> 1;
+    IF n > 0 THEN RAISE EXCEPTION '% invalid payment allocations without exactly one positive document target', n; END IF;
+
+    SELECT count(*) INTO n FROM (
+        SELECT p.id FROM payments p JOIN payment_allocations a ON a.payment_id = p.id
+        GROUP BY p.id, p.amount
+        HAVING sum(a.amount) > p.amount + 0.02) pa;
+    IF n > 0 THEN RAISE EXCEPTION '% payments are over-allocated', n; END IF;
+
+    SELECT count(*) INTO n FROM bank_transactions bt
+     WHERE matched_to_type = 'payment'
+       AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.id = bt.matched_to_id);
+    IF n > 0 THEN RAISE EXCEPTION '% bank transactions matched to missing payments', n; END IF;
+
+    SELECT count(*) INTO n FROM journal_entries je
+     WHERE source_type = 'invoice'
+       AND NOT EXISTS (SELECT 1 FROM invoices i WHERE i.id = je.source_id)
+        OR source_type = 'payment'
+       AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.id = je.source_id)
+        OR source_type = 'bill'
+       AND NOT EXISTS (SELECT 1 FROM bills b WHERE b.id = je.source_id);
+    IF n > 0 THEN RAISE EXCEPTION '% journal entries point at missing accounting source documents', n; END IF;
 
     SELECT count(*) INTO n FROM (
         SELECT t.id FROM time_tracking_timesheets t

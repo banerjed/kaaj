@@ -1131,13 +1131,27 @@ All user actions must be logged for compliance and security:
 
 ### Deployment Model
 
-**Shared multi-tenant SaaS is the default and the only tier built now.**
-- Multi-tenant cloud-hosted solution, shared schema, one database
-- No on-premise deployment initially
-- A private single-tenant deployment is the *same artifact* with one tenant
-  row, so this option stays available at low cost. It is deliberately not
-  built until a customer has paid for it — see
-  [Architecture Decisions](./05-architecture-decisions.md).
+**One shared application deployment; the database is resolved per request.**
+
+The application is deployed once. Which database a customer's requests reach is
+determined by their subdomain, which allows three tiers from a single codebase
+and a single deployment — see
+[ADR-009](./05-architecture-decisions.md#adr-009-subdomain-routed-database-targets).
+
+| Tier | Database | For |
+|---|---|---|
+| **Shared** (default) | Shared Postgres, `tenant_id` + RLS | Most customers |
+| **Dedicated** | Their own Postgres, hosted by us, same region | Customers who need physical isolation |
+| **Customer-hosted** | Postgres in their own infrastructure | Designed, not built; see the caveats below |
+
+All three run the same schema and the same code — a dedicated database is the
+schema with one tenant row in it.
+
+**Customer-hosted has a caveat that must be stated during the sale:** their data
+at rest is theirs, but queries still pass through our shared application, so
+data in transit and in memory remains in our infrastructure. That does not
+satisfy a data-sovereignty requirement. A customer who needs genuine custody
+needs a self-hosted appliance, which remains deliberately unbuilt.
 
 ### Hosting Environment
 

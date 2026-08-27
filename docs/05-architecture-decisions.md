@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-**Version:** 1.1
+**Version:** 1.2
 **Last Updated:** August 27, 2026
 **Status:** Accepted
 
@@ -22,8 +22,9 @@ the superseded position is stated explicitly so that nobody re-derives it.
 7. [ADR-006: Boring infrastructure](#adr-006-boring-infrastructure)
 8. [ADR-007: Defer on-premise deployment](#adr-007-defer-on-premise-deployment)
 9. [ADR-008: Supabase as the backend platform](#adr-008-supabase-as-the-backend-platform)
-10. [Superseded decisions](#superseded-decisions)
-11. [Open questions](#open-questions)
+10. [ADR-009: Subdomain-routed database targets](#adr-009-subdomain-routed-database-targets)
+11. [Superseded decisions](#superseded-decisions)
+12. [Open questions](#open-questions)
 
 ---
 
@@ -141,6 +142,12 @@ stale, because the index updates in the same transaction as the write.
 
 **Decision.** One database, one schema. Every tenant-owned table carries
 `tenant_id`. Isolation is enforced by PostgreSQL row-level security.
+
+**Amended by [ADR-009](#adr-009-subdomain-routed-database-targets):** this
+remains the default and the shared tier, but the database a request reaches is
+now resolved per request from the subdomain. A dedicated database is the same
+schema holding a single tenant row — `tenant_id` and RLS stay in place, so no
+application code branches on tier.
 
 ### Why not database-per-tenant
 
@@ -317,6 +324,13 @@ and object storage. Not as the application platform.
 **Decision.** Build the shared multi-tenant tier only. Keep private deployment
 architecturally available; do not build it until a customer has paid for it.
 
+**Partially amended by [ADR-009](#adr-009-subdomain-routed-database-targets):**
+a customer's *database* can now live in their own infrastructure while the
+application stays shared. That is not the same as on-premise deployment, and
+ADR-009 is explicit that it does not satisfy a sovereignty requirement — data in
+transit and in memory still passes through our infrastructure. A customer who
+needs genuine custody still needs the self-hosted appliance this ADR defers.
+
 ### Why
 
 An on-premise requirement drove a large number of earlier constraints — ruling
@@ -466,6 +480,11 @@ economics of ADR-003 working as intended.
 
 ### Consequences and the accepted risk
 
+- **Auth is centralised even where data is not.** Under
+  [ADR-009](#adr-009-subdomain-routed-database-targets) a customer's business
+  data may sit in their own database, but their user identities remain in our
+  Supabase project. This must be stated during the sale — for some buyers it is
+  disqualifying.
 - Postgres and Storage remain portable; **Supabase Auth is the real coupling.**
   GoTrue's user tables and JWT conventions are not trivially replaced.
 - This raises the cost of reversing ADR-007. Self-hosting Supabase is possible
@@ -474,6 +493,217 @@ economics of ADR-003 working as intended.
   a plan.
 - This is an accepted trade: the auth work saved now is worth more than the
   optionality lost on a tier we have deliberately deferred.
+
+---
+
+## ADR-009: Subdomain-routed database targets
+
+**Decision.** One shared SvelteKit deployment serves every customer. The
+database it talks to is resolved **per request** from the subdomain, so
+different customers can be backed by the shared multi-tenant database, by a
+dedicated database we host, or by a database in the customer's own
+infrastructure — without a separate application deployment for each.
+
+**Status.** Accepted for tiers A and B. Tier C (customer-premises) is designed
+here but **not built until a customer has paid for it**, and carries constraints
+that may make a self-hosted appliance the better answer for that customer.
+
+**Amends.** [ADR-003](#adr-003-shared-schema-multi-tenancy-with-row-level-security)
+(tenancy is now per-tenant configurable, not uniformly shared),
+[ADR-007](#adr-007-defer-on-premise-deployment) (on-premise data is now
+architecturally reachable, though still unbuilt), and
+[ADR-008](#adr-008-supabase-as-the-backend-platform) (auth stays centralised
+while data may not).
+
+### The three tiers
+
+| Tier | Compute | Database | Isolation | Cost to build |
+|---|---|---|---|---|
+| **A — Shared** | shared app | shared Postgres, `tenant_id` + RLS | logical | Already built |
+| **B — Dedicated** | shared app | dedicated Postgres **we host**, same region | physical | Low |
+| **C — Customer-hosted** | shared app | Postgres in the customer's infrastructure | physical + custodial | High, see constraints |
+
+All three run **the same code and the same 98-table schema**. A dedicated
+database is simply the schema with one tenant row in it; `tenant_id` and RLS
+remain in place, so nothing branches on tier in application logic.
+
+### How routing works
+
+The tenant registry cannot live in the tenant's own database — routing has to
+happen *before* we know which database to connect to. It moves to a small
+**control plane** database.
+
+```
+  request: acme.platform.com
+        │
+        ▼
+  hooks.server.ts
+        │  1. extract subdomain
+        ▼
+  CONTROL PLANE (small, central, cached aggressively)
+        │  tenant_registry: subdomain → tenant_id, tier,
+        │                   connection secret ref, schema_version
+        ▼
+  connection registry (in-process, LRU)
+        │  get-or-create a pool for this target
+        ▼
+  ┌──────────────┬──────────────────┬────────────────────────┐
+  │ Tier A       │ Tier B           │ Tier C                 │
+  │ shared DB    │ dedicated DB     │ customer DB via tunnel │
+  │ (RLS by      │ (we host, same   │ (their infrastructure) │
+  │  tenant_id)  │  region)         │                        │
+  └──────────────┴──────────────────┴────────────────────────┘
+```
+
+```typescript
+// $lib/server/db/router.ts
+import postgres from 'postgres';
+
+const pools = new Map<string, { sql: postgres.Sql; lastUsed: number }>();
+const MAX_POOLS = 50;                 // bounded: connections are the scarce resource
+
+export async function getConnection(tenantId: string): Promise<postgres.Sql> {
+  const hit = pools.get(tenantId);
+  if (hit) { hit.lastUsed = Date.now(); return hit.sql; }
+
+  const target = await controlPlane.resolveTarget(tenantId);   // cached
+  const sql = postgres(await secrets.get(target.secretRef), {
+    max: target.tier === 'shared' ? 20 : 4,   // dedicated pools stay small
+    idle_timeout: 60,
+    connect_timeout: 10,
+  });
+
+  if (pools.size >= MAX_POOLS) evictLeastRecentlyUsed();
+  pools.set(tenantId, { sql, lastUsed: Date.now() });
+  return sql;
+}
+```
+
+The per-request transaction from ADR-003 is unchanged — it just runs on whichever
+connection the router returned:
+
+```typescript
+const sql = await getConnection(event.locals.tenantId);
+return withTenant(sql, tenantId, userId, (tx) => repo.listEmployees(tx, tenantId));
+```
+
+### What the control plane holds
+
+A separate, deliberately tiny database. It is the only thing every request
+touches regardless of tier, so it is cached in process with a short TTL and must
+be treated as tier-0 infrastructure.
+
+```sql
+CREATE TABLE tenant_registry (
+    tenant_id        UUID PRIMARY KEY,
+    subdomain        TEXT NOT NULL UNIQUE,
+    tier             TEXT NOT NULL CHECK (tier IN ('shared','dedicated','customer_hosted')),
+    connection_secret_ref TEXT NOT NULL,   -- pointer into the secret store, never the DSN
+    region           TEXT NOT NULL,
+    schema_version   TEXT NOT NULL,        -- which migration this target is on
+    status           TEXT NOT NULL DEFAULT 'active'
+        CHECK (status IN ('provisioning','active','suspended','migrating','unreachable')),
+    last_health_check_at TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Connection strings are never stored here** — only a reference into a secret
+store. The control plane row is not sensitive; the DSN is.
+
+### Constraints that apply to all tiers
+
+**Migration coupling is the hard one.** One application version now faces N
+databases at possibly different schema versions. This inverts the property
+ADR-003 was chosen for: shared tenancy gave one atomic migration, and that
+still holds *within* tier A, but across tiers you now have a fleet.
+
+Consequences, which are not optional:
+
+- **Expand/contract becomes mandatory**, not advisory. Every migration must
+  leave the previous application version able to run.
+- **The app must support a schema-version window**, and `schema_version` in the
+  registry tells it which. A tenant mid-migration is a normal state.
+- **A tier-C customer controls their own migration timing**, which means they
+  can hold back your release cadence. Contract for a maximum lag (e.g. 30 days)
+  or you will eventually be supporting a version nobody remembers.
+
+**Connection budget.** N tenants × pool size against a bounded server. Keep
+dedicated pools small (2–4), evict idle pools, and expect to put PgBouncer in
+front of the shared database before the app tier scales out far.
+
+**Blast radius moves to the app.** One process now holds credentials for many
+customer databases. A compromise of the shared app is a compromise of every
+tenant it can reach — including tier C, whose whole premise was that their data
+sits in their own infrastructure. This is a real argument for keeping tier C on
+a separately deployed app instance rather than the shared one.
+
+**Auth stays centralised.** Supabase Auth continues to own identity for every
+tier ([ADR-008](#adr-008-supabase-as-the-backend-platform)). A tier-C customer's
+*business data* is on their infrastructure, but their *user identities* are not.
+Say this out loud during the sale — for some buyers it is disqualifying, and
+discovering it late is worse than losing the deal early.
+
+### Constraints specific to Tier C (customer-hosted)
+
+**Network reachability.** The shared app is in our cloud; their Postgres is
+behind their firewall. Ranked by what enterprises actually accept:
+
+1. **Reverse tunnel** (recommended) — the customer runs a small agent that dials
+   *out* to us and holds a persistent connection. No inbound firewall rule, which
+   is the objection that kills the other options. Cost: an agent we must ship,
+   version and support.
+2. **Site-to-site VPN / private link** — clean, but heavyweight per customer and
+   usually a multi-week procurement.
+3. **Direct TLS with an IP allowlist** — simplest for us, refused by most
+   security teams.
+
+**Latency is the constraint that does not go away.** A single shared deployment
+lives in one region; tier-C databases live wherever the customer is. Every page
+makes several round trips, so a customer 100ms away pays that on each one. There
+is no fix that preserves "one shared deployment" — it is inherent to the shape.
+Budget for it, measure it, and be prepared to move that customer to a
+regionally-deployed app instance.
+
+**The data residency paradox — read this before selling tier C.** A customer who
+wants on-premise for sovereignty or compliance usually wants their data *not* to
+leave their jurisdiction or their control. Routing their queries through our
+shared application server means:
+
+- data at rest is theirs, but
+- data in transit and **in memory** passes through our infrastructure, in our
+  jurisdiction, under our operational control.
+
+For GDPR, Schrems II, or a defence/health procurement, this can defeat exactly
+the requirement that motivated the request. **Tier C as described gives them the
+latency of remote hosting and the residency posture of SaaS.** Where the
+customer's real requirement is control, the honest answer is a self-hosted
+appliance — they run the app *and* the database — which is ADR-007's deferred
+option, not this one.
+
+### Recommendation
+
+**Build A and B now. Design C, sell it only with the caveats above stated in
+writing, and expect the genuinely sovereignty-driven customers to need the
+appliance instead.**
+
+Tier B is the sweet spot and deserves emphasis: it delivers physical database
+isolation, per-customer backup and restore, and a credible "your data is in its
+own database" story, while we keep co-location, migration control, and one
+deployment. Most customers asking for "our own instance" are asking for the
+isolation guarantee, not the custody — and B gives them that.
+
+### Consequences
+
+- The `tenants` table stays in each tenant database as the tenant's own record;
+  the **routing** registry is separate and central. These are different things
+  and should not be merged.
+- Provisioning becomes an orchestrated flow: create database, run migrations to
+  the current version, store the secret, insert the registry row, verify health.
+- Health checks must cover **reachability of each tier-C target**, not just our
+  own database. A tunnel that has been down for an hour must page someone.
+- `verify-stories.sql` should be runnable against any target as a post-migration
+  smoke test, which is a second reason it exists.
 
 ---
 
@@ -518,6 +748,8 @@ tenancy with colliding natural keys), and `data-models/d1-best-practices.md`
 | 1 | ~~Reconcile the two schemas~~ — **done**, see `data-models/schema.sql` | — | — |
 | 2 | ~~Add `tenant_id` to tables that lack it~~ — **done**, all 94 tables carry it | — | — |
 | 3 | ~~Rebuild FTS5 search as `tsvector` + GIN~~ — **done** | — | — |
+| 3a | Build the control plane (`tenant_registry`) and the connection router — required before any tier-B customer | ADR-009 tiers B and C | — |
+| 3b | Decide the reverse-tunnel agent for tier C (build vs. Cloudflare Tunnel / Tailscale) — only when a tier-C customer is signed | ADR-009 tier C | — |
 | 4 | Choose the application host (Fly / Render / Railway) and match its region to the Supabase project | Deployment | — |
 | 5 | Confirm whether any prospect has actually asked for on-premise deployment | ADR-007, ADR-008 | — |
 | 6a | **Add the AI assistant schema** (`ai_conversations`, `ai_messages`, `ai_knowledge_base`, `ai_user_preferences`) — Phase 1 module #5 has no storage; deferred by decision on 2026-08-27 | AI Assistant module | — |

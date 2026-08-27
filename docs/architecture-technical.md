@@ -137,6 +137,47 @@ row-level security `ENABLE`d and `FORCE`d on all 93 tables, and an application
 role that is *not* the table owner. `FORCE` matters: without it RLS is silently
 bypassed by the owner, which is how a system that "has RLS" turns out not to.
 
+### Database Routing (ADR-009)
+
+The application is deployed **once**. Which database a request reaches is
+resolved per request from the subdomain, so customers can sit on the shared
+multi-tenant database, on a dedicated database we host, or on a database in
+their own infrastructure — with no separate deployment for any of them.
+
+```
+                    ONE shared SvelteKit deployment
+                                 │
+                    control plane: subdomain → target
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        ▼                        ▼                        ▼
+   Tier A: shared          Tier B: dedicated       Tier C: customer-hosted
+   many tenants,           one tenant, we host,    one tenant, their infra,
+   tenant_id + RLS         same region             reached over a tunnel
+        │                        │                        │
+        └────────── same schema, same code ───────────────┘
+```
+
+**The tenant registry cannot live in a tenant's own database** — routing happens
+before we know which database that is. It lives in a small central control
+plane, holding `subdomain`, `tier`, a *reference* to the connection secret
+(never the DSN itself), and the `schema_version` that target is on.
+
+The connection router keeps a bounded, LRU-evicted map of pools. Dedicated pools
+stay small (2–4) because connections, not CPU, are the scarce resource once
+there are many targets.
+
+Two consequences worth stating here, with the full reasoning in
+[ADR-009](./05-architecture-decisions.md#adr-009-subdomain-routed-database-targets):
+
+- **Expand/contract migrations become mandatory.** One application version now
+  faces databases at different schema versions, and a customer-hosted target
+  migrates on the customer's timetable, not ours.
+- **Tier C does not satisfy a data-sovereignty requirement.** Data at rest is
+  theirs; data in transit and in memory still passes through our infrastructure.
+  A customer who needs genuine custody needs the self-hosted appliance, not
+  this.
+
 ### Tenant Identification
 
 #### 1. Subdomain-Based Routing
@@ -157,20 +198,27 @@ Each organization gets a unique subdomain:
 ```
 1. User visits: https://acme.platform.com/login
    ↓
-2. DNS resolves to the CDN, which forwards to the application host
+2. DNS resolves to the CDN, which forwards to the single shared application
    ↓
 3. hooks.server.ts extracts the subdomain: "acme"
    ↓
-4. Resolve the tenant (cached in process):
-   SELECT id, settings FROM tenants WHERE subdomain = 'acme'
+4. CONTROL PLANE lookup (cached in process, short TTL):
+   SELECT tenant_id, tier, connection_secret_ref, schema_version
+     FROM tenant_registry WHERE subdomain = 'acme'
    ↓
-5. Store on the request: event.locals.tenantId = 'uuid-1'
+5. Connection router returns a pool for that tenant's TARGET DATABASE —
+   the shared instance, a dedicated instance we host, or the customer's own
+   (ADR-009). The rest of the request does not know or care which.
    ↓
-6. The repository layer opens a transaction and sets the tenant for RLS:
-   BEGIN; SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"uuid-1"}}';
+6. event.locals = { tenantId, tier, sql }
    ↓
-7. Every query is filtered by the database itself — no WHERE clause required,
-   and a forgotten filter cannot leak another tenant's rows.
+7. The repository layer opens a transaction on that connection and sets the
+   tenant for RLS:
+   BEGIN; SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"..."}}';
+   ↓
+8. Every query is filtered by the database itself. On a dedicated database the
+   filter is trivially satisfied (one tenant), which is why the same code runs
+   unchanged against every tier.
 ```
 
 > **Why the tenant is set on the connection, not just in application code.**
