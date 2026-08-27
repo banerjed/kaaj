@@ -1440,6 +1440,50 @@ Putting the tenant in the token avoids a membership lookup on every request, and
 means the value RLS reads is one the auth system signed rather than something the
 application computed.
 
+### Enterprise SSO for dedicated tenants
+
+A dedicated tenant can authenticate against its own corporate identity provider
+(Okta, Entra/Azure AD, Google Workspace, Ping) using SAML 2.0. Supabase Auth is
+multi-tenant here: many IdPs on one project, each with an `sso_provider_id`.
+
+**Resolve the tenant from the subdomain first, then sign in against that
+tenant's provider.** Supabase routes SSO by *email domain*; we route tenants by
+*subdomain*. They usually agree, but not always — a contractor on a personal
+address, a group with several subsidiaries on one domain — so the subdomain is
+the authority and the domain is a convenience:
+
+```typescript
+// src/routes/(marketing)/login/+page.server.ts
+const tenant = await controlPlane.resolveBySubdomain(event.url.hostname);
+
+if (tenant.sso_provider_id) {
+    // Sign in against THIS tenant's IdP, not whichever one matches the domain
+    const { data } = await supabase.auth.signInWithSSO({
+        providerId: tenant.sso_provider_id,
+    });
+    redirect(303, data.url);
+}
+// otherwise fall through to password / OTP
+```
+
+**Enforce SSO in the server, not the UI.** Where a tenant requires SSO, check the
+authentication method on every request rather than merely hiding the password
+field:
+
+```typescript
+// hooks.server.ts
+const method = jwt.amr?.[0]?.method;          // 'sso/saml' for SSO sign-ins
+if (tenant.sso_required && method !== 'sso/saml') {
+    throw error(403, 'This organization requires single sign-on');
+}
+```
+
+**No SCIM.** There is no directory sync, so a user disabled in the customer's IdP
+is not automatically deprovisioned here. They cannot sign in again — SSO fails at
+the IdP — but an existing session survives until it expires. Keep session
+lifetimes short for SSO tenants and reconcile periodically. Full reasoning in
+[ADR-010](./05-architecture-decisions.md#adr-010-enterprise-sso-for-dedicated-tenants).
+
 ### Users belonging to multiple tenants
 
 A consultant may work for two client organizations. Membership is many-to-many in

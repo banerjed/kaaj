@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-**Version:** 1.2
+**Version:** 1.3
 **Last Updated:** August 27, 2026
 **Status:** Accepted
 
@@ -23,8 +23,9 @@ the superseded position is stated explicitly so that nobody re-derives it.
 8. [ADR-007: Defer on-premise deployment](#adr-007-defer-on-premise-deployment)
 9. [ADR-008: Supabase as the backend platform](#adr-008-supabase-as-the-backend-platform)
 10. [ADR-009: Subdomain-routed database targets](#adr-009-subdomain-routed-database-targets)
-11. [Superseded decisions](#superseded-decisions)
-12. [Open questions](#open-questions)
+11. [ADR-010: Enterprise SSO for dedicated tenants](#adr-010-enterprise-sso-for-dedicated-tenants)
+12. [Superseded decisions](#superseded-decisions)
+13. [Open questions](#open-questions)
 
 ---
 
@@ -484,7 +485,9 @@ economics of ADR-003 working as intended.
   [ADR-009](#adr-009-subdomain-routed-database-targets) a customer's business
   data may sit in their own database, but their user identities remain in our
   Supabase project. This must be stated during the sale — for some buyers it is
-  disqualifying.
+  disqualifying. [ADR-010](#adr-010-enterprise-sso-for-dedicated-tenants)
+  records the alternative that would close this gap, and why we have not taken
+  it yet.
 - Postgres and Storage remain portable; **Supabase Auth is the real coupling.**
   GoTrue's user tables and JWT conventions are not trivially replaced.
 - This raises the cost of reversing ADR-007. Self-hosting Supabase is possible
@@ -707,6 +710,133 @@ isolation guarantee, not the custody — and B gives them that.
 
 ---
 
+## ADR-010: Enterprise SSO for dedicated tenants
+
+**Decision.** Use **Supabase Auth SAML 2.0 SSO** for the shared and dedicated
+tiers. Do not adopt Better Auth now. Revisit only if tier C
+([ADR-009](#adr-009-subdomain-routed-database-targets)) becomes real or if
+self-service IdP registration becomes a sales requirement.
+
+**Status.** Accepted. Extends [ADR-008](#adr-008-supabase-as-the-backend-platform).
+
+### Yes, dedicated tenants can use their own corporate credentials
+
+Supabase Auth supports SAML 2.0 against any compliant IdP — Okta, Azure AD /
+Entra, Google Workspace, PingIdentity — and it is **multi-tenant by design**:
+many IdPs can be registered on one project, each getting an `sso_provider_id`
+that is usable in RLS policies.
+
+```bash
+supabase sso add --type saml --project-ref <project> \
+  --metadata-url 'https://acme.com/idp/saml/metadata' \
+  --domains acme.com
+```
+
+```typescript
+// Sign-in routes by email domain
+await supabase.auth.signInWithSSO({ domain: 'acme.com' });
+```
+
+Useful properties:
+
+- **Authentication method is visible in the JWT.** `amr[0].method` is `sso/saml`
+  for SSO sign-ins, so a policy or guard can *require* SSO for a given tenant
+  rather than merely offering it.
+- **Attribute mapping** pulls IdP claims (department, employee number, groups)
+  into `user_metadata`, which is useful for provisioning but must never be used
+  for authorization — see the `app_metadata` rule in ADR-008.
+- Pro plan and above, billed per SSO monthly active user.
+
+### The routing key mismatch — design for this explicitly
+
+Our tenant routing key is the **subdomain** (`acme.platform.com`). Supabase's SSO
+routing key is the **email domain** (`@acme.com`). They are usually the same
+organisation but they are not the same key, and the gaps are real:
+
+| Case | Problem | Resolution |
+|---|---|---|
+| Contractor with a personal or agency email working for Acme | Domain does not match, so SSO routing fails | Allow password/OTP alongside SSO for explicitly invited users |
+| One company, several email domains | One IdP must cover several domains | Supabase allows multiple domains per provider |
+| Two tenants sharing a domain (a group with subsidiaries) | Domain alone cannot pick the tenant | Route from the subdomain, then use `signInWithSSO({ providerId })` for that tenant rather than by domain |
+| A user legitimately belonging to two tenants | One identity, two memberships | Already handled by `tenant_users` and tenant switching (ADR-008) |
+
+**Rule:** resolve the tenant from the subdomain first, then look up *that
+tenant's* configured provider and sign in by `providerId`. Signing in by domain
+alone is the convenience path, not the authority.
+
+### Why not Better Auth
+
+[Better Auth](https://www.better-auth.com) is MIT-licensed, TypeScript-native,
+and its SSO plugin supports **both SAML 2.0 and OIDC** with
+**`registerSSOProvider` at runtime** — a customer admin can configure their own
+IdP without an operator running a CLI command. Its organization plugin links
+providers to tenants directly. All of that is genuinely better than what
+Supabase offers on the SSO axis, and one property matters architecturally:
+
+> **Better Auth stores its user tables in *our* schema.** That means a dedicated
+> or customer-hosted tenant's user identities could live in *their* database,
+> which closes the gap ADR-009 flags as potentially disqualifying: today, a
+> tier-C customer's business data is on their infrastructure while their user
+> identities are not.
+
+We are not adopting it now for three reasons:
+
+1. **It reverses the main reason ADR-008 chose Supabase.** Auth was the decisive
+   value: signup, login, password reset, MFA, OAuth, session lifecycle — weeks
+   of security-sensitive work we do not have to write or maintain. Adopting
+   Better Auth takes that work back in-house, including the parts that are
+   unglamorous and easy to get subtly wrong.
+2. **The benefit only lands in a tier we have not built.** Identity
+   centralisation is not a real objection for tiers A and B, where we host the
+   database anyway. It only bites for tier C, which is deferred.
+3. **Migrating auth later is unpleasant but bounded.** User records, hashed
+   credentials and provider links can be exported; sessions cannot be preserved
+   and every user re-authenticates once. That is a real cost, and it grows with
+   the user base — which is the argument for deciding early if tier C looks
+   likely.
+
+**Reconsider Better Auth when any of these become true:** a tier-C customer
+signs and objects to identity centralisation; self-service IdP registration is
+blocking deals; or a customer requires **OIDC** specifically, which Supabase's
+enterprise SSO does not cover.
+
+> **A note on sources.** A widely-cited third-party comparison states that Better
+> Auth has no enterprise SSO. That conflicts with the vendor's current
+> documentation and with a live, actively-published `@better-auth/sso` package,
+> and it originates from a vendor selling enterprise SSO. Verify against the
+> primary source before relying on either claim.
+
+### SCIM is a gap in both — and enterprises ask for it
+
+Neither Supabase Auth nor Better Auth provides SCIM directory sync. In practice
+this means **no automatic deprovisioning**: when someone leaves the customer's
+company, their IdP account is disabled but their record in our system is not.
+
+Mitigations, in order of effort:
+
+1. SSO sign-in fails once the IdP disables the account, so they cannot get *in* —
+   this covers most of the risk.
+2. Revoke sessions on a schedule and keep session lifetimes short, so an
+   existing session cannot outlive the employment.
+3. Reconcile periodically against the IdP where it exposes a directory API.
+
+If a buyer requires true SCIM, that is a dedicated integration and should be
+priced as one. Do not imply it exists.
+
+### Consequences
+
+- Tenant SSO configuration belongs in the **control plane** next to the routing
+  record: which tenant uses SSO, its `sso_provider_id`, its permitted email
+  domains, and whether password sign-in is disallowed.
+- The login page must resolve the tenant from the subdomain *before* offering
+  sign-in options, so an SSO-only tenant is never shown a password field.
+- Enforce SSO where required by checking `amr` in `hooks.server.ts`, not by
+  hiding the UI.
+- IdP registration is an operator action (CLI/management API), so onboarding a
+  dedicated customer includes an SSO setup step. Budget for it.
+
+---
+
 ## Superseded decisions
 
 Recorded so that nobody re-derives them from older documents in this repository.
@@ -750,6 +880,7 @@ tenancy with colliding natural keys), and `data-models/d1-best-practices.md`
 | 3 | ~~Rebuild FTS5 search as `tsvector` + GIN~~ — **done** | — | — |
 | 3a | Build the control plane (`tenant_registry`) and the connection router — required before any tier-B customer | ADR-009 tiers B and C | — |
 | 3b | Decide the reverse-tunnel agent for tier C (build vs. Cloudflare Tunnel / Tailscale) — only when a tier-C customer is signed | ADR-009 tier C | — |
+| 3c | Add tenant SSO configuration to the control plane (provider id, permitted domains, password-disallowed flag) | ADR-010 | — |
 | 4 | Choose the application host (Fly / Render / Railway) and match its region to the Supabase project | Deployment | — |
 | 5 | Confirm whether any prospect has actually asked for on-premise deployment | ADR-007, ADR-008 | — |
 | 6a | **Add the AI assistant schema** (`ai_conversations`, `ai_messages`, `ai_knowledge_base`, `ai_user_preferences`) — Phase 1 module #5 has no storage; deferred by decision on 2026-08-27 | AI Assistant module | — |
