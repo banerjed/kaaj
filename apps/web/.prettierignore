@@ -5,6 +5,3 @@
 # Don't format plaintext email templates, the new lines are important
 src/lib/emails/*_text.svelte
 src/lib/emails/*_text.hbs
-# Supabase CLI local state — generated, and .temp holds the project ref.
-../supabase/.temp/
-supabase/.temp/

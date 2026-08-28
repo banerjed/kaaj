@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".svelte-kit/**", "build/**", "dist/**", "!.svelte-kit/cache/**"],
+      "env": ["PUBLIC_*", "PRIVATE_*", "ORIGIN", "NODE_ENV"]
+    },
+    "dev":   { "cache": false, "persistent": true },
+    "lint":  { "dependsOn": ["^build"] },
+    "check-types": { "dependsOn": ["^build"] },
+    "test":  { "dependsOn": ["^build"], "outputs": ["coverage/**"] },
+    "format:check": {},
+    "format": { "cache": false }
+  }
+}

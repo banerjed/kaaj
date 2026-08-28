@@ -16,8 +16,7 @@
   // Supabase does not maintain an AMR typedef so we cast through any
   let amr: { method: string }[] | undefined = $derived(
     (user as unknown as Record<string, unknown>)?.amr as
-      | { method: string }[]
-      | undefined,
+      { method: string }[] | undefined,
   )
   let hasPassword = $derived(
     amr?.find((x) => x.method === "password") ? true : false,

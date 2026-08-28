@@ -3,6 +3,7 @@
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import Fuse from "fuse.js"
+  import type { FuseResult } from "fuse.js"
   import { goto } from "$app/navigation"
   import { dev } from "$app/environment"
 
@@ -16,7 +17,7 @@
     threshold: 0.3,
   }
 
-  let fuse: Fuse<Result> | undefined = $state()
+  let fuse: Fuse<SearchDocument> | undefined = $state()
 
   let loading = $state(true)
   let error = $state(false)
@@ -28,8 +29,12 @@
       }
       const searchData = await response.json()
       if (searchData && searchData.index && searchData.indexData) {
-        const index = Fuse.parseIndex(searchData.index)
-        fuse = new Fuse<Result>(searchData.indexData, fuseOptions, index)
+        const index = Fuse.parseIndex<SearchDocument>(searchData.index)
+        fuse = new Fuse<SearchDocument>(
+          searchData.indexData,
+          fuseOptions,
+          index,
+        )
       }
     } catch (e) {
       console.error("Failed to load search data", e)
@@ -40,15 +45,16 @@
     }
   })
 
-  type Result = {
-    item: {
-      title: string
-      description: string
-      body: string
-      path: string
-    }
+  // The shape of an indexed document, i.e. what /search/api.json contains.
+  type SearchDocument = {
+    title: string
+    description: string
+    body: string
+    path: string
   }
-  let results: Result[] = $state([])
+  // fuse.search() returns the documents wrapped in FuseResult, which is where
+  // `result.item` in the markup below comes from.
+  let results: FuseResult<SearchDocument>[] = $state([])
 
   // searchQuery is $page.url.hash minus the "#" at the beginning if present
   let searchQuery = $state(decodeURIComponent($page.url.hash.slice(1) ?? ""))
