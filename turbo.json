@@ -26,16 +26,34 @@
     "lint": {
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
       ]
     },
     "check-types": {
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
       ]
     },
     "test": {
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
       ]
     },
     "format:check": {},
