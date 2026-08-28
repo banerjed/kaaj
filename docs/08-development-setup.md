@@ -1,7 +1,7 @@
 # Development Setup — Local and Remote Supabase
 
-**Version:** 1.0
-**Last Updated:** August 27, 2026
+**Version:** 1.1
+**Last Updated:** August 28, 2026
 
 How to run Kaaj against a local Supabase stack, against the hosted project, and
 how to keep the two from being confused for each other.
@@ -124,20 +124,54 @@ so a mistake is corrected by writing another migration, not by rolling back.
 
 ## Database tests
 
-Three harnesses, all plain `psql`. Run them against **local**, never against
+Five harnesses, all plain `psql` or bash. Run them against **local**, never against
 production — except `verify-remote.sh`, which is built for it.
 
 ```bash
 export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 
+cd app && npm run db:verify        # everything below, in one command
+```
+
+Or individually:
+
+```bash
 # 1. Tenant isolation — 575 assertions across all tenant-scoped tables
 psql "$DATABASE_URL" -v strict=1 -f scripts/verify-rls.sql
 
 # 2. Specification — 167 assertions drawn from the module specs
 psql "$DATABASE_URL" -v strict=1 -f docs/data-models/verify-stories.sql
 
-# 3. Migrations apply cleanly to a throwaway cluster
+# 3. Design invariants — 40 assertions from the ADRs
+psql "$DATABASE_URL" -v strict=1 -f scripts/verify-invariants.sql
+
+# 4. Structure snapshot — 4,152 catalog facts
+scripts/db-snapshot.sh --check
+
+# 5. Migrations apply cleanly to a throwaway cluster
 scripts/verify-migrations.sh
+```
+
+### Changing the schema
+
+```bash
+supabase migration new add_something     # write the migration
+supabase db reset                        # rebuild from migrations
+cd app && npm run db:snapshot            # regenerate the snapshot
+# commit the migration AND the snapshot together
+```
+
+**Always `db reset` before regenerating.** Generating from a hand-modified
+database bakes local experiments into the baseline — this happened while the
+script was being written: a manual `ALTER` left `invoices.total` as
+`numeric(18,2)` when the migration says `numeric(15,2)`, and the first snapshot
+recorded the wrong value. The next rebuild caught it, which is the system
+working, but it is easier to avoid.
+
+If `enumerations.json` changes, regenerate its fixture too:
+
+```bash
+cd app && npm run db:enums
 ```
 
 `-v strict=1` makes a failure exit non-zero, which is what CI uses.
@@ -153,7 +187,13 @@ scripts/verify-migrations.sh
 |---|---|---|
 | `verify-rls.sql` | Every policy actually filters, per table | Anything about tables with no fixture rows — which is why it fails if one appears |
 | `verify-stories.sql` | Schema and fixture answer the module specs | That policies work; its RLS checks are metadata only |
+| `verify-invariants.sql` | Design rules hold: index prefixes, enum conformance, closed Data API | That the schema is *unchanged* — that is the snapshot's job |
+| `db-snapshot.sh` | The schema is exactly what was committed | That any of it is *correct* — only that it has not moved |
 | `verify-migrations.sh` | Migrations replay from empty | The hosted database's current state |
+
+The last two are complementary and neither substitutes for the other: the
+invariants prove rules hold but say nothing about drift; the snapshot proves
+nothing changed but cannot say whether it was right to begin with.
 
 They also assert opposite role postures, deliberately: `verify-stories.sql`
 requires a BYPASSRLS role (under `FORCE ROW LEVEL SECURITY` even the table owner

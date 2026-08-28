@@ -1,0 +1,371 @@
+# table	constraint	type	definition
+accounting_periods	accounting_periods_pkey	p	PRIMARY KEY (id)
+accounting_periods	accounting_periods_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+audit_log	audit_log_pkey	p	PRIMARY KEY (id)
+audit_log	audit_log_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bank_accounts	bank_accounts_pkey	p	PRIMARY KEY (id)
+bank_accounts	bank_accounts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bank_accounts	fk_bank_accounts_gl_account_id	f	FOREIGN KEY (gl_account_id) REFERENCES chart_of_accounts(id)
+bank_reconciliation_rules	bank_reconciliation_rules_pkey	p	PRIMARY KEY (id)
+bank_reconciliation_rules	bank_reconciliation_rules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bank_reconciliation_rules	fk_bank_reconciliation_rules_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
+bank_reconciliation_rules	fk_bank_reconciliation_rules_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
+bank_reconciliation_rules	fk_bank_reconciliation_rules_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+bank_reconciliation_rules	fk_bank_reconciliation_rules_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+bank_transactions	bank_transactions_pkey	p	PRIMARY KEY (id)
+bank_transactions	bank_transactions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bank_transactions	fk_bank_transactions_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE
+bank_transactions	fk_bank_transactions_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
+bill_lines	bill_lines_pkey	p	PRIMARY KEY (id)
+bill_lines	bill_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bill_lines	fk_bill_lines_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
+bill_lines	fk_bill_lines_expense_account_id	f	FOREIGN KEY (expense_account_id) REFERENCES chart_of_accounts(id)
+bill_lines	fk_bill_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+bills	bills_pkey	p	PRIMARY KEY (id)
+bills	bills_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bills	ck_bills_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = (total - amount_paid))))
+bills	fk_bills_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+bills	fk_bills_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+chart_of_accounts	chart_of_accounts_pkey	p	PRIMARY KEY (id)
+chart_of_accounts	chart_of_accounts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+chart_of_accounts	fk_chart_of_accounts_parent_account_id	f	FOREIGN KEY (parent_account_id) REFERENCES chart_of_accounts(id)
+chart_of_accounts	fk_chart_of_accounts_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+clients	clients_client_type_check	c	CHECK ((client_type = ANY (ARRAY['individual'::text, 'small_business'::text, 'corporate'::text, 'enterprise'::text, 'government'::text, 'nonprofit'::text])))
+clients	clients_pkey	p	PRIMARY KEY (id)
+clients	clients_status_check	c	CHECK ((status = ANY (ARRAY['prospect'::text, 'active'::text, 'inactive'::text, 'churned'::text])))
+clients	clients_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+compensation_allowances	compensation_allowances_pkey	p	PRIMARY KEY (id)
+compensation_allowances	compensation_allowances_tenant_id_allowance_id_key	u	UNIQUE (tenant_id, allowance_id)
+compensation_allowances	compensation_allowances_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_allowances	fk_compensation_allowances_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+compensation_base	compensation_base_pkey	p	PRIMARY KEY (id)
+compensation_base	compensation_base_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_base	fk_compensation_base_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+compensation_equity	compensation_equity_pkey	p	PRIMARY KEY (id)
+compensation_equity	compensation_equity_tenant_id_equity_id_key	u	UNIQUE (tenant_id, equity_id)
+compensation_equity	compensation_equity_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_equity	fk_compensation_equity_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+compensation_premiums	compensation_premiums_pkey	p	PRIMARY KEY (id)
+compensation_premiums	compensation_premiums_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_premiums	compensation_premiums_tenant_id_premium_id_key	u	UNIQUE (tenant_id, premium_id)
+compensation_premiums	fk_compensation_premiums_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+compensation_variable	compensation_variable_pkey	p	PRIMARY KEY (id)
+compensation_variable	compensation_variable_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_variable	compensation_variable_tenant_id_variable_comp_id_key	u	UNIQUE (tenant_id, variable_comp_id)
+compensation_variable	fk_compensation_variable_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+compensation_work_schedules	compensation_work_schedules_pkey	p	PRIMARY KEY (id)
+compensation_work_schedules	compensation_work_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+compensation_work_schedules	compensation_work_schedules_tenant_id_schedule_id_key	u	UNIQUE (tenant_id, schedule_id)
+compensation_work_schedules	fk_compensation_work_schedules_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+cross_module_links	cross_module_links_pkey	p	PRIMARY KEY (id)
+cross_module_links	cross_module_links_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+custom_field_definitions	custom_field_definitions_data_type_check	c	CHECK ((data_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'boolean'::text, 'select'::text, 'multiselect'::text])))
+custom_field_definitions	custom_field_definitions_pkey	p	PRIMARY KEY (id)
+custom_field_definitions	custom_field_definitions_tenant_id_entity_type_field_key_key	u	UNIQUE (tenant_id, entity_type, field_key)
+custom_field_definitions	custom_field_definitions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customers	customers_pkey	p	PRIMARY KEY (id)
+customers	customers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customers	fk_customers_ar_account_id	f	FOREIGN KEY (ar_account_id) REFERENCES chart_of_accounts(id)
+customers	fk_customers_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+employee_assets	employee_assets_pkey	p	PRIMARY KEY (id)
+employee_assets	employee_assets_tenant_id_asset_id_key	u	UNIQUE (tenant_id, asset_id)
+employee_assets	employee_assets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_assets	fk_employee_assets_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+employee_bank_accounts	employee_bank_accounts_account_type_check	c	CHECK ((account_type = ANY (ARRAY['checking'::text, 'savings'::text, 'paycard'::text])))
+employee_bank_accounts	employee_bank_accounts_allocation_type_check	c	CHECK ((allocation_type = ANY (ARRAY['remainder'::text, 'percentage'::text, 'fixed_amount'::text])))
+employee_bank_accounts	employee_bank_accounts_check	c	CHECK (((allocation_type = 'remainder'::text) OR (allocation_value IS NOT NULL)))
+employee_bank_accounts	employee_bank_accounts_check1	c	CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))
+employee_bank_accounts	employee_bank_accounts_pkey	p	PRIMARY KEY (id)
+employee_bank_accounts	employee_bank_accounts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_bank_accounts	employee_bank_accounts_verification_status_check	c	CHECK ((verification_status = ANY (ARRAY['unverified'::text, 'prenote_sent'::text, 'verified'::text, 'failed'::text])))
+employee_bank_accounts	fk_eba_employee	f	FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+employee_certifications	employee_certifications_pkey	p	PRIMARY KEY (id)
+employee_certifications	employee_certifications_tenant_id_certification_id_key	u	UNIQUE (tenant_id, certification_id)
+employee_certifications	employee_certifications_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_certifications	fk_employee_certifications_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+employee_group_members	employee_group_members_pkey	p	PRIMARY KEY (id)
+employee_group_members	employee_group_members_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_group_members	fk_employee_group_members_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+employee_group_roles	employee_group_roles_pkey	p	PRIMARY KEY (id)
+employee_group_roles	employee_group_roles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_group_roles	employee_group_roles_tenant_id_group_role_id_key	u	UNIQUE (tenant_id, group_role_id)
+employee_training_records	employee_training_records_pkey	p	PRIMARY KEY (id)
+employee_training_records	employee_training_records_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_training_records	employee_training_records_tenant_id_training_record_id_key	u	UNIQUE (tenant_id, training_record_id)
+employee_training_records	fk_employee_training_records_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+employee_user_groups	employee_user_groups_pkey	p	PRIMARY KEY (id)
+employee_user_groups	employee_user_groups_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_user_groups	employee_user_groups_tenant_id_group_name_key	u	UNIQUE (tenant_id, group_name)
+employees	employees_pkey	p	PRIMARY KEY (id)
+employees	employees_tenant_id_employee_id_key	u	UNIQUE (tenant_id, employee_id)
+employees	employees_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employment_terms	employment_terms_contract_type_check	c	CHECK ((contract_type = ANY (ARRAY['permanent'::text, 'fixed_term'::text, 'probationary'::text, 'casual'::text, 'apprenticeship'::text])))
+employment_terms	employment_terms_pkey	p	PRIMARY KEY (id)
+employment_terms	employment_terms_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+employment_terms	fk_employment_terms_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+exchange_rates	exchange_rates_pkey	p	PRIMARY KEY (id)
+expenses	expenses_pkey	p	PRIMARY KEY (id)
+expenses	expenses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+expenses	fk_expenses_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id)
+expenses	fk_expenses_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
+expenses	fk_expenses_department_id	f	FOREIGN KEY (department_id) REFERENCES firm_departments(id)
+expenses	fk_expenses_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+expenses	fk_expenses_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+expenses	fk_expenses_payment_id	f	FOREIGN KEY (payment_id) REFERENCES payments(id)
+expenses	fk_expenses_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+firm_benefit_items	firm_benefit_items_pkey	p	PRIMARY KEY (id)
+firm_benefit_items	firm_benefit_items_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_benefit_items	fk_firm_benefit_items_benefits_package_id	f	FOREIGN KEY (benefits_package_id) REFERENCES firm_benefits_packages(id) ON DELETE CASCADE
+firm_benefits_packages	firm_benefits_packages_pkey	p	PRIMARY KEY (id)
+firm_benefits_packages	firm_benefits_packages_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_benefits_plans	firm_benefits_plans_pkey	p	PRIMARY KEY (id)
+firm_benefits_plans	firm_benefits_plans_plan_type_check	c	CHECK ((plan_type = ANY (ARRAY['health_medical'::text, 'health_dental'::text, 'health_vision'::text, 'life_insurance'::text, 'disability_short_term'::text, 'disability_long_term'::text, 'retirement_401k'::text, 'retirement_pension'::text, 'hsa'::text, 'fsa_healthcare'::text, 'fsa_dependent_care'::text, 'supplemental_accident'::text, 'supplemental_critical_illness'::text, 'supplemental_hospital'::text, 'pet_insurance'::text, 'legal_services'::text, 'employee_assistance'::text, 'other'::text])))
+firm_benefits_plans	firm_benefits_plans_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_departments	firm_departments_pkey	p	PRIMARY KEY (id)
+firm_departments	firm_departments_tenant_id_department_code_key	u	UNIQUE (tenant_id, department_code)
+firm_departments	firm_departments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_departments	fk_firm_departments_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id)
+firm_departments	fk_firm_departments_parent_department_id	f	FOREIGN KEY (parent_department_id) REFERENCES firm_departments(id)
+firm_holidays	firm_holidays_pkey	p	PRIMARY KEY (id)
+firm_holidays	firm_holidays_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_holidays	firm_holidays_tenant_id_holiday_id_key	u	UNIQUE (tenant_id, holiday_id)
+firm_holidays	fk_firm_holidays_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id) ON DELETE CASCADE
+firm_job_levels	firm_job_levels_pkey	p	PRIMARY KEY (id)
+firm_job_levels	firm_job_levels_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_job_levels	fk_firm_job_levels_job_title_id	f	FOREIGN KEY (job_title_id) REFERENCES firm_job_titles(id) ON DELETE CASCADE
+firm_job_titles	firm_job_titles_pkey	p	PRIMARY KEY (id)
+firm_job_titles	firm_job_titles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_locations	firm_locations_pkey	p	PRIMARY KEY (id)
+firm_locations	firm_locations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_locations	firm_locations_tenant_id_location_code_key	u	UNIQUE (tenant_id, location_code)
+firm_payroll_policies	firm_payroll_policies_pkey	p	PRIMARY KEY (id)
+firm_payroll_policies	firm_payroll_policies_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+firm_payroll_policies	firm_payroll_policies_workweek_start_day_check	c	CHECK (((workweek_start_day >= 0) AND (workweek_start_day <= 6)))
+firm_payroll_policies	fk_firm_payroll_policies_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id)
+hr_attendance	hr_attendance_pkey	p	PRIMARY KEY (id)
+hr_attendance	hr_attendance_tenant_id_attendance_id_key	u	UNIQUE (tenant_id, attendance_id)
+hr_attendance	hr_attendance_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_benefits_enrollments	hr_benefits_enrollments_pkey	p	PRIMARY KEY (id)
+hr_benefits_enrollments	hr_benefits_enrollments_tenant_id_enrollment_id_key	u	UNIQUE (tenant_id, enrollment_id)
+hr_benefits_enrollments	hr_benefits_enrollments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_change_requests	hr_change_requests_pkey	p	PRIMARY KEY (id)
+hr_change_requests	hr_change_requests_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_change_requests	hr_change_requests_tenant_id_request_id_key	u	UNIQUE (tenant_id, request_id)
+hr_company_news	fk_hcn_author	f	FOREIGN KEY (author_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+hr_company_news	fk_hcn_group	f	FOREIGN KEY (audience_group_id) REFERENCES employee_user_groups(id) ON DELETE SET NULL
+hr_company_news	fk_hcn_subject	f	FOREIGN KEY (subject_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+hr_company_news	hr_company_news_pkey	p	PRIMARY KEY (id)
+hr_company_news	hr_company_news_post_type_check	c	CHECK ((post_type = ANY (ARRAY['announcement'::text, 'recognition'::text, 'event'::text, 'policy_update'::text, 'milestone'::text])))
+hr_company_news	hr_company_news_status_check	c	CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
+hr_company_news	hr_company_news_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_emergency_contacts	hr_emergency_contacts_pkey	p	PRIMARY KEY (id)
+hr_emergency_contacts	hr_emergency_contacts_tenant_id_contact_id_key	u	UNIQUE (tenant_id, contact_id)
+hr_emergency_contacts	hr_emergency_contacts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_employee_documents	fk_hr_employee_documents_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+hr_employee_documents	hr_employee_documents_pkey	p	PRIMARY KEY (id)
+hr_employee_documents	hr_employee_documents_tenant_id_document_id_key	u	UNIQUE (tenant_id, document_id)
+hr_employee_documents	hr_employee_documents_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_employment_history	fk_heh_compensation	f	FOREIGN KEY (compensation_id) REFERENCES compensation_base(id)
+hr_employment_history	fk_heh_employee	f	FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+hr_employment_history	fk_heh_manager	f	FOREIGN KEY (manager_id) REFERENCES employees(id)
+hr_employment_history	fk_heh_prev_manager	f	FOREIGN KEY (previous_manager_id) REFERENCES employees(id)
+hr_employment_history	hr_employment_history_change_type_check	c	CHECK ((change_type = ANY (ARRAY['hire'::text, 'promotion'::text, 'lateral_move'::text, 'demotion'::text, 'transfer'::text, 'title_change'::text, 'manager_change'::text, 'location_change'::text, 'fte_change'::text, 'status_change'::text, 'compensation_change'::text, 'rehire'::text, 'termination'::text])))
+hr_employment_history	hr_employment_history_pkey	p	PRIMARY KEY (id)
+hr_employment_history	hr_employment_history_reason_check	c	CHECK ((reason = ANY (ARRAY['new_hire'::text, 'promotion'::text, 'cost_of_living'::text, 'market_adjustment'::text, 'merit_increase'::text, 'reorganization'::text, 'employee_request'::text, 'performance'::text, 'role_change'::text, 'relocation'::text, 'other'::text])))
+hr_employment_history	hr_employment_history_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_feedback	hr_feedback_pkey	p	PRIMARY KEY (id)
+hr_feedback	hr_feedback_tenant_id_feedback_id_key	u	UNIQUE (tenant_id, feedback_id)
+hr_feedback	hr_feedback_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_goals	hr_goals_measurement_type_check	c	CHECK ((measurement_type = ANY (ARRAY['percentage'::text, 'numeric'::text, 'boolean'::text, 'milestone'::text])))
+hr_goals	hr_goals_pkey	p	PRIMARY KEY (id)
+hr_goals	hr_goals_status_check	c	CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'achieved'::text, 'missed'::text, 'cancelled'::text])))
+hr_goals	hr_goals_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_onboarding_tasks	hr_onboarding_tasks_pkey	p	PRIMARY KEY (id)
+hr_onboarding_tasks	hr_onboarding_tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_onboarding_tasks	hr_onboarding_tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)
+hr_onboarding_template_tasks	fk_hott_template	f	FOREIGN KEY (template_id) REFERENCES hr_onboarding_templates(id) ON DELETE CASCADE
+hr_onboarding_template_tasks	hr_onboarding_template_tasks_assignee_role_check	c	CHECK ((assignee_role = ANY (ARRAY['employee'::text, 'hr'::text, 'manager'::text, 'buddy'::text, 'it'::text, 'facilities'::text])))
+hr_onboarding_template_tasks	hr_onboarding_template_tasks_phase_check	c	CHECK ((phase = ANY (ARRAY['pre_boarding'::text, 'first_day'::text, 'first_week'::text, 'first_30_days'::text, 'first_60_days'::text, 'first_90_days'::text])))
+hr_onboarding_template_tasks	hr_onboarding_template_tasks_pkey	p	PRIMARY KEY (id)
+hr_onboarding_template_tasks	hr_onboarding_template_tasks_task_type_check	c	CHECK ((task_type = ANY (ARRAY['document_upload'::text, 'form_completion'::text, 'training'::text, 'meeting'::text, 'equipment_request'::text, 'e_signature'::text, 'i9_verification'::text, 'policy_acknowledgment'::text, 'other'::text])))
+hr_onboarding_template_tasks	hr_onboarding_template_tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_onboarding_templates	hr_onboarding_templates_pkey	p	PRIMARY KEY (id)
+hr_onboarding_templates	hr_onboarding_templates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_onboarding_templates	hr_onboarding_templates_tenant_id_template_code_key	u	UNIQUE (tenant_id, template_code)
+hr_review_cycles	hr_review_cycles_pkey	p	PRIMARY KEY (id)
+hr_review_cycles	hr_review_cycles_tenant_id_cycle_code_key	u	UNIQUE (tenant_id, cycle_code)
+hr_review_cycles	hr_review_cycles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_reviews	hr_reviews_pkey	p	PRIMARY KEY (id)
+hr_reviews	hr_reviews_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_reviews	hr_reviews_tenant_id_review_id_key	u	UNIQUE (tenant_id, review_id)
+hr_survey_responses	fk_hr_survey_responses_survey_id	f	FOREIGN KEY (survey_id) REFERENCES hr_surveys(id)
+hr_survey_responses	hr_survey_responses_pkey	p	PRIMARY KEY (id)
+hr_survey_responses	hr_survey_responses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_survey_responses	hr_survey_responses_tenant_id_response_id_key	u	UNIQUE (tenant_id, response_id)
+hr_surveys	hr_surveys_pkey	p	PRIMARY KEY (id)
+hr_surveys	hr_surveys_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_surveys	hr_surveys_tenant_id_survey_id_key	u	UNIQUE (tenant_id, survey_id)
+hr_time_off_balances	hr_time_off_balances_pkey	p	PRIMARY KEY (id)
+hr_time_off_balances	hr_time_off_balances_tenant_id_employee_id_policy_id_accrua_key	u	UNIQUE (tenant_id, employee_id, policy_id, accrual_year)
+hr_time_off_balances	hr_time_off_balances_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_time_off_balances	hr_time_off_balances_unit_check	c	CHECK ((unit = ANY (ARRAY['days'::text, 'hours'::text])))
+hr_time_off_policies	hr_time_off_policies_pkey	p	PRIMARY KEY (id)
+hr_time_off_policies	hr_time_off_policies_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_time_off_policies	hr_time_off_policies_tenant_id_policy_code_key	u	UNIQUE (tenant_id, policy_code)
+hr_time_off_requests	hr_time_off_requests_pkey	p	PRIMARY KEY (id)
+hr_time_off_requests	hr_time_off_requests_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_time_off_requests	hr_time_off_requests_tenant_id_request_id_key	u	UNIQUE (tenant_id, request_id)
+invoice_lines	fk_invoice_lines_invoice_id	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+invoice_lines	fk_invoice_lines_revenue_account_id	f	FOREIGN KEY (revenue_account_id) REFERENCES chart_of_accounts(id)
+invoice_lines	fk_invoice_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+invoice_lines	invoice_lines_pkey	p	PRIMARY KEY (id)
+invoice_lines	invoice_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+invoices	ck_invoices_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (base_subtotal >= (0)::numeric) AND (base_tax_total >= (0)::numeric) AND (base_total >= (0)::numeric) AND (base_amount_paid >= (0)::numeric) AND (base_amount_due >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = (total - amount_paid)) AND (base_total = (base_subtotal + base_tax_total)) AND (base_amount_due = (base_total - base_amount_paid))))
+invoices	fk_invoices_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+invoices	fk_invoices_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+invoices	invoices_pkey	p	PRIMARY KEY (id)
+invoices	invoices_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+jobs	jobs_pkey	p	PRIMARY KEY (id)
+jobs	jobs_status_check	c	CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])))
+jobs	jobs_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+journal_entries	journal_entries_pkey	p	PRIMARY KEY (id)
+journal_entries	journal_entries_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+journal_entry_lines	ck_journal_entry_lines_one_sided_positive	c	CHECK (((debit_amount >= (0)::numeric) AND (credit_amount >= (0)::numeric) AND (base_debit_amount >= (0)::numeric) AND (base_credit_amount >= (0)::numeric) AND (((debit_amount > (0)::numeric) AND (credit_amount = (0)::numeric)) OR ((credit_amount > (0)::numeric) AND (debit_amount = (0)::numeric))) AND (((base_debit_amount > (0)::numeric) AND (base_credit_amount = (0)::numeric)) OR ((base_credit_amount > (0)::numeric) AND (base_debit_amount = (0)::numeric)))))
+journal_entry_lines	fk_journal_entry_lines_account_id	f	FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id)
+journal_entry_lines	fk_journal_entry_lines_department_id	f	FOREIGN KEY (department_id) REFERENCES firm_departments(id)
+journal_entry_lines	fk_journal_entry_lines_entry_id	f	FOREIGN KEY (entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE
+journal_entry_lines	fk_journal_entry_lines_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id)
+journal_entry_lines	fk_journal_entry_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+journal_entry_lines	journal_entry_lines_pkey	p	PRIMARY KEY (id)
+journal_entry_lines	journal_entry_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payment_allocations	ck_payment_allocations_one_document	c	CHECK (((amount > (0)::numeric) AND (base_amount > (0)::numeric) AND ((((invoice_id IS NOT NULL))::integer + ((bill_id IS NOT NULL))::integer) = 1)))
+payment_allocations	fk_payment_allocations_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id)
+payment_allocations	fk_payment_allocations_invoice_id	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+payment_allocations	fk_payment_allocations_payment_id	f	FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
+payment_allocations	payment_allocations_pkey	p	PRIMARY KEY (id)
+payment_allocations	payment_allocations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payments	ck_payments_positive_amounts	c	CHECK (((amount > (0)::numeric) AND (base_amount > (0)::numeric) AND (gateway_fee >= (0)::numeric)))
+payments	fk_payments_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
+payments	fk_payments_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+payments	fk_payments_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+payments	fk_payments_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+payments	payments_pkey	p	PRIMARY KEY (id)
+payments	payments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payroll_deduction_definitions	payroll_deduction_definitions_pkey	p	PRIMARY KEY (id)
+payroll_deduction_definitions	payroll_deduction_definitions_tenant_id_deduction_def_id_key	u	UNIQUE (tenant_id, deduction_def_id)
+payroll_deduction_definitions	payroll_deduction_definitions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_employee_deductions	fk_payroll_employee_deductions_deduction_id	f	FOREIGN KEY (deduction_id) REFERENCES payroll_deduction_definitions(id)
+payroll_employee_deductions	fk_payroll_employee_deductions_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+payroll_employee_deductions	payroll_employee_deductions_pkey	p	PRIMARY KEY (id)
+payroll_employee_deductions	payroll_employee_deductions_tenant_id_employee_deduction_id_key	u	UNIQUE (tenant_id, employee_deduction_id)
+payroll_employee_deductions	payroll_employee_deductions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_india_salary_structure	fk_payroll_india_salary_structure_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+payroll_india_salary_structure	payroll_india_salary_structure_pkey	p	PRIMARY KEY (id)
+payroll_india_salary_structure	payroll_india_salary_structure_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_india_tax_declarations	fk_payroll_india_tax_declarations_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+payroll_india_tax_declarations	payroll_india_tax_declarations_pkey	p	PRIMARY KEY (id)
+payroll_india_tax_declarations	payroll_india_tax_declarations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_pay_schedules	payroll_pay_schedules_frequency_check	c	CHECK (((frequency)::text = ANY ((ARRAY['weekly'::character varying, 'bi-weekly'::character varying, 'semi-monthly'::character varying, 'monthly'::character varying])::text[])))
+payroll_pay_schedules	payroll_pay_schedules_holiday_adjustment_check	c	CHECK ((holiday_adjustment = ANY (ARRAY['before'::text, 'after'::text])))
+payroll_pay_schedules	payroll_pay_schedules_pay_day_of_month_check	c	CHECK ((((pay_day_of_month >= 1) AND (pay_day_of_month <= 31)) OR (pay_day_of_month = '-1'::integer)))
+payroll_pay_schedules	payroll_pay_schedules_pay_day_of_week_check	c	CHECK ((pay_day_of_week = ANY (ARRAY['monday'::text, 'tuesday'::text, 'wednesday'::text, 'thursday'::text, 'friday'::text, 'saturday'::text, 'sunday'::text])))
+payroll_pay_schedules	payroll_pay_schedules_pkey	p	PRIMARY KEY (id)
+payroll_pay_schedules	payroll_pay_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payroll_run_employees	fk_payroll_run_employees_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+payroll_run_employees	fk_payroll_run_employees_payroll_run_id	f	FOREIGN KEY (payroll_run_id) REFERENCES payroll_runs(id) ON DELETE CASCADE
+payroll_run_employees	payroll_run_employees_pkey	p	PRIMARY KEY (id)
+payroll_run_employees	payroll_run_employees_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_run_employees	payroll_run_employees_tenant_id_run_employee_id_key	u	UNIQUE (tenant_id, run_employee_id)
+payroll_runs	fk_payroll_runs_pay_schedule_id	f	FOREIGN KEY (pay_schedule_id) REFERENCES payroll_pay_schedules(id)
+payroll_runs	payroll_runs_pkey	p	PRIMARY KEY (id)
+payroll_runs	payroll_runs_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_runs	payroll_runs_tenant_id_run_id_key	u	UNIQUE (tenant_id, run_id)
+payroll_tax_deposits	payroll_tax_deposits_pkey	p	PRIMARY KEY (id)
+payroll_tax_deposits	payroll_tax_deposits_tenant_id_deposit_id_key	u	UNIQUE (tenant_id, deposit_id)
+payroll_tax_deposits	payroll_tax_deposits_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_tax_rates	fk_payroll_tax_rates_tax_collected_account_id	f	FOREIGN KEY (tax_collected_account_id) REFERENCES chart_of_accounts(id)
+payroll_tax_rates	fk_payroll_tax_rates_tax_paid_account_id	f	FOREIGN KEY (tax_paid_account_id) REFERENCES chart_of_accounts(id)
+payroll_tax_rates	payroll_tax_rates_pkey	p	PRIMARY KEY (id)
+payroll_tax_rates	payroll_tax_rates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payroll_tax_rates	payroll_tax_rates_tenant_id_tax_rate_id_key	u	UNIQUE (tenant_id, tax_rate_id)
+payroll_tax_withholding_certificates	fk_payroll_tax_withholding_certificates_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+payroll_tax_withholding_certificates	payroll_tax_withholding_certificates_pkey	p	PRIMARY KEY (id)
+payroll_tax_withholding_certificates	payroll_tax_withholding_certificates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+pm_automation_executions	fk_pm_automation_executions_automation_id	f	FOREIGN KEY (automation_id) REFERENCES pm_automations(id)
+pm_automation_executions	pm_automation_executions_pkey	p	PRIMARY KEY (id)
+pm_automation_executions	pm_automation_executions_tenant_id_execution_id_key	u	UNIQUE (tenant_id, execution_id)
+pm_automation_executions	pm_automation_executions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_automations	pm_automations_pkey	p	PRIMARY KEY (id)
+pm_automations	pm_automations_tenant_id_automation_id_key	u	UNIQUE (tenant_id, automation_id)
+pm_automations	pm_automations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_dashboard_widgets	fk_pm_dashboard_widgets_dashboard_id	f	FOREIGN KEY (dashboard_id) REFERENCES pm_dashboards(id)
+pm_dashboard_widgets	pm_dashboard_widgets_pkey	p	PRIMARY KEY (id)
+pm_dashboard_widgets	pm_dashboard_widgets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_dashboard_widgets	pm_dashboard_widgets_tenant_id_widget_id_key	u	UNIQUE (tenant_id, widget_id)
+pm_dashboards	pm_dashboards_pkey	p	PRIMARY KEY (id)
+pm_dashboards	pm_dashboards_tenant_id_dashboard_id_key	u	UNIQUE (tenant_id, dashboard_id)
+pm_dashboards	pm_dashboards_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_objectives	pm_objectives_pkey	p	PRIMARY KEY (id)
+pm_objectives	pm_objectives_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_objectives	pm_objectives_tenant_id_objective_id_key	u	UNIQUE (tenant_id, objective_id)
+pm_project_templates	pm_project_templates_pkey	p	PRIMARY KEY (id)
+pm_project_templates	pm_project_templates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_project_templates	pm_project_templates_tenant_id_template_id_key	u	UNIQUE (tenant_id, template_id)
+pm_task_attachments	fk_pm_task_attachments_task_id	f	FOREIGN KEY (task_id) REFERENCES tasks(id)
+pm_task_attachments	pm_task_attachments_pkey	p	PRIMARY KEY (id)
+pm_task_attachments	pm_task_attachments_tenant_id_attachment_id_key	u	UNIQUE (tenant_id, attachment_id)
+pm_task_attachments	pm_task_attachments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_task_comments	fk_pm_task_comments_task_id	f	FOREIGN KEY (task_id) REFERENCES tasks(id)
+pm_task_comments	pm_task_comments_pkey	p	PRIMARY KEY (id)
+pm_task_comments	pm_task_comments_tenant_id_comment_id_key	u	UNIQUE (tenant_id, comment_id)
+pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_task_time_entries	fk_pm_task_time_entries_task_id	f	FOREIGN KEY (task_id) REFERENCES tasks(id)
+pm_task_time_entries	pm_task_time_entries_pkey	p	PRIMARY KEY (id)
+pm_task_time_entries	pm_task_time_entries_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_task_time_entries	pm_task_time_entries_tenant_id_time_entry_id_key	u	UNIQUE (tenant_id, time_entry_id)
+projects	projects_pkey	p	PRIMARY KEY (id)
+projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
+tasks	tasks_pkey	p	PRIMARY KEY (id)
+tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)
+tenant_settings	tenant_settings_pkey	p	PRIMARY KEY (tenant_id, namespace, key)
+tenant_settings	tenant_settings_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+tenant_users	tenant_users_pkey	p	PRIMARY KEY (id)
+tenant_users	tenant_users_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+tenant_users	tenant_users_tenant_id_user_id_key	u	UNIQUE (tenant_id, user_id)
+tenants	tenants_company_size_check	c	CHECK ((company_size = ANY (ARRAY['1-10'::text, '11-50'::text, '51-200'::text, '201-500'::text, '501+'::text])))
+tenants	tenants_pkey	p	PRIMARY KEY (id)
+tenants	tenants_subdomain_key	u	UNIQUE (subdomain)
+ticketing_attachments	fk_ticketing_attachments_ticket_id	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
+ticketing_attachments	ticketing_attachments_pkey	p	PRIMARY KEY (id)
+ticketing_attachments	ticketing_attachments_tenant_id_attachment_id_key	u	UNIQUE (tenant_id, attachment_id)
+ticketing_attachments	ticketing_attachments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_business_areas	ticketing_business_areas_pkey	p	PRIMARY KEY (id)
+ticketing_business_areas	ticketing_business_areas_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_business_areas	ticketing_business_areas_tenant_id_prefix_key	u	UNIQUE (tenant_id, prefix)
+ticketing_tickets	ticketing_tickets_pkey	p	PRIMARY KEY (id)
+ticketing_tickets	ticketing_tickets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_tickets	ticketing_tickets_tenant_id_ticket_number_key	u	UNIQUE (tenant_id, ticket_number)
+ticketing_updates	fk_ticketing_updates_ticket_id	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
+ticketing_updates	ticketing_updates_pkey	p	PRIMARY KEY (id)
+ticketing_updates	ticketing_updates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_updates	ticketing_updates_tenant_id_update_id_key	u	UNIQUE (tenant_id, update_id)
+time_tracking_billable_expenses	time_tracking_billable_expenses_pkey	p	PRIMARY KEY (id)
+time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_expense_id_key	u	UNIQUE (tenant_id, expense_id)
+time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_entries	time_tracking_entries_pkey	p	PRIMARY KEY (id)
+time_tracking_entries	time_tracking_entries_tenant_id_entry_id_key	u	UNIQUE (tenant_id, entry_id)
+time_tracking_entries	time_tracking_entries_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_hourly_rates	time_tracking_hourly_rates_check	c	CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))
+time_tracking_hourly_rates	time_tracking_hourly_rates_pkey	p	PRIMARY KEY (id)
+time_tracking_hourly_rates	time_tracking_hourly_rates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_timesheets	time_tracking_timesheets_pkey	p	PRIMARY KEY (id)
+time_tracking_timesheets	time_tracking_timesheets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_timesheets	time_tracking_timesheets_tenant_id_id_key	u	UNIQUE (tenant_id, id)
+translations	translations_pkey	p	PRIMARY KEY (id)
+translations	translations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+translations	translations_tenant_id_locale_namespace_key_key	u	UNIQUE (tenant_id, locale, namespace, key)
+vendors	fk_vendors_ap_account_id	f	FOREIGN KEY (ap_account_id) REFERENCES chart_of_accounts(id)
+vendors	vendors_pkey	p	PRIMARY KEY (id)
+vendors	vendors_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE

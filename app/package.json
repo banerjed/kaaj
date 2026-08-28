@@ -13,7 +13,11 @@
     "lint": "eslint .",
     "format": "prettier --write --plugin prettier-plugin-svelte ./",
     "format_check": "prettier --check --plugin prettier-plugin-svelte ./",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "db:snapshot": "cd .. && scripts/db-snapshot.sh --generate",
+    "db:check": "cd .. && scripts/db-snapshot.sh --check",
+    "db:enums": "cd .. && node scripts/gen-enum-fixture.mjs",
+    "db:verify": "cd .. && psql \"$DATABASE_URL\" -v strict=1 -f scripts/verify-rls.sql && psql \"$DATABASE_URL\" -v strict=1 -f docs/data-models/verify-stories.sql && psql \"$DATABASE_URL\" -v strict=1 -f scripts/verify-invariants.sql && scripts/db-snapshot.sh --check"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^6.0.0",

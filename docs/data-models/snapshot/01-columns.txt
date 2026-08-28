@@ -1,0 +1,2139 @@
+# table	pos	column	type	not_null	default
+accounting_periods	1	id	uuid	t	gen_random_uuid()
+accounting_periods	2	tenant_id	uuid	t	
+accounting_periods	3	period_name	character varying(50)	t	
+accounting_periods	4	period_type	period_type	t	
+accounting_periods	5	start_date	date	t	
+accounting_periods	6	end_date	date	t	
+accounting_periods	7	fiscal_year	integer	t	
+accounting_periods	8	status	character varying(50)	f	'open'::character varying
+accounting_periods	9	closed_by	uuid	f	
+accounting_periods	10	closed_at	timestamp with time zone	f	
+accounting_periods	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+accounting_periods	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+audit_log	1	id	bigint	t	
+audit_log	2	tenant_id	uuid	t	
+audit_log	3	actor_user_id	uuid	f	
+audit_log	4	actor_employee_id	uuid	f	
+audit_log	5	action	text	t	
+audit_log	6	entity_type	text	t	
+audit_log	7	entity_id	uuid	f	
+audit_log	8	module	text	f	
+audit_log	9	changes	jsonb	f	
+audit_log	10	ip_address	inet	f	
+audit_log	11	user_agent	text	f	
+audit_log	12	occurred_at	timestamp with time zone	t	now()
+bank_accounts	1	id	uuid	t	gen_random_uuid()
+bank_accounts	2	tenant_id	uuid	t	
+bank_accounts	3	account_name	character varying(255)	t	
+bank_accounts	4	account_number	character varying(255)	f	
+bank_accounts	5	account_number_encrypted	character varying(500)	f	
+bank_accounts	6	bank_name	character varying(255)	t	
+bank_accounts	7	bank_branch	character varying(255)	f	
+bank_accounts	8	routing_number	character varying(255)	f	
+bank_accounts	9	swift_code	character varying(20)	f	
+bank_accounts	10	iban	character varying(50)	f	
+bank_accounts	11	currency	character varying(3)	t	
+bank_accounts	12	current_balance	numeric(15,2)	f	0
+bank_accounts	13	available_balance	numeric(15,2)	f	0
+bank_accounts	14	gl_account_id	uuid	f	
+bank_accounts	15	feed_enabled	boolean	f	false
+bank_accounts	16	feed_provider	character varying(50)	f	
+bank_accounts	17	feed_connection_id	character varying(255)	f	
+bank_accounts	18	last_synced_at	timestamp with time zone	f	
+bank_accounts	19	is_active	boolean	f	true
+bank_accounts	20	notes	text	f	
+bank_accounts	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_accounts	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_accounts	23	created_by	uuid	f	
+bank_accounts	24	updated_by	uuid	f	
+bank_reconciliation_rules	1	id	uuid	t	gen_random_uuid()
+bank_reconciliation_rules	2	tenant_id	uuid	t	
+bank_reconciliation_rules	3	bank_account_id	uuid	f	
+bank_reconciliation_rules	4	rule_name	character varying(255)	t	
+bank_reconciliation_rules	5	is_active	boolean	f	true
+bank_reconciliation_rules	6	description_contains	character varying(255)	f	
+bank_reconciliation_rules	7	description_regex	character varying(500)	f	
+bank_reconciliation_rules	8	amount_equals	numeric(15,2)	f	
+bank_reconciliation_rules	9	amount_tolerance	numeric(15,2)	f	0
+bank_reconciliation_rules	10	amount_min	numeric(15,2)	f	
+bank_reconciliation_rules	11	amount_max	numeric(15,2)	f	
+bank_reconciliation_rules	12	transaction_type	character varying(50)	f	
+bank_reconciliation_rules	13	action_type	character varying(50)	t	
+bank_reconciliation_rules	14	category_account_id	uuid	f	
+bank_reconciliation_rules	15	vendor_id	uuid	f	
+bank_reconciliation_rules	16	customer_id	uuid	f	
+bank_reconciliation_rules	17	auto_match	boolean	f	false
+bank_reconciliation_rules	18	create_transaction	boolean	f	false
+bank_reconciliation_rules	19	tracking_categories	jsonb	f	
+bank_reconciliation_rules	20	priority	integer	f	0
+bank_reconciliation_rules	21	times_applied	integer	f	0
+bank_reconciliation_rules	22	last_applied_at	timestamp with time zone	f	
+bank_reconciliation_rules	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_reconciliation_rules	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_reconciliation_rules	25	created_by	uuid	f	
+bank_reconciliation_rules	26	updated_by	uuid	f	
+bank_transactions	1	tenant_id	uuid	t	
+bank_transactions	2	id	uuid	t	gen_random_uuid()
+bank_transactions	3	bank_account_id	uuid	t	
+bank_transactions	4	transaction_date	date	t	
+bank_transactions	5	value_date	date	f	
+bank_transactions	6	description	text	t	
+bank_transactions	7	reference	character varying(100)	f	
+bank_transactions	8	amount	numeric(15,2)	t	
+bank_transactions	9	balance	numeric(15,2)	f	
+bank_transactions	10	transaction_type	character varying(50)	f	
+bank_transactions	11	category_account_id	uuid	f	
+bank_transactions	12	status	character varying(50)	f	'unmatched'::character varying
+bank_transactions	13	matched_to_type	character varying(50)	f	
+bank_transactions	14	matched_to_id	uuid	f	
+bank_transactions	15	match_confidence	numeric(3,2)	f	
+bank_transactions	16	matching_rule_id	uuid	f	
+bank_transactions	17	imported_at	timestamp with time zone	f	
+bank_transactions	18	bank_transaction_id	character varying(255)	f	
+bank_transactions	19	notes	text	f	
+bank_transactions	20	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_transactions	21	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bill_lines	1	tenant_id	uuid	t	
+bill_lines	2	id	uuid	t	gen_random_uuid()
+bill_lines	3	bill_id	uuid	t	
+bill_lines	4	line_number	integer	t	
+bill_lines	5	description	text	t	
+bill_lines	6	quantity	numeric(10,2)	t	1
+bill_lines	7	unit_price	numeric(15,2)	t	
+bill_lines	8	amount	numeric(15,2)	t	
+bill_lines	9	tax_rate_id	uuid	f	
+bill_lines	10	tax_amount	numeric(15,2)	f	0
+bill_lines	11	expense_account_id	uuid	t	
+bill_lines	12	tracking_categories	jsonb	f	
+bill_lines	13	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bills	1	id	uuid	t	gen_random_uuid()
+bills	2	tenant_id	uuid	t	
+bills	3	vendor_id	uuid	t	
+bills	4	bill_number	character varying(50)	t	
+bills	5	reference	character varying(100)	f	
+bills	6	bill_date	date	t	
+bills	7	due_date	date	t	
+bills	8	currency	character varying(3)	t	
+bills	9	exchange_rate	numeric(12,6)	f	1.0
+bills	10	base_currency	character varying(3)	t	
+bills	11	subtotal	numeric(15,2)	t	
+bills	12	tax_total	numeric(15,2)	f	0
+bills	13	total	numeric(15,2)	t	
+bills	14	amount_paid	numeric(15,2)	f	0
+bills	15	amount_due	numeric(15,2)	t	
+bills	16	base_subtotal	numeric(15,2)	t	
+bills	17	base_tax_total	numeric(15,2)	f	0
+bills	18	base_total	numeric(15,2)	t	
+bills	19	base_amount_paid	numeric(15,2)	f	0
+bills	20	base_amount_due	numeric(15,2)	t	
+bills	21	status	character varying(50)	f	'draft'::character varying
+bills	22	requires_approval	boolean	f	true
+bills	23	approved_by	uuid	f	
+bills	24	approved_at	timestamp with time zone	f	
+bills	25	payment_terms	character varying(50)	f	
+bills	26	notes	text	f	
+bills	27	file_url	text	f	
+bills	28	ocr_processed	boolean	f	false
+bills	29	ocr_data	jsonb	f	
+bills	30	tracking_categories	jsonb	f	
+bills	31	payment_scheduled_date	date	f	
+bills	32	journal_entry_id	uuid	f	
+bills	33	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bills	34	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bills	35	created_by	uuid	f	
+bills	36	updated_by	uuid	f	
+chart_of_accounts	1	id	uuid	t	gen_random_uuid()
+chart_of_accounts	2	tenant_id	uuid	t	
+chart_of_accounts	3	account_code	character varying(50)	t	
+chart_of_accounts	4	account_name	character varying(255)	t	
+chart_of_accounts	5	account_name_i18n	jsonb	f	
+chart_of_accounts	6	account_type	account_type	t	
+chart_of_accounts	7	account_subtype	character varying(50)	f	
+chart_of_accounts	8	parent_account_id	uuid	f	
+chart_of_accounts	9	currency	character varying(3)	f	
+chart_of_accounts	10	is_bank_account	boolean	f	false
+chart_of_accounts	11	is_active	boolean	f	true
+chart_of_accounts	12	enable_payments	boolean	f	false
+chart_of_accounts	13	tax_rate_id	uuid	f	
+chart_of_accounts	14	description	text	f	
+chart_of_accounts	15	description_i18n	jsonb	f	
+chart_of_accounts	16	current_balance	numeric(15,2)	f	0
+chart_of_accounts	17	current_balance_base	numeric(15,2)	f	0
+chart_of_accounts	18	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+chart_of_accounts	19	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+chart_of_accounts	20	created_by	uuid	f	
+chart_of_accounts	21	updated_by	uuid	f	
+clients	1	id	uuid	t	gen_random_uuid()
+clients	2	tenant_id	uuid	t	
+clients	3	client_name	text	t	
+clients	4	client_code	text	f	
+clients	5	legal_entity_name	text	f	
+clients	6	client_type	text	f	'corporate'::text
+clients	7	industry	text	f	
+clients	8	status	text	f	'active'::text
+clients	9	is_active	boolean	f	true
+clients	10	primary_contact_name	text	f	
+clients	11	primary_contact_email	text	f	
+clients	12	primary_contact_phone	text	f	
+clients	13	primary_contact_title	text	f	
+clients	14	billing_contact_name	text	f	
+clients	15	billing_contact_email	text	f	
+clients	16	billing_contact_phone	text	f	
+clients	17	address_line1	text	f	
+clients	18	address_line2	text	f	
+clients	19	city	text	f	
+clients	20	state_province	text	f	
+clients	21	postal_code	text	f	
+clients	22	country	text	f	'US'::text
+clients	23	website	text	f	
+clients	24	company_size	text	f	
+clients	25	currency	text	f	'USD'::text
+clients	26	payment_terms	text	f	'net_30'::text
+clients	27	default_hourly_rate	real	f	
+clients	28	tax_id	text	f	
+clients	29	portal_access_enabled	boolean	f	false
+clients	30	account_manager_id	uuid	f	
+clients	31	acquisition_date	date	f	
+clients	32	acquisition_source	text	f	
+clients	33	custom_fields	jsonb	f	'{}'::jsonb
+clients	34	notes	text	f	
+clients	35	created_at	timestamp with time zone	t	now()
+clients	36	updated_at	timestamp with time zone	t	now()
+clients	37	created_by	text	t	
+clients	38	version	integer	f	1
+compensation_allowances	1	id	uuid	t	gen_random_uuid()
+compensation_allowances	2	tenant_id	uuid	t	
+compensation_allowances	3	employee_id	uuid	t	
+compensation_allowances	4	allowance_type	allowance_type	t	
+compensation_allowances	5	allowance_name	character varying(255)	f	
+compensation_allowances	6	description	text	f	
+compensation_allowances	7	effective_from	date	t	
+compensation_allowances	8	effective_to	date	f	
+compensation_allowances	9	amount	numeric(12,2)	t	
+compensation_allowances	10	currency	character varying(3)	t	'USD'::character varying
+compensation_allowances	11	frequency	character varying(50)	f	
+compensation_allowances	12	is_taxable	boolean	f	true
+compensation_allowances	13	is_reimbursement	boolean	f	false
+compensation_allowances	14	requires_receipts	boolean	f	false
+compensation_allowances	15	max_reimbursement_per_period	numeric(12,2)	f	
+compensation_allowances	16	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_allowances	17	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_allowances	18	created_by	uuid	f	
+compensation_allowances	19	allowance_id	text	f	
+compensation_allowances	20	eligibility_criteria	text	f	
+compensation_allowances	21	status	text	f	
+compensation_base	1	id	uuid	t	gen_random_uuid()
+compensation_base	2	tenant_id	uuid	t	
+compensation_base	3	employee_id	uuid	t	
+compensation_base	4	effective_from	date	t	
+compensation_base	5	effective_to	date	f	
+compensation_base	6	compensation_type	compensation_type	t	
+compensation_base	7	amount	numeric(12,2)	t	
+compensation_base	8	currency	character varying(3)	t	'USD'::character varying
+compensation_base	9	pay_frequency	pay_frequency	f	
+compensation_base	10	standard_hours_per_day	numeric(5,2)	f	
+compensation_base	11	standard_days_per_week	numeric(4,2)	f	
+compensation_base	12	annual_equivalent	numeric(12,2)	f	
+compensation_base	13	overtime_eligible	boolean	f	false
+compensation_base	14	overtime_rules	jsonb	f	
+compensation_base	15	change_reason	change_reason	f	
+compensation_base	16	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_base	17	created_by	uuid	f	
+compensation_equity	1	id	uuid	t	gen_random_uuid()
+compensation_equity	2	tenant_id	uuid	t	
+compensation_equity	3	employee_id	uuid	t	
+compensation_equity	4	grant_type	equity_type	t	
+compensation_equity	5	grant_date	date	t	
+compensation_equity	6	grant_number	character varying(50)	f	
+compensation_equity	7	shares_granted	integer	t	
+compensation_equity	8	shares_vested	integer	f	0
+compensation_equity	9	shares_exercised	integer	f	0
+compensation_equity	10	shares_forfeited	integer	f	0
+compensation_equity	11	exercise_price	numeric(12,4)	f	
+compensation_equity	12	grant_price	numeric(12,4)	f	
+compensation_equity	13	currency	character varying(3)	f	'USD'::character varying
+compensation_equity	14	vesting_type	vesting_type	t	
+compensation_equity	15	vesting_start_date	date	t	
+compensation_equity	16	vesting_cliff_months	integer	f	
+compensation_equity	17	vesting_period_months	integer	f	
+compensation_equity	18	vesting_schedule	jsonb	f	
+compensation_equity	19	performance_conditions	jsonb	f	
+compensation_equity	20	expiration_date	date	f	
+compensation_equity	21	status	character varying(50)	f	'active'::character varying
+compensation_equity	22	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_equity	23	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_equity	24	created_by	uuid	f	
+compensation_equity	25	equity_id	text	f	
+compensation_equity	26	equity_type	text	t	
+compensation_equity	27	total_shares	integer	f	
+compensation_equity	28	strike_price	numeric(18,4)	f	
+compensation_equity	29	fair_market_value	numeric(18,4)	f	
+compensation_premiums	1	id	uuid	t	gen_random_uuid()
+compensation_premiums	2	tenant_id	uuid	t	
+compensation_premiums	3	employee_id	uuid	t	
+compensation_premiums	4	premium_type	premium_type	t	
+compensation_premiums	5	premium_name	character varying(255)	f	
+compensation_premiums	6	effective_from	date	t	
+compensation_premiums	7	effective_to	date	f	
+compensation_premiums	8	calculation_method	character varying(50)	f	
+compensation_premiums	9	premium_amount	numeric(12,2)	f	
+compensation_premiums	10	premium_percentage	numeric(5,2)	f	
+compensation_premiums	11	currency	character varying(3)	f	'USD'::character varying
+compensation_premiums	12	conditions	jsonb	f	
+compensation_premiums	13	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_premiums	14	created_by	uuid	f	
+compensation_premiums	15	premium_id	text	f	
+compensation_premiums	16	rate_multiplier	numeric(18,4)	f	
+compensation_premiums	17	amount	numeric(18,4)	f	
+compensation_premiums	18	eligibility_rules	jsonb	f	
+compensation_premiums	19	status	text	f	
+compensation_premiums	20	updated_at	timestamp with time zone	t	now()
+compensation_variable	1	id	uuid	t	gen_random_uuid()
+compensation_variable	2	tenant_id	uuid	t	
+compensation_variable	3	employee_id	uuid	t	
+compensation_variable	4	component_type	variable_comp_type	t	
+compensation_variable	5	component_name	character varying(255)	f	
+compensation_variable	6	description	text	f	
+compensation_variable	7	effective_from	date	t	
+compensation_variable	8	effective_to	date	f	
+compensation_variable	9	target_amount	numeric(12,2)	f	
+compensation_variable	10	currency	character varying(3)	t	'USD'::character varying
+compensation_variable	11	commission_structure	jsonb	f	
+compensation_variable	12	quota_structure	jsonb	f	
+compensation_variable	13	payment_frequency	character varying(50)	f	
+compensation_variable	14	next_payment_date	date	f	
+compensation_variable	15	performance_metrics	jsonb	f	
+compensation_variable	16	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_variable	17	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_variable	18	created_by	uuid	f	
+compensation_variable	19	variable_comp_id	text	f	
+compensation_variable	20	comp_type	text	t	
+compensation_variable	21	comp_name	text	f	
+compensation_variable	22	frequency	text	f	
+compensation_variable	23	status	text	f	
+compensation_work_schedules	1	id	uuid	t	gen_random_uuid()
+compensation_work_schedules	2	tenant_id	uuid	t	
+compensation_work_schedules	3	employee_id	uuid	t	
+compensation_work_schedules	4	schedule_name	character varying(255)	f	
+compensation_work_schedules	5	schedule_type	work_arrangement	t	'standard'::work_arrangement
+compensation_work_schedules	6	effective_from	date	t	
+compensation_work_schedules	7	effective_to	date	f	
+compensation_work_schedules	8	standard_hours_per_week	numeric(5,2)	f	
+compensation_work_schedules	9	weekly_schedule	jsonb	f	
+compensation_work_schedules	10	core_hours	jsonb	f	
+compensation_work_schedules	11	shift_pattern	jsonb	f	
+compensation_work_schedules	12	break_policy	jsonb	f	
+compensation_work_schedules	13	time_tracking_required	time_tracking_type	t	'hours_only'::time_tracking_type
+compensation_work_schedules	14	timezone	character varying(100)	t	'America/New_York'::character varying
+compensation_work_schedules	15	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_work_schedules	16	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+compensation_work_schedules	17	created_by	uuid	f	
+compensation_work_schedules	18	schedule_id	text	f	
+compensation_work_schedules	19	is_active	boolean	f	true
+cross_module_links	1	id	uuid	t	gen_random_uuid()
+cross_module_links	2	tenant_id	uuid	t	
+cross_module_links	3	source_module	text	t	
+cross_module_links	4	source_entity_type	text	t	
+cross_module_links	5	source_entity_id	uuid	t	
+cross_module_links	6	target_module	text	t	
+cross_module_links	7	target_entity_type	text	t	
+cross_module_links	8	target_entity_id	uuid	t	
+cross_module_links	9	link_type	text	t	'reference'::text
+cross_module_links	10	metadata	jsonb	t	'{}'::jsonb
+cross_module_links	11	created_by	uuid	f	
+cross_module_links	12	created_at	timestamp with time zone	t	now()
+custom_field_definitions	1	id	uuid	t	gen_random_uuid()
+custom_field_definitions	2	tenant_id	uuid	t	
+custom_field_definitions	3	entity_type	text	t	
+custom_field_definitions	4	field_key	text	t	
+custom_field_definitions	5	label	text	t	
+custom_field_definitions	6	label_i18n	jsonb	f	
+custom_field_definitions	7	help_text	text	f	
+custom_field_definitions	8	display_order	integer	t	0
+custom_field_definitions	9	field_group	text	f	
+custom_field_definitions	10	data_type	text	t	
+custom_field_definitions	11	options	jsonb	f	
+custom_field_definitions	12	is_required	boolean	t	false
+custom_field_definitions	13	validation	jsonb	f	
+custom_field_definitions	14	default_value	jsonb	f	
+custom_field_definitions	15	is_active	boolean	t	true
+custom_field_definitions	16	created_at	timestamp with time zone	t	now()
+custom_field_definitions	17	updated_at	timestamp with time zone	t	now()
+customers	1	id	uuid	t	gen_random_uuid()
+customers	2	tenant_id	uuid	t	
+customers	3	customer_number	character varying(50)	f	
+customers	4	customer_name	character varying(255)	t	
+customers	5	display_name	character varying(255)	f	
+customers	6	email	character varying(255)	f	
+customers	7	phone	character varying(20)	f	
+customers	8	website	character varying(255)	f	
+customers	9	billing_address	jsonb	f	
+customers	10	shipping_address	jsonb	f	
+customers	11	currency	character varying(3)	t	
+customers	12	payment_terms	character varying(50)	f	'Net 30'::character varying
+customers	13	credit_limit	numeric(15,2)	f	
+customers	14	tax_number	character varying(100)	f	
+customers	15	is_tax_exempt	boolean	f	false
+customers	16	tax_rate_id	uuid	f	
+customers	17	ar_account_id	uuid	f	
+customers	18	is_active	boolean	f	true
+customers	19	portal_enabled	boolean	f	false
+customers	20	portal_access_token	character varying(255)	f	
+customers	21	notes	text	f	
+customers	22	custom_fields	jsonb	f	
+customers	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+customers	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+customers	25	created_by	uuid	f	
+customers	26	updated_by	uuid	f	
+employee_assets	1	id	uuid	t	gen_random_uuid()
+employee_assets	2	tenant_id	uuid	t	
+employee_assets	3	asset_id	text	f	
+employee_assets	4	employee_id	uuid	t	
+employee_assets	5	asset_type	text	t	
+employee_assets	6	make_model	text	t	
+employee_assets	7	serial_number	text	f	
+employee_assets	8	asset_tag	text	f	
+employee_assets	9	assigned_date	date	t	
+employee_assets	10	return_date	date	f	
+employee_assets	11	condition	text	f	'good'::text
+employee_assets	12	notes	text	f	
+employee_assets	13	created_at	timestamp with time zone	t	now()
+employee_assets	14	updated_at	timestamp with time zone	t	now()
+employee_bank_accounts	1	id	uuid	t	gen_random_uuid()
+employee_bank_accounts	2	tenant_id	uuid	t	
+employee_bank_accounts	3	employee_id	uuid	t	
+employee_bank_accounts	4	account_holder_name	text	t	
+employee_bank_accounts	5	bank_name	text	t	
+employee_bank_accounts	6	branch_name	text	f	
+employee_bank_accounts	7	country	character varying(2)	t	
+employee_bank_accounts	8	currency	character varying(3)	t	
+employee_bank_accounts	9	account_type	text	t	'checking'::text
+employee_bank_accounts	10	account_number_encrypted	text	t	
+employee_bank_accounts	11	account_number_last4	character varying(4)	f	
+employee_bank_accounts	12	routing_number	text	f	
+employee_bank_accounts	13	ifsc_code	text	f	
+employee_bank_accounts	14	sort_code	text	f	
+employee_bank_accounts	15	iban	text	f	
+employee_bank_accounts	16	bic_swift	text	f	
+employee_bank_accounts	17	is_primary	boolean	t	false
+employee_bank_accounts	18	allocation_type	text	t	'remainder'::text
+employee_bank_accounts	19	allocation_value	numeric(12,2)	f	
+employee_bank_accounts	20	priority	integer	t	1
+employee_bank_accounts	21	verification_status	text	t	'unverified'::text
+employee_bank_accounts	22	prenote_sent_at	timestamp with time zone	f	
+employee_bank_accounts	23	verified_at	timestamp with time zone	f	
+employee_bank_accounts	24	is_active	boolean	t	true
+employee_bank_accounts	25	effective_from	date	t	CURRENT_DATE
+employee_bank_accounts	26	effective_to	date	f	
+employee_bank_accounts	27	created_at	timestamp with time zone	t	now()
+employee_bank_accounts	28	updated_at	timestamp with time zone	t	now()
+employee_bank_accounts	29	created_by	uuid	f	
+employee_certifications	1	id	uuid	t	gen_random_uuid()
+employee_certifications	2	tenant_id	uuid	t	
+employee_certifications	3	certification_id	text	f	
+employee_certifications	4	employee_id	uuid	t	
+employee_certifications	5	certification_name	text	t	
+employee_certifications	6	issuing_organization	text	t	
+employee_certifications	7	certification_number	text	f	
+employee_certifications	8	issue_date	date	t	
+employee_certifications	9	expiration_date	date	f	
+employee_certifications	10	status	text	t	'active'::text
+employee_certifications	11	verification_url	text	f	
+employee_certifications	12	notes	text	f	
+employee_certifications	13	created_at	timestamp with time zone	t	now()
+employee_certifications	14	updated_at	timestamp with time zone	t	now()
+employee_group_members	1	id	uuid	t	gen_random_uuid()
+employee_group_members	2	tenant_id	uuid	t	
+employee_group_members	3	group_name	text	t	
+employee_group_members	4	employee_id	uuid	t	
+employee_group_members	5	role	text	t	'member'::text
+employee_group_members	6	joined_at	timestamp with time zone	t	
+employee_group_members	7	joined_by	text	t	
+employee_group_members	8	expires_at	timestamp with time zone	f	
+employee_group_roles	1	id	uuid	t	gen_random_uuid()
+employee_group_roles	2	tenant_id	uuid	t	
+employee_group_roles	3	group_role_id	text	f	
+employee_group_roles	4	group_name	text	t	
+employee_group_roles	5	role_name	text	t	
+employee_group_roles	6	department_code	text	f	
+employee_group_roles	7	location_code	text	f	
+employee_group_roles	8	granted_at	timestamp with time zone	t	
+employee_group_roles	9	granted_by	text	t	
+employee_group_roles	10	expires_at	timestamp with time zone	f	
+employee_training_records	1	id	uuid	t	gen_random_uuid()
+employee_training_records	2	tenant_id	uuid	t	
+employee_training_records	3	training_record_id	text	f	
+employee_training_records	4	employee_id	uuid	t	
+employee_training_records	5	training_name	text	t	
+employee_training_records	6	training_type	text	t	
+employee_training_records	7	provider	text	f	
+employee_training_records	8	assigned_date	date	t	
+employee_training_records	9	due_date	date	t	
+employee_training_records	10	completion_date	date	f	
+employee_training_records	11	status	text	t	'not_started'::text
+employee_training_records	12	certificate_url	text	f	
+employee_training_records	13	expiration_date	date	f	
+employee_training_records	14	credits_hours	numeric(18,4)	f	
+employee_training_records	15	notes	text	f	
+employee_training_records	16	created_at	timestamp with time zone	t	now()
+employee_training_records	17	updated_at	timestamp with time zone	t	now()
+employee_user_groups	1	id	uuid	t	gen_random_uuid()
+employee_user_groups	2	tenant_id	uuid	t	
+employee_user_groups	3	group_name	text	f	
+employee_user_groups	4	display_name	text	t	
+employee_user_groups	5	description	text	f	
+employee_user_groups	6	group_type	group_type	t	'custom'::group_type
+employee_user_groups	7	parent_group_name	text	f	
+employee_user_groups	8	department_code	text	f	
+employee_user_groups	9	location_code	text	f	
+employee_user_groups	10	approver_id	uuid	t	
+employee_user_groups	11	backup_approver_id	uuid	t	
+employee_user_groups	12	is_active	boolean	f	true
+employee_user_groups	13	is_system_group	boolean	f	false
+employee_user_groups	14	created_at	timestamp with time zone	t	now()
+employee_user_groups	15	updated_at	timestamp with time zone	t	now()
+employee_user_groups	16	created_by	text	t	
+employees	1	id	uuid	t	gen_random_uuid()
+employees	2	tenant_id	uuid	t	
+employees	3	employee_id	text	f	
+employees	4	first_name	text	t	
+employees	5	last_name	text	t	
+employees	6	middle_name	text	f	
+employees	7	preferred_name	text	f	
+employees	8	email	text	t	
+employees	9	phone	text	f	
+employees	10	employee_number	text	f	
+employees	11	gender	gender	f	
+employees	12	marital_status	marital_status	f	
+employees	13	ssn_tax_id	text	f	
+employees	14	social_media_links	jsonb	f	'{}'::jsonb
+employees	15	timezone	text	f	'America/New_York'::text
+employees	16	employment_status	employment_status	t	'active'::employment_status
+employees	17	employment_type	text	t	'full_time'::text
+employees	18	start_date	date	t	
+employees	19	end_date	date	f	
+employees	20	department_code	text	f	
+employees	21	job_title	text	f	
+employees	22	job_level	text	f	
+employees	23	manager_id	uuid	f	
+employees	24	location_code	text	f	
+employees	25	pay_frequency	pay_frequency	f	'bi-weekly'::pay_frequency
+employees	26	compensation_band	text	f	
+employees	27	pronouns	pronouns	f	
+employees	28	profile_picture	text	f	
+employees	29	prior_employers	jsonb	f	'[]'::jsonb
+employees	30	prior_education	jsonb	f	'[]'::jsonb
+employees	31	hobbies	jsonb	f	'[]'::jsonb
+employees	32	affinity_groups	jsonb	f	'[]'::jsonb
+employees	33	introduction	text	f	
+employees	34	birth_date	date	f	
+employees	35	celebration_preferences	jsonb	f	'{}'::jsonb
+employees	36	custom_fields	jsonb	f	'{}'::jsonb
+employees	37	is_active	boolean	f	true
+employees	38	created_at	timestamp with time zone	t	now()
+employees	39	updated_at	timestamp with time zone	t	now()
+employees	40	created_by	text	t	
+employees	41	version	integer	f	1
+employees	42	compensation_type	text	f	
+employees	43	base_amount	numeric(18,4)	f	
+employees	44	currency	text	f	'USD'::text
+employees	45	overtime_eligible	boolean	f	false
+employees	46	default_hourly_rate	numeric(18,4)	f	
+employees	47	default_billable_rate	numeric(18,4)	f	
+employees	48	pto_balances	jsonb	f	'{}'::jsonb
+employees	49	tax_withholding	jsonb	f	'{}'::jsonb
+employees	50	salary_structure	jsonb	f	'{}'::jsonb
+employees	51	variable_compensation	jsonb	f	'[]'::jsonb
+employees	52	benefits_elections	jsonb	f	'{}'::jsonb
+employees	53	fte	numeric(18,4)	f	1.00
+employment_terms	1	id	uuid	t	gen_random_uuid()
+employment_terms	2	tenant_id	uuid	t	
+employment_terms	3	employee_id	uuid	t	
+employment_terms	4	employment_type	employment_type	t	
+employment_terms	5	start_date	date	t	
+employment_terms	6	planned_end_date	date	f	
+employment_terms	7	actual_end_date	date	f	
+employment_terms	8	contract_type	text	f	
+employment_terms	9	renewal_option	boolean	f	false
+employment_terms	10	probation_period_days	integer	f	90
+employment_terms	11	probation_end_date	date	f	
+employment_terms	12	notice_period_days	integer	f	
+employment_terms	13	work_authorization_type	work_authorization_type	f	
+employment_terms	14	work_authorization_expiry	date	f	
+employment_terms	15	fte	numeric(4,2)	f	1.00
+employment_terms	16	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+employment_terms	17	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+exchange_rates	1	id	uuid	t	gen_random_uuid()
+exchange_rates	2	from_currency	character varying(3)	t	
+exchange_rates	3	to_currency	character varying(3)	t	
+exchange_rates	4	rate_date	date	t	
+exchange_rates	5	rate	numeric(12,6)	t	
+exchange_rates	6	inverse_rate	numeric(12,6)	t	
+exchange_rates	7	source	character varying(50)	t	
+exchange_rates	8	is_manual	boolean	f	false
+exchange_rates	9	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+exchange_rates	10	created_by	uuid	f	
+expenses	1	id	uuid	t	gen_random_uuid()
+expenses	2	tenant_id	uuid	t	
+expenses	3	employee_id	uuid	t	
+expenses	4	expense_date	date	t	
+expenses	5	vendor_name	character varying(255)	f	
+expenses	6	vendor_id	uuid	f	
+expenses	7	currency	character varying(3)	t	
+expenses	8	amount	numeric(15,2)	t	
+expenses	9	exchange_rate	numeric(12,6)	f	1.0
+expenses	10	base_amount	numeric(15,2)	t	
+expenses	11	category_account_id	uuid	t	
+expenses	12	receipt_url	text	f	
+expenses	13	receipt_ocr_data	jsonb	f	
+expenses	14	description	text	f	
+expenses	15	expense_type	character varying(50)	f	'general'::character varying
+expenses	16	mileage_distance	numeric(10,2)	f	
+expenses	17	mileage_rate	numeric(10,4)	f	
+expenses	18	is_reimbursable	boolean	f	true
+expenses	19	reimbursement_status	reimbursement_status	f	'pending'::reimbursement_status
+expenses	20	approved_by	uuid	f	
+expenses	21	approved_at	timestamp with time zone	f	
+expenses	22	rejection_reason	text	f	
+expenses	23	bill_id	uuid	f	
+expenses	24	payment_id	uuid	f	
+expenses	25	tracking_categories	jsonb	f	
+expenses	26	department_id	uuid	f	
+expenses	27	journal_entry_id	uuid	f	
+expenses	28	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+expenses	29	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+expenses	30	created_by	uuid	f	
+expenses	31	updated_by	uuid	f	
+firm_benefit_items	1	tenant_id	uuid	t	
+firm_benefit_items	2	id	uuid	t	gen_random_uuid()
+firm_benefit_items	3	benefits_package_id	uuid	t	
+firm_benefit_items	4	benefit_type	character varying(50)	t	
+firm_benefit_items	5	benefit_name	character varying(255)	t	
+firm_benefit_items	6	benefit_name_i18n	jsonb	f	
+firm_benefit_items	7	carrier_name	character varying(255)	f	
+firm_benefit_items	8	carrier_varies_by_location	boolean	f	false
+firm_benefit_items	9	costs_by_currency	jsonb	f	
+firm_benefit_items	10	plan_details	jsonb	f	
+firm_benefit_items	11	plan_details_i18n	jsonb	f	
+firm_benefit_items	12	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_benefit_items	13	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_benefit_items	14	created_by	uuid	f	
+firm_benefit_items	15	updated_by	uuid	f	
+firm_benefits_packages	1	id	uuid	t	gen_random_uuid()
+firm_benefits_packages	2	tenant_id	uuid	t	
+firm_benefits_packages	3	name	character varying(255)	t	
+firm_benefits_packages	4	name_i18n	jsonb	f	
+firm_benefits_packages	5	description	text	f	
+firm_benefits_packages	6	description_i18n	jsonb	f	
+firm_benefits_packages	7	eligibility_rules	jsonb	f	
+firm_benefits_packages	8	is_active	boolean	f	true
+firm_benefits_packages	9	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_benefits_packages	10	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_benefits_packages	11	created_by	uuid	f	
+firm_benefits_packages	12	updated_by	uuid	f	
+firm_benefits_plans	1	id	uuid	t	gen_random_uuid()
+firm_benefits_plans	2	tenant_id	uuid	t	
+firm_benefits_plans	3	plan_name	text	t	
+firm_benefits_plans	4	plan_code	text	f	
+firm_benefits_plans	5	plan_type	text	t	
+firm_benefits_plans	6	carrier_name	text	f	
+firm_benefits_plans	7	carrier_policy_number	text	f	
+firm_benefits_plans	8	coverage_type	text	f	
+firm_benefits_plans	9	network_type	text	f	
+firm_benefits_plans	10	is_active	boolean	f	true
+firm_benefits_plans	11	effective_date	date	t	
+firm_benefits_plans	12	end_date	date	f	
+firm_benefits_plans	13	employee_cost_monthly	real	f	
+firm_benefits_plans	14	employer_cost_monthly	real	f	
+firm_benefits_plans	15	total_premium_monthly	real	f	
+firm_benefits_plans	16	currency	text	f	'USD'::text
+firm_benefits_plans	17	plan_details	jsonb	f	'{}'::jsonb
+firm_benefits_plans	18	cost_tiers	text	f	'[]'::text
+firm_benefits_plans	19	eligibility_rules	jsonb	f	'{}'::jsonb
+firm_benefits_plans	20	open_enrollment_start	text	f	
+firm_benefits_plans	21	open_enrollment_end	text	f	
+firm_benefits_plans	22	allows_new_hire_enrollment	boolean	f	true
+firm_benefits_plans	23	new_hire_enrollment_window_days	integer	f	30
+firm_benefits_plans	24	allows_life_event_changes	boolean	f	true
+firm_benefits_plans	25	life_event_window_days	integer	f	30
+firm_benefits_plans	26	summary_of_benefits_url	text	f	
+firm_benefits_plans	27	plan_document_url	text	f	
+firm_benefits_plans	28	description	text	f	
+firm_benefits_plans	29	internal_notes	text	f	
+firm_benefits_plans	30	created_at	timestamp with time zone	t	now()
+firm_benefits_plans	31	updated_at	timestamp with time zone	t	now()
+firm_benefits_plans	32	created_by	text	t	
+firm_benefits_plans	33	version	integer	f	1
+firm_departments	1	id	uuid	t	gen_random_uuid()
+firm_departments	2	tenant_id	uuid	t	
+firm_departments	3	parent_department_id	uuid	f	
+firm_departments	4	name	character varying(255)	t	
+firm_departments	5	name_i18n	jsonb	f	
+firm_departments	6	code	character varying(50)	f	
+firm_departments	7	description	text	f	
+firm_departments	8	description_i18n	jsonb	f	
+firm_departments	9	location_id	uuid	f	
+firm_departments	10	head_employee_id	uuid	f	
+firm_departments	11	cost_center	character varying(50)	f	
+firm_departments	12	budget_currency	character varying(3)	f	
+firm_departments	13	is_active	boolean	f	true
+firm_departments	14	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_departments	15	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_departments	16	created_by	uuid	f	
+firm_departments	17	updated_by	uuid	f	
+firm_departments	18	department_code	text	f	
+firm_departments	19	parent_department_code	text	f	
+firm_departments	20	location_code	text	f	
+firm_holidays	1	tenant_id	uuid	t	
+firm_holidays	2	id	uuid	t	gen_random_uuid()
+firm_holidays	3	location_id	uuid	t	
+firm_holidays	4	name	character varying(255)	t	
+firm_holidays	5	name_i18n	jsonb	f	
+firm_holidays	6	date	date	t	
+firm_holidays	7	observed_at	timestamp with time zone	f	
+firm_holidays	8	is_recurring	boolean	f	false
+firm_holidays	9	recurrence_rule	character varying(100)	f	
+firm_holidays	10	is_paid	boolean	f	true
+firm_holidays	11	is_mandatory	boolean	f	true
+firm_holidays	12	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_holidays	13	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_holidays	14	created_by	uuid	f	
+firm_holidays	15	updated_by	uuid	f	
+firm_holidays	16	holiday_id	text	f	
+firm_holidays	17	location_code	text	t	
+firm_job_levels	1	id	uuid	t	gen_random_uuid()
+firm_job_levels	2	tenant_id	uuid	t	
+firm_job_levels	3	job_title_id	uuid	t	
+firm_job_levels	4	level_name	character varying(100)	t	
+firm_job_levels	5	level_name_i18n	jsonb	f	
+firm_job_levels	6	salary_ranges	jsonb	t	
+firm_job_levels	7	sort_order	integer	f	0
+firm_job_levels	8	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_job_levels	9	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_job_levels	10	created_by	uuid	f	
+firm_job_levels	11	updated_by	uuid	f	
+firm_job_titles	1	id	uuid	t	gen_random_uuid()
+firm_job_titles	2	tenant_id	uuid	t	
+firm_job_titles	3	title	character varying(255)	t	
+firm_job_titles	4	title_i18n	jsonb	f	
+firm_job_titles	5	description	text	f	
+firm_job_titles	6	description_i18n	jsonb	f	
+firm_job_titles	7	is_exempt	boolean	f	false
+firm_job_titles	8	eeoc_category	eeoc_category	f	
+firm_job_titles	9	isco_code	character varying(10)	f	
+firm_job_titles	10	is_active	boolean	f	true
+firm_job_titles	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_job_titles	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_job_titles	13	created_by	uuid	f	
+firm_job_titles	14	updated_by	uuid	f	
+firm_locations	1	id	uuid	t	gen_random_uuid()
+firm_locations	2	tenant_id	uuid	t	
+firm_locations	3	name	character varying(255)	t	
+firm_locations	4	name_i18n	jsonb	f	
+firm_locations	5	address_line1	character varying(255)	f	
+firm_locations	6	address_line2	character varying(255)	f	
+firm_locations	7	city	character varying(100)	f	
+firm_locations	8	state	character varying(100)	f	
+firm_locations	9	postal_code	character varying(20)	f	
+firm_locations	10	country	character varying(2)	t	'US'::character varying
+firm_locations	11	timezone	character varying(100)	t	'America/New_York'::character varying
+firm_locations	12	locale	character varying(10)	f	
+firm_locations	13	currency	character varying(3)	f	
+firm_locations	14	phone	character varying(20)	f	
+firm_locations	15	email	character varying(255)	f	
+firm_locations	16	working_hours	jsonb	f	
+firm_locations	17	is_headquarters	boolean	f	false
+firm_locations	18	is_active	boolean	f	true
+firm_locations	19	capacity	integer	f	
+firm_locations	20	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_locations	21	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_locations	22	created_by	uuid	f	
+firm_locations	23	updated_by	uuid	f	
+firm_locations	24	location_code	text	f	
+firm_locations	25	holiday_calendar_id	text	f	
+firm_payroll_policies	1	id	uuid	t	gen_random_uuid()
+firm_payroll_policies	2	tenant_id	uuid	t	
+firm_payroll_policies	3	location_id	uuid	f	
+firm_payroll_policies	4	overtime_rules	jsonb	f	
+firm_payroll_policies	5	time_rounding	character varying(20)	f	'none'::character varying
+firm_payroll_policies	6	workweek_start_day	integer	f	0
+firm_payroll_policies	7	require_time_tracking	boolean	f	true
+firm_payroll_policies	8	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_payroll_policies	9	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+firm_payroll_policies	10	created_by	uuid	f	
+firm_payroll_policies	11	updated_by	uuid	f	
+hr_attendance	1	id	uuid	t	gen_random_uuid()
+hr_attendance	2	tenant_id	uuid	t	
+hr_attendance	3	attendance_id	text	f	
+hr_attendance	4	employee_id	uuid	t	
+hr_attendance	5	attendance_date	date	t	
+hr_attendance	6	clock_in_time	timestamp with time zone	f	
+hr_attendance	7	clock_out_time	timestamp with time zone	f	
+hr_attendance	8	clock_in_location	text	f	
+hr_attendance	9	clock_out_location	text	f	
+hr_attendance	10	break_minutes	integer	f	0
+hr_attendance	11	total_hours	numeric(18,4)	f	
+hr_attendance	12	regular_hours	numeric(18,4)	f	
+hr_attendance	13	overtime_hours	numeric(18,4)	f	
+hr_attendance	14	status	text	t	'draft'::text
+hr_attendance	15	approved_by	text	f	
+hr_attendance	16	approved_at	timestamp with time zone	f	
+hr_attendance	17	notes	text	f	
+hr_attendance	18	created_at	timestamp with time zone	t	now()
+hr_attendance	19	updated_at	timestamp with time zone	t	now()
+hr_benefits_enrollments	1	id	uuid	t	gen_random_uuid()
+hr_benefits_enrollments	2	tenant_id	uuid	t	
+hr_benefits_enrollments	3	enrollment_id	text	f	
+hr_benefits_enrollments	4	employee_id	uuid	t	
+hr_benefits_enrollments	5	plan_year	integer	t	
+hr_benefits_enrollments	6	benefit_type	text	t	
+hr_benefits_enrollments	7	plan_name	text	t	
+hr_benefits_enrollments	8	carrier	text	f	
+hr_benefits_enrollments	9	coverage_level	coverage_level	f	
+hr_benefits_enrollments	10	employee_cost_monthly	numeric(18,4)	f	
+hr_benefits_enrollments	11	employer_cost_monthly	numeric(18,4)	f	
+hr_benefits_enrollments	12	annual_election_amount	numeric(18,4)	f	
+hr_benefits_enrollments	13	enrollment_date	date	t	
+hr_benefits_enrollments	14	effective_date	date	t	
+hr_benefits_enrollments	15	end_date	date	f	
+hr_benefits_enrollments	16	status	text	f	'active'::text
+hr_benefits_enrollments	17	dependents	jsonb	f	
+hr_benefits_enrollments	18	beneficiaries	jsonb	f	
+hr_benefits_enrollments	19	election_details	jsonb	f	
+hr_benefits_enrollments	20	created_at	timestamp with time zone	t	now()
+hr_benefits_enrollments	21	updated_at	timestamp with time zone	t	now()
+hr_change_requests	1	id	uuid	t	gen_random_uuid()
+hr_change_requests	2	tenant_id	uuid	t	
+hr_change_requests	3	request_id	text	f	
+hr_change_requests	4	requested_by	text	t	
+hr_change_requests	5	requested_for	text	t	
+hr_change_requests	6	request_type	text	t	
+hr_change_requests	7	request_details	jsonb	t	
+hr_change_requests	8	approval_chain	jsonb	f	
+hr_change_requests	9	status	text	f	'pending'::text
+hr_change_requests	10	comments	jsonb	f	
+hr_change_requests	11	attached_documents	jsonb	f	
+hr_change_requests	12	created_at	timestamp with time zone	t	now()
+hr_change_requests	13	updated_at	timestamp with time zone	t	now()
+hr_change_requests	14	resolved_at	timestamp with time zone	f	
+hr_change_requests	15	resolved_by	text	f	
+hr_company_news	1	id	uuid	t	gen_random_uuid()
+hr_company_news	2	tenant_id	uuid	t	
+hr_company_news	3	title	text	t	
+hr_company_news	4	title_i18n	jsonb	f	
+hr_company_news	5	body	text	t	
+hr_company_news	6	body_i18n	jsonb	f	
+hr_company_news	7	summary	text	f	
+hr_company_news	8	post_type	text	t	'announcement'::text
+hr_company_news	9	audience_department_code	text	f	
+hr_company_news	10	audience_location_code	text	f	
+hr_company_news	11	audience_group_id	uuid	f	
+hr_company_news	12	subject_employee_id	uuid	f	
+hr_company_news	13	event_date	date	f	
+hr_company_news	14	event_location	text	f	
+hr_company_news	15	is_pinned	boolean	t	false
+hr_company_news	16	publish_at	timestamp with time zone	t	now()
+hr_company_news	17	expires_at	timestamp with time zone	f	
+hr_company_news	18	status	text	t	'published'::text
+hr_company_news	19	attachments	jsonb	t	'[]'::jsonb
+hr_company_news	20	created_at	timestamp with time zone	t	now()
+hr_company_news	21	updated_at	timestamp with time zone	t	now()
+hr_company_news	22	created_by	uuid	f	
+hr_company_news	23	author_employee_id	uuid	f	
+hr_emergency_contacts	1	id	uuid	t	gen_random_uuid()
+hr_emergency_contacts	2	tenant_id	uuid	t	
+hr_emergency_contacts	3	contact_id	text	f	
+hr_emergency_contacts	4	employee_id	uuid	t	
+hr_emergency_contacts	5	contact_name	text	t	
+hr_emergency_contacts	6	relationship	text	t	
+hr_emergency_contacts	7	phone_primary	text	t	
+hr_emergency_contacts	8	phone_secondary	text	f	
+hr_emergency_contacts	9	email	text	f	
+hr_emergency_contacts	10	address	text	f	
+hr_emergency_contacts	11	is_primary	boolean	f	false
+hr_emergency_contacts	12	notes	text	f	
+hr_emergency_contacts	13	created_at	timestamp with time zone	t	now()
+hr_emergency_contacts	14	updated_at	timestamp with time zone	t	now()
+hr_employee_documents	1	id	uuid	t	gen_random_uuid()
+hr_employee_documents	2	tenant_id	uuid	t	
+hr_employee_documents	3	document_id	text	f	
+hr_employee_documents	4	employee_id	uuid	t	
+hr_employee_documents	5	document_type	text	t	
+hr_employee_documents	6	document_name	text	t	
+hr_employee_documents	7	file_url	text	t	
+hr_employee_documents	8	file_size_bytes	integer	f	
+hr_employee_documents	9	mime_type	text	f	
+hr_employee_documents	10	uploaded_by	text	t	
+hr_employee_documents	11	upload_date	date	t	
+hr_employee_documents	12	expiration_date	date	f	
+hr_employee_documents	13	status	text	f	
+hr_employee_documents	14	notes	text	f	
+hr_employee_documents	15	created_at	timestamp with time zone	t	now()
+hr_employee_documents	16	updated_at	timestamp with time zone	t	now()
+hr_employment_history	1	id	uuid	t	gen_random_uuid()
+hr_employment_history	2	tenant_id	uuid	t	
+hr_employment_history	3	employee_id	uuid	t	
+hr_employment_history	4	effective_date	date	t	
+hr_employment_history	5	change_type	text	t	
+hr_employment_history	6	previous_job_title	text	f	
+hr_employment_history	7	previous_job_level	text	f	
+hr_employment_history	8	previous_department_code	text	f	
+hr_employment_history	9	previous_manager_id	uuid	f	
+hr_employment_history	10	previous_location_code	text	f	
+hr_employment_history	11	previous_employment_type	employment_type	f	
+hr_employment_history	12	previous_fte	numeric(4,2)	f	
+hr_employment_history	13	job_title	text	f	
+hr_employment_history	14	job_level	text	f	
+hr_employment_history	15	department_code	text	f	
+hr_employment_history	16	manager_id	uuid	f	
+hr_employment_history	17	location_code	text	f	
+hr_employment_history	18	new_employment_type	employment_type	f	
+hr_employment_history	19	fte	numeric(4,2)	f	
+hr_employment_history	20	compensation_id	uuid	f	
+hr_employment_history	21	compensation_amount	numeric(18,2)	f	
+hr_employment_history	22	compensation_currency	character varying(3)	f	
+hr_employment_history	23	compensation_type	compensation_type	f	
+hr_employment_history	24	reason	text	t	
+hr_employment_history	25	reason_notes	text	f	
+hr_employment_history	26	approved_by	uuid	f	
+hr_employment_history	27	created_at	timestamp with time zone	t	now()
+hr_employment_history	28	created_by	uuid	f	
+hr_feedback	1	id	uuid	t	gen_random_uuid()
+hr_feedback	2	tenant_id	uuid	t	
+hr_feedback	3	feedback_id	text	f	
+hr_feedback	4	from_employee_id	uuid	t	
+hr_feedback	5	to_employee_id	uuid	t	
+hr_feedback	6	feedback_type	text	t	
+hr_feedback	7	feedback_date	date	f	
+hr_feedback	8	content	text	t	
+hr_feedback	9	is_anonymous	boolean	f	false
+hr_feedback	10	tags	jsonb	f	
+hr_feedback	11	visibility	text	f	'private'::text
+hr_feedback	12	status	text	f	
+hr_feedback	13	created_at	timestamp with time zone	t	now()
+hr_feedback	14	updated_at	timestamp with time zone	t	now()
+hr_goals	1	id	uuid	t	gen_random_uuid()
+hr_goals	2	tenant_id	uuid	t	
+hr_goals	3	employee_id	uuid	t	
+hr_goals	4	review_id	uuid	f	
+hr_goals	5	objective_id	uuid	f	
+hr_goals	6	goal_title	text	t	
+hr_goals	7	goal_title_i18n	jsonb	f	
+hr_goals	8	description	text	f	
+hr_goals	9	category	text	f	
+hr_goals	10	measurement_type	text	t	'percentage'::text
+hr_goals	11	target_value	numeric(18,4)	f	
+hr_goals	12	current_value	numeric(18,4)	f	
+hr_goals	13	unit	text	f	
+hr_goals	14	weight	numeric(5,2)	f	
+hr_goals	15	status	text	t	'active'::text
+hr_goals	16	progress_percentage	numeric(5,2)	t	0
+hr_goals	17	start_date	date	f	
+hr_goals	18	target_date	date	f	
+hr_goals	19	completed_at	timestamp with time zone	f	
+hr_goals	20	created_by	uuid	f	
+hr_goals	21	created_at	timestamp with time zone	t	now()
+hr_goals	22	updated_at	timestamp with time zone	t	now()
+hr_onboarding_tasks	1	id	uuid	t	gen_random_uuid()
+hr_onboarding_tasks	2	tenant_id	uuid	t	
+hr_onboarding_tasks	3	task_id	text	f	
+hr_onboarding_tasks	4	employee_id	uuid	t	
+hr_onboarding_tasks	5	task_name	text	t	
+hr_onboarding_tasks	6	description	text	f	
+hr_onboarding_tasks	7	task_type	task_type	t	
+hr_onboarding_tasks	8	assigned_to_employee_id	uuid	f	
+hr_onboarding_tasks	9	due_date	date	f	
+hr_onboarding_tasks	10	completion_date	date	f	
+hr_onboarding_tasks	11	status	text	f	'pending'::text
+hr_onboarding_tasks	12	template_data	jsonb	f	
+hr_onboarding_tasks	13	result_data	jsonb	f	
+hr_onboarding_tasks	14	priority	text	f	
+hr_onboarding_tasks	15	created_at	timestamp with time zone	t	now()
+hr_onboarding_tasks	16	updated_at	timestamp with time zone	t	now()
+hr_onboarding_template_tasks	1	id	uuid	t	gen_random_uuid()
+hr_onboarding_template_tasks	2	tenant_id	uuid	t	
+hr_onboarding_template_tasks	3	template_id	uuid	t	
+hr_onboarding_template_tasks	4	task_name	text	t	
+hr_onboarding_template_tasks	5	task_name_i18n	jsonb	f	
+hr_onboarding_template_tasks	6	description	text	f	
+hr_onboarding_template_tasks	7	task_type	text	t	
+hr_onboarding_template_tasks	8	phase	text	t	'first_day'::text
+hr_onboarding_template_tasks	9	assignee_role	text	t	'employee'::text
+hr_onboarding_template_tasks	10	due_offset_days	integer	t	0
+hr_onboarding_template_tasks	11	sort_order	integer	t	0
+hr_onboarding_template_tasks	12	is_required	boolean	t	true
+hr_onboarding_template_tasks	13	reminder_days_before	integer	f	
+hr_onboarding_template_tasks	14	task_config	jsonb	t	'{}'::jsonb
+hr_onboarding_template_tasks	15	is_active	boolean	t	true
+hr_onboarding_template_tasks	16	created_at	timestamp with time zone	t	now()
+hr_onboarding_template_tasks	17	updated_at	timestamp with time zone	t	now()
+hr_onboarding_templates	1	id	uuid	t	gen_random_uuid()
+hr_onboarding_templates	2	tenant_id	uuid	t	
+hr_onboarding_templates	3	template_code	text	t	
+hr_onboarding_templates	4	template_name	text	t	
+hr_onboarding_templates	5	template_name_i18n	jsonb	f	
+hr_onboarding_templates	6	description	text	f	
+hr_onboarding_templates	7	applies_to_department_code	text	f	
+hr_onboarding_templates	8	applies_to_location_code	text	f	
+hr_onboarding_templates	9	applies_to_employment_types	jsonb	t	'[]'::jsonb
+hr_onboarding_templates	10	is_default	boolean	t	false
+hr_onboarding_templates	11	is_active	boolean	t	true
+hr_onboarding_templates	12	created_at	timestamp with time zone	t	now()
+hr_onboarding_templates	13	updated_at	timestamp with time zone	t	now()
+hr_onboarding_templates	14	created_by	uuid	f	
+hr_review_cycles	1	id	uuid	t	gen_random_uuid()
+hr_review_cycles	2	tenant_id	uuid	t	
+hr_review_cycles	3	cycle_code	text	f	
+hr_review_cycles	4	cycle_name	text	t	
+hr_review_cycles	5	review_type	text	t	
+hr_review_cycles	6	start_date	date	t	
+hr_review_cycles	7	self_assessment_due	text	f	
+hr_review_cycles	8	manager_assessment_due	text	f	
+hr_review_cycles	9	review_meetings_due	text	f	
+hr_review_cycles	10	cycle_close_date	date	f	
+hr_review_cycles	11	status	text	t	'draft'::text
+hr_review_cycles	12	template	jsonb	f	'{}'::jsonb
+hr_review_cycles	13	is_active	boolean	f	true
+hr_review_cycles	14	created_at	timestamp with time zone	t	now()
+hr_review_cycles	15	updated_at	timestamp with time zone	t	now()
+hr_review_cycles	16	created_by	text	t	
+hr_reviews	1	id	uuid	t	gen_random_uuid()
+hr_reviews	2	tenant_id	uuid	t	
+hr_reviews	3	review_id	text	f	
+hr_reviews	4	employee_id	uuid	t	
+hr_reviews	5	reviewer_id	uuid	t	
+hr_reviews	6	cycle_code	text	t	
+hr_reviews	7	review_type	text	f	
+hr_reviews	8	review_date	date	f	
+hr_reviews	9	self_assessment	jsonb	f	'{}'::jsonb
+hr_reviews	10	manager_assessment	jsonb	f	'{}'::jsonb
+hr_reviews	11	goals	jsonb	f	'[]'::jsonb
+hr_reviews	12	competencies	jsonb	f	'[]'::jsonb
+hr_reviews	13	overall_rating	numeric(18,4)	f	
+hr_reviews	14	status	text	t	'not_started'::text
+hr_reviews	15	created_at	timestamp with time zone	t	now()
+hr_reviews	16	updated_at	timestamp with time zone	t	now()
+hr_survey_responses	1	id	uuid	t	gen_random_uuid()
+hr_survey_responses	2	tenant_id	uuid	t	
+hr_survey_responses	3	response_id	text	f	
+hr_survey_responses	4	survey_id	uuid	t	
+hr_survey_responses	5	respondent_id	uuid	f	
+hr_survey_responses	6	responses	text	t	
+hr_survey_responses	7	is_complete	boolean	f	
+hr_survey_responses	8	submitted_at	timestamp with time zone	t	
+hr_survey_responses	9	created_at	timestamp with time zone	t	now()
+hr_survey_responses	10	updated_at	timestamp with time zone	t	now()
+hr_surveys	1	id	uuid	t	gen_random_uuid()
+hr_surveys	2	tenant_id	uuid	t	
+hr_surveys	3	survey_id	text	f	
+hr_surveys	4	survey_name	text	t	
+hr_surveys	5	survey_type	text	t	
+hr_surveys	6	description	text	f	
+hr_surveys	7	questions	jsonb	t	
+hr_surveys	8	target_audience	text	f	
+hr_surveys	9	is_anonymous	boolean	f	false
+hr_surveys	10	start_date	date	t	
+hr_surveys	11	end_date	date	t	
+hr_surveys	12	status	text	f	'draft'::text
+hr_surveys	13	response_count	integer	f	0
+hr_surveys	14	response_rate	numeric(18,4)	f	
+hr_surveys	15	aggregate_results	text	f	
+hr_surveys	16	created_at	timestamp with time zone	t	now()
+hr_surveys	17	updated_at	timestamp with time zone	t	now()
+hr_surveys	18	created_by	text	t	
+hr_time_off_balances	1	id	uuid	t	gen_random_uuid()
+hr_time_off_balances	2	tenant_id	uuid	t	
+hr_time_off_balances	3	employee_id	uuid	t	
+hr_time_off_balances	4	policy_id	uuid	t	
+hr_time_off_balances	5	accrual_year	integer	t	
+hr_time_off_balances	6	opening_balance	numeric(10,2)	t	0
+hr_time_off_balances	7	accrued	numeric(10,2)	t	0
+hr_time_off_balances	8	used	numeric(10,2)	t	0
+hr_time_off_balances	9	pending	numeric(10,2)	t	0
+hr_time_off_balances	10	adjusted	numeric(10,2)	t	0
+hr_time_off_balances	11	carried_over	numeric(10,2)	t	0
+hr_time_off_balances	12	carryover_expires_on	date	f	
+hr_time_off_balances	13	forfeited	numeric(10,2)	t	0
+hr_time_off_balances	14	current_balance	numeric(10,2)	t	0
+hr_time_off_balances	15	unit	text	t	'days'::text
+hr_time_off_balances	16	last_accrual_at	timestamp with time zone	f	
+hr_time_off_balances	17	created_at	timestamp with time zone	t	now()
+hr_time_off_balances	18	updated_at	timestamp with time zone	t	now()
+hr_time_off_policies	1	id	uuid	t	gen_random_uuid()
+hr_time_off_policies	2	tenant_id	uuid	t	
+hr_time_off_policies	3	policy_code	text	f	
+hr_time_off_policies	4	template_id	uuid	f	
+hr_time_off_policies	5	policy_name	text	t	
+hr_time_off_policies	6	time_off_type	text	t	
+hr_time_off_policies	7	accrual_rules	jsonb	f	'{}'::jsonb
+hr_time_off_policies	8	employment_types	jsonb	f	'["full_time"]'::jsonb
+hr_time_off_policies	9	location_codes	jsonb	f	'[]'::jsonb
+hr_time_off_policies	10	is_active	boolean	f	true
+hr_time_off_policies	11	created_at	timestamp with time zone	t	now()
+hr_time_off_policies	12	updated_at	timestamp with time zone	t	now()
+hr_time_off_policies	13	created_by	text	t	
+hr_time_off_requests	1	id	uuid	t	gen_random_uuid()
+hr_time_off_requests	2	tenant_id	uuid	t	
+hr_time_off_requests	3	request_id	text	f	
+hr_time_off_requests	4	employee_id	uuid	t	
+hr_time_off_requests	5	policy_code	text	t	
+hr_time_off_requests	6	start_date	date	t	
+hr_time_off_requests	7	end_date	date	t	
+hr_time_off_requests	8	total_hours	numeric(18,4)	t	
+hr_time_off_requests	9	status	text	t	'pending'::text
+hr_time_off_requests	10	reason	text	f	
+hr_time_off_requests	11	approver_id	uuid	f	
+hr_time_off_requests	12	approved_at	timestamp with time zone	f	
+hr_time_off_requests	13	denied_at	timestamp with time zone	f	
+hr_time_off_requests	14	denial_reason	text	f	
+hr_time_off_requests	15	submitted_at	timestamp with time zone	t	
+hr_time_off_requests	16	updated_at	timestamp with time zone	t	now()
+invoice_lines	1	tenant_id	uuid	t	
+invoice_lines	2	id	uuid	t	gen_random_uuid()
+invoice_lines	3	invoice_id	uuid	t	
+invoice_lines	4	line_number	integer	t	
+invoice_lines	5	description	text	t	
+invoice_lines	6	quantity	numeric(10,2)	t	1
+invoice_lines	7	unit_price	numeric(15,2)	t	
+invoice_lines	8	amount	numeric(15,2)	t	
+invoice_lines	9	discount_percent	numeric(5,2)	f	0
+invoice_lines	10	discount_amount	numeric(15,2)	f	0
+invoice_lines	11	tax_rate_id	uuid	f	
+invoice_lines	12	tax_amount	numeric(15,2)	f	0
+invoice_lines	13	revenue_account_id	uuid	t	
+invoice_lines	14	tracking_categories	jsonb	f	
+invoice_lines	15	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+invoices	1	id	uuid	t	gen_random_uuid()
+invoices	2	tenant_id	uuid	t	
+invoices	3	customer_id	uuid	t	
+invoices	4	invoice_number	character varying(50)	t	
+invoices	5	reference	character varying(100)	f	
+invoices	6	invoice_date	date	t	
+invoices	7	due_date	date	t	
+invoices	8	currency	character varying(3)	t	
+invoices	9	exchange_rate	numeric(12,6)	f	1.0
+invoices	10	base_currency	character varying(3)	t	
+invoices	11	subtotal	numeric(15,2)	t	
+invoices	12	tax_total	numeric(15,2)	f	0
+invoices	13	total	numeric(15,2)	t	
+invoices	14	amount_paid	numeric(15,2)	f	0
+invoices	15	amount_due	numeric(15,2)	t	
+invoices	16	base_subtotal	numeric(15,2)	t	
+invoices	17	base_tax_total	numeric(15,2)	f	0
+invoices	18	base_total	numeric(15,2)	t	
+invoices	19	base_amount_paid	numeric(15,2)	f	0
+invoices	20	base_amount_due	numeric(15,2)	t	
+invoices	21	status	character varying(50)	f	'draft'::character varying
+invoices	22	payment_url	character varying(500)	f	
+invoices	23	payment_gateway	character varying(50)	f	
+invoices	24	payment_gateway_id	character varying(100)	f	
+invoices	25	payment_terms	character varying(50)	f	
+invoices	26	notes	text	f	
+invoices	27	footer_text	text	f	
+invoices	28	tracking_categories	jsonb	f	
+invoices	29	pdf_url	text	f	
+invoices	30	sent_at	timestamp with time zone	f	
+invoices	31	viewed_at	timestamp with time zone	f	
+invoices	32	paid_at	timestamp with time zone	f	
+invoices	33	journal_entry_id	uuid	f	
+invoices	34	is_recurring	boolean	f	false
+invoices	35	recurring_schedule_id	uuid	f	
+invoices	36	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+invoices	37	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+invoices	38	created_by	uuid	f	
+invoices	39	updated_by	uuid	f	
+jobs	1	id	uuid	t	gen_random_uuid()
+jobs	2	tenant_id	uuid	t	
+jobs	3	job_type	text	t	
+jobs	4	payload	jsonb	t	'{}'::jsonb
+jobs	5	status	text	t	'pending'::text
+jobs	6	priority	integer	t	100
+jobs	7	attempts	integer	t	0
+jobs	8	max_attempts	integer	t	3
+jobs	9	run_after	timestamp with time zone	t	now()
+jobs	10	started_at	timestamp with time zone	f	
+jobs	11	completed_at	timestamp with time zone	f	
+jobs	12	last_error	text	f	
+jobs	13	result	jsonb	f	
+jobs	14	created_by	uuid	f	
+jobs	15	created_at	timestamp with time zone	t	now()
+journal_entries	1	id	uuid	t	gen_random_uuid()
+journal_entries	2	tenant_id	uuid	t	
+journal_entries	3	entry_number	character varying(50)	t	
+journal_entries	4	entry_date	date	t	
+journal_entries	5	source_type	character varying(50)	f	
+journal_entries	6	source_id	uuid	f	
+journal_entries	7	description	text	t	
+journal_entries	8	reference	character varying(100)	f	
+journal_entries	9	status	character varying(50)	f	'posted'::character varying
+journal_entries	10	is_adjusting	boolean	f	false
+journal_entries	11	accounting_period	character varying(20)	f	
+journal_entries	12	fiscal_year	integer	f	
+journal_entries	13	posted_at	timestamp with time zone	f	
+journal_entries	14	posted_by	uuid	f	
+journal_entries	15	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+journal_entries	16	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+journal_entries	17	created_by	uuid	f	
+journal_entries	18	updated_by	uuid	f	
+journal_entry_lines	1	tenant_id	uuid	t	
+journal_entry_lines	2	id	uuid	t	gen_random_uuid()
+journal_entry_lines	3	entry_id	uuid	t	
+journal_entry_lines	4	account_id	uuid	t	
+journal_entry_lines	5	line_number	integer	t	
+journal_entry_lines	6	currency	character varying(3)	t	
+journal_entry_lines	7	debit_amount	numeric(15,2)	f	0
+journal_entry_lines	8	credit_amount	numeric(15,2)	f	0
+journal_entry_lines	9	exchange_rate	numeric(12,6)	f	1.0
+journal_entry_lines	10	base_currency	character varying(3)	t	
+journal_entry_lines	11	base_debit_amount	numeric(15,2)	f	0
+journal_entry_lines	12	base_credit_amount	numeric(15,2)	f	0
+journal_entry_lines	13	department_id	uuid	f	
+journal_entry_lines	14	location_id	uuid	f	
+journal_entry_lines	15	tracking_categories	jsonb	f	
+journal_entry_lines	16	description	text	f	
+journal_entry_lines	17	tax_amount	numeric(15,2)	f	0
+journal_entry_lines	18	tax_rate_id	uuid	f	
+journal_entry_lines	19	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payment_allocations	1	tenant_id	uuid	t	
+payment_allocations	2	id	uuid	t	gen_random_uuid()
+payment_allocations	3	payment_id	uuid	t	
+payment_allocations	4	invoice_id	uuid	f	
+payment_allocations	5	bill_id	uuid	f	
+payment_allocations	6	amount	numeric(15,2)	t	
+payment_allocations	7	base_amount	numeric(15,2)	t	
+payment_allocations	8	fx_gain_loss	numeric(15,2)	f	0
+payment_allocations	9	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payments	1	id	uuid	t	gen_random_uuid()
+payments	2	tenant_id	uuid	t	
+payments	3	payment_number	character varying(50)	f	
+payments	4	payment_date	date	t	
+payments	5	reference	character varying(100)	f	
+payments	6	customer_id	uuid	f	
+payments	7	vendor_id	uuid	f	
+payments	8	currency	character varying(3)	t	
+payments	9	amount	numeric(15,2)	t	
+payments	10	exchange_rate	numeric(12,6)	f	1.0
+payments	11	base_amount	numeric(15,2)	t	
+payments	12	payment_method	payment_method	t	
+payments	13	payment_gateway	character varying(50)	f	
+payments	14	payment_gateway_id	character varying(100)	f	
+payments	15	gateway_fee	numeric(15,2)	f	0
+payments	16	bank_account_id	uuid	f	
+payments	17	check_number	character varying(50)	f	
+payments	18	status	character varying(50)	f	'completed'::character varying
+payments	19	notes	text	f	
+payments	20	journal_entry_id	uuid	f	
+payments	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payments	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payments	23	created_by	uuid	f	
+payments	24	updated_by	uuid	f	
+payroll_deduction_definitions	1	id	uuid	t	gen_random_uuid()
+payroll_deduction_definitions	2	tenant_id	uuid	t	
+payroll_deduction_definitions	3	deduction_code	character varying(50)	t	
+payroll_deduction_definitions	4	deduction_name	character varying(255)	t	
+payroll_deduction_definitions	5	description	text	f	
+payroll_deduction_definitions	6	category	character varying(50)	t	
+payroll_deduction_definitions	7	reduces_federal_taxable	boolean	f	false
+payroll_deduction_definitions	8	reduces_state_taxable	boolean	f	false
+payroll_deduction_definitions	9	reduces_fica_taxable	boolean	f	false
+payroll_deduction_definitions	10	reduces_india_taxable	boolean	f	false
+payroll_deduction_definitions	11	has_annual_limit	boolean	f	false
+payroll_deduction_definitions	12	annual_limit_amount	numeric(12,2)	f	
+payroll_deduction_definitions	13	has_per_pay_limit	boolean	f	false
+payroll_deduction_definitions	14	per_pay_limit_amount	numeric(12,2)	f	
+payroll_deduction_definitions	15	calculation_method	character varying(50)	f	
+payroll_deduction_definitions	16	default_percentage	numeric(5,2)	f	
+payroll_deduction_definitions	17	default_amount	numeric(12,2)	f	
+payroll_deduction_definitions	18	has_employer_match	boolean	f	false
+payroll_deduction_definitions	19	employer_match_config	jsonb	f	
+payroll_deduction_definitions	20	priority_order	integer	f	
+payroll_deduction_definitions	21	is_active	boolean	f	true
+payroll_deduction_definitions	22	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_deduction_definitions	23	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_deduction_definitions	24	deduction_def_id	text	f	
+payroll_deduction_definitions	25	deduction_type	text	f	
+payroll_deduction_definitions	26	max_amount	numeric(18,4)	f	
+payroll_deduction_definitions	27	is_pretax	boolean	f	
+payroll_employee_deductions	1	id	uuid	t	gen_random_uuid()
+payroll_employee_deductions	2	tenant_id	uuid	t	
+payroll_employee_deductions	3	employee_id	uuid	t	
+payroll_employee_deductions	4	deduction_id	uuid	t	
+payroll_employee_deductions	5	effective_from	date	t	
+payroll_employee_deductions	6	effective_to	date	f	
+payroll_employee_deductions	7	deduction_type	character varying(50)	t	
+payroll_employee_deductions	8	percentage	numeric(5,2)	f	
+payroll_employee_deductions	9	amount	numeric(12,2)	f	
+payroll_employee_deductions	10	frequency	character varying(50)	f	
+payroll_employee_deductions	11	employee_annual_limit	numeric(12,2)	f	
+payroll_employee_deductions	12	ytd_deducted	numeric(12,2)	f	0
+payroll_employee_deductions	13	garnishment_case_number	character varying(100)	f	
+payroll_employee_deductions	14	garnishment_authority	character varying(255)	f	
+payroll_employee_deductions	15	garnishment_total_amount	numeric(12,2)	f	
+payroll_employee_deductions	16	garnishment_amount_remaining	numeric(12,2)	f	
+payroll_employee_deductions	17	is_active	boolean	f	true
+payroll_employee_deductions	18	suspended_from	date	f	
+payroll_employee_deductions	19	suspended_to	date	f	
+payroll_employee_deductions	20	suspension_reason	text	f	
+payroll_employee_deductions	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_employee_deductions	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_employee_deductions	23	employee_deduction_id	text	f	
+payroll_employee_deductions	24	deduction_def_id	uuid	t	
+payroll_employee_deductions	25	calculation_method	text	f	
+payroll_india_salary_structure	1	id	uuid	t	gen_random_uuid()
+payroll_india_salary_structure	2	tenant_id	uuid	t	
+payroll_india_salary_structure	3	employee_id	uuid	t	
+payroll_india_salary_structure	4	effective_from	date	t	
+payroll_india_salary_structure	5	effective_to	date	f	
+payroll_india_salary_structure	6	annual_ctc	numeric(12,2)	t	
+payroll_india_salary_structure	7	currency	character varying(3)	f	'INR'::character varying
+payroll_india_salary_structure	8	basic_salary	numeric(12,2)	t	
+payroll_india_salary_structure	9	dearness_allowance	numeric(12,2)	f	0
+payroll_india_salary_structure	10	hra	numeric(12,2)	f	
+payroll_india_salary_structure	11	conveyance_allowance	numeric(12,2)	f	
+payroll_india_salary_structure	12	special_allowance	numeric(12,2)	f	
+payroll_india_salary_structure	13	medical_allowance	numeric(12,2)	f	
+payroll_india_salary_structure	14	education_allowance	numeric(12,2)	f	
+payroll_india_salary_structure	15	other_allowances	jsonb	f	
+payroll_india_salary_structure	16	performance_bonus	numeric(12,2)	f	
+payroll_india_salary_structure	17	annual_bonus	numeric(12,2)	f	
+payroll_india_salary_structure	18	mobile_reimbursement	numeric(12,2)	f	
+payroll_india_salary_structure	19	internet_reimbursement	numeric(12,2)	f	
+payroll_india_salary_structure	20	employer_epf	numeric(12,2)	f	
+payroll_india_salary_structure	21	employer_esi	numeric(12,2)	f	
+payroll_india_salary_structure	22	employer_nps	numeric(12,2)	f	
+payroll_india_salary_structure	23	gratuity	numeric(12,2)	f	
+payroll_india_salary_structure	24	monthly_gross	numeric(12,2)	f	
+payroll_india_salary_structure	25	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_india_salary_structure	26	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_india_tax_declarations	1	id	uuid	t	gen_random_uuid()
+payroll_india_tax_declarations	2	tenant_id	uuid	t	
+payroll_india_tax_declarations	3	employee_id	uuid	t	
+payroll_india_tax_declarations	4	financial_year	character varying(10)	t	
+payroll_india_tax_declarations	5	tax_regime	character varying(20)	t	
+payroll_india_tax_declarations	6	section_80c	numeric(12,2)	f	0
+payroll_india_tax_declarations	7	section_80d	numeric(12,2)	f	0
+payroll_india_tax_declarations	8	section_80e	numeric(12,2)	f	0
+payroll_india_tax_declarations	9	section_80g	numeric(12,2)	f	0
+payroll_india_tax_declarations	10	hra_exemption_claimed	numeric(12,2)	f	
+payroll_india_tax_declarations	11	rent_paid_monthly	numeric(12,2)	f	
+payroll_india_tax_declarations	12	metro_city	boolean	f	
+payroll_india_tax_declarations	13	home_loan_interest	numeric(12,2)	f	
+payroll_india_tax_declarations	14	lta_claimed	numeric(12,2)	f	
+payroll_india_tax_declarations	15	previous_employer_income	numeric(12,2)	f	
+payroll_india_tax_declarations	16	previous_employer_tds	numeric(12,2)	f	
+payroll_india_tax_declarations	17	documents	jsonb	f	
+payroll_india_tax_declarations	18	status	character varying(50)	f	'draft'::character varying
+payroll_india_tax_declarations	19	submitted_at	timestamp with time zone	f	
+payroll_india_tax_declarations	20	verified_by	uuid	f	
+payroll_india_tax_declarations	21	verified_at	timestamp with time zone	f	
+payroll_india_tax_declarations	22	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_india_tax_declarations	23	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_pay_schedules	1	id	uuid	t	gen_random_uuid()
+payroll_pay_schedules	2	tenant_id	uuid	t	
+payroll_pay_schedules	3	name	character varying(255)	t	
+payroll_pay_schedules	4	name_i18n	jsonb	f	
+payroll_pay_schedules	5	frequency	character varying(20)	t	
+payroll_pay_schedules	6	anchor_date	date	t	
+payroll_pay_schedules	7	timezone	character varying(100)	t	'America/New_York'::character varying
+payroll_pay_schedules	8	currency	character varying(3)	t	'USD'::character varying
+payroll_pay_schedules	9	location_ids	uuid[]	f	
+payroll_pay_schedules	10	is_active	boolean	f	true
+payroll_pay_schedules	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_pay_schedules	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_pay_schedules	13	created_by	uuid	f	
+payroll_pay_schedules	14	updated_by	uuid	f	
+payroll_pay_schedules	15	pay_day_of_week	text	f	
+payroll_pay_schedules	16	pay_day_of_month	integer	f	
+payroll_pay_schedules	17	pay_days_of_month	text	f	
+payroll_pay_schedules	18	adjust_for_holidays	boolean	f	true
+payroll_pay_schedules	19	holiday_adjustment	text	f	'before'::text
+payroll_pay_schedules	20	adjust_for_weekends	boolean	f	true
+payroll_pay_schedules	21	pay_period_days	integer	f	
+payroll_pay_schedules	22	is_default	boolean	f	false
+payroll_pay_schedules	23	configuration	text	f	'{}'::text
+payroll_pay_schedules	24	next_pay_date	date	f	
+payroll_pay_schedules	25	upcoming_pay_dates	text	f	'[]'::text
+payroll_pay_schedules	26	description	text	f	
+payroll_pay_schedules	27	version	integer	f	1
+payroll_run_employees	1	id	uuid	t	gen_random_uuid()
+payroll_run_employees	2	tenant_id	uuid	t	
+payroll_run_employees	3	payroll_run_id	uuid	t	
+payroll_run_employees	4	employee_id	uuid	t	
+payroll_run_employees	5	status	character varying(50)	f	'pending'::character varying
+payroll_run_employees	6	work_state	character varying(2)	f	
+payroll_run_employees	7	work_country	character varying(2)	t	
+payroll_run_employees	8	resident_state	character varying(2)	f	
+payroll_run_employees	9	regular_hours	numeric(10,2)	f	
+payroll_run_employees	10	overtime_hours	numeric(10,2)	f	
+payroll_run_employees	11	double_time_hours	numeric(10,2)	f	
+payroll_run_employees	12	pto_hours	numeric(10,2)	f	
+payroll_run_employees	13	earnings	jsonb	t	
+payroll_run_employees	14	gross_pay	numeric(12,2)	t	
+payroll_run_employees	15	pretax_deductions	jsonb	f	
+payroll_run_employees	16	total_pretax_deductions	numeric(12,2)	f	0
+payroll_run_employees	17	taxable_wages	jsonb	t	
+payroll_run_employees	18	taxes	jsonb	t	
+payroll_run_employees	19	total_taxes	numeric(12,2)	t	
+payroll_run_employees	20	employer_taxes	jsonb	f	
+payroll_run_employees	21	posttax_deductions	jsonb	f	
+payroll_run_employees	22	total_posttax_deductions	numeric(12,2)	f	0
+payroll_run_employees	23	net_pay	numeric(12,2)	t	
+payroll_run_employees	24	payment_method	payment_method	f	
+payroll_run_employees	25	payment_details	jsonb	f	
+payroll_run_employees	26	ytd_gross	numeric(15,2)	f	
+payroll_run_employees	27	ytd_federal_wages	numeric(15,2)	f	
+payroll_run_employees	28	ytd_federal_tax	numeric(15,2)	f	
+payroll_run_employees	29	ytd_ss_wages	numeric(15,2)	f	
+payroll_run_employees	30	ytd_ss_tax	numeric(15,2)	f	
+payroll_run_employees	31	ytd_medicare_wages	numeric(15,2)	f	
+payroll_run_employees	32	ytd_medicare_tax	numeric(15,2)	f	
+payroll_run_employees	33	ytd_state_wages	numeric(15,2)	f	
+payroll_run_employees	34	ytd_state_tax	numeric(15,2)	f	
+payroll_run_employees	35	ytd_gross_inr	numeric(15,2)	f	
+payroll_run_employees	36	ytd_tds	numeric(15,2)	f	
+payroll_run_employees	37	ytd_epf_employee	numeric(15,2)	f	
+payroll_run_employees	38	ytd_epf_employer	numeric(15,2)	f	
+payroll_run_employees	39	ytd_esi_employee	numeric(15,2)	f	
+payroll_run_employees	40	ytd_esi_employer	numeric(15,2)	f	
+payroll_run_employees	41	pay_stub_url	text	f	
+payroll_run_employees	42	pay_stub_generated_at	timestamp with time zone	f	
+payroll_run_employees	43	calculation_details	jsonb	f	
+payroll_run_employees	44	notes	text	f	
+payroll_run_employees	45	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_run_employees	46	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_run_employees	47	run_employee_id	text	f	
+payroll_runs	1	id	uuid	t	gen_random_uuid()
+payroll_runs	2	tenant_id	uuid	t	
+payroll_runs	3	pay_period_start	date	t	
+payroll_runs	4	pay_period_end	date	t	
+payroll_runs	5	pay_date	date	t	
+payroll_runs	6	run_type	character varying(50)	t	
+payroll_runs	7	run_status	character varying(50)	t	'draft'::character varying
+payroll_runs	8	country	character varying(2)	t	
+payroll_runs	9	pay_schedule_id	uuid	f	
+payroll_runs	10	currency	character varying(3)	t	'USD'::character varying
+payroll_runs	11	employee_count	integer	f	
+payroll_runs	12	total_gross_pay	numeric(15,2)	f	
+payroll_runs	13	total_net_pay	numeric(15,2)	f	
+payroll_runs	14	total_taxes	numeric(15,2)	f	
+payroll_runs	15	total_deductions	numeric(15,2)	f	
+payroll_runs	16	calculated_at	timestamp with time zone	f	
+payroll_runs	17	calculated_by	uuid	f	
+payroll_runs	18	approved_at	timestamp with time zone	f	
+payroll_runs	19	approved_by	uuid	f	
+payroll_runs	20	finalized_at	timestamp with time zone	f	
+payroll_runs	21	finalized_by	uuid	f	
+payroll_runs	22	payment_file_generated_at	timestamp with time zone	f	
+payroll_runs	23	payment_file_url	text	f	
+payroll_runs	24	payment_submitted_at	timestamp with time zone	f	
+payroll_runs	25	notes	text	f	
+payroll_runs	26	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_runs	27	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_runs	28	created_by	uuid	f	
+payroll_runs	29	run_id	text	f	
+payroll_runs	30	run_number	text	f	
+payroll_runs	31	status	text	t	'draft'::text
+payroll_runs	32	processed_at	timestamp with time zone	f	
+payroll_runs	33	processed_by	text	f	
+payroll_tax_deposits	1	id	uuid	t	gen_random_uuid()
+payroll_tax_deposits	2	tenant_id	uuid	t	
+payroll_tax_deposits	3	deposit_type	character varying(50)	t	
+payroll_tax_deposits	4	jurisdiction	character varying(50)	t	
+payroll_tax_deposits	5	tax_period	character varying(50)	f	
+payroll_tax_deposits	6	period_start	date	f	
+payroll_tax_deposits	7	period_end	date	f	
+payroll_tax_deposits	8	amount	numeric(15,2)	t	
+payroll_tax_deposits	9	currency	character varying(3)	t	
+payroll_tax_deposits	10	due_date	date	t	
+payroll_tax_deposits	11	payment_date	date	f	
+payroll_tax_deposits	12	payment_method	payment_method	f	
+payroll_tax_deposits	13	confirmation_number	character varying(100)	f	
+payroll_tax_deposits	14	payment_status	payment_status	f	
+payroll_tax_deposits	15	tax_breakdown	jsonb	f	
+payroll_tax_deposits	16	related_payroll_runs	uuid[]	f	
+payroll_tax_deposits	17	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_tax_deposits	18	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_tax_deposits	19	created_by	uuid	f	
+payroll_tax_deposits	20	deposit_id	text	f	
+payroll_tax_deposits	21	deposit_date	date	f	
+payroll_tax_deposits	22	tax_period_start	text	f	
+payroll_tax_deposits	23	tax_period_end	text	f	
+payroll_tax_deposits	24	total_amount	numeric(18,4)	f	
+payroll_tax_deposits	25	status	text	f	
+payroll_tax_rates	1	id	uuid	t	gen_random_uuid()
+payroll_tax_rates	2	tenant_id	uuid	f	
+payroll_tax_rates	3	tax_name	character varying(255)	t	
+payroll_tax_rates	4	tax_name_i18n	jsonb	f	
+payroll_tax_rates	5	tax_type	tax_type	t	
+payroll_tax_rates	6	rate	numeric(8,5)	t	
+payroll_tax_rates	7	is_compound	boolean	f	false
+payroll_tax_rates	8	components	jsonb	f	
+payroll_tax_rates	9	country_code	character varying(2)	f	
+payroll_tax_rates	10	region	character varying(100)	f	
+payroll_tax_rates	11	jurisdiction	character varying(255)	f	
+payroll_tax_rates	12	effective_from	date	t	
+payroll_tax_rates	13	effective_to	date	f	
+payroll_tax_rates	14	tax_collected_account_id	uuid	f	
+payroll_tax_rates	15	tax_paid_account_id	uuid	f	
+payroll_tax_rates	16	is_reverse_charge	boolean	f	false
+payroll_tax_rates	17	is_active	boolean	f	true
+payroll_tax_rates	18	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_tax_rates	19	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_tax_rates	20	created_by	uuid	f	
+payroll_tax_rates	21	updated_by	uuid	f	
+payroll_tax_rates	22	tax_rate_id	text	f	
+payroll_tax_rates	23	country	text	t	
+payroll_tax_rates	24	jurisdiction_type	text	t	
+payroll_tax_rates	25	jurisdiction_code	text	f	
+payroll_tax_rates	26	tax_year	integer	t	
+payroll_tax_rates	27	rate_structure	jsonb	t	
+payroll_tax_rates	28	standard_deduction	numeric(18,4)	f	
+payroll_tax_rates	29	personal_exemption	numeric(18,4)	f	
+payroll_tax_rates	30	additional_threshold	numeric(18,4)	f	
+payroll_tax_withholding_certificates	1	id	uuid	t	gen_random_uuid()
+payroll_tax_withholding_certificates	2	tenant_id	uuid	t	
+payroll_tax_withholding_certificates	3	employee_id	uuid	t	
+payroll_tax_withholding_certificates	4	effective_from	date	t	
+payroll_tax_withholding_certificates	5	effective_to	date	f	
+payroll_tax_withholding_certificates	6	tax_year	integer	t	
+payroll_tax_withholding_certificates	7	country	character varying(2)	t	
+payroll_tax_withholding_certificates	8	us_filing_status	character varying(50)	f	
+payroll_tax_withholding_certificates	9	us_multiple_jobs	boolean	f	
+payroll_tax_withholding_certificates	10	us_step2_amount	numeric(12,2)	f	
+payroll_tax_withholding_certificates	11	us_step3_dependents	numeric(12,2)	f	
+payroll_tax_withholding_certificates	12	us_step4a_other_income	numeric(12,2)	f	
+payroll_tax_withholding_certificates	13	us_step4b_deductions	numeric(12,2)	f	
+payroll_tax_withholding_certificates	14	us_step4c_extra_withholding	numeric(12,2)	f	
+payroll_tax_withholding_certificates	15	us_exempt	boolean	f	false
+payroll_tax_withholding_certificates	16	state_withholding	jsonb	f	
+payroll_tax_withholding_certificates	17	india_tax_regime	india_tax_regime	f	
+payroll_tax_withholding_certificates	18	india_section_declarations	jsonb	f	
+payroll_tax_withholding_certificates	19	india_previous_employer_income	numeric(15,2)	f	
+payroll_tax_withholding_certificates	20	india_previous_employer_tds	numeric(15,2)	f	
+payroll_tax_withholding_certificates	21	document_url	text	f	
+payroll_tax_withholding_certificates	22	submitted_at	timestamp with time zone	f	
+payroll_tax_withholding_certificates	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payroll_tax_withholding_certificates	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+pm_automation_executions	1	id	uuid	t	gen_random_uuid()
+pm_automation_executions	2	tenant_id	uuid	t	
+pm_automation_executions	3	execution_id	text	f	
+pm_automation_executions	4	automation_id	uuid	t	
+pm_automation_executions	5	triggered_at	timestamp with time zone	f	
+pm_automation_executions	6	execution_time_ms	integer	f	
+pm_automation_executions	7	triggered_by	text	t	
+pm_automation_executions	8	triggered_by_user_id	uuid	f	
+pm_automation_executions	9	entity_type	text	t	
+pm_automation_executions	10	entity_id	uuid	t	
+pm_automation_executions	11	trigger_data	jsonb	f	'{}'::jsonb
+pm_automation_executions	12	execution_status	text	t	
+pm_automation_executions	13	actions_executed	integer	f	0
+pm_automation_executions	14	actions_failed	integer	f	0
+pm_automation_executions	15	error_message	text	f	
+pm_automation_executions	16	error_stack	text	f	
+pm_automation_executions	17	action_results	jsonb	f	'[]'::jsonb
+pm_automation_executions	18	executed_at	timestamp with time zone	t	
+pm_automation_executions	19	completed_at	timestamp with time zone	f	
+pm_automation_executions	20	created_at	timestamp with time zone	t	now()
+pm_automations	1	id	uuid	t	gen_random_uuid()
+pm_automations	2	tenant_id	uuid	t	
+pm_automations	3	automation_id	text	f	
+pm_automations	4	scope	text	t	
+pm_automations	5	project_id	uuid	f	
+pm_automations	6	objective_id	uuid	f	
+pm_automations	7	automation_name	text	t	
+pm_automations	8	description	text	f	
+pm_automations	9	trigger	jsonb	t	'{}'::jsonb
+pm_automations	10	conditions	jsonb	f	'[]'::jsonb
+pm_automations	11	actions	jsonb	t	'[]'::jsonb
+pm_automations	12	action_delays	jsonb	f	'[]'::jsonb
+pm_automations	13	is_active	boolean	f	true
+pm_automations	14	execution_count	integer	f	0
+pm_automations	15	last_executed_at	timestamp with time zone	f	
+pm_automations	16	last_error	text	f	
+pm_automations	17	suggested_by_ai	boolean	f	false
+pm_automations	18	ai_confidence	numeric(18,4)	f	
+pm_automations	19	created_from_natural_language	text	f	
+pm_automations	20	max_executions_per_hour	integer	f	100
+pm_automations	21	current_hour_executions	integer	f	0
+pm_automations	22	current_hour_start	text	f	
+pm_automations	23	created_at	timestamp with time zone	t	now()
+pm_automations	24	updated_at	timestamp with time zone	t	now()
+pm_automations	25	created_by	text	t	
+pm_dashboard_widgets	1	id	uuid	t	gen_random_uuid()
+pm_dashboard_widgets	2	tenant_id	uuid	t	
+pm_dashboard_widgets	3	widget_id	text	f	
+pm_dashboard_widgets	4	dashboard_id	uuid	t	
+pm_dashboard_widgets	5	widget_type	text	t	
+pm_dashboard_widgets	6	position_x	integer	t	
+pm_dashboard_widgets	7	position_y	integer	t	
+pm_dashboard_widgets	8	width	integer	t	4
+pm_dashboard_widgets	9	height	integer	t	3
+pm_dashboard_widgets	10	widget_title	text	f	
+pm_dashboard_widgets	11	data_sources	jsonb	f	'{}'::jsonb
+pm_dashboard_widgets	12	config	jsonb	f	'{}'::jsonb
+pm_dashboard_widgets	13	display_order	integer	f	0
+pm_dashboard_widgets	14	cache_updated_at	timestamp with time zone	f	
+pm_dashboard_widgets	15	show_title	boolean	f	true
+pm_dashboard_widgets	16	is_text_widget	boolean	f	false
+pm_dashboard_widgets	17	cache_enabled	boolean	f	true
+pm_dashboard_widgets	18	cached_data	jsonb	f	
+pm_dashboard_widgets	19	cached_at	timestamp with time zone	f	
+pm_dashboard_widgets	20	cache_ttl_seconds	integer	f	300
+pm_dashboard_widgets	21	created_at	timestamp with time zone	t	now()
+pm_dashboard_widgets	22	updated_at	timestamp with time zone	t	now()
+pm_dashboard_widgets	23	created_by	text	t	
+pm_dashboards	1	id	uuid	t	gen_random_uuid()
+pm_dashboards	2	tenant_id	uuid	t	
+pm_dashboards	3	dashboard_id	text	f	
+pm_dashboards	4	scope	text	t	
+pm_dashboards	5	objective_id	uuid	f	
+pm_dashboards	6	dashboard_name	text	t	
+pm_dashboards	7	description	text	f	
+pm_dashboards	8	layout_type	text	f	'grid'::text
+pm_dashboards	9	layout_config	jsonb	f	'{}'::jsonb
+pm_dashboards	10	widget_count	integer	f	0
+pm_dashboards	11	max_widgets	integer	f	30
+pm_dashboards	12	visibility	text	f	'workspace'::text
+pm_dashboards	13	owner_employee_id	uuid	f	
+pm_dashboards	14	is_public	boolean	f	false
+pm_dashboards	15	shared_with_users	jsonb	f	'[]'::jsonb
+pm_dashboards	16	shared_with_teams	jsonb	f	'[]'::jsonb
+pm_dashboards	17	auto_refresh_enabled	boolean	f	true
+pm_dashboards	18	refresh_interval_seconds	integer	f	300
+pm_dashboards	19	is_default	boolean	f	false
+pm_dashboards	20	is_template	boolean	f	false
+pm_dashboards	21	created_at	timestamp with time zone	t	now()
+pm_dashboards	22	updated_at	timestamp with time zone	t	now()
+pm_dashboards	23	created_by	text	t	
+pm_dashboards	24	last_viewed_at	timestamp with time zone	f	
+pm_dashboards	25	view_count	integer	f	0
+pm_objectives	1	id	uuid	t	gen_random_uuid()
+pm_objectives	2	tenant_id	uuid	t	
+pm_objectives	3	objective_id	text	f	
+pm_objectives	4	objective_number	text	t	
+pm_objectives	5	objective_name	text	t	
+pm_objectives	6	description	text	f	
+pm_objectives	7	vision_statement	text	f	
+pm_objectives	8	objective_type	text	t	'general'::text
+pm_objectives	9	client_id	uuid	f	
+pm_objectives	10	primary_contact_id	uuid	f	
+pm_objectives	11	department_code	text	f	
+pm_objectives	12	owner_employee_id	uuid	f	
+pm_objectives	13	team_members	jsonb	f	'[]'::jsonb
+pm_objectives	14	start_date	date	f	
+pm_objectives	15	target_end_date	date	f	
+pm_objectives	16	fiscal_year	text	f	
+pm_objectives	17	quarter	text	f	
+pm_objectives	18	status	text	t	'planning'::text
+pm_objectives	19	health_status	text	t	'on_track'::text
+pm_objectives	20	progress_percentage	numeric(18,4)	f	0.00
+pm_objectives	21	target_revenue	numeric(18,4)	f	
+pm_objectives	22	actual_revenue	numeric(18,4)	f	0.00
+pm_objectives	23	target_profit_margin	numeric(18,4)	f	
+pm_objectives	24	actual_profit_margin	numeric(18,4)	f	
+pm_objectives	25	currency	text	f	'USD'::text
+pm_objectives	26	kpis	jsonb	f	'[]'::jsonb
+pm_objectives	27	success_criteria	text	f	
+pm_objectives	28	color	text	f	
+pm_objectives	29	icon	text	f	
+pm_objectives	30	default_dashboard_id	uuid	f	
+pm_objectives	31	is_visible_to_clients	boolean	f	false
+pm_objectives	32	is_archived	boolean	f	false
+pm_objectives	33	custom_fields	jsonb	f	'{}'::jsonb
+pm_objectives	34	created_at	timestamp with time zone	t	now()
+pm_objectives	35	updated_at	timestamp with time zone	t	now()
+pm_objectives	36	created_by	text	t	
+pm_objectives	37	updated_by	text	f	
+pm_objectives	38	archived_at	timestamp with time zone	f	
+pm_project_templates	1	id	uuid	t	gen_random_uuid()
+pm_project_templates	2	tenant_id	uuid	t	
+pm_project_templates	3	template_id	text	f	
+pm_project_templates	4	name	text	t	
+pm_project_templates	5	description	text	f	
+pm_project_templates	6	category	text	f	
+pm_project_templates	7	template_data	jsonb	t	'{}'::jsonb
+pm_project_templates	8	is_public	boolean	f	false
+pm_project_templates	9	use_count	integer	f	0
+pm_project_templates	10	estimated_duration_days	integer	f	
+pm_project_templates	11	estimated_hours	numeric(18,4)	f	
+pm_project_templates	12	estimated_budget	numeric(18,4)	f	
+pm_project_templates	13	created_at	timestamp with time zone	t	now()
+pm_project_templates	14	updated_at	timestamp with time zone	t	now()
+pm_project_templates	15	created_by	text	t	
+pm_task_attachments	1	id	uuid	t	gen_random_uuid()
+pm_task_attachments	2	tenant_id	uuid	t	
+pm_task_attachments	3	attachment_id	text	f	
+pm_task_attachments	4	task_id	uuid	f	
+pm_task_attachments	5	project_id	uuid	t	
+pm_task_attachments	6	file_name	text	t	
+pm_task_attachments	7	file_url	text	t	
+pm_task_attachments	8	file_size_bytes	integer	f	
+pm_task_attachments	9	mime_type	text	f	
+pm_task_attachments	10	file_type	text	f	
+pm_task_attachments	11	file_extension	text	f	
+pm_task_attachments	12	attachment_type	text	f	
+pm_task_attachments	13	version_number	integer	f	1
+pm_task_attachments	14	parent_attachment_id	uuid	f	
+pm_task_attachments	15	is_latest_version	boolean	f	true
+pm_task_attachments	16	client_visible	boolean	f	false
+pm_task_attachments	17	requires_approval	boolean	f	false
+pm_task_attachments	18	uploaded_by	text	t	
+pm_task_attachments	19	uploaded_at	timestamp with time zone	t	
+pm_task_attachments	20	description	text	f	
+pm_task_comments	1	id	uuid	t	gen_random_uuid()
+pm_task_comments	2	tenant_id	uuid	t	
+pm_task_comments	3	comment_id	text	f	
+pm_task_comments	4	task_id	uuid	t	
+pm_task_comments	5	project_id	uuid	t	
+pm_task_comments	6	comment_type	text	f	'comment'::text
+pm_task_comments	7	comment_text	text	f	
+pm_task_comments	8	author_type	text	t	
+pm_task_comments	9	author_employee_id	uuid	f	
+pm_task_comments	10	author_client_id	uuid	f	
+pm_task_comments	11	mentioned_users	jsonb	f	'[]'::jsonb
+pm_task_comments	12	attachment_ids	jsonb	f	'[]'::jsonb
+pm_task_comments	13	parent_comment_id	uuid	f	
+pm_task_comments	14	is_internal	boolean	f	false
+pm_task_comments	15	is_pinned	boolean	f	false
+pm_task_comments	16	created_at	timestamp with time zone	t	now()
+pm_task_comments	17	updated_at	timestamp with time zone	t	now()
+pm_task_comments	18	edited_at	timestamp with time zone	f	
+pm_task_comments	19	deleted_at	timestamp with time zone	f	
+pm_task_time_entries	1	id	uuid	t	gen_random_uuid()
+pm_task_time_entries	2	tenant_id	uuid	t	
+pm_task_time_entries	3	time_entry_id	text	f	
+pm_task_time_entries	4	task_id	uuid	t	
+pm_task_time_entries	5	project_id	uuid	t	
+pm_task_time_entries	6	employee_id	uuid	t	
+pm_task_time_entries	7	start_time	timestamp with time zone	t	
+pm_task_time_entries	8	end_time	timestamp with time zone	f	
+pm_task_time_entries	9	duration_minutes	integer	f	
+pm_task_time_entries	10	is_manual_entry	boolean	f	false
+pm_task_time_entries	11	entry_date	date	t	
+pm_task_time_entries	12	hours	numeric(18,4)	f	
+pm_task_time_entries	13	is_billable	boolean	f	true
+pm_task_time_entries	14	hourly_rate	numeric(18,4)	f	
+pm_task_time_entries	15	amount	numeric(18,4)	f	
+pm_task_time_entries	16	notes	text	f	
+pm_task_time_entries	17	status	text	f	'draft'::text
+pm_task_time_entries	18	approved_by	text	f	
+pm_task_time_entries	19	approved_at	timestamp with time zone	f	
+pm_task_time_entries	20	invoice_id	uuid	f	
+pm_task_time_entries	21	invoice_line_item_id	uuid	f	
+pm_task_time_entries	22	created_at	timestamp with time zone	t	now()
+pm_task_time_entries	23	updated_at	timestamp with time zone	t	now()
+projects	1	id	uuid	t	gen_random_uuid()
+projects	2	tenant_id	uuid	t	
+projects	3	project_id	text	f	
+projects	4	project_number	text	t	
+projects	5	project_name	text	t	
+projects	6	objective_id	uuid	f	
+projects	7	parent_project_id	uuid	f	
+projects	8	description	text	f	
+projects	9	project_type	project_type	t	'client_project'::project_type
+projects	10	client_id	uuid	f	
+projects	11	contact_person_id	uuid	f	
+projects	12	service_type	text	f	
+projects	13	industry	text	f	
+projects	14	tags	jsonb	f	'[]'::jsonb
+projects	15	project_manager_id	uuid	f	
+projects	16	team_members	jsonb	f	'[]'::jsonb
+projects	17	department_code	text	f	
+projects	18	location_code	text	f	
+projects	19	start_date	date	f	
+projects	20	target_end_date	date	f	
+projects	21	actual_start_date	date	f	
+projects	22	actual_end_date	date	f	
+projects	23	status	text	t	'draft'::text
+projects	24	priority	text	t	'medium'::text
+projects	25	progress_percentage	numeric(18,4)	f	0.00
+projects	26	health_status	text	t	'on_track'::text
+projects	27	budget_type	budget_type	f	
+projects	28	budget	numeric(18,4)	f	
+projects	29	estimated_hours	numeric(18,4)	f	
+projects	30	actual_hours	numeric(18,4)	f	0.00
+projects	31	actual_cost	numeric(18,4)	f	0.00
+projects	32	currency	text	f	'USD'::text
+projects	33	billing_method	billing_method	f	
+projects	34	hourly_rate	numeric(18,4)	f	
+projects	35	is_billable	boolean	f	true
+projects	36	total_billed	numeric(18,4)	f	0.00
+projects	37	proposal_id	uuid	f	
+projects	38	contract_id	uuid	f	
+projects	39	is_template	boolean	f	false
+projects	40	template_id	uuid	f	
+projects	41	is_recurring	boolean	f	false
+projects	42	recurrence_rule	jsonb	f	'{}'::jsonb
+projects	43	client_visible	boolean	f	false
+projects	44	client_can_comment	boolean	f	false
+projects	45	client_approval_required	boolean	f	false
+projects	46	notify_on_status_change	boolean	f	true
+projects	47	notify_on_task_completion	boolean	f	false
+projects	48	color	text	f	
+projects	49	icon	text	f	
+projects	50	default_view	text	f	'kanban'::text
+projects	51	has_custom_columns	boolean	f	false
+projects	52	column_config_version	integer	f	1
+projects	53	custom_fields	jsonb	f	'{}'::jsonb
+projects	54	hourly_rate_override	numeric(18,4)	f	
+projects	55	task_count	integer	f	0
+projects	56	completed_task_count	integer	f	0
+projects	57	last_activity_at	timestamp with time zone	f	
+projects	58	created_at	timestamp with time zone	t	now()
+projects	59	updated_at	timestamp with time zone	t	now()
+projects	60	created_by	text	t	
+projects	61	updated_by	text	f	
+projects	62	archived_at	timestamp with time zone	f	
+tasks	1	id	uuid	t	gen_random_uuid()
+tasks	2	tenant_id	uuid	t	
+tasks	3	task_id	text	f	
+tasks	4	task_number	text	t	
+tasks	5	project_id	uuid	t	
+tasks	6	parent_task_id	uuid	f	
+tasks	7	task_name	text	t	
+tasks	8	position	integer	f	
+tasks	9	depth_level	integer	f	0
+tasks	10	description	text	f	
+tasks	11	task_type	task_type	f	'task'::task_type
+tasks	12	status	text	t	'todo'::text
+tasks	13	priority	text	f	'medium'::text
+tasks	14	assigned_to	text	f	
+tasks	15	assigned_team_id	uuid	f	
+tasks	16	role_required	text	f	
+tasks	17	start_date	date	f	
+tasks	18	due_date	date	f	
+tasks	19	completed_date	date	f	
+tasks	20	estimated_hours	numeric(18,4)	f	
+tasks	21	actual_hours	numeric(18,4)	f	0.00
+tasks	22	progress_percentage	numeric(18,4)	f	0.00
+tasks	23	budget	numeric(18,4)	f	
+tasks	24	actual_cost	numeric(18,4)	f	
+tasks	25	board_column	text	f	
+tasks	26	board_position	integer	f	
+tasks	27	is_billable	boolean	f	true
+tasks	28	billable_hours	numeric(18,4)	f	0.00
+tasks	29	non_billable_hours	numeric(18,4)	f	0.00
+tasks	30	hourly_rate	numeric(18,4)	f	
+tasks	31	depends_on_task_ids	jsonb	f	'[]'::jsonb
+tasks	32	blocks_task_ids	jsonb	f	'[]'::jsonb
+tasks	33	has_deliverable	boolean	f	false
+tasks	34	deliverable_type	text	f	
+tasks	35	deliverable_url	text	f	
+tasks	36	client_visible	boolean	f	false
+tasks	37	requires_client_approval	boolean	f	false
+tasks	38	client_approved_at	timestamp with time zone	f	
+tasks	39	client_approved_by	text	f	
+tasks	40	attachment_count	integer	f	0
+tasks	41	checklist_items	jsonb	f	'[]'::jsonb
+tasks	42	is_recurring	boolean	f	false
+tasks	43	recurrence_rule	jsonb	f	'{}'::jsonb
+tasks	44	recurrence_parent_id	uuid	f	
+tasks	45	tags	jsonb	f	'[]'::jsonb
+tasks	46	labels	jsonb	f	'[]'::jsonb
+tasks	47	custom_fields	jsonb	f	'{}'::jsonb
+tasks	48	created_at	timestamp with time zone	t	now()
+tasks	49	updated_at	timestamp with time zone	t	now()
+tasks	50	completed_at	timestamp with time zone	f	
+tasks	51	created_by	text	t	
+tasks	52	updated_by	text	f	
+tenant_settings	1	tenant_id	uuid	t	
+tenant_settings	2	namespace	text	t	
+tenant_settings	3	key	text	t	
+tenant_settings	4	value	jsonb	t	
+tenant_settings	5	updated_at	timestamp with time zone	t	now()
+tenant_settings	6	updated_by	uuid	f	
+tenant_users	1	id	uuid	t	gen_random_uuid()
+tenant_users	2	tenant_id	uuid	t	
+tenant_users	3	user_id	uuid	t	
+tenant_users	4	employee_id	uuid	f	
+tenant_users	5	role	text	t	'member'::text
+tenant_users	6	permissions	jsonb	t	'{}'::jsonb
+tenant_users	7	is_active	boolean	t	true
+tenant_users	8	is_default_tenant	boolean	t	false
+tenant_users	9	invited_at	timestamp with time zone	f	
+tenant_users	10	accepted_at	timestamp with time zone	f	
+tenant_users	11	last_active_at	timestamp with time zone	f	
+tenant_users	12	created_at	timestamp with time zone	t	now()
+tenant_users	13	updated_at	timestamp with time zone	t	now()
+tenants	1	id	uuid	t	gen_random_uuid()
+tenants	2	subdomain	character varying(100)	t	
+tenants	3	company_name	character varying(255)	t	
+tenants	4	company_name_i18n	jsonb	f	
+tenants	5	region	character varying(50)	t	'us-east-1'::character varying
+tenants	6	data_residency_country	character varying(2)	f	
+tenants	7	default_locale	character varying(10)	t	'en-US'::character varying
+tenants	8	supported_locales	character varying(10)[]	f	ARRAY['en-US'::text]
+tenants	9	default_currency	character varying(3)	t	'USD'::character varying
+tenants	10	supported_currencies	character varying(3)[]	f	ARRAY['USD'::text]
+tenants	11	default_timezone	character varying(100)	t	'America/New_York'::character varying
+tenants	12	date_format	character varying(50)	f	'MM/DD/YYYY'::character varying
+tenants	13	time_format	character varying(10)	f	'12h'::character varying
+tenants	14	number_format	character varying(50)	f	'en-US'::character varying
+tenants	15	plan_tier	plan_tier	t	'starter'::plan_tier
+tenants	16	max_employees	integer	f	50
+tenants	17	max_storage_gb	integer	f	10
+tenants	18	features	jsonb	f	'{}'::jsonb
+tenants	19	billing_email	character varying(255)	f	
+tenants	20	billing_currency	character varying(3)	f	'USD'::character varying
+tenants	21	billing_status	billing_status	f	'active'::billing_status
+tenants	22	is_active	boolean	f	true
+tenants	23	is_suspended	boolean	f	false
+tenants	24	gdpr_applicable	boolean	f	false
+tenants	25	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+tenants	26	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+tenants	27	legal_entity_name	text	f	
+tenants	28	fiscal_year_start	text	f	'01-01'::text
+tenants	29	company_size	text	f	
+tenants	30	industry	text	f	
+tenants	31	trial_end_date	date	f	
+tenants	32	primary_contact_name	text	f	
+tenants	33	primary_contact_email	text	f	
+tenants	34	primary_contact_phone	text	f	
+tenants	35	address_line1	text	f	
+tenants	36	address_line2	text	f	
+tenants	37	city	text	f	
+tenants	38	state_province	text	f	
+tenants	39	postal_code	text	f	
+tenants	40	billing_country	text	f	
+tenants	41	tax_id	uuid	f	
+tenants	42	registration_number	text	f	
+tenants	43	created_by	text	f	
+tenants	44	version	integer	f	1
+ticketing_attachments	1	id	uuid	t	gen_random_uuid()
+ticketing_attachments	2	tenant_id	uuid	t	
+ticketing_attachments	3	attachment_id	text	f	
+ticketing_attachments	4	ticket_id	uuid	f	
+ticketing_attachments	5	ticket_number	text	t	
+ticketing_attachments	6	update_id	uuid	f	
+ticketing_attachments	7	file_name	text	t	
+ticketing_attachments	8	file_url	text	t	
+ticketing_attachments	9	file_size_bytes	integer	f	
+ticketing_attachments	10	file_size	integer	t	
+ticketing_attachments	11	mime_type	text	t	
+ticketing_attachments	12	storage_key	text	t	
+ticketing_attachments	13	storage_url	text	f	
+ticketing_attachments	14	uploaded_by	text	t	
+ticketing_attachments	15	uploaded_by_name	text	f	
+ticketing_attachments	16	uploaded_at	timestamp with time zone	t	
+ticketing_attachments	17	description	text	f	
+ticketing_business_areas	1	id	uuid	t	gen_random_uuid()
+ticketing_business_areas	2	tenant_id	uuid	t	
+ticketing_business_areas	3	prefix	text	f	
+ticketing_business_areas	4	name	text	t	
+ticketing_business_areas	5	description	text	f	
+ticketing_business_areas	6	active	boolean	f	true
+ticketing_business_areas	7	current_sequence	integer	f	0
+ticketing_business_areas	8	categories	jsonb	t	'[]'::jsonb
+ticketing_business_areas	9	custom_fields	jsonb	t	'{}'::jsonb
+ticketing_business_areas	10	roles	jsonb	t	'{}'::jsonb
+ticketing_business_areas	11	settings	jsonb	t	'{}'::jsonb
+ticketing_business_areas	12	is_active	boolean	f	true
+ticketing_business_areas	13	created_at	timestamp with time zone	t	now()
+ticketing_business_areas	14	created_by	text	t	
+ticketing_business_areas	15	updated_at	timestamp with time zone	t	now()
+ticketing_tickets	1	id	uuid	t	gen_random_uuid()
+ticketing_tickets	2	tenant_id	uuid	t	
+ticketing_tickets	3	business_area_id	uuid	f	
+ticketing_tickets	4	ticket_number	text	f	
+ticketing_tickets	5	prefix	text	t	
+ticketing_tickets	6	sequence_number	integer	t	
+ticketing_tickets	7	title	text	t	
+ticketing_tickets	8	description	text	f	
+ticketing_tickets	9	subject	text	t	
+ticketing_tickets	10	category	text	t	
+ticketing_tickets	11	status	text	t	'Pending'::text
+ticketing_tickets	12	priority	text	f	
+ticketing_tickets	13	severity	text	t	'medium'::text
+ticketing_tickets	14	request_type	text	t	'support'::text
+ticketing_tickets	15	private	boolean	f	false
+ticketing_tickets	16	due_date	date	f	
+ticketing_tickets	17	logged_at	timestamp with time zone	t	
+ticketing_tickets	18	updated_at	timestamp with time zone	t	now()
+ticketing_tickets	19	resolved_at	timestamp with time zone	f	
+ticketing_tickets	20	closed_at	timestamp with time zone	f	
+ticketing_tickets	21	reported_by	text	f	
+ticketing_tickets	22	reported_by_name	text	f	
+ticketing_tickets	23	reported_by_email	text	f	
+ticketing_tickets	24	logger_id	uuid	t	
+ticketing_tickets	25	last_updated_by	text	t	
+ticketing_tickets	26	closed_by	text	f	
+ticketing_tickets	27	assignees	jsonb	f	'[]'::jsonb
+ticketing_tickets	28	subscribers	jsonb	f	'[]'::jsonb
+ticketing_tickets	29	resolution_notes	text	f	
+ticketing_tickets	30	is_public	boolean	f	
+ticketing_tickets	31	internal_summary	text	f	
+ticketing_tickets	32	external_summary	text	f	
+ticketing_tickets	33	custom_fields	jsonb	f	'{}'::jsonb
+ticketing_tickets	34	parent_ticket_number	text	f	
+ticketing_tickets	35	linked_tickets	jsonb	f	'[]'::jsonb
+ticketing_tickets	36	tasks	jsonb	f	'[]'::jsonb
+ticketing_tickets	37	version	integer	f	1
+ticketing_tickets	38	tags	jsonb	f	'[]'::jsonb
+ticketing_tickets	39	created_at	timestamp with time zone	t	now()
+ticketing_tickets	40	search_vector	tsvector	f	
+ticketing_tickets	41	sla_due_at	timestamp with time zone	f	
+ticketing_tickets	42	sla_response_due_at	timestamp with time zone	f	
+ticketing_tickets	43	first_response_at	timestamp with time zone	f	
+ticketing_tickets	44	sla_paused_seconds	integer	t	0
+ticketing_tickets	45	sla_resolution_breached	boolean	f	
+ticketing_tickets	46	sla_response_breached	boolean	f	
+ticketing_updates	1	id	uuid	t	gen_random_uuid()
+ticketing_updates	2	tenant_id	uuid	t	
+ticketing_updates	3	update_id	text	f	
+ticketing_updates	4	ticket_id	uuid	f	
+ticketing_updates	5	ticket_number	text	t	
+ticketing_updates	6	update_type	text	f	
+ticketing_updates	7	author_employee_id	uuid	f	
+ticketing_updates	8	author_name	text	f	
+ticketing_updates	9	author_id	uuid	t	
+ticketing_updates	10	comment_text	text	f	
+ticketing_updates	11	content_html	text	f	
+ticketing_updates	12	content_text	text	f	
+ticketing_updates	13	visibility	text	f	'external'::text
+ticketing_updates	14	created_at	timestamp with time zone	t	now()
+ticketing_updates	15	edited_at	timestamp with time zone	f	
+ticketing_updates	16	edited_by	text	f	
+ticketing_updates	17	changes	jsonb	f	'{}'::jsonb
+ticketing_updates	18	attachments	jsonb	f	
+ticketing_updates	19	is_internal	boolean	f	false
+ticketing_updates	20	search_vector	tsvector	f	
+time_tracking_billable_expenses	1	id	uuid	t	gen_random_uuid()
+time_tracking_billable_expenses	2	tenant_id	uuid	t	
+time_tracking_billable_expenses	3	expense_id	text	f	
+time_tracking_billable_expenses	4	employee_id	uuid	t	
+time_tracking_billable_expenses	5	project_id	uuid	f	
+time_tracking_billable_expenses	6	client_id	uuid	f	
+time_tracking_billable_expenses	7	expense_date	date	t	
+time_tracking_billable_expenses	8	description	text	t	
+time_tracking_billable_expenses	9	expense_type	text	f	
+time_tracking_billable_expenses	10	category	text	f	
+time_tracking_billable_expenses	11	amount	numeric(18,4)	t	
+time_tracking_billable_expenses	12	currency	text	f	'USD'::text
+time_tracking_billable_expenses	13	markup_percentage	numeric(18,4)	f	0.00
+time_tracking_billable_expenses	14	markup_amount	numeric(18,4)	f	0.00
+time_tracking_billable_expenses	15	billable_amount	numeric(18,4)	t	
+time_tracking_billable_expenses	16	has_receipt	boolean	f	false
+time_tracking_billable_expenses	17	receipt_url	text	f	
+time_tracking_billable_expenses	18	receipt_attachment_id	uuid	f	
+time_tracking_billable_expenses	19	is_billable	boolean	f	true
+time_tracking_billable_expenses	20	is_reimbursable	boolean	f	false
+time_tracking_billable_expenses	21	status	text	f	'draft'::text
+time_tracking_billable_expenses	22	approved_by	text	f	
+time_tracking_billable_expenses	23	approved_at	timestamp with time zone	f	
+time_tracking_billable_expenses	24	submitted_at	timestamp with time zone	f	
+time_tracking_billable_expenses	25	invoice_id	uuid	f	
+time_tracking_billable_expenses	26	invoiced_at	timestamp with time zone	f	
+time_tracking_billable_expenses	27	reimbursed_at	timestamp with time zone	f	
+time_tracking_billable_expenses	28	created_at	timestamp with time zone	t	now()
+time_tracking_billable_expenses	29	updated_at	timestamp with time zone	t	now()
+time_tracking_entries	1	id	uuid	t	gen_random_uuid()
+time_tracking_entries	2	tenant_id	uuid	t	
+time_tracking_entries	3	entry_id	text	f	
+time_tracking_entries	4	employee_id	uuid	t	
+time_tracking_entries	5	timesheet_id	uuid	f	
+time_tracking_entries	6	project_id	uuid	f	
+time_tracking_entries	7	task_id	uuid	f	
+time_tracking_entries	8	client_id	uuid	f	
+time_tracking_entries	9	entry_date	date	t	
+time_tracking_entries	10	start_time	timestamp with time zone	f	
+time_tracking_entries	11	end_time	timestamp with time zone	f	
+time_tracking_entries	12	duration_minutes	integer	f	
+time_tracking_entries	13	duration_hours	numeric(18,4)	f	
+time_tracking_entries	14	hours	numeric(18,4)	t	
+time_tracking_entries	15	entry_type	text	f	'timer'::text
+time_tracking_entries	16	is_running	boolean	f	false
+time_tracking_entries	17	description	text	t	
+time_tracking_entries	18	internal_notes	text	f	
+time_tracking_entries	19	is_billable	boolean	f	true
+time_tracking_entries	20	hourly_rate	numeric(18,4)	f	
+time_tracking_entries	21	billable_amount	numeric(18,4)	f	
+time_tracking_entries	22	amount	numeric(18,4)	f	
+time_tracking_entries	23	currency	text	f	'USD'::text
+time_tracking_entries	24	rate_source	text	f	
+time_tracking_entries	25	activity_type	activity_type	f	
+time_tracking_entries	26	tags	jsonb	f	
+time_tracking_entries	27	status	text	f	'draft'::text
+time_tracking_entries	28	submitted_at	timestamp with time zone	f	
+time_tracking_entries	29	submitted_to	text	f	
+time_tracking_entries	30	approved_by	text	f	
+time_tracking_entries	31	approved_at	timestamp with time zone	f	
+time_tracking_entries	32	rejection_reason	text	f	
+time_tracking_entries	33	invoice_id	uuid	f	
+time_tracking_entries	34	invoice_line_item_id	uuid	f	
+time_tracking_entries	35	invoiced_at	timestamp with time zone	f	
+time_tracking_entries	36	is_locked	boolean	f	false
+time_tracking_entries	37	locked_at	timestamp with time zone	f	
+time_tracking_entries	38	locked_by	text	f	
+time_tracking_entries	39	created_at	timestamp with time zone	t	now()
+time_tracking_entries	40	updated_at	timestamp with time zone	t	now()
+time_tracking_entries	41	created_by	text	f	
+time_tracking_entries	42	updated_by	text	f	
+time_tracking_hourly_rates	1	id	uuid	t	gen_random_uuid()
+time_tracking_hourly_rates	2	tenant_id	uuid	t	
+time_tracking_hourly_rates	3	employee_id	uuid	f	
+time_tracking_hourly_rates	4	client_id	uuid	f	
+time_tracking_hourly_rates	5	project_id	uuid	f	
+time_tracking_hourly_rates	6	role_code	text	f	
+time_tracking_hourly_rates	7	cost_rate	numeric(18,4)	f	
+time_tracking_hourly_rates	8	billable_rate	numeric(18,4)	f	
+time_tracking_hourly_rates	9	currency	character varying(3)	t	'USD'::character varying
+time_tracking_hourly_rates	10	effective_from	date	t	
+time_tracking_hourly_rates	11	effective_to	date	f	
+time_tracking_hourly_rates	12	change_reason	text	f	
+time_tracking_hourly_rates	13	is_active	boolean	t	true
+time_tracking_hourly_rates	14	created_by	uuid	f	
+time_tracking_hourly_rates	15	created_at	timestamp with time zone	t	now()
+time_tracking_hourly_rates	16	updated_at	timestamp with time zone	t	now()
+time_tracking_timesheets	1	id	uuid	t	gen_random_uuid()
+time_tracking_timesheets	2	tenant_id	uuid	t	
+time_tracking_timesheets	3	timesheet_number	text	f	
+time_tracking_timesheets	4	employee_id	uuid	t	
+time_tracking_timesheets	5	period_type	period_type	t	
+time_tracking_timesheets	6	period_start	text	t	
+time_tracking_timesheets	7	period_end	text	t	
+time_tracking_timesheets	8	total_hours	numeric(18,4)	f	0.00
+time_tracking_timesheets	9	billable_hours	numeric(18,4)	f	0.00
+time_tracking_timesheets	10	non_billable_hours	numeric(18,4)	f	0.00
+time_tracking_timesheets	11	total_amount	numeric(18,4)	f	0.00
+time_tracking_timesheets	12	entry_count	integer	f	0
+time_tracking_timesheets	13	status	text	f	'draft'::text
+time_tracking_timesheets	14	submitted_at	timestamp with time zone	f	
+time_tracking_timesheets	15	submitted_to	text	f	
+time_tracking_timesheets	16	approved_by	text	f	
+time_tracking_timesheets	17	approved_at	timestamp with time zone	f	
+time_tracking_timesheets	18	rejection_reason	text	f	
+time_tracking_timesheets	19	created_at	timestamp with time zone	t	now()
+time_tracking_timesheets	20	updated_at	timestamp with time zone	t	now()
+time_tracking_timesheets	21	notes	text	f	
+translations	1	id	uuid	t	gen_random_uuid()
+translations	2	tenant_id	uuid	f	
+translations	3	locale	text	t	
+translations	4	namespace	text	t	'app'::text
+translations	5	key	text	t	
+translations	6	value	text	t	
+translations	7	updated_at	timestamp with time zone	t	now()
+vendors	1	id	uuid	t	gen_random_uuid()
+vendors	2	tenant_id	uuid	t	
+vendors	3	vendor_number	character varying(50)	f	
+vendors	4	vendor_name	character varying(255)	t	
+vendors	5	display_name	character varying(255)	f	
+vendors	6	email	character varying(255)	f	
+vendors	7	phone	character varying(20)	f	
+vendors	8	website	character varying(255)	f	
+vendors	9	address	jsonb	f	
+vendors	10	currency	character varying(3)	t	
+vendors	11	payment_terms	character varying(50)	f	'Net 30'::character varying
+vendors	12	tax_number	character varying(100)	f	
+vendors	13	is_1099_vendor	boolean	f	false
+vendors	14	ap_account_id	uuid	f	
+vendors	15	bank_account_number	character varying(255)	f	
+vendors	16	bank_routing_number	character varying(255)	f	
+vendors	17	bank_name	character varying(255)	f	
+vendors	18	is_active	boolean	f	true
+vendors	19	notes	text	f	
+vendors	20	custom_fields	jsonb	f	
+vendors	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+vendors	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+vendors	23	created_by	uuid	f	
+vendors	24	updated_by	uuid	f	

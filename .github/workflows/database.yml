@@ -88,3 +88,22 @@ jobs:
 
       - name: Specification checks
         run: psql -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
+
+      # Design rules from the ADRs: tenant_id leads every index, enums match
+      # enumerations.json, the enum/reference-table split holds, every table has
+      # tenant_id, and the PostgREST Data API stays closed.
+      - name: Schema invariants
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-invariants.sql
+
+      # The enum fixture is generated and committed; a forgotten regeneration
+      # would silently test a stale expectation.
+      - name: Enum fixture is current
+        run: |
+          node scripts/gen-enum-fixture.mjs
+          git diff --exit-code docs/data-models/generated/expected-enums.sql \
+            || { echo "::error::expected-enums.sql is stale. Run: node scripts/gen-enum-fixture.mjs"; exit 1; }
+
+      # Structure snapshot: any unintended schema change fails here with a diff.
+      # An intended one is committed alongside its migration.
+      - name: Structure snapshot
+        run: scripts/db-snapshot.sh --check
