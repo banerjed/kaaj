@@ -33,3 +33,8 @@ supabase/.env*
 .DS_Store
 *.log
 /tmp/
+
+# Machine-local reference symlinks pointing outside the repo. They would be
+# dangling for anyone else who clones.
+svelte-clinic-ref
+*-ref
