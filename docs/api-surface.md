@@ -3,7 +3,7 @@
 **Generated** by `scripts/gen-api-surface.mjs` from `docs/data-models/schema.sql`
 and the module specifications. **Do not hand-edit** — re-run the script.
 
-**Generated:** 2026-08-27
+**Generated:** 2026-08-28
 **Schema:** 98 tables, 1 view, 4 functions, 34 enum types
 
 **Supersedes** `api-endpoints.md` v1.0, which specified a standalone REST service at
@@ -74,6 +74,9 @@ Once applied to your Supabase project, verify this document against the live dat
 
 # then confirm the same things on the live database (read-only, safe on prod)
 ./scripts/verify-remote.sh "$SUPABASE_DB_URL"
+
+# no database password? paste this into the dashboard SQL Editor instead
+cat scripts/verify-remote.sql
 
 # the exact reflected surface, as OpenAPI
 curl -s "https://<project-ref>.supabase.co/rest/v1/" \
