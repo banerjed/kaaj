@@ -3,7 +3,7 @@
 > **⚠️ Status: partially superseded — field meanings remain accurate.**
 >
 > This guide was written against the Cloudflare D1 (SQLite) schema. The
-> authoritative schema is now [`schema.sql`](./schema.sql) (Supabase PostgreSQL).
+> authoritative schema is now [`schema.sql`](../../packages/database/reference/schema.sql) (Supabase PostgreSQL).
 >
 > **Still accurate:** every table and field described here exists in the current
 > schema, and the *business meaning*, purpose, dependencies and examples are

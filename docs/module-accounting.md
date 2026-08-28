@@ -828,7 +828,7 @@ Net Margin                           26.8%
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete database schemas including:
+See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including:
 - Chart of Accounts
 - Journal Entries and Journal Entry Lines
 - Customers and Invoices

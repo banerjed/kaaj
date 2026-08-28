@@ -900,6 +900,6 @@ tenancy with colliding natural keys), and `data-models/d1-best-practices.md`
 - [Customization Model](./06-customization-model.md) — how customers customize
 - [Schema Reconciliation](./data-models/SCHEMA-RECONCILIATION.md) — how the two
   legacy schemas were merged, and what was restored
-- [`data-models/schema.sql`](./data-models/schema.sql) — the authoritative schema
+- [`data-models/schema.sql`](../packages/database/reference/schema.sql) — the authoritative schema
 - [Cross-Module Integration Plan](./cross-module-integration-plan.md) — the
   workflows that motivate ADR-001

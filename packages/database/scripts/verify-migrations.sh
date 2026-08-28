@@ -17,8 +17,11 @@ set -euo pipefail
 WITH_MOCK=0
 [ "${1:-}" = "--with-mock-data" ] && WITH_MOCK=1
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MIGRATIONS="$ROOT/app/supabase/migrations"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# Migrations live at the repo root: the Supabase CLI resolves them
+# relative to config.toml. (This previously pointed at app/supabase,
+# which has not existed since the migrations moved.)
+MIGRATIONS="$ROOT/supabase/migrations"
 PORT="${PGPORT:-55432}"
 DB=kaaj_verify
 OWN_CLUSTER=0
@@ -209,7 +212,7 @@ if [ "$WITH_MOCK" = 1 ]; then
   # depend on the defaults added by 20260827000003.
   set +e
   mock_out="$(psql -d "$DB" -q -v ON_ERROR_STOP=1 \
-                   -f "$ROOT/docs/data-models/mock-data.sql" 2>&1)"
+                   -f "$ROOT/packages/database/fixtures/mock-data.sql" 2>&1)"
   mock_rc=$?
   set -e
   if [ "$mock_rc" -ne 0 ]; then

@@ -633,7 +633,7 @@ The Payroll module processes employee compensation, calculates taxes and deducti
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete database schemas including:
+See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including:
 - Payroll Runs and Payroll Run Employees
 - Tax Withholding Certificates (US W-4, India Form 12BB)
 - Tax Rates and Deduction Definitions

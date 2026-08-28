@@ -2,14 +2,14 @@
 -- Kaaj — Tenant isolation verification (ALL tables, data-driven)
 -- =============================================================================
 -- WHAT THIS PROVES, that nothing else does
---   scripts/verify-migrations.sh checks isolation behaviourally but only against
---   `employees` — 1 of 98 tables. docs/data-models/verify-stories.sql checks RLS
+--   packages/database/scripts/verify-migrations.sh checks isolation behaviourally but only against
+--   `employees` — 1 of 98 tables. packages/database/tests/verify-stories.sql checks RLS
 --   only as metadata (pg_class.relrowsecurity), so a policy of USING(true) passes
 --   it. This file proves every table's policy actually filters.
 --
 -- PRECONDITIONS
 --   * migrations applied (supabase/migrations/*.sql, NOT docs/.../schema.sql)
---   * docs/data-models/mock-data.sql loaded — every fixture row is tenant A
+--   * packages/database/fixtures/mock-data.sql loaded — every fixture row is tenant A
 --   * connected as a role that BYPASSES RLS (setup must not be subject to the
 --     thing under test); `app_user` must exist and must NOT bypass
 --

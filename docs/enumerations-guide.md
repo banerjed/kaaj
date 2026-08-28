@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Last Updated:** December 5, 2025
-**Related Files:** [enumerations.json](./enumerations.json), [schema.sql](./data-models/schema.sql)
+**Related Files:** [enumerations.json](../packages/enums/src/enumerations.json), [schema.sql](../packages/database/reference/schema.sql)
 
 ---
 
@@ -915,10 +915,10 @@ For nested categories:
 
 ## Related Resources
 
-- [Data Models Specification](./data-models/schema.sql)
+- [Data Models Specification](../packages/database/reference/schema.sql)
 - [API Specification](./api-endpoints.md)
 - [Internationalization Guide](./product-specification.md#internationalization-i18n)
-- [Database Schema](./data-models/schema.sql)
+- [Database Schema](../packages/database/reference/schema.sql)
 
 ---
 

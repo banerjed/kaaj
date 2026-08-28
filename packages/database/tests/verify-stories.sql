@@ -22,10 +22,10 @@
 --
 -- USAGE
 --   for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
---   psql "$DATABASE_URL" -f docs/data-models/mock-data.sql
---   psql "$DATABASE_URL" -v strict=1 -f docs/data-models/verify-stories.sql
+--   psql "$DATABASE_URL" -f packages/database/fixtures/mock-data.sql
+--   psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-stories.sql
 --
---   Build from supabase/migrations/, NOT from docs/data-models/schema.sql.
+--   Build from supabase/migrations/, NOT from packages/database/reference/schema.sql.
 --   schema.sql is the design document: it issues no GRANTs (so no role can read
 --   anything) and defines app.set_updated_at() without wiring it to any trigger.
 --   Only the migrations produce a working database.
@@ -53,7 +53,7 @@ BEGIN;
 -- a rolbypassrls role sees rows. Run this as anything else and all DATA checks
 -- return 0 rows and fail for a reason that has nothing to do with the schema.
 --
--- This is the mirror image of the guard in scripts/verify-migrations.sh, which
+-- This is the mirror image of the guard in packages/database/scripts/verify-migrations.sh, which
 -- asserts the opposite for its isolation probes.
 DO $precheck$
 DECLARE bypasses BOOLEAN;
@@ -736,7 +736,7 @@ SELECT _check('UG-roles','DATA','user-groups',
 -- =============================================================================
 -- NOTE: the next two are METADATA checks. They prove RLS is switched on, NOT
 -- that any policy actually filters — a policy of USING(true) passes both.
--- Behavioural proof lives in scripts/verify-rls.sh; policy EXPRESSIONS are
+-- Behavioural proof lives in packages/database/tests/verify-rls.sql; policy EXPRESSIONS are
 -- pinned by db/snapshot/04-policies.txt. Do not read these as isolation tests.
 SELECT _check('X-rls-all','SCHEMA','cross-cutting',
   'RLS switched on for every table (metadata only — see verify-rls.sh)',

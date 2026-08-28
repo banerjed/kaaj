@@ -37,7 +37,7 @@
 --                                    empty or malformed claim; it should return
 --                                    no tenant
 --
--- Verify any change to this file with: ./scripts/verify-migrations.sh
+-- Verify any change to this file with: packages/database/scripts/verify-migrations.sh
 --
 -- Architecture: see ../05-architecture-decisions.md
 --   ADR-002  PostgreSQL is the only datastore (search, jobs, cache)

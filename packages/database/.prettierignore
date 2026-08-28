@@ -1,0 +1,4 @@
+# SQL fixtures, harnesses and the generated snapshot are not prettier's business.
+*.sql
+snapshot/
+reference/

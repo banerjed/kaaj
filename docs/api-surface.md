@@ -1,6 +1,6 @@
 # API Surface
 
-**Generated** by `scripts/gen-api-surface.mjs` from `docs/data-models/schema.sql`
+**Generated** by `scripts/gen-api-surface.mjs` from `packages/database/reference/schema.sql`
 and the module specifications. **Do not hand-edit** — re-run the script.
 
 **Generated:** 2026-08-28
@@ -38,7 +38,7 @@ elsewhere. **Surface A is therefore enumerated below for completeness, not as a 
 ### Prerequisites — verified by running them, not by reading
 
 Everything below was found by applying the schema to a real PostgreSQL 17 and trying to use
-it as a non-owner role. None of it is visible in the DDL. `scripts/verify-migrations.sh`
+it as a non-owner role. None of it is visible in the DDL. `packages/database/scripts/verify-migrations.sh`
 re-checks all of it from a clean database in about twenty seconds.
 
 | # | Finding | Gates | Status |
@@ -70,10 +70,10 @@ Once applied to your Supabase project, verify this document against the live dat
 
 ```bash
 # prove the tenancy guarantees locally first — no cloud project needed
-./scripts/verify-migrations.sh --with-mock-data
+./packages/database/scripts/verify-migrations.sh --with-mock-data
 
 # then confirm the same things on the live database (read-only, safe on prod)
-./scripts/verify-remote.sh "$SUPABASE_DB_URL"
+./packages/database/tests/verify-remote.sh "$SUPABASE_DB_URL"
 
 # no database password? paste this into the dashboard SQL Editor instead
 cat scripts/verify-remote.sql
@@ -84,7 +84,7 @@ curl -s "https://<project-ref>.supabase.co/rest/v1/" \
 
 # typed client for surface A
 npx supabase gen types typescript --project-id <project-ref> \
-  --schema public > app/src/DatabaseDefinitions.ts   # the name this repo already uses
+  --schema public > apps/web/src/DatabaseDefinitions.ts   # the name this repo already uses
 ```
 
 ---
@@ -649,7 +649,7 @@ certain to be used — `@supabase/ssr` and `@supabase/auth-ui-svelte` are alread
 the CMSaasStarter routes below already call it. Call it through the `supabase-js` client, not by
 URL; `@supabase/ssr` handles the cookie plumbing.
 
-### Methods already used in `app/src` (8)
+### Methods already used in `apps/web/src` (8)
 
 | Method | Used in |
 |---|---|
@@ -698,7 +698,7 @@ identities stay in our Supabase project. Auth is centralised even where data is 
 ## Surface D — Supabase Storage
 
 ADR-008 adopts Storage for *"documents, attachments, exports."* No `supabase.storage` call
-exists in `app/src` yet, so this surface is entirely ahead of you. It is derived from the
+exists in `apps/web/src` yet, so this surface is entirely ahead of you. It is derived from the
 columns that hold file references — every one of them implies an object somewhere.
 
 The client shape is the same everywhere:
@@ -784,7 +784,7 @@ firm profile and the AI assistant declare **no** endpoints at all, so their tabl
 ## Enum types
 
 34 native enum types constrain request payloads on both surfaces. Generate the
-TypeScript union for each from `docs/enumerations.json` rather than retyping them.
+TypeScript union for each from `packages/enums/src/enumerations.json` rather than retyping them.
 
 | Type | Values |
 |---|---|

@@ -25,8 +25,8 @@
 -- file produces identical identifiers and diffs stay readable.
 --
 -- USAGE
---   psql "$DATABASE_URL" -f data-models/schema.sql
---   psql "$DATABASE_URL" -f data-models/mock-data.sql
+--   psql "$DATABASE_URL" -f packages/database/reference/schema.sql
+--   psql "$DATABASE_URL" -f packages/database/fixtures/mock-data.sql
 --
 -- RLS NOTE
 --   These INSERTs run as the table owner, for whom RLS is bypassed. To exercise
@@ -954,7 +954,7 @@ WHERE sla_due_at IS NOT NULL;
 -- tenant_users — membership linking Supabase auth identities to employees.
 -- This is the table custom_access_token_hook() reads at token issue to stamp
 -- app_metadata.tenant_id, so it is load-bearing for login. It had no fixture,
--- which meant its RLS was never exercised; scripts/verify-rls.sql flags that.
+-- which meant its RLS was never exercised; packages/database/tests/verify-rls.sql flags that.
 -- user_id values are deterministic uuid5 stand-ins for auth.users rows.
 INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role, is_active,
                           is_default_tenant, accepted_at)

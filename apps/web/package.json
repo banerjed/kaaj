@@ -52,6 +52,7 @@
     "@supabase/supabase-js": "^2.112.4",
     "handlebars": "^4.7.8",
     "resend": "^3.5.0",
-    "stripe": "^13.3.0"
+    "stripe": "^13.3.0",
+    "@kaaj/validation": "workspace:*"
   }
 }

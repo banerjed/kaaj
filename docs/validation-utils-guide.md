@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Last Updated:** December 5, 2025
-**Related Files:** [validation-utils.js](./validation-utils.js), [enumerations.json](./enumerations.json)
+**Related Files:** [validation-utils.js](../packages/validation/src/index.js), [enumerations.json](../packages/enums/src/enumerations.json)
 
 ---
 
@@ -483,9 +483,9 @@ sanitizeVATNumber('DE123456789');
 
 ## Related Resources
 
-- [Validation Utilities Source](./validation-utils.js)
-- [Enumerations Schema](./enumerations.json)
-- [Data Models](./data-models/schema.sql)
+- [Validation Utilities Source](../packages/validation/src/index.js)
+- [Enumerations Schema](../packages/enums/src/enumerations.json)
+- [Data Models](../packages/database/reference/schema.sql)
 - [API Specification](./api-endpoints.md)
 
 ---

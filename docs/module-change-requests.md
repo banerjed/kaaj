@@ -85,7 +85,7 @@ Requests for training and certifications:
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete data structures including:
+See [schema.sql](../packages/database/reference/schema.sql) for complete data structures including:
 - Core Request Structure (requestId, workflow, approvers)
 - Change Object Structure (field-level changes with encryption support)
 - Supporting Document Management (with encryption and retention policies)
@@ -201,7 +201,7 @@ Some fields may have additional restrictions:
 
 ### Document Management
 
-See [schema.sql](./data-models/schema.sql) for the complete document structure including encryption details, virus scanning, and retention policies.
+See [schema.sql](../packages/database/reference/schema.sql) for the complete document structure including encryption details, virus scanning, and retention policies.
 
 ### Supported Document Types
 - **Identity Documents**: Passport, driver's license, government ID

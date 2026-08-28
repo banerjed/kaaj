@@ -11,6 +11,10 @@ node_modules/
 **/.vercel/
 **/.output/
 **/dist/
+# ...except the generated SQL fixture, which is committed so CI can assert it is
+# current. A stale fixture would otherwise silently test the wrong expectation.
+!packages/enums/dist/
+!packages/enums/dist/expected-enums.sql
 
 # Supabase CLI local state. .temp/ holds linked-project.json with the live
 # project ref — it must never be committed.

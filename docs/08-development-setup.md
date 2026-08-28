@@ -57,7 +57,7 @@ cd app && npm install && npm run dev
 | Mailpit (all outbound mail) | http://127.0.0.1:54324 |
 | Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 
-`app/.env.local` already points at these and is loaded automatically by Vite.
+`apps/web/.env.local` already points at these and is loaded automatically by Vite.
 The local stack uses fixed demo keys, identical on every machine, so nothing in
 that file is secret.
 
@@ -83,13 +83,13 @@ supabase stop --project-id <other-project>
 ```
 
 — or give this project its own port block by editing the `port` entries in
-`supabase/config.toml` (and updating `app/.env.local` to match).
+`supabase/config.toml` (and updating `apps/web/.env.local` to match).
 
 ---
 
 ## Remote (hosted) project
 
-`app/.env.prod` holds the hosted project's credentials. **SvelteKit does not
+`apps/web/.env.prod` holds the hosted project's credentials. **SvelteKit does not
 load it automatically** — that is deliberate, so a stray `npm run dev` cannot
 silently write to production.
 
@@ -105,7 +105,7 @@ rather than shipping the file.
 ### Which environment am I talking to?
 
 ```bash
-grep PUBLIC_SUPABASE_URL app/.env.local
+grep PUBLIC_SUPABASE_URL apps/web/.env.local
 # http://127.0.0.1:54321   → local
 # https://<ref>.supabase.co → remote
 ```
@@ -137,19 +137,19 @@ Or individually:
 
 ```bash
 # 1. Tenant isolation — 575 assertions across all tenant-scoped tables
-psql "$DATABASE_URL" -v strict=1 -f scripts/verify-rls.sql
+psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-rls.sql
 
 # 2. Specification — 167 assertions drawn from the module specs
-psql "$DATABASE_URL" -v strict=1 -f docs/data-models/verify-stories.sql
+psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-stories.sql
 
 # 3. Design invariants — 40 assertions from the ADRs
-psql "$DATABASE_URL" -v strict=1 -f scripts/verify-invariants.sql
+psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-invariants.sql
 
 # 4. Structure snapshot — 4,152 catalog facts
-scripts/db-snapshot.sh --check
+packages/database/scripts/db-snapshot.sh --check
 
 # 5. Migrations apply cleanly to a throwaway cluster
-scripts/verify-migrations.sh
+packages/database/scripts/verify-migrations.sh
 ```
 
 ### Changing the schema
@@ -157,7 +157,7 @@ scripts/verify-migrations.sh
 ```bash
 supabase migration new add_something     # write the migration
 supabase db reset                        # rebuild from migrations
-cd app && npm run db:snapshot            # regenerate the snapshot
+cd app && pnpm db:snapshot            # regenerate the snapshot
 # commit the migration AND the snapshot together
 ```
 
@@ -177,7 +177,7 @@ cd app && npm run db:enums
 `-v strict=1` makes a failure exit non-zero, which is what CI uses.
 
 > **Never run `verify-rls.sql` against production.** It seeds a second tenant
-> and writes probe rows. `scripts/verify-remote.sh` is the only harness safe to
+> and writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to
 > point at a live database — it forces a read-only transaction and aborts if
 > that did not take effect.
 

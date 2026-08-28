@@ -638,7 +638,7 @@ CREATE INDEX idx_compensation_premiums_employee ON compensation_premiums(employe
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete database schemas including:
+See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including:
 - Work Schedules (flexible, shift-based, remote)
 - Employment Terms (contract types, probation, work authorization)
 - Base Compensation (salary, hourly, with overtime rules)

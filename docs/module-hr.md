@@ -806,7 +806,7 @@ This module handles:
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete database schemas including 32 tables covering:
+See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including 32 tables covering:
 - Employee Management (employees, emergency_contacts, employment_history)
 - Time Off & Leave (time_off_policies, time_off_balances, time_off_requests)
 - Time & Attendance (time_entries, timesheets)

@@ -14,10 +14,10 @@
 
 ```
 Copyright (c) 2023 Steve Cosman
-MIT License — retained at app/LICENSE
+MIT License — retained at apps/web/LICENSE
 ```
 
-**Keep `app/LICENSE` in place.** The MIT licence requires the copyright notice
+**Keep `apps/web/LICENSE` in place.** The MIT licence requires the copyright notice
 to travel with the code, including in derivative work. Everything else is ours
 to change freely.
 
@@ -48,12 +48,12 @@ first work list.
 
 | Area | Change | Driver |
 |---|---|---|
-| `app/svelte.config.js` | `adapter-auto` → `@sveltejs/adapter-node` | [ADR-005](./05-architecture-decisions.md#adr-005-node-lts-as-the-runtime): a long-running container, not a serverless target |
-| `app/src/hooks.server.ts` | Resolve tenant from subdomain into `event.locals.tenantId`; reject when the subdomain and the token disagree | [ADR-003](./05-architecture-decisions.md#adr-003-shared-schema-multi-tenancy-with-row-level-security) — the starter is single-tenant |
-| `app/src/lib/server/db/` | New: `postgres.js` pool, and `withTenant()` owning the per-request transaction and `SET LOCAL request.jwt.claims` | ADR-003, ADR-008 |
-| `app/src/lib/server/db/router.ts` | New: control-plane lookup + bounded LRU pool registry, so one deployment can serve shared, dedicated and customer-hosted databases | [ADR-009](./05-architecture-decisions.md#adr-009-subdomain-routed-database-targets) |
-| `app/src/lib/server/modules/` | New: one directory per module, repositories taking `tenantId` as a required first parameter | [ADR-001](./05-architecture-decisions.md#adr-001-modular-monolith-not-microservices) |
-| Database | Replace the starter's demo profile table with [`schema.sql`](./data-models/schema.sql) (98 tables) | The starter ships a minimal example schema |
+| `apps/web/svelte.config.js` | `adapter-auto` → `@sveltejs/adapter-node` | [ADR-005](./05-architecture-decisions.md#adr-005-node-lts-as-the-runtime): a long-running container, not a serverless target |
+| `apps/web/src/hooks.server.ts` | Resolve tenant from subdomain into `event.locals.tenantId`; reject when the subdomain and the token disagree | [ADR-003](./05-architecture-decisions.md#adr-003-shared-schema-multi-tenancy-with-row-level-security) — the starter is single-tenant |
+| `apps/web/src/lib/server/db/` | New: `postgres.js` pool, and `withTenant()` owning the per-request transaction and `SET LOCAL request.jwt.claims` | ADR-003, ADR-008 |
+| `apps/web/src/lib/server/db/router.ts` | New: control-plane lookup + bounded LRU pool registry, so one deployment can serve shared, dedicated and customer-hosted databases | [ADR-009](./05-architecture-decisions.md#adr-009-subdomain-routed-database-targets) |
+| `apps/web/src/lib/server/modules/` | New: one directory per module, repositories taking `tenantId` as a required first parameter | [ADR-001](./05-architecture-decisions.md#adr-001-modular-monolith-not-microservices) |
+| Database | Replace the starter's demo profile table with [`schema.sql`](../packages/database/reference/schema.sql) (98 tables) | The starter ships a minimal example schema |
 | Auth | Add `tenant_users` membership and the `custom_access_token_hook` that stamps `app_metadata.tenant_id` | ADR-008 |
 | Jobs | New: `worker.ts` entrypoint claiming from the `jobs` table with `SKIP LOCKED` | [ADR-002](./05-architecture-decisions.md#adr-002-postgresql-as-the-only-datastore) |
 | Shared code | Import `validation-utils.js` (33 validators) and `enumerations.json` so client and server validate identically | ADR-004 |
@@ -66,5 +66,5 @@ first work list.
 
 - [Architecture Decisions](./05-architecture-decisions.md)
 - [Technical Architecture](./architecture-technical.md) — the target structure
-  for `app/src/`
-- [`data-models/schema.sql`](./data-models/schema.sql)
+  for `apps/web/src/`
+- [`data-models/schema.sql`](../packages/database/reference/schema.sql)

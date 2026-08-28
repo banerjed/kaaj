@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter @kaaj/web",
     "lint": "turbo run lint",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
@@ -18,8 +18,8 @@
     "check": "./check",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
-    "db:snapshot": "scripts/db-snapshot.sh --generate",
-    "db:check": "scripts/db-snapshot.sh --check"
+    "db:snapshot": "packages/database/scripts/db-snapshot.sh --generate",
+    "db:check": "packages/database/scripts/db-snapshot.sh --check"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

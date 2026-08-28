@@ -6,7 +6,7 @@
 **Parent Document:** [Product Specification](./product-specification.md)
 **Decisions:** [Architecture Decisions](./05-architecture-decisions.md) — this
 document describes *how*; the ADRs record *why* and what was rejected.
-**Schema:** [`data-models/schema.sql`](./data-models/schema.sql) — authoritative
+**Schema:** [`data-models/schema.sql`](../packages/database/reference/schema.sql) — authoritative
 
 > **v2.0 revision.** This document was written against a microservices,
 > Redis/Elasticsearch, Kubernetes/Terraform design that has since been replaced.
@@ -1849,7 +1849,7 @@ Users inherit permissions from three sources:
 The effective permission set for a user is the union of all permissions from these sources.
 
 > **Schema note.** The normalized `roles` / `user_roles` model sketched above is
-> *not* what is built. [`schema.sql`](./data-models/schema.sql) carries the role
+> *not* what is built. [`schema.sql`](../packages/database/reference/schema.sql) carries the role
 > on `tenant_users.role` with a `permissions` JSONB override, plus grants through
 > `employee_user_groups` / `employee_group_roles`. Role *definitions* live in
 > code, not in a table — they are system-defined and not customer-editable, which
@@ -2640,7 +2640,7 @@ ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/build ./build
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
-COPY --from=builder --chown=app:app /app/package.json ./
+COPY --from=builder --chown=app:app /apps/web/package.json ./
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
@@ -2904,8 +2904,8 @@ Stated plainly, because each is a real limitation someone will eventually hit:
 ### Next steps
 
 1. Provision the Supabase project and apply
-   [`schema.sql`](./data-models/schema.sql)
-2. Load [`mock-data.sql`](./data-models/mock-data.sql) and confirm RLS isolation
+   [`schema.sql`](../packages/database/reference/schema.sql)
+2. Load [`mock-data.sql`](../packages/database/fixtures/mock-data.sql) and confirm RLS isolation
    with a non-owner role
 3. Scaffold the SvelteKit application: `hooks.server.ts`, `$lib/server/db/tx.ts`,
    the repository convention

@@ -738,7 +738,7 @@ CREATE TABLE retainer_usage_log (
 - [Time Tracking Module](./module-time-tracking.md) ✅
 - [Accounting Module](./module-accounting.md)
 - [HR Module](./module-hr.md)
-- [Data Models](./data-models/schema.sql)
+- [Data Models](../packages/database/reference/schema.sql)
 - [API Endpoints](./api-endpoints.md)
 
 ---

@@ -5,8 +5,8 @@
 # Renders the live catalog as deterministic, sorted, one-fact-per-line text and
 # either writes it (--generate) or diffs it against the committed copy (--check).
 #
-#   scripts/db-snapshot.sh --generate     # after an intended schema change
-#   scripts/db-snapshot.sh --check        # CI; exits 1 with a diff on drift
+#   packages/database/scripts/db-snapshot.sh --generate     # after an intended schema change
+#   packages/database/scripts/db-snapshot.sh --check        # CI; exits 1 with a diff on drift
 #
 # WHY THIS EXISTS
 #   verify-rls.sql proves isolation still works. verify-stories.sql proves the
@@ -40,8 +40,8 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/docs/data-models/snapshot"
+PKG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="$PKG/snapshot"
 DB="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 
 MODE="${1:---check}"
@@ -216,13 +216,13 @@ case "$MODE" in
       echo "" >&2
     fi
     generate_into "$OUT"
-    echo "snapshot written to docs/data-models/snapshot/"
+    echo "snapshot written to packages/database/snapshot/"
     wc -l "$OUT"/*.txt | sed 's|.*/snapshot/|  |'
     ;;
 
   --check)
     if [ ! -d "$OUT" ]; then
-      echo "no committed snapshot at $OUT — run: scripts/db-snapshot.sh --generate" >&2
+      echo "no committed snapshot at $OUT — run: packages/database/scripts/db-snapshot.sh --generate" >&2
       exit 1
     fi
     TMP="$(mktemp -d)"
@@ -234,11 +234,11 @@ case "$MODE" in
     if diff -u -r "$OUT" "$TMP/snapshot" > "$DIFF" 2>&1; then
       echo "schema matches the committed snapshot"
     else
-      echo "SCHEMA DRIFT — the database differs from docs/data-models/snapshot/"
+      echo "SCHEMA DRIFT — the database differs from packages/database/snapshot/"
       echo ""
       sed -e "s|$OUT|committed|" -e "s|$TMP/snapshot|actual|" "$DIFF" | head -200
       echo ""
-      echo "If this change is INTENDED: scripts/db-snapshot.sh --generate,"
+      echo "If this change is INTENDED: packages/database/scripts/db-snapshot.sh --generate,"
       echo "then commit the snapshot alongside the migration that caused it."
       exit 1
     fi

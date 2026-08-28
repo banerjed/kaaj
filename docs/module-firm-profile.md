@@ -553,7 +553,7 @@ calculateNextPayDate("2025-01-03", "bi-weekly", "America/New_York")
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for complete database schemas including:
+See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including:
 - Tenants (platform-level with i18n configuration)
 - Locations (with timezone and working hours)
 - Departments (hierarchical structure with multilingual support)

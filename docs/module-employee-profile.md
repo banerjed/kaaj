@@ -652,7 +652,7 @@ To ensure consistency across modules, organizations are identified using a unifi
 
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
-See [schema.sql](./data-models/schema.sql) for the complete employee profile JSON structure including:
+See [schema.sql](../packages/database/reference/schema.sql) for the complete employee profile JSON structure including:
 - Core Identity (with AES-256-GCM field-level encryption)
 - Employment details
 - Extended Profile

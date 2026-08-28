@@ -1,0 +1,25 @@
+{
+  "name": "@kaaj/validation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sanitisation and validation for country-specific identity, tax and bank formats",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run",
+    "format:check": "prettier --check src test",
+    "format": "prettier --write src test"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.7",
+    "@kaaj/eslint-config": "workspace:*",
+    "eslint": "^9.0.0"
+  },
+  "types": "./src/index.d.ts"
+}

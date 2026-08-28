@@ -146,7 +146,7 @@ echo "==> mock data (Northwind Consulting)"
 # Northwind's tenant_id is a fixed literal in mock-data.sql, not generated.
 # It must be read WITH the claim set: as a role subject to RLS, an unset claim
 # hides the rows, and "0 rows" would look identical to "never loaded".
-NW_TID="$(grep -oE "'[0-9a-f-]{36}', 'northwind'" "$ROOT_DOCS/mock-data.sql" 2>/dev/null \
+NW_TID="$(grep -oE "'[0-9a-f-]{36}', 'northwind'" "$FIXTURES/mock-data.sql" 2>/dev/null \
           | head -1 | cut -d"'" -f2)"
 NW_TID="${NW_TID:-07fb03f8-1521-5ef4-9c2d-25fcfa297ac1}"
 

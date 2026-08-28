@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Generates docs/data-models/generated/expected-enums.sql from
- * docs/enumerations.json, so scripts/verify-invariants.sql can compare the
- * database against the source of truth using plain SQL.
+ * Generates dist/expected-enums.sql from src/enumerations.json, so
+ * verify-invariants.sql can compare the database against the source of truth
+ * using plain SQL.
  *
- *   node scripts/gen-enum-fixture.mjs
+ *   pnpm --filter @kaaj/enums build
  *
  * The generated file is committed. Regenerate it whenever enumerations.json
  * changes; CI checks it is current, so a forgotten regeneration fails the build
@@ -17,9 +17,9 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
-const SRC = join(ROOT, "docs", "enumerations.json")
-const OUT = join(ROOT, "docs", "data-models", "generated", "expected-enums.sql")
+const PKG = join(dirname(fileURLToPath(import.meta.url)), "..")
+const SRC = join(PKG, "src", "enumerations.json")
+const OUT = join(PKG, "dist", "expected-enums.sql")
 
 const snake = (s) => s.replace(/(?<!^)(?=[A-Z])/g, "_").toLowerCase()
 
@@ -30,7 +30,9 @@ function collect(node, found = new Map()) {
     if (value && typeof value === "object" && Array.isArray(value.values)) {
       found.set(
         snake(key),
-        value.values.map((v) => (typeof v === "object" && v !== null ? v.value : v)),
+        value.values.map((v) =>
+          typeof v === "object" && v !== null ? v.value : v,
+        ),
       )
     } else {
       collect(value, found)
@@ -68,5 +70,5 @@ writeFileSync(OUT, lines.join("\n") + "\n")
 
 const total = [...enums.values()].reduce((n, v) => n + v.length, 0)
 console.log(
-  `wrote ${OUT.replace(ROOT + "/", "")}: ${enums.size} enumerations, ${total} values`,
+  `wrote ${OUT.replace(PKG + "/", "")}: ${enums.size} enumerations, ${total} values`,
 )

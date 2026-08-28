@@ -101,11 +101,11 @@ fi
 
 if [ "$RUN_DB" = 1 ]; then
   echo "${B}Database${N}"
-  step "tenant isolation (575)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-rls.sql
-  step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
-  step "schema invariants (40)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-invariants.sql
-  step "structure snapshot"        scripts/db-snapshot.sh --check
-  step "enum fixture is current"   bash -c 'node scripts/gen-enum-fixture.mjs >/dev/null && git diff --quiet docs/data-models/generated/expected-enums.sql'
+  step "tenant isolation (575)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
+  step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
+  step "schema invariants (40)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
+  step "structure snapshot"        packages/database/scripts/db-snapshot.sh --check
+  step "enum fixture is current"   bash -c 'pnpm --filter @kaaj/enums build >/dev/null && git diff --quiet packages/enums/dist/expected-enums.sql'
   echo ""
 fi
 
