@@ -1,6 +1,6 @@
 # Development Setup — Local and Remote Supabase
 
-**Version:** 1.1
+**Version:** 2.0
 **Last Updated:** August 28, 2026
 
 How to run Kaaj against a local Supabase stack, against the hosted project, and
@@ -21,24 +21,53 @@ how to keep the two from being confused for each other.
 
 ## Repository layout
 
+Turborepo monorepo, pnpm workspaces.
+
 ```
 kaaj/
+├── check                  Run everything. The pre-push gate.
+├── turbo.json             Task graph; ./check and CI both drive it
 ├── .github/workflows/     CI — must be at the ROOT; GitHub ignores it elsewhere
-├── app/                   SvelteKit application
-│   ├── .env.local         LOCAL stack values      (gitignored, loaded by Vite)
-│   ├── .env.prod          REMOTE project values   (gitignored, NOT auto-loaded)
-│   └── .env.example       Template, committed, no secrets
-├── supabase/
-│   ├── config.toml        Ports, auth settings, seed path
-│   └── migrations/        MUST be a sibling of config.toml — see the note below
-├── scripts/               Database verification harnesses
-└── docs/data-models/      schema.sql (design), mock-data.sql (fixture)
+├── supabase/              Must stay at the ROOT — the CLI searches UPWARD only
+│   ├── config.toml        Ports, auth, and the seed path
+│   └── migrations/        MUST be a sibling of config.toml — see below
+├── apps/
+│   └── web/               SvelteKit — frontend and backend
+│       ├── .env.local     LOCAL values     (gitignored, loaded by Vite)
+│       ├── .env.prod      REMOTE values    (gitignored, NOT auto-loaded)
+│       └── .env.example   Template, committed, no secrets
+├── packages/
+│   ├── validation/        33 country-specific validators (@kaaj/validation)
+│   ├── enums/             enumerations.json + SQL fixture generator
+│   ├── database/          fixtures, harnesses, snapshot, schema reference
+│   ├── eslint-config/     shared flat config
+│   └── typescript-config/
+└── docs/                  prose only
 ```
 
-> **Why `supabase/migrations/` sits beside `config.toml`:** the CLI resolves
-> `migrations/` *relative to config.toml*. When the migrations lived under
-> `app/supabase/` while config.toml was at the root, `supabase db reset` applied
-> **zero** migrations and reported success. If you ever move one, move both.
+### Workspace commands
+
+```bash
+pnpm install                       # the whole workspace
+pnpm dev                           # apps/web on :5173
+pnpm turbo run build               # everything, cached
+pnpm --filter @kaaj/web test       # one package
+pnpm --filter @kaaj/enums build    # regenerate the enum fixture
+```
+
+**Packages are framework-agnostic** — plain TS/JS, no Svelte imports — so a
+future mobile app can consume them regardless of what it is built with.
+
+> **Why `supabase/` stays at the repo root, outside `packages/`:** the CLI
+> searches *upward* for `config.toml`, never downward. At the root it works from
+> any directory; under `packages/database/` it would only work from there and
+> below. `migrations/` must also stay beside `config.toml` — when they were
+> split, `supabase db reset` applied **zero** migrations and reported success.
+>
+> `config.toml` also points at the fixture by relative path
+> (`[db.seed] sql_paths`). A wrong value there makes `db reset` report success
+> against an *empty* database. After any move, check that
+> `SELECT count(*) FROM employees` returns 12, not 0.
 
 ---
 
@@ -142,8 +171,12 @@ psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-rls.sql
 # 2. Specification — 167 assertions drawn from the module specs
 psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-stories.sql
 
-# 3. Design invariants — 40 assertions from the ADRs
-psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-invariants.sql
+# 3. Design invariants — 40 assertions from the ADRs.
+#    Needs the enum fixture; there is no relative fallback, by design.
+pnpm --filter @kaaj/enums build
+psql "$DATABASE_URL" -v strict=1 \
+  -v enum_fixture="$PWD/packages/enums/dist/expected-enums.sql" \
+  -f packages/database/tests/verify-invariants.sql
 
 # 4. Structure snapshot — 4,152 catalog facts
 packages/database/scripts/db-snapshot.sh --check

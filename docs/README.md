@@ -125,7 +125,7 @@
 
 ### Application
 
-13. **[08-development-setup.md](./08-development-setup.md)** - Development setup
+13. **[08-development-setup.md](./08-development-setup.md)** - Development setup (v2.0, monorepo)
     - Running against local Supabase and against the hosted project
     - The database test harnesses and what each one proves
     - Troubleshooting: port conflicts, PG16 role membership, FORCE RLS
@@ -146,6 +146,7 @@
 
 15. **[data-models/schema.sql](../packages/database/reference/schema.sql)** - **Authoritative database schema**
     - 98 tables + 1 view, Supabase PostgreSQL, validated against PostgreSQL 17
+    - **Design reference only** — build from `supabase/migrations/`
     - Shared-schema multi-tenancy with row-level security on every table
     - Supersedes the former `data-models.md` and all `d1-*` sources (now deleted)
 

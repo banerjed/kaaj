@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-**Version:** 1.3
+**Version:** 1.4
 **Last Updated:** August 27, 2026
 **Status:** Accepted
 
@@ -24,8 +24,9 @@ the superseded position is stated explicitly so that nobody re-derives it.
 9. [ADR-008: Supabase as the backend platform](#adr-008-supabase-as-the-backend-platform)
 10. [ADR-009: Subdomain-routed database targets](#adr-009-subdomain-routed-database-targets)
 11. [ADR-010: Enterprise SSO for dedicated tenants](#adr-010-enterprise-sso-for-dedicated-tenants)
-12. [Superseded decisions](#superseded-decisions)
-13. [Open questions](#open-questions)
+12. [ADR-011: Turborepo monorepo with pnpm workspaces](#adr-011-turborepo-monorepo-with-pnpm-workspaces)
+13. [Superseded decisions](#superseded-decisions)
+14. [Open questions](#open-questions)
 
 ---
 
@@ -834,6 +835,93 @@ priced as one. Do not imply it exists.
   hiding the UI.
 - IdP registration is an operator action (CLI/management API), so onboarding a
   dedicated customer includes an SSO setup step. Budget for it.
+
+---
+
+## ADR-011: Turborepo monorepo with pnpm workspaces
+
+**Decision.** One repository, `apps/*` and `packages/*`, orchestrated by
+Turborepo over pnpm workspaces. Shared code is extracted into framework-agnostic
+packages; `docs/` holds prose only.
+
+**Status.** Accepted and implemented.
+
+### Why
+
+The repository had grown organically: one app at `app/`, database tooling split
+between `scripts/` and `docs/data-models/`, and — the actual problem —
+**functional artifacts living in a documentation directory**.
+`validation-utils.js` (33 country-specific validators) and `enumerations.json`
+(155 enumerations) sat in `docs/` where **no application code imported them**,
+despite [ADR-004](#adr-004-sveltekit-as-the-full-stack) resting on the premise
+that they are shared between client and server.
+
+Per-client marketing sites, per-client configuration, and a mobile app are all
+expected. Each is a second consumer of exactly that shared code. Restructuring
+with one app is far cheaper than with four.
+
+**Honest accounting:** with a single app today, Turborepo's build caching earns
+little — the second build reports `FULL TURBO` in 9ms, which is pleasant and not
+yet valuable. The immediate win is structural: shared code became importable,
+and future apps have somewhere to go. Caching pays off later.
+
+### Constraints that shaped the layout
+
+Three directories could not move, each for a concrete reason:
+
+- **`supabase/`** — the CLI searches *upward* for `config.toml`, never downward.
+  At the repo root, `supabase start` works from any directory; under
+  `packages/database/` it would work only from there and below.
+- **`.github/workflows/`** — GitHub reads workflows only from the repository
+  root. They had previously been invisible at `app/.github/workflows/`.
+- **`check`** — it resolves its own directory and `cd`s there.
+
+### Packages
+
+| Package | Holds | Why separate |
+|---|---|---|
+| `@kaaj/validation` | 33 validators | Must run in browser, server and any future mobile runtime |
+| `@kaaj/enums` | `enumerations.json`, SQL fixture generator | One source of truth for the DB, API and clients |
+| `@kaaj/database` | fixtures, harnesses, snapshot, schema reference | Was split across `scripts/` and `docs/` |
+| `@kaaj/eslint-config`, `@kaaj/typescript-config` | shared config | Consistency as apps multiply |
+
+**Packages stay framework-agnostic** — plain TS/JS, no Svelte imports — so the
+mobile decision (Capacitor vs a separate native app) stays open. This is not
+hypothetical caution: a `packages/ui` of Svelte components would have to be
+rebuilt if mobile turns out to be React Native.
+
+**No `packages/ui` yet.** Every `.svelte` file is under `routes/`; building a
+shared UI package before a second consumer exists would shape the abstraction
+around one caller.
+
+### Consequences
+
+- `docs/` is prose only. Anything executable or imported lives in a package.
+- `./check` and CI both drive `turbo run`, so they cannot diverge, and new
+  packages are picked up without editing either.
+- **Turborepo filters the environment per task.** A task that needs a variable
+  must declare it in `turbo.json`. This is easy to miss locally, where `.env`
+  files supply the values on disk — `check-types` passed locally and failed in
+  CI until `PUBLIC_*`/`PRIVATE_*` were declared on it.
+- Just-in-Time packages surface their type errors to consumers. `apps/web` uses
+  `checkJs`, so `@kaaj/validation` needed an `index.d.ts` — which is better
+  anyway, since consumers now get real types rather than `any`.
+
+### What the move exposed
+
+Extracting and linting code that had never been linted found three live defects
+in the validators, all in code that produces tax identifiers and payslips:
+
+- `sanitizeString`'s `allowNewlines` was a **no-op** — both branches of the
+  `if/else` were byte-identical.
+- `sanitizeUKNIN` accepted `BG`, `GB`, `KN`, `NK`, `NT`, `TN`, `ZZ`. Checking
+  each letter individually does not catch these; HMRC never allocates the pairs.
+- Three options were destructured, defaulted, and never read (`prefix`,
+  `checkDomain`, `currency`). A caller passing `checkDomain: true` got no domain
+  check and no error.
+
+That code had sat unused in `docs/` since it was written. Making it a real
+package with real tests is what surfaced them.
 
 ---
 
