@@ -65,13 +65,38 @@ jobs:
           END $$;
           CREATE SCHEMA IF NOT EXISTS auth;
           CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text);
+          -- auth.uid() and auth.jwt() are Supabase-provided. The CMSaasStarter
+          -- migration uses auth.uid() in its RLS policies, so without these
+          -- stubs CI could not apply it — which is why CI previously globbed
+          -- only 2026*.sql and therefore built a DIFFERENT database from local.
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+            LANGUAGE sql STABLE AS $fn$
+              SELECT nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid
+            $fn$;
+          CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb
+            LANGUAGE sql STABLE AS $fn$
+              SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+            $fn$;
+          -- Minimal storage stubs. The CMSaasStarter migration registers an
+          -- avatars bucket and policies on storage.objects. We do not use
+          -- Storage from the database, but the migration must apply for CI to
+          -- build the same schema as `supabase db reset`.
+          CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE TABLE IF NOT EXISTS storage.buckets (
+            id text PRIMARY KEY, name text NOT NULL, public boolean DEFAULT false);
+          CREATE TABLE IF NOT EXISTS storage.objects (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            bucket_id text REFERENCES storage.buckets(id),
+            name text, owner uuid);
+          ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
           SQL
 
       # This step IS the migration test: every migration, in order, from empty.
-      # A migration that is not replayable fails here.
+      # A migration that is not replayable fails here. Applying ALL of them —
+      # not just 2026* — so CI and `supabase db reset` build the same database.
       - name: Apply migrations
         run: |
-          for f in supabase/migrations/2026*.sql; do
+          for f in supabase/migrations/*.sql; do
             echo "→ $(basename "$f")"
             psql -v ON_ERROR_STOP=1 -q -f "$f"
           done

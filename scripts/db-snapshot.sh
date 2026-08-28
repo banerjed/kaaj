@@ -135,14 +135,27 @@ generate_into() {
   } > "$dir/05-enums.txt"
 
   # -- 06 grants --------------------------------------------------------------
-  # Second-highest value. ALTER DEFAULT PRIVILEGES means new tables auto-grant,
-  # which is intended for app_user and dangerous for anon/authenticated: a stray
-  # GRANT silently opens the PostgREST Data API that ADR-008 deliberately closed.
+  # Pins what OUR migrations grant. `ALTER DEFAULT PRIVILEGES` means new tables
+  # auto-grant to app_user, so a change there shows up here.
+  #
+  # Restricted to roles our migrations create. anon / authenticated /
+  # service_role are managed by the Supabase PLATFORM, whose bootstrap grants
+  # REFERENCES,TRIGGER,TRUNCATE on every table — present on local Supabase,
+  # absent on the plain postgres:17 used by CI. Including them made the snapshot
+  # environment-dependent: 497 lines locally, 200 in CI, so it could not pass in
+  # both. Replicating Supabase's defaults in CI was rejected as chasing their
+  # internals.
+  #
+  # Nothing security-relevant is lost. The question this file was meant to
+  # answer — "has a stray GRANT opened the Data API?" — is answered better and
+  # environment-independently by verify-invariants.sql's `grants/data-api-closed`
+  # check, which asserts anon/authenticated hold no SELECT/INSERT/UPDATE/DELETE.
   {
     echo "# table	grantee	privileges"
     q "SELECT table_name, grantee, string_agg(DISTINCT privilege_type, ',' ORDER BY privilege_type)
          FROM information_schema.role_table_grants
         WHERE table_schema='public' AND table_name NOT IN ($EXCLUDE)
+          AND grantee IN ('app_user','postgres','supabase_auth_admin')
         GROUP BY table_name, grantee
         ORDER BY table_name, grantee;"
   } > "$dir/06-grants.txt"
@@ -170,6 +183,13 @@ generate_into() {
               encode(sha256(p.prosrc::bytea), 'hex')
          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname IN ('public','app')
+          -- Exclude functions owned by an extension. Supabase installs
+          -- extensions into the 'extensions' schema; plain Postgres puts them in
+          -- 'public', so pgcrypto's armor/crypt/digest would appear in one
+          -- environment and not the other. Same reason grants are restricted
+          -- above: pin what OUR migrations define, not what the platform ships.
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                           WHERE d.objid = p.oid AND d.deptype = 'e')
         ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);"
   } > "$dir/08-functions.txt"
 
