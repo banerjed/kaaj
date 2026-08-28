@@ -1,0 +1,5 @@
+# enumerations.json is the source of truth for 155 enumerations, maintained as
+# data rather than formatted code. Reformatting it would produce a 127K diff
+# and obscure real changes in review.
+src/enumerations.json
+dist/

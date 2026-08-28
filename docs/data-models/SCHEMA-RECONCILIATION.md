@@ -567,4 +567,4 @@ Not gaps; recorded so they are not "fixed" later:
 - [Architecture Decisions](../05-architecture-decisions.md) — ADR-003 tenancy,
   ADR-008 Supabase
 - [Customization Model](../06-customization-model.md) — custom fields and settings
-- [`schema.sql`](./schema.sql) — the authoritative schema
+- [`schema.sql`](../../packages/database/reference/schema.sql) — the authoritative schema

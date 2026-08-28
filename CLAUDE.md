@@ -30,14 +30,14 @@ directory in the repo.
 ```bash
 ./check                              # must be green
 supabase db push                     # apply migrations to the hosted project
-scripts/verify-remote.sh             # read-only verification against production
+packages/database/tests/verify-remote.sh             # read-only verification against production
 ```
 
 `supabase db push` is not reversible. Migrations are forward-only: a mistake is
 corrected by writing another migration, never by rolling back.
 
 **Never run `verify-rls.sql` against production** — it seeds a second tenant and
-writes probe rows. `scripts/verify-remote.sh` is the only harness safe to point
+writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to point
 at a live database; it forces a read-only transaction and aborts if that did not
 take effect.
 
@@ -52,7 +52,7 @@ take effect.
 | schema invariants | ADR design rules hold | 40 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| format / lint / typecheck / unit tests / build | the app | 8 tests |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 21 tests |
 
 These are complementary and none substitutes for another:
 
@@ -83,38 +83,58 @@ Full reasoning, including what was rejected and why, is in
 
 ## Layout
 
+Turborepo monorepo, pnpm workspaces.
+
 ```
 kaaj/
 ├── check                  ← run this before pushing
+├── turbo.json             task graph; ./check and CI both drive it
 ├── .github/workflows/     CI. Must live at the ROOT; GitHub ignores it elsewhere
-├── app/                   SvelteKit application
-├── supabase/
+├── supabase/              Must stay at the ROOT: the CLI searches UPWARD only
 │   ├── config.toml        ← migrations/ MUST stay beside this
 │   └── migrations/        the authoritative schema
-├── scripts/               verification harnesses
-└── docs/
-    ├── 05-architecture-decisions.md   the ADRs
-    ├── 08-development-setup.md        local + remote setup
-    └── data-models/                   schema, fixture, snapshot
+├── apps/
+│   └── web/               SvelteKit — frontend and backend (ADR-004)
+├── packages/
+│   ├── validation/        33 country-specific validators, framework-agnostic
+│   ├── enums/             enumerations.json + the SQL fixture generator
+│   ├── database/          fixtures, harnesses, snapshot, schema reference
+│   ├── eslint-config/     shared flat config
+│   └── typescript-config/
+└── docs/                  prose only — no executable artifacts
 ```
+
+**Packages stay framework-agnostic.** Plain TS/JS, no Svelte imports, so a
+future mobile app can consume them whatever it is built with. `@kaaj/validation`
+is the reason: maintaining 33 country-specific validators in two languages would
+produce a wrong tax identifier on a payslip, not a cosmetic bug.
+
+**No `packages/ui` yet.** Every `.svelte` file is under `routes/`; building a
+shared UI package before a second consumer exists would shape it around one
+caller.
 
 ---
 
 ## Rules that are easy to get wrong
 
-**Migrations, not `schema.sql`.** `docs/data-models/schema.sql` is the design
+**Migrations, not `schema.sql`.** `packages/database/reference/schema.sql` is the design
 document: it issues no `GRANT`s, so no role can read anything, and it defines
 `app.set_updated_at()` without wiring it to a trigger. Only
 `supabase/migrations/` produces a working database. Build and test from there.
 
-**`config.toml` and `migrations/` must be siblings.** The CLI resolves
-`migrations/` relative to `config.toml`. When they were split,
-`supabase db reset` applied **zero** migrations and reported success.
+**`config.toml` and `migrations/` must be siblings, at the repo root.** The CLI
+resolves `migrations/` relative to `config.toml` and searches only *upward* for
+it. At the root, `supabase start` works from any directory. When the two were
+split, `supabase db reset` applied **zero** migrations and reported success.
+
+**`config.toml` points at the fixture by relative path.** A wrong
+`[db.seed] sql_paths` makes `db reset` report success against an empty database.
+After any move, check `SELECT count(*) FROM employees` returns 12, not 0.
 
 **Regenerate the snapshot only from a migration-built database.**
 
 ```bash
-supabase db reset && npm --prefix app run db:snapshot
+supabase db reset && pnpm db:snapshot
 ```
 
 Generating from a hand-modified database bakes local experiments into the
@@ -144,21 +164,24 @@ worker only — never in anything reachable from a request handler, and never in
 ## Common tasks
 
 ```bash
+pnpm install                         # install the whole workspace
 supabase start                       # bring the local stack up
-cd app && npm run dev                # http://localhost:5173
+pnpm dev                             # http://localhost:5173
 
 supabase migration new <name>        # new migration
 supabase db reset                    # rebuild from migrations, reseed fixture
-npm --prefix app run db:snapshot     # regenerate the snapshot after a change
-npm --prefix app run db:enums        # regenerate the enum fixture
+pnpm db:snapshot                     # regenerate the snapshot after a change
+pnpm --filter @kaaj/enums build      # regenerate the enum fixture
 
+pnpm turbo run build                 # everything, cached
+pnpm --filter @kaaj/web dev          # one package only
 supabase status                      # URLs and keys
 ```
 
 Studio is at http://127.0.0.1:54323 and all outbound mail is captured at
 http://127.0.0.1:54324.
 
-Local environment values live in `app/.env.local` and are loaded automatically.
-Production values live in `app/.env.prod`, which is deliberately **not**
+Local environment values live in `apps/web/.env.local` and are loaded automatically.
+Production values live in `apps/web/.env.prod`, which is deliberately **not**
 auto-loaded so a stray `npm run dev` cannot write to production. Both are
 gitignored.

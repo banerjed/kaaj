@@ -256,7 +256,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 - File Storage: Supabase Storage (documents, images, exports)
 - Search: PostgreSQL full-text search (`tsvector` + GIN)
 - Queues and cache: PostgreSQL (no Redis)
-- Schema: [`data-models/schema.sql`](./data-models/schema.sql) — authoritative
+- Schema: [`data-models/schema.sql`](../packages/database/reference/schema.sql) — authoritative
 - Not used: PostgREST as the primary API, Edge Functions, Realtime
 
 **Infrastructure**

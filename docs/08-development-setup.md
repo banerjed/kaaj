@@ -1,6 +1,6 @@
 # Development Setup — Local and Remote Supabase
 
-**Version:** 1.1
+**Version:** 2.0
 **Last Updated:** August 28, 2026
 
 How to run Kaaj against a local Supabase stack, against the hosted project, and
@@ -21,24 +21,53 @@ how to keep the two from being confused for each other.
 
 ## Repository layout
 
+Turborepo monorepo, pnpm workspaces.
+
 ```
 kaaj/
+├── check                  Run everything. The pre-push gate.
+├── turbo.json             Task graph; ./check and CI both drive it
 ├── .github/workflows/     CI — must be at the ROOT; GitHub ignores it elsewhere
-├── app/                   SvelteKit application
-│   ├── .env.local         LOCAL stack values      (gitignored, loaded by Vite)
-│   ├── .env.prod          REMOTE project values   (gitignored, NOT auto-loaded)
-│   └── .env.example       Template, committed, no secrets
-├── supabase/
-│   ├── config.toml        Ports, auth settings, seed path
-│   └── migrations/        MUST be a sibling of config.toml — see the note below
-├── scripts/               Database verification harnesses
-└── docs/data-models/      schema.sql (design), mock-data.sql (fixture)
+├── supabase/              Must stay at the ROOT — the CLI searches UPWARD only
+│   ├── config.toml        Ports, auth, and the seed path
+│   └── migrations/        MUST be a sibling of config.toml — see below
+├── apps/
+│   └── web/               SvelteKit — frontend and backend
+│       ├── .env.local     LOCAL values     (gitignored, loaded by Vite)
+│       ├── .env.prod      REMOTE values    (gitignored, NOT auto-loaded)
+│       └── .env.example   Template, committed, no secrets
+├── packages/
+│   ├── validation/        33 country-specific validators (@kaaj/validation)
+│   ├── enums/             enumerations.json + SQL fixture generator
+│   ├── database/          fixtures, harnesses, snapshot, schema reference
+│   ├── eslint-config/     shared flat config
+│   └── typescript-config/
+└── docs/                  prose only
 ```
 
-> **Why `supabase/migrations/` sits beside `config.toml`:** the CLI resolves
-> `migrations/` *relative to config.toml*. When the migrations lived under
-> `app/supabase/` while config.toml was at the root, `supabase db reset` applied
-> **zero** migrations and reported success. If you ever move one, move both.
+### Workspace commands
+
+```bash
+pnpm install                       # the whole workspace
+pnpm dev                           # apps/web on :5173
+pnpm turbo run build               # everything, cached
+pnpm --filter @kaaj/web test       # one package
+pnpm --filter @kaaj/enums build    # regenerate the enum fixture
+```
+
+**Packages are framework-agnostic** — plain TS/JS, no Svelte imports — so a
+future mobile app can consume them regardless of what it is built with.
+
+> **Why `supabase/` stays at the repo root, outside `packages/`:** the CLI
+> searches *upward* for `config.toml`, never downward. At the root it works from
+> any directory; under `packages/database/` it would only work from there and
+> below. `migrations/` must also stay beside `config.toml` — when they were
+> split, `supabase db reset` applied **zero** migrations and reported success.
+>
+> `config.toml` also points at the fixture by relative path
+> (`[db.seed] sql_paths`). A wrong value there makes `db reset` report success
+> against an *empty* database. After any move, check that
+> `SELECT count(*) FROM employees` returns 12, not 0.
 
 ---
 
@@ -57,7 +86,7 @@ cd app && npm install && npm run dev
 | Mailpit (all outbound mail) | http://127.0.0.1:54324 |
 | Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 
-`app/.env.local` already points at these and is loaded automatically by Vite.
+`apps/web/.env.local` already points at these and is loaded automatically by Vite.
 The local stack uses fixed demo keys, identical on every machine, so nothing in
 that file is secret.
 
@@ -83,13 +112,13 @@ supabase stop --project-id <other-project>
 ```
 
 — or give this project its own port block by editing the `port` entries in
-`supabase/config.toml` (and updating `app/.env.local` to match).
+`supabase/config.toml` (and updating `apps/web/.env.local` to match).
 
 ---
 
 ## Remote (hosted) project
 
-`app/.env.prod` holds the hosted project's credentials. **SvelteKit does not
+`apps/web/.env.prod` holds the hosted project's credentials. **SvelteKit does not
 load it automatically** — that is deliberate, so a stray `npm run dev` cannot
 silently write to production.
 
@@ -105,7 +134,7 @@ rather than shipping the file.
 ### Which environment am I talking to?
 
 ```bash
-grep PUBLIC_SUPABASE_URL app/.env.local
+grep PUBLIC_SUPABASE_URL apps/web/.env.local
 # http://127.0.0.1:54321   → local
 # https://<ref>.supabase.co → remote
 ```
@@ -137,19 +166,23 @@ Or individually:
 
 ```bash
 # 1. Tenant isolation — 575 assertions across all tenant-scoped tables
-psql "$DATABASE_URL" -v strict=1 -f scripts/verify-rls.sql
+psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-rls.sql
 
 # 2. Specification — 167 assertions drawn from the module specs
-psql "$DATABASE_URL" -v strict=1 -f docs/data-models/verify-stories.sql
+psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-stories.sql
 
-# 3. Design invariants — 40 assertions from the ADRs
-psql "$DATABASE_URL" -v strict=1 -f scripts/verify-invariants.sql
+# 3. Design invariants — 40 assertions from the ADRs.
+#    Needs the enum fixture; there is no relative fallback, by design.
+pnpm --filter @kaaj/enums build
+psql "$DATABASE_URL" -v strict=1 \
+  -v enum_fixture="$PWD/packages/enums/dist/expected-enums.sql" \
+  -f packages/database/tests/verify-invariants.sql
 
 # 4. Structure snapshot — 4,152 catalog facts
-scripts/db-snapshot.sh --check
+packages/database/scripts/db-snapshot.sh --check
 
 # 5. Migrations apply cleanly to a throwaway cluster
-scripts/verify-migrations.sh
+packages/database/scripts/verify-migrations.sh
 ```
 
 ### Changing the schema
@@ -157,7 +190,7 @@ scripts/verify-migrations.sh
 ```bash
 supabase migration new add_something     # write the migration
 supabase db reset                        # rebuild from migrations
-cd app && npm run db:snapshot            # regenerate the snapshot
+cd app && pnpm db:snapshot            # regenerate the snapshot
 # commit the migration AND the snapshot together
 ```
 
@@ -177,7 +210,7 @@ cd app && npm run db:enums
 `-v strict=1` makes a failure exit non-zero, which is what CI uses.
 
 > **Never run `verify-rls.sql` against production.** It seeds a second tenant
-> and writes probe rows. `scripts/verify-remote.sh` is the only harness safe to
+> and writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to
 > point at a live database — it forces a read-only transaction and aborts if
 > that did not take effect.
 

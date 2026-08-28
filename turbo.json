@@ -1,0 +1,64 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".svelte-kit/**",
+        "build/**",
+        "dist/**",
+        "!.svelte-kit/cache/**"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
+      ]
+    },
+    "check-types": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
+      ]
+    },
+    "format:check": {},
+    "format": {
+      "cache": false
+    }
+  }
+}

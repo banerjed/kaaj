@@ -1,0 +1,21 @@
+{
+  "name": "@kaaj/enums",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The single source of truth for enumerated values, shared by the database, API and clients",
+  "exports": {
+    ".": "./src/index.js",
+    "./enumerations.json": "./src/enumerations.json"
+  },
+  "scripts": {
+    "build": "node src/gen-sql-fixture.mjs",
+    "lint": "eslint .",
+    "format:check": "prettier --check src",
+    "format": "prettier --write src"
+  },
+  "devDependencies": {
+    "@kaaj/eslint-config": "workspace:*",
+    "eslint": "^9.0.0"
+  }
+}

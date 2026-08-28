@@ -15,20 +15,23 @@ jobs:
 
     defaults:
       run:
-        working-directory: app
+        working-directory: .
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
 
-      - name: NPM install
-        run: npm install
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Install
+        run: pnpm install --frozen-lockfile
 
       - name: Check Code Format
-        run: npm run format_check
+        run: pnpm turbo run format:check
 
       - name: Download go misspell utility
         run: go install github.com/client9/misspell/cmd/misspell@latest
 
       - name: Run misspell to fine misspelled words
-        run: misspell -error ./src README.md
+        run: misspell -error ./apps/web/src README.md

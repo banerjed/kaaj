@@ -125,7 +125,7 @@
 
 ### Application
 
-13. **[08-development-setup.md](./08-development-setup.md)** - Development setup
+13. **[08-development-setup.md](./08-development-setup.md)** - Development setup (v2.0, monorepo)
     - Running against local Supabase and against the hosted project
     - The database test harnesses and what each one proves
     - Troubleshooting: port conflicts, PG16 role membership, FORCE RLS
@@ -144,12 +144,13 @@
 
 ### Data Model
 
-15. **[data-models/schema.sql](./data-models/schema.sql)** - **Authoritative database schema**
+15. **[data-models/schema.sql](../packages/database/reference/schema.sql)** - **Authoritative database schema**
     - 98 tables + 1 view, Supabase PostgreSQL, validated against PostgreSQL 17
+    - **Design reference only** — build from `supabase/migrations/`
     - Shared-schema multi-tenancy with row-level security on every table
     - Supersedes the former `data-models.md` and all `d1-*` sources (now deleted)
 
-16. **[data-models/mock-data.sql](./data-models/mock-data.sql)** - Test organization
+16. **[data-models/mock-data.sql](../packages/database/fixtures/mock-data.sql)** - Test organization
     - Northwind Consulting: 12 employees, 3 countries, 3 currencies
     - 265 rows across 48 tables, with self-verifying consistency checks
 
@@ -230,7 +231,7 @@ CREATE POLICY tenant_isolation ON example
     WITH CHECK (tenant_id = app.current_tenant_id());
 ```
 
-> The authoritative schema is [`data-models/schema.sql`](./data-models/schema.sql).
+> The authoritative schema is [`data-models/schema.sql`](../packages/database/reference/schema.sql).
 > The example above is the pattern every one of its 93 tables follows.
 
 #### Multi-Currency Pattern

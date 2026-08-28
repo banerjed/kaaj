@@ -101,11 +101,11 @@ fi
 
 if [ "$RUN_DB" = 1 ]; then
   echo "${B}Database${N}"
-  step "tenant isolation (575)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-rls.sql
-  step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
-  step "schema invariants (40)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-invariants.sql
-  step "structure snapshot"        scripts/db-snapshot.sh --check
-  step "enum fixture is current"   bash -c 'node scripts/gen-enum-fixture.mjs >/dev/null && git diff --quiet docs/data-models/generated/expected-enums.sql'
+  step "tenant isolation (575)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
+  step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
+  step "schema invariants (40)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
+  step "structure snapshot"        packages/database/scripts/db-snapshot.sh --check
+  step "enum fixture is current"   bash -c 'pnpm --filter @kaaj/enums build >/dev/null && git diff --quiet packages/enums/dist/expected-enums.sql'
   echo ""
 fi
 
@@ -113,16 +113,18 @@ fi
 # Application
 # =============================================================================
 if [ "$RUN_APP" = 1 ]; then
-  if [ ! -d app/node_modules ]; then
-    echo "  ${Y}installing app dependencies${N}"
-    (cd app && npm install --silent) || FAILED+=("npm install")
+  if [ ! -d node_modules ]; then
+    echo "  ${Y}installing workspace dependencies${N}"
+    pnpm install --silent || FAILED+=("pnpm install")
   fi
   echo "${B}Application${N}"
-  step "format"     bash -c 'cd app && npm run format_check'
-  step "lint"       bash -c 'cd app && npm run lint'
-  step "typecheck"  bash -c 'cd app && npm run check'
-  step "unit tests" bash -c 'cd app && npm run test_run'
-  [ "$RUN_BUILD" = 1 ] && step "build" bash -c 'cd app && npm run build'
+  # Driven through turbo so local and CI run the identical task graph, and so
+  # future apps and packages are picked up without editing this script.
+  step "format"     pnpm turbo run format:check
+  step "lint"       pnpm turbo run lint
+  step "typecheck"  pnpm turbo run check-types
+  step "unit tests" pnpm turbo run test
+  [ "$RUN_BUILD" = 1 ] && step "build" pnpm turbo run build
   echo ""
 fi
 
@@ -139,7 +141,7 @@ else
   for f in "${FAILED[@]}"; do echo "  ${R}✗${N} $f"; done
   echo ""
   echo "${D}Schema drift? If the change is intended:  ./check --db${N}"
-  echo "${D}  supabase db reset && npm --prefix app run db:snapshot${N}"
+  echo "${D}  supabase db reset && pnpm db:snapshot${N}"
   echo ""
   exit 1
 fi

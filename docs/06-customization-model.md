@@ -49,7 +49,7 @@ Assigning a request to the wrong tier is the most common way this goes wrong.
 **Most customization requests are already solved and need no mechanism at all.**
 
 A customer asking for "our own accounting categories" is asking to insert rows.
-`chart_of_accounts` in [`schema.sql`](./data-models/schema.sql) is already tenant-scoped, with
+`chart_of_accounts` in [`schema.sql`](../packages/database/reference/schema.sql) is already tenant-scoped, with
 `account_code`, `account_name`, `account_type`, `account_subtype`, and hierarchy
 via `parent_account_id`. There is nothing to build.
 

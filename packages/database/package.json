@@ -1,0 +1,10 @@
+{
+  "name": "@kaaj/database",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schema fixtures, verification harnesses and the structure snapshot",
+  "scripts": {
+    "snapshot": "scripts/db-snapshot.sh --generate",
+    "snapshot:check": "scripts/db-snapshot.sh --check"
+  }
+}

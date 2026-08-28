@@ -1,26 +1,35 @@
-# Supabase CLI local state. `.temp/` holds linked-project.json, which contains
-# the live project ref — it must never be committed.
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Turborepo
+.turbo/
+
+# Build output
+**/build/
+**/.svelte-kit/
+**/.vercel/
+**/.output/
+**/dist/
+# ...except the generated SQL fixture, which is committed so CI can assert it is
+# current. A stale fixture would otherwise silently test the wrong expectation.
+!packages/enums/dist/
+!packages/enums/dist/expected-enums.sql
+
+# Supabase CLI local state. .temp/ holds linked-project.json with the live
+# project ref — it must never be committed.
 supabase/.temp/
 supabase/.branches/
 supabase/.env*
 **/supabase/.temp/
 
-# Node
-node_modules/
-.DS_Store
-
-# Build output
-app/build/
-app/.svelte-kit/
-app/.vercel/
-app/.output/
-
 # Environment
 .env
 .env.*
 !.env.example
-!app/.env.example
+!**/.env.example
 
-# Test scratch
-/tmp/
+# Misc
+.DS_Store
 *.log
+/tmp/

@@ -38,6 +38,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: Install psql 17
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt \
@@ -104,34 +110,34 @@ jobs:
       # Self-verifying: 14 referential and arithmetic invariants abort the
       # transaction if the fixture is inconsistent.
       - name: Load fixture
-        run: psql -v ON_ERROR_STOP=1 -q -f docs/data-models/mock-data.sql
+        run: psql -v ON_ERROR_STOP=1 -q -f packages/database/fixtures/mock-data.sql
 
       # The load-bearing job: proves every policy actually filters, rather than
       # merely existing. Metadata checks pass on a policy of USING(true).
       - name: Tenant isolation (all tables)
-        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-rls.sql
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
 
       - name: Specification checks
-        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
 
       # Design rules from the ADRs: tenant_id leads every index, enums match
       # enumerations.json, the enum/reference-table split holds, every table has
       # tenant_id, and the PostgREST Data API stays closed.
       - name: Schema invariants
-        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-invariants.sql
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$PWD/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
 
       # The enum fixture is generated and committed; a forgotten regeneration
       # would silently test a stale expectation.
       - name: Enum fixture is current
         run: |
-          node scripts/gen-enum-fixture.mjs
-          git diff --exit-code docs/data-models/generated/expected-enums.sql \
-            || { echo "::error::expected-enums.sql is stale. Run: node scripts/gen-enum-fixture.mjs"; exit 1; }
+          pnpm --filter @kaaj/enums build
+          git diff --exit-code packages/enums/dist/expected-enums.sql \
+            || { echo "::error::expected-enums.sql is stale. Run: pnpm --filter @kaaj/enums build"; exit 1; }
 
       # Structure snapshot: any unintended schema change fails here with a diff.
       # An intended one is committed alongside its migration.
       - name: Structure snapshot
-        run: scripts/db-snapshot.sh --check
+        run: packages/database/scripts/db-snapshot.sh --check
 
       # Same entry point developers run locally, so the two cannot drift apart.
       # --db because the application checks have their own workflow.
