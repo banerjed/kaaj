@@ -139,6 +139,44 @@ grep PUBLIC_SUPABASE_URL apps/web/.env.local
 # https://<ref>.supabase.co → remote
 ```
 
+### Building against production
+
+The app reads whichever env file it is given. `PUBLIC_*` values are inlined at
+build time, so the target is baked into the artifact — a build made with
+`.env.local` cannot talk to production, and vice versa.
+
+```bash
+cd apps/web
+env $(grep -vE '^#|^$' .env.prod | xargs) pnpm build    # production artifact
+pnpm build                                              # local artifact
+```
+
+Verified: both produce a build whose output contains the corresponding Supabase
+URL.
+
+### Testing against production
+
+Only one harness is safe to point at a live database:
+
+```bash
+SUPABASE_DB_URL="postgresql://...?sslmode=require" \
+  packages/database/tests/verify-remote.sh
+```
+
+It forces `default_transaction_read_only` on the connection and aborts if that
+did not take effect, and it refuses to report a pass if the connecting role
+bypasses RLS — an unverifiable result is reported as unverified rather than
+green.
+
+**`SUPABASE_DB_URL` is deliberately a different variable from `DATABASE_URL`.**
+`DATABASE_URL` points at the local stack everywhere else in the repo; if the
+remote checker read it, running it after sourcing `.env.local` would silently
+check local and report a meaningless pass. Targeting production has to be a
+conscious act.
+
+**Never run the other harnesses against production.** `verify-rls.sql` seeds a
+second tenant and writes probe rows.
+
 ### Pushing schema changes to the hosted project
 
 ```bash

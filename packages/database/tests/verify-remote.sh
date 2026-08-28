@@ -2,8 +2,14 @@
 # verify-remote.sh — READ-ONLY. Confirm, against a live database, that the
 # migrations ran and the mock data landed.
 #
-#   ./scripts/verify-remote.sh "postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres"
-#   SUPABASE_DB_URL=... ./scripts/verify-remote.sh
+#   packages/database/tests/verify-remote.sh "postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres"
+#   SUPABASE_DB_URL=... packages/database/tests/verify-remote.sh
+#
+# NOTE: this reads SUPABASE_DB_URL, deliberately NOT the DATABASE_URL that the
+# rest of the repo uses. DATABASE_URL normally points at the LOCAL stack, and
+# silently running the "remote" checker against local would report a
+# meaningless pass. Setting a separate variable makes targeting production a
+# conscious act.
 #
 # Safe to point at production: the connection forces
 # default_transaction_read_only, and check 0 aborts if that did not take. This
@@ -159,7 +165,7 @@ if [ "$NW" != "1" ]; then
   echo "  NOTE  no 'northwind' tenant visible — mock data has not been loaded."
   echo "        (checked with the tenant claim set, so this is not an RLS artefact)"
   echo "        Load it with:"
-  echo "          psql \"\$SUPABASE_DB_URL\" -f docs/data-models/mock-data.sql"
+  echo "          psql \"\$SUPABASE_DB_URL\" -f packages/database/fixtures/mock-data.sql"
 else
   pass "tenant present, id=$NW_TID"
   for row in "employees:12" "invoices:5" "payroll_runs:4" \
