@@ -107,3 +107,8 @@ jobs:
       # An intended one is committed alongside its migration.
       - name: Structure snapshot
         run: scripts/db-snapshot.sh --check
+
+      # Same entry point developers run locally, so the two cannot drift apart.
+      # --db because the application checks have their own workflow.
+      - name: ./check --db
+        run: ./check --db

@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ./check — run every test in the repository
+# =============================================================================
+# One command, no setup, runnable from any directory in the repo.
+#
+#   ./check              everything (what you run before pushing)
+#   ./check --db         database only
+#   ./check --app        application only
+#   ./check --quick      skip the build (fastest useful signal)
+#
+# Exits non-zero if anything fails. Finds psql, resolves DATABASE_URL, and
+# checks the local Supabase stack is up before running anything that needs it.
+# =============================================================================
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+# --- colours, only when attached to a terminal -------------------------------
+if [ -t 1 ]; then
+  R=$'\033[31m'; G=$'\033[32m'; Y=$'\033[33m'; B=$'\033[1m'; D=$'\033[2m'; N=$'\033[0m'
+else
+  R=""; G=""; Y=""; B=""; D=""; N=""
+fi
+
+RUN_DB=1; RUN_APP=1; RUN_BUILD=1
+case "${1:-}" in
+  --db)    RUN_APP=0 ;;
+  --app)   RUN_DB=0 ;;
+  --quick) RUN_BUILD=0 ;;
+  --help|-h)
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0 ;;
+  "") ;;
+  *) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
+esac
+
+FAILED=()
+PASSED=0
+START=$(date +%s)
+
+step() {  # step <name> <command...>
+  local name="$1"; shift
+  printf "  %-34s" "$name"
+  local out
+  if out="$("$@" 2>&1)"; then
+    printf "%s✓%s\n" "$G" "$N"
+    PASSED=$((PASSED + 1))
+  else
+    printf "%s✗%s\n" "$R" "$N"
+    FAILED+=("$name")
+    # Indent the failure output so it is obviously subordinate to the step.
+    printf "%s" "$D"
+    echo "$out" | tail -25 | sed 's/^/      /'
+    printf "%s" "$N"
+  fi
+}
+
+# --- locate psql -------------------------------------------------------------
+# Homebrew keeps versioned postgres off PATH; check the usual places before
+# giving up, so a fresh clone works without shell configuration.
+find_psql() {
+  command -v psql >/dev/null 2>&1 && { echo psql; return; }
+  for p in /opt/homebrew/opt/postgresql@17/bin/psql \
+           /usr/local/opt/postgresql@17/bin/psql \
+           /opt/homebrew/opt/libpq/bin/psql \
+           /usr/lib/postgresql/17/bin/psql; do
+    [ -x "$p" ] && { echo "$p"; return; }
+  done
+}
+
+echo ""
+echo "${B}Kaaj — full check${N}"
+echo ""
+
+# =============================================================================
+# Database
+# =============================================================================
+if [ "$RUN_DB" = 1 ]; then
+  PSQL="$(find_psql)"
+  if [ -z "$PSQL" ]; then
+    echo "  ${Y}skipping database checks:${N} psql not found"
+    echo "  ${D}install with: brew install postgresql@17${N}"
+    echo ""
+    RUN_DB=0
+  else
+    export PATH="$(dirname "$PSQL"):$PATH"
+    : "${DATABASE_URL:=postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+    export DATABASE_URL
+
+    if ! psql "$DATABASE_URL" -X -t -A -c "SELECT 1" >/dev/null 2>&1; then
+      echo "  ${R}cannot reach the database${N} at ${DATABASE_URL%%\?*}"
+      echo "  ${D}start it with: supabase start${N}"
+      echo ""
+      FAILED+=("database unreachable")
+      RUN_DB=0
+    fi
+  fi
+fi
+
+if [ "$RUN_DB" = 1 ]; then
+  echo "${B}Database${N}"
+  step "tenant isolation (575)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-rls.sql
+  step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
+  step "schema invariants (40)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-invariants.sql
+  step "structure snapshot"        scripts/db-snapshot.sh --check
+  step "enum fixture is current"   bash -c 'node scripts/gen-enum-fixture.mjs >/dev/null && git diff --quiet docs/data-models/generated/expected-enums.sql'
+  echo ""
+fi
+
+# =============================================================================
+# Application
+# =============================================================================
+if [ "$RUN_APP" = 1 ]; then
+  if [ ! -d app/node_modules ]; then
+    echo "  ${Y}installing app dependencies${N}"
+    (cd app && npm install --silent) || FAILED+=("npm install")
+  fi
+  echo "${B}Application${N}"
+  step "format"     bash -c 'cd app && npm run format_check'
+  step "lint"       bash -c 'cd app && npm run lint'
+  step "typecheck"  bash -c 'cd app && npm run check'
+  step "unit tests" bash -c 'cd app && npm run test_run'
+  [ "$RUN_BUILD" = 1 ] && step "build" bash -c 'cd app && npm run build'
+  echo ""
+fi
+
+# =============================================================================
+# Summary
+# =============================================================================
+ELAPSED=$(( $(date +%s) - START ))
+if [ ${#FAILED[@]} -eq 0 ]; then
+  echo "${G}${B}All checks passed${N} ${D}(${PASSED} steps, ${ELAPSED}s)${N}"
+  echo ""
+  exit 0
+else
+  echo "${R}${B}${#FAILED[@]} check(s) failed${N} ${D}(${PASSED} passed, ${ELAPSED}s)${N}"
+  for f in "${FAILED[@]}"; do echo "  ${R}✗${N} $f"; done
+  echo ""
+  echo "${D}Schema drift? If the change is intended:  ./check --db${N}"
+  echo "${D}  supabase db reset && npm --prefix app run db:snapshot${N}"
+  echo ""
+  exit 1
+fi
