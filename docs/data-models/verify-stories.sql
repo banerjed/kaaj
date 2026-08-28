@@ -742,16 +742,26 @@ SELECT _check('X-rls-all','SCHEMA','cross-cutting',
   'RLS switched on for every table (metadata only — see verify-rls.sh)',
   $$SELECT count(*)=0
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-     WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity$$);
+     WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity
+       AND c.relname NOT IN ('profiles','stripe_customers','contact_requests')$$);
 SELECT _check('X-rls-forced','SCHEMA','cross-cutting',
   'RLS is FORCED, so the owner is bound too (metadata only)',
-  $$SELECT count(*)<=1
+  $$SELECT count(*)=0
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
      WHERE n.nspname='public' AND c.relkind='r'
-       AND c.relrowsecurity AND NOT c.relforcerowsecurity$$);
+       AND c.relrowsecurity AND NOT c.relforcerowsecurity
+       AND c.relname NOT IN (
+             'exchange_rates',                                  -- global read-only reference data
+             'profiles','stripe_customers','contact_requests'   -- CMSaasStarter leftovers, pending removal
+           )$$);
 SELECT _check('X-tenant-col','SCHEMA','cross-cutting',
   'Every table except the registry and global reference data has tenant_id',
-  $$SELECT count(*)<=2 FROM pg_tables t WHERE t.schemaname='public'
+  $$SELECT count(*)=0 FROM pg_tables t WHERE t.schemaname='public'
+     AND t.tablename NOT IN (
+           'tenants',                                         -- IS the registry
+           'exchange_rates',                                  -- global reference data
+           'profiles','stripe_customers','contact_requests'   -- CMSaasStarter leftovers, pending removal
+         )
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns c
         WHERE c.table_schema='public' AND c.table_name=t.tablename
           AND c.column_name='tenant_id')$$);

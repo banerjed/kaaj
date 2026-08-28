@@ -125,7 +125,12 @@
 
 ### Application
 
-13. **[07-app-provenance.md](./07-app-provenance.md)** - `app/` provenance & planned modifications
+13. **[08-development-setup.md](./08-development-setup.md)** - Development setup
+    - Running against local Supabase and against the hosted project
+    - The database test harnesses and what each one proves
+    - Troubleshooting: port conflicts, PG16 role membership, FORCE RLS
+
+14. **[07-app-provenance.md](./07-app-provenance.md)** - `app/` provenance & planned modifications
     - Where the code came from (CMSaasStarter, MIT) and the attribution we keep
     - The planned modifications list — doubles as the first work list
 

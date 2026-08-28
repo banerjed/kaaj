@@ -56,6 +56,30 @@ BEGIN
     IF app_bypasses THEN
         RAISE EXCEPTION 'app_user has BYPASSRLS/SUPERUSER — every isolation test below would pass vacuously';
     END IF;
+
+    -- The probes below SET ROLE app_user. On Supabase (local and hosted) the
+    -- `postgres` role is NOT superuser — it is BYPASSRLS — and a non-superuser
+    -- may only SET ROLE to a role it belongs to.
+    --
+    -- PostgreSQL 16 split role membership into three options. Plain membership
+    -- (`MEMBER`) is NOT sufficient for SET ROLE: that needs set_option = true,
+    -- granted explicitly with `WITH SET TRUE`. pg_has_role(...,'MEMBER') returns
+    -- true either way, so checking membership alone is misleading here.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_auth_members m
+          JOIN pg_roles g ON g.oid = m.roleid
+          JOIN pg_roles r ON r.oid = m.member
+         WHERE g.rolname = 'app_user' AND r.rolname = current_user
+           AND m.set_option
+    ) THEN
+        BEGIN
+            EXECUTE format('GRANT app_user TO %I WITH SET TRUE', current_user);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE EXCEPTION
+              'cannot SET ROLE app_user as %: %. Run this as a role that can: '
+              'GRANT app_user TO %I WITH SET TRUE;', current_user, SQLERRM, current_user;
+        END;
+    END IF;
 END $$;
 
 CREATE TEMP TABLE _rls (
@@ -74,11 +98,21 @@ GRANT SELECT ON _baseline TO app_user;
 -- -----------------------------------------------------------------------------
 -- Exemption literals
 -- -----------------------------------------------------------------------------
-CREATE TEMP TABLE _exempt (tbl TEXT PRIMARY KEY, reason TEXT);
+-- in_scope=false marks tables that are not part of the Kaaj schema at all, so
+-- policy-shape rules do not apply to them. in_scope=true marks OUR tables that
+-- are merely excluded from the per-tenant row loop (they have no tenant_id).
+CREATE TEMP TABLE _exempt (tbl TEXT PRIMARY KEY, in_scope BOOLEAN, reason TEXT);
 GRANT SELECT ON _exempt TO app_user;
 INSERT INTO _exempt VALUES
-  ('tenants',        'the registry itself; isolates on id = app.current_tenant_id()'),
-  ('exchange_rates', 'global reference data, no tenant_id, FOR SELECT USING (true)');
+  ('tenants',        true,  'the registry itself; isolates on id = app.current_tenant_id()'),
+  ('exchange_rates', true,  'global reference data, no tenant_id, FOR SELECT USING (true)'),
+  -- CMSaasStarter leftovers. Not part of the 98-table Kaaj schema; they carry no
+  -- tenant_id and are isolated per-user (auth.uid() = id), not per-tenant. They
+  -- are listed rather than filtered so that removing them is a deliberate act —
+  -- see docs/07-app-provenance.md, which plans exactly that.
+  ('profiles',         false, 'CMSaasStarter leftover; per-user RLS, pending removal'),
+  ('stripe_customers', false, 'CMSaasStarter leftover; per-user RLS, pending removal'),
+  ('contact_requests', false, 'CMSaasStarter leftover; no tenancy, pending removal');
 
 -- Tables whose tenant_id is NULLABLE by design: NULL rows are platform-global
 -- and visible to every tenant. The leak test filters on tenant_id IS NOT NULL
@@ -99,8 +133,32 @@ CREATE TEMP VIEW _targets AS
   SELECT c.relname AS tbl
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
    WHERE n.nspname = 'public' AND c.relkind = 'r'
-     AND c.relname NOT IN (SELECT tbl FROM _exempt);
+     AND c.relname NOT IN (SELECT tbl FROM _exempt)
+     AND EXISTS (SELECT 1 FROM information_schema.columns col
+                  WHERE col.table_schema = 'public'
+                    AND col.table_name = c.relname
+                    AND col.column_name = 'tenant_id');
 GRANT SELECT ON _targets TO app_user;
+
+-- Any table WITHOUT tenant_id must be a NAMED exemption. This is the check that
+-- catches "someone added a table and forgot tenant_id" — which the per-table
+-- loop cannot, because such a table is invisible to it.
+DO $$
+DECLARE unlisted TEXT[];
+BEGIN
+    SELECT array_agg(c.relname ORDER BY c.relname) INTO unlisted
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public' AND c.relkind = 'r'
+       AND c.relname NOT IN (SELECT tbl FROM _exempt)
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns col
+                        WHERE col.table_schema = 'public'
+                          AND col.table_name = c.relname
+                          AND col.column_name = 'tenant_id');
+    INSERT INTO _rls (phase, tbl, passed, detail)
+    VALUES ('0/tenant-id-coverage', '(all tables)', unlisted IS NULL,
+            coalesce('tables with no tenant_id and no exemption: '
+                     || array_to_string(unlisted, ', '), 'ok'));
+END $$;
 
 -- Seed the second tenant. Superuser, so RLS does not interfere with setup.
 INSERT INTO tenants (id, subdomain, company_name)
@@ -335,6 +393,9 @@ BEGIN
       FROM pg_policies
      WHERE schemaname = 'public'
        AND with_check IS NULL
+       -- Starter tables are not ours; their policy shape is out of scope until
+       -- they are removed (docs/07-app-provenance.md).
+       AND tablename NOT IN (SELECT tbl FROM _exempt WHERE NOT in_scope)
        AND (tablename, policyname) NOT IN (
              ('tenants',      'tenant_self'),                  -- USING doubles as WITH CHECK on write
              ('exchange_rates','exchange_rates_read'),           -- FOR SELECT only

@@ -1,0 +1,90 @@
+name: Database
+
+on: [push, pull_request]
+
+# Runs the database suite against a throwaway PostgreSQL 17.
+#
+# A plain postgres:17 service, not `supabase start`: app.current_tenant_id()
+# reads current_setting('request.jwt.claims'), which is pure Postgres, so
+# isolation is faithfully testable without booting GoTrue/PostgREST/Kong/Studio.
+# That keeps this job under a couple of minutes instead of adding several for
+# containers none of these tests touch.
+
+jobs:
+  database:
+    name: Schema, isolation and specification
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql 17
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+
+      # Roles that Supabase provides and vanilla Postgres does not. The
+      # migrations reference them, so they must exist before anything applies.
+      - name: Bootstrap Supabase roles
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='supabase_auth_admin')
+              THEN CREATE ROLE supabase_auth_admin NOLOGIN; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated')
+              THEN CREATE ROLE authenticated NOLOGIN; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon')
+              THEN CREATE ROLE anon NOLOGIN; END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role')
+              THEN CREATE ROLE service_role NOLOGIN; END IF;
+          END $$;
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text);
+          SQL
+
+      # This step IS the migration test: every migration, in order, from empty.
+      # A migration that is not replayable fails here.
+      - name: Apply migrations
+        run: |
+          for f in supabase/migrations/2026*.sql; do
+            echo "→ $(basename "$f")"
+            psql -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      # Self-verifying: 14 referential and arithmetic invariants abort the
+      # transaction if the fixture is inconsistent.
+      - name: Load fixture
+        run: psql -v ON_ERROR_STOP=1 -q -f docs/data-models/mock-data.sql
+
+      # The load-bearing job: proves every policy actually filters, rather than
+      # merely existing. Metadata checks pass on a policy of USING(true).
+      - name: Tenant isolation (all tables)
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f scripts/verify-rls.sql
+
+      - name: Specification checks
+        run: psql -v ON_ERROR_STOP=1 -v strict=1 -f docs/data-models/verify-stories.sql
