@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ./setup — bring a fresh machine to a working, verified Kaaj development stack
+# =============================================================================
+#   ./setup              install what is missing, start everything, verify
+#   ./setup --check      report what is missing and change nothing
+#   ./setup --no-install only use tools already present; fail if any are absent
+#   ./setup --reset      rebuild the database from migrations and reseed
+#
+# Idempotent: safe to re-run. Anything already correct is left alone.
+#
+# WHAT THIS IS NOT
+#   This is a DEVELOPER bootstrap, not an on-premise installer. It creates a
+#   local Supabase stack with well-known demo credentials and seeds the Northwind
+#   test fixture. Never run it against a customer's infrastructure — seeding a
+#   client database with test data would be a serious incident.
+#
+#   A real on-premise installer is deliberately not built yet (ADR-007), and
+#   two things block it beyond packaging: apps/web still uses adapter-auto
+#   rather than adapter-node (ADR-005), and authentication is hosted by Supabase
+#   (ADR-008/ADR-010), so identities would not live on the customer's
+#   infrastructure. See docs/05-architecture-decisions.md.
+# =============================================================================
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+if [ -t 1 ]; then
+  R=$'\033[31m'; G=$'\033[32m'; Y=$'\033[33m'; C=$'\033[36m'
+  B=$'\033[1m'; D=$'\033[2m'; N=$'\033[0m'
+else
+  R=""; G=""; Y=""; C=""; B=""; D=""; N=""
+fi
+
+MODE=install
+case "${1:-}" in
+  --check)      MODE=check ;;
+  --no-install) MODE=noinstall ;;
+  --reset)      MODE=reset ;;
+  --help|-h)    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  "")           ;;
+  *)            echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
+esac
+
+MISSING=()
+NOTES=()
+
+ok()   { printf "  ${G}✓${N} %s\n" "$1"; }
+warn() { printf "  ${Y}!${N} %s\n" "$1"; }
+bad()  { printf "  ${R}✗${N} %s\n" "$1"; }
+step() { printf "\n${B}%s${N}\n" "$1"; }
+run()  { printf "    ${D}%s${N}\n" "$*"; "$@"; }
+
+# Minimum versions. Below these, things fail in ways that are hard to diagnose.
+NODE_MIN=20
+PNPM_MIN=10
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Homebrew keeps versioned postgres off PATH; look where it actually installs.
+find_psql() {
+  have psql && { command -v psql; return; }
+  for p in /opt/homebrew/opt/postgresql@17/bin/psql \
+           /usr/local/opt/postgresql@17/bin/psql \
+           /opt/homebrew/opt/libpq/bin/psql \
+           /usr/lib/postgresql/17/bin/psql; do
+    [ -x "$p" ] && { echo "$p"; return; }
+  done
+}
+
+OS="$(uname -s)"
+case "$OS" in
+  Darwin) PLATFORM=macos ;;
+  Linux)  PLATFORM=linux ;;
+  *)      PLATFORM=unknown ;;
+esac
+
+echo ""
+echo "${B}Kaaj — environment setup${N}  ${D}(${PLATFORM})${N}"
+
+# =============================================================================
+# 1. Prerequisites
+# =============================================================================
+step "Prerequisites"
+
+# --- Node ---------------------------------------------------------------------
+if have node; then
+  NODE_MAJOR="$(node --version | sed 's/^v//' | cut -d. -f1)"
+  if [ "$NODE_MAJOR" -ge "$NODE_MIN" ]; then
+    ok "node $(node --version)"
+  else
+    bad "node $(node --version) — need >= ${NODE_MIN}"
+    MISSING+=("node")
+  fi
+else
+  bad "node — not installed"
+  MISSING+=("node")
+fi
+
+# --- pnpm ---------------------------------------------------------------------
+# corepack ships with Node and can provision the exact version in packageManager,
+# which is better than a global install that drifts from the repo.
+if have pnpm; then
+  PNPM_MAJOR="$(pnpm --version | cut -d. -f1)"
+  if [ "$PNPM_MAJOR" -ge "$PNPM_MIN" ]; then
+    ok "pnpm $(pnpm --version)"
+  else
+    warn "pnpm $(pnpm --version) — need >= ${PNPM_MIN}"
+    MISSING+=("pnpm")
+  fi
+else
+  bad "pnpm — not installed"
+  MISSING+=("pnpm")
+fi
+
+# --- Docker -------------------------------------------------------------------
+if have docker; then
+  if docker info >/dev/null 2>&1; then
+    ok "docker $(docker --version | sed 's/Docker version //;s/,.*//') (daemon running)"
+  else
+    bad "docker installed but the daemon is not running"
+    NOTES+=("Start Docker Desktop, or: sudo systemctl start docker")
+    MISSING+=("docker-daemon")
+  fi
+else
+  bad "docker — not installed"
+  MISSING+=("docker")
+fi
+
+# --- Supabase CLI -------------------------------------------------------------
+if have supabase; then
+  ok "supabase CLI $(supabase --version 2>/dev/null | head -1)"
+else
+  bad "supabase CLI — not installed"
+  MISSING+=("supabase")
+fi
+
+# --- psql ---------------------------------------------------------------------
+# Only the harnesses need it; the app never talks to Postgres directly.
+PSQL="$(find_psql)"
+if [ -n "$PSQL" ]; then
+  ok "psql $("$PSQL" --version | awk '{print $3}') ${D}($PSQL)${N}"
+  export PATH="$(dirname "$PSQL"):$PATH"
+else
+  bad "psql — not found (needed by the database test harnesses)"
+  MISSING+=("psql")
+fi
+
+# =============================================================================
+# 2. Install what is missing
+# =============================================================================
+if [ ${#MISSING[@]} -gt 0 ]; then
+  if [ "$MODE" = check ]; then
+    step "Missing"
+    for m in "${MISSING[@]}"; do echo "  - $m"; done
+    for n in "${NOTES[@]}"; do echo "  ${D}${n}${N}"; done
+    echo ""
+    echo "Run ${C}./setup${N} to install them."
+    exit 1
+  fi
+
+  if [ "$MODE" = noinstall ]; then
+    step "Missing (--no-install)"
+    for m in "${MISSING[@]}"; do echo "  - $m"; done
+    exit 1
+  fi
+
+  step "Installing"
+
+  for m in "${MISSING[@]}"; do
+    case "$m" in
+      docker-daemon)
+        bad "Docker is installed but not running — start it, then re-run ./setup"
+        exit 1 ;;
+
+      node)
+        if [ "$PLATFORM" = macos ] && have brew; then
+          run brew install node
+        elif [ "$PLATFORM" = linux ]; then
+          bad "install Node >= ${NODE_MIN} via your distribution or https://nodejs.org"
+          exit 1
+        else
+          bad "install Node >= ${NODE_MIN} from https://nodejs.org, then re-run"
+          exit 1
+        fi ;;
+
+      pnpm)
+        # corepack pins the version from package.json's packageManager field,
+        # so it cannot drift from what the repo expects.
+        if have corepack; then
+          run corepack enable
+          run corepack prepare --activate
+        elif have npm; then
+          run npm install -g pnpm@10
+        else
+          bad "cannot install pnpm without corepack or npm"; exit 1
+        fi ;;
+
+      docker)
+        if [ "$PLATFORM" = macos ] && have brew; then
+          run brew install --cask docker
+          warn "Docker Desktop installed — start it, then re-run ./setup"
+          exit 1
+        else
+          bad "install Docker from https://docs.docker.com/get-docker/, then re-run"
+          exit 1
+        fi ;;
+
+      supabase)
+        if have brew; then
+          run brew install supabase/tap/supabase
+        elif have npm; then
+          # The npm package is a thin wrapper; fine as a fallback.
+          run npm install -g supabase
+        else
+          bad "install the Supabase CLI: https://supabase.com/docs/guides/cli"
+          exit 1
+        fi ;;
+
+      psql)
+        if [ "$PLATFORM" = macos ] && have brew; then
+          run brew install postgresql@17
+          export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
+        elif [ "$PLATFORM" = linux ]; then
+          bad "install the Postgres 17 client, e.g. apt install postgresql-client-17"
+          exit 1
+        else
+          bad "install the Postgres 17 client, then re-run"
+          exit 1
+        fi ;;
+    esac
+  done
+
+  ok "prerequisites installed"
+fi
+
+if [ "$MODE" = check ]; then
+  step "Everything required is present"
+  exit 0
+fi
+
+# =============================================================================
+# 3. Workspace dependencies
+# =============================================================================
+step "Workspace"
+if run pnpm install --frozen-lockfile; then
+  ok "dependencies installed"
+else
+  bad "pnpm install failed"
+  exit 1
+fi
+
+# =============================================================================
+# 4. Environment file
+# =============================================================================
+step "Environment"
+if [ -f apps/web/.env.local ]; then
+  ok "apps/web/.env.local exists ${D}(left untouched)${N}"
+else
+  cp apps/web/.env.example apps/web/.env.local
+  ok "apps/web/.env.local created from .env.example"
+  echo "    ${D}Local Supabase uses fixed demo keys, identical on every machine,${N}"
+  echo "    ${D}so these defaults work as-is. Nothing to fill in.${N}"
+fi
+
+# =============================================================================
+# 5. Database
+# =============================================================================
+step "Database"
+
+if supabase status >/dev/null 2>&1; then
+  if [ "$MODE" = reset ]; then
+    run supabase db reset
+    ok "rebuilt from migrations and reseeded"
+  else
+    ok "local stack already running ${D}(--reset to rebuild)${N}"
+  fi
+else
+  echo "    ${D}starting the local stack — the first run pulls several images${N}"
+  if run supabase start; then
+    ok "local stack started"
+  else
+    bad "supabase start failed"
+    echo ""
+    echo "  Most common cause: another Supabase project holds the ports."
+    echo "  Check with ${C}docker ps${N}, then stop it:"
+    echo "    ${C}supabase stop --project-id <other-project>${N}"
+    exit 1
+  fi
+fi
+
+export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+
+# Migrations and the fixture are applied by `supabase start` / `db reset`, via
+# config.toml's [db.seed]. Confirm rather than assume: a wrong seed path makes
+# `db reset` report success against an empty database.
+EMPLOYEES="$(psql "$DATABASE_URL" -X -t -A -c 'SELECT count(*) FROM employees' 2>/dev/null || echo 0)"
+if [ "$EMPLOYEES" -ge 1 ]; then
+  ok "schema applied and fixture seeded ${D}(${EMPLOYEES} employees)${N}"
+else
+  bad "the database is reachable but empty — the seed did not apply"
+  echo "    ${D}check [db.seed] sql_paths in supabase/config.toml${N}"
+  exit 1
+fi
+
+# =============================================================================
+# 6. Generated artifacts
+# =============================================================================
+step "Generated artifacts"
+if run pnpm --filter @kaaj/enums build >/dev/null 2>&1; then
+  ok "enum SQL fixture generated"
+else
+  bad "failed to generate the enum fixture"
+  exit 1
+fi
+
+# =============================================================================
+# 7. Verify
+# =============================================================================
+step "Verifying"
+echo ""
+if ./check; then
+  echo "${G}${B}Environment ready.${N}"
+  echo ""
+  echo "  ${C}pnpm dev${N}                      the app on http://localhost:5173"
+  echo "  ${C}./check${N}                       everything — run before pushing"
+  echo "  ${C}supabase status${N}               URLs and keys"
+  echo ""
+  echo "  Studio   ${D}http://127.0.0.1:54323${N}"
+  echo "  Mail     ${D}http://127.0.0.1:54324${N}  (all outbound mail is captured)"
+  echo ""
+  exit 0
+else
+  echo ""
+  bad "setup completed but the verification suite failed"
+  echo "  ${D}The stack is up; something in the repo needs attention.${N}"
+  echo "  ${D}Re-run ${N}${C}./check${N}${D} for the detail.${N}"
+  echo ""
+  exit 1
+fi

@@ -8,6 +8,21 @@ how to keep the two from being confused for each other.
 
 ---
 
+## Quick start
+
+```bash
+./setup
+```
+
+One command from a fresh clone to a verified stack. It checks and installs
+prerequisites, installs workspace dependencies, creates `apps/web/.env.local`
+from the template, starts Supabase, confirms the fixture actually seeded, and
+runs `./check`.
+
+Use `./setup --check` first if you would rather see what it intends to install.
+
+---
+
 ## Prerequisites
 
 | Tool | Why |
@@ -324,6 +339,38 @@ COMMIT;
 ```
 
 The fixture prints the Northwind tenant id when it loads.
+
+---
+
+## On-premise installation
+
+`./setup` is a **developer** bootstrap. It is deliberately not an on-premise
+installer, and pointing it at a customer's infrastructure would seed their
+database with the Northwind test fixture.
+
+A real on-premise installer is deferred by
+[ADR-007](./05-architecture-decisions.md#adr-007-defer-on-premise-deployment).
+Three things would have to change first, and none is packaging:
+
+1. **`apps/web` still uses `adapter-auto`.**
+   [ADR-005](./05-architecture-decisions.md#adr-005-node-lts-as-the-runtime)
+   calls for `adapter-node`, since an on-premise install is a long-running
+   container rather than a serverless target.
+2. **Authentication is hosted by Supabase.**
+   [ADR-010](./05-architecture-decisions.md#adr-010-enterprise-sso-for-dedicated-tenants)
+   records this as the real coupling: a customer's business data could sit on
+   their infrastructure while their user identities do not. For a buyer whose
+   requirement is custody, that defeats the point — see the residency discussion
+   in [ADR-009](./05-architecture-decisions.md#adr-009-subdomain-routed-database-targets).
+3. **There is no update path.** N installations on different versions need a
+   versioned image plus a forward-only migration runner with per-installation
+   version tracking, and expand/contract migrations throughout. That has to
+   exist from the first customer, not be retrofitted.
+
+What `./setup` *does* establish is the shape such an installer would take:
+detect prerequisites, apply migrations, verify the result rather than assume it.
+The parts it would drop are the demo credentials and the test fixture; the parts
+it would add are the three above.
 
 ---
 

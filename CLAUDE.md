@@ -5,6 +5,30 @@ with Zoho and Odoo on integrated modules rather than depth in any one.
 
 ---
 
+## Setting up a machine
+
+```bash
+git clone <repo> && cd kaaj && ./setup
+```
+
+Installs anything missing, starts the local Supabase stack, applies migrations,
+seeds the fixture, and runs the full verification. About 30 seconds on a machine
+that already has the tools; longer on the first run, which pulls Docker images.
+Idempotent — safe to re-run.
+
+```
+./setup              install what is missing, start everything, verify
+./setup --check      report what is missing, change nothing
+./setup --no-install use only what is present; fail if anything is absent
+./setup --reset      rebuild the database from migrations and reseed
+```
+
+**`./setup` is a developer bootstrap, not an on-premise installer.** It creates
+a stack with well-known demo credentials and seeds the Northwind *test* fixture.
+Never point it at a customer's infrastructure.
+
+---
+
 ## ⚠️ Required before pushing
 
 ```bash
