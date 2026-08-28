@@ -21,9 +21,14 @@
 --           the feature may be buildable but cannot be shown or tested.
 --
 -- USAGE
---   psql "$DATABASE_URL" -f data-models/schema.sql
---   psql "$DATABASE_URL" -f data-models/mock-data.sql
---   psql "$DATABASE_URL" -f data-models/verify-stories.sql
+--   for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+--   psql "$DATABASE_URL" -f docs/data-models/mock-data.sql
+--   psql "$DATABASE_URL" -v strict=1 -f docs/data-models/verify-stories.sql
+--
+--   Build from supabase/migrations/, NOT from docs/data-models/schema.sql.
+--   schema.sql is the design document: it issues no GRANTs (so no role can read
+--   anything) and defines app.set_updated_at() without wiring it to any trigger.
+--   Only the migrations produce a working database.
 --
 --   Exit code is 0 even when checks fail; read the summary. To make CI fail on
 --   regressions, run with:  -v strict=1
@@ -39,6 +44,29 @@
 \set QUIET on
 
 BEGIN;
+
+-- -----------------------------------------------------------------------------
+-- PRECONDITION: this harness must run as a role that BYPASSES RLS.
+-- -----------------------------------------------------------------------------
+-- Most checks below read tenant tables directly. Every table has RLS ENABLEd and
+-- FORCEd, and FORCE removes the *owner's* exemption too — so only a superuser or
+-- a rolbypassrls role sees rows. Run this as anything else and all DATA checks
+-- return 0 rows and fail for a reason that has nothing to do with the schema.
+--
+-- This is the mirror image of the guard in scripts/verify-migrations.sh, which
+-- asserts the opposite for its isolation probes.
+DO $precheck$
+DECLARE bypasses BOOLEAN;
+BEGIN
+    SELECT rolsuper OR rolbypassrls INTO bypasses
+      FROM pg_roles WHERE rolname = current_user;
+    IF NOT bypasses THEN
+        RAISE EXCEPTION
+          'verify-stories.sql must run as a superuser/BYPASSRLS role (current_user=%). '
+          'Under FORCE RLS even the table owner sees no rows, so every DATA check '
+          'would fail misleadingly.', current_user;
+    END IF;
+END $precheck$;
 
 CREATE TEMP TABLE _results (
     seq        SERIAL,
@@ -706,19 +734,27 @@ SELECT _check('UG-roles','DATA','user-groups',
 -- =============================================================================
 -- CROSS-CUTTING  (product-specification.md, ADRs)
 -- =============================================================================
+-- NOTE: the next two are METADATA checks. They prove RLS is switched on, NOT
+-- that any policy actually filters — a policy of USING(true) passes both.
+-- Behavioural proof lives in scripts/verify-rls.sh; policy EXPRESSIONS are
+-- pinned by db/snapshot/04-policies.txt. Do not read these as isolation tests.
 SELECT _check('X-rls-all','SCHEMA','cross-cutting',
-  'RLS enabled on every tenant-owned table (ADR-003)',
-  $$SELECT count(*)=0 FROM pg_tables t JOIN pg_class c ON c.relname=t.tablename
-     WHERE t.schemaname='public' AND NOT c.relrowsecurity$$);
+  'RLS switched on for every table (metadata only — see verify-rls.sh)',
+  $$SELECT count(*)=0
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+     WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity$$);
 SELECT _check('X-rls-forced','SCHEMA','cross-cutting',
-  'RLS is FORCED (owner cannot silently bypass it)',
-  $$SELECT count(*)<=1 FROM pg_tables t JOIN pg_class c ON c.relname=t.tablename
-     WHERE t.schemaname='public' AND c.relrowsecurity AND NOT c.relforcerowsecurity$$);
+  'RLS is FORCED, so the owner is bound too (metadata only)',
+  $$SELECT count(*)<=1
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+     WHERE n.nspname='public' AND c.relkind='r'
+       AND c.relrowsecurity AND NOT c.relforcerowsecurity$$);
 SELECT _check('X-tenant-col','SCHEMA','cross-cutting',
   'Every table except the registry and global reference data has tenant_id',
   $$SELECT count(*)<=2 FROM pg_tables t WHERE t.schemaname='public'
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns c
-        WHERE c.table_name=t.tablename AND c.column_name='tenant_id')$$);
+        WHERE c.table_schema='public' AND c.table_name=t.tablename
+          AND c.column_name='tenant_id')$$);
 SELECT _check('X-jobs','SCHEMA','cross-cutting',
   'Background job queue is a table, not Redis (ADR-002)',
   $$SELECT to_regclass('jobs') IS NOT NULL$$);
@@ -781,11 +817,14 @@ BEGIN
 END $$;
 
 -- Fail the run when invoked with -v strict=1, for CI.
+\if :{?strict} \else \set strict 0 \endif
 -- ON_ERROR_STOP must be re-enabled here: it is off for the whole file so that a
 -- failing check cannot abort the run, but that also swallows the exception
 -- below and the process would exit 0 with failures present.
 \set ON_ERROR_STOP on
-\if :{?strict}
+-- Compare the VALUE, not merely whether the variable is defined:
+-- `\if :{?strict}` is true for `-v strict=0` as well, which is surprising.
+\if :strict
 DO $$
 DECLARE f INT;
 BEGIN

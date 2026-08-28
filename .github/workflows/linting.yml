@@ -1,4 +1,4 @@
-name: Build
+name: Linting
 
 on: [push, pull_request]
 
@@ -10,8 +10,12 @@ env:
 
 jobs:
   build_and_test:
-    name: Build
+    name: Linting and Typechecking
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
@@ -19,5 +23,8 @@ jobs:
       - name: NPM install
         run: npm install
 
-      - name: SvelteKit Build
-        run: npm run build
+      - name: Linting
+        run: npm run lint
+
+      - name: Typechecking
+        run: npm run check

@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Version:      2.0
 -- Last Updated: 2026-08-27
--- Target:       data-models/schema.sql (93 tables, Supabase PostgreSQL)
+-- Target:       supabase/migrations/ (98 tables, Supabase PostgreSQL)
 --
 -- Supersedes the v1 mock data, which targeted the D1/SQLite schema and its
 -- natural keys (EMP-001, US-NYC, ENG). Those keys collide under shared-schema
@@ -36,6 +36,17 @@
 -- =============================================================================
 
 BEGIN;
+
+-- Deterministic id helper, so re-running produces identical uuids and diffs
+-- stay readable. Dropped at the end of this file.
+CREATE OR REPLACE FUNCTION uuid_generate_v5_compat(seed UUID, salt TEXT)
+RETURNS UUID LANGUAGE sql IMMUTABLE AS $$
+    -- md5 yields exactly 32 hex chars, which Postgres casts straight to uuid.
+    -- Not a real v5 uuid (no namespace/version bits) but deterministic, which
+    -- is the property the fixture needs.
+    SELECT md5(seed::text || ':' || salt)::uuid
+$$;
+
 
 -- Test organization: a 12-person professional services firm operating in 3 countries
 INSERT INTO tenants (id, subdomain, company_name, company_name_i18n, region, data_residency_country, default_locale, default_currency, default_timezone, plan_tier, max_employees, billing_email, billing_currency, billing_status, is_active) VALUES
@@ -940,6 +951,28 @@ UPDATE ticketing_tickets SET
                                      resolved_at IS NOT NULL AND resolved_at > sla_due_at)
 WHERE sla_due_at IS NOT NULL;
 
+-- tenant_users — membership linking Supabase auth identities to employees.
+-- This is the table custom_access_token_hook() reads at token issue to stamp
+-- app_metadata.tenant_id, so it is load-bearing for login. It had no fixture,
+-- which meant its RLS was never exercised; scripts/verify-rls.sql flags that.
+-- user_id values are deterministic uuid5 stand-ins for auth.users rows.
+INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role, is_active,
+                          is_default_tenant, accepted_at)
+SELECT
+    uuid_generate_v5_compat(e.id, 'tenant_user'),
+    e.tenant_id,
+    uuid_generate_v5_compat(e.id, 'auth_user'),
+    e.id,
+    CASE e.employee_id
+        WHEN 'E001' THEN 'owner'
+        WHEN 'E010' THEN 'hr_admin'
+        WHEN 'E005' THEN 'manager'
+        ELSE 'member'
+    END,
+    TRUE, TRUE, '2026-01-01T09:00:00Z'
+FROM employees e
+WHERE e.employee_id IN ('E001','E002','E004','E005','E010');
+
 
 -- =============================================================================
 -- VERIFICATION — runs on every load; the transaction aborts if anything is off
@@ -1046,5 +1079,7 @@ BEGIN
     RAISE NOTICE '  SET request.jwt.claims = ''{"app_metadata":{"tenant_id":"%"}}'';', t_id;
     RAISE NOTICE '--------------------------------------------------------------';
 END $$;
+
+DROP FUNCTION IF EXISTS uuid_generate_v5_compat(UUID, TEXT);
 
 COMMIT;

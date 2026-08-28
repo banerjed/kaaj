@@ -1,0 +1,26 @@
+# Supabase CLI local state. `.temp/` holds linked-project.json, which contains
+# the live project ref — it must never be committed.
+supabase/.temp/
+supabase/.branches/
+supabase/.env*
+**/supabase/.temp/
+
+# Node
+node_modules/
+.DS_Store
+
+# Build output
+app/build/
+app/.svelte-kit/
+app/.vercel/
+app/.output/
+
+# Environment
+.env
+.env.*
+!.env.example
+!app/.env.example
+
+# Test scratch
+/tmp/
+*.log

@@ -4177,7 +4177,7 @@ CREATE UNIQUE INDEX idx_payroll_tax_rates_statutory
 -- =============================================================================
 -- SECTION 8 — FOREIGN KEYS
 -- =============================================================================
--- Added after all tables exist. With 93 tables there is no practical
+-- Added after all tables exist. With 98 tables there is no practical
 -- topological order, so constraints are applied here rather than inline.
 
 ALTER TABLE firm_departments ADD CONSTRAINT fk_firm_departments_parent_department_id FOREIGN KEY (parent_department_id) REFERENCES firm_departments(id);
