@@ -226,7 +226,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       {
         id: "settings-payroll",
         label: "Payroll Policies",
-        ...soon,
+        url: "/settings/payroll/policies",
       },
     ],
   },
