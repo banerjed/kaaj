@@ -2,6 +2,10 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as compensation from "$lib/server/compensation/compensation_base.repo"
 import { RaiseRefused } from "$lib/server/compensation/compensation_base.repo"
+import * as allowances from "$lib/server/compensation/compensation_allowances.repo"
+import * as variablePay from "$lib/server/compensation/compensation_variable.repo"
+import * as equity from "$lib/server/compensation/compensation_equity.repo"
+import * as schedules from "$lib/server/compensation/compensation_work_schedules.repo"
 import { formString } from "$lib/server/forms"
 import { allEnumerations } from "@kaaj/enums"
 import * as employees from "$lib/server/employee-profile/employees.repo"
@@ -32,6 +36,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       // unhandled 500.
       changeReasons: allEnumerations().get("change_reason") ?? [],
       compensationTypes: ["salary", "hourly", "commission", "contract"],
+      // The rest of total compensation. One transaction, so the tab shows a
+      // consistent picture rather than five independently-timed reads.
+      allowances: await allowances.currentForEmployee(tx, params.id),
+      variablePay: await variablePay.currentForEmployee(tx, params.id),
+      equity: await equity.forEmployee(tx, params.id),
+      workSchedule: await schedules.currentForEmployee(tx, params.id),
     }
   })
 

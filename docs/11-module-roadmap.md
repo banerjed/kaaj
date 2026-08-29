@@ -40,17 +40,21 @@ Two consequences worth stating:
 
 ---
 
-## Phase 3 — Compensation
+## Phase 3 — Compensation ✅ done
 
 `docs/module-compensation.md` · 6 tables, all already used read-only by the
 employee directory.
 
 | Table | Page |
 |---|---|
-| `compensation_base` | `/employees/[id]` → editable Compensation tab |
-| `compensation_allowances`, `compensation_premiums` | same tab |
-| `compensation_variable`, `compensation_equity` | same tab |
-| `compensation_work_schedules` | `/settings/work-schedules` |
+| `compensation_base` | ✅ `/employees/[id]` → editable Compensation tab |
+| `compensation_allowances` | ✅ same tab |
+| `compensation_variable`, `compensation_equity` | ✅ same tab |
+| `compensation_work_schedules` | ✅ shown on the tab (no fixture rows for premiums) |
+
+`compensation_premiums` has no fixture rows and no UI yet — shift differentials
+and on-call, which belong with time tracking (Phase 5) where the hours they
+attach to actually live.
 
 **Why first:** the directory already reads `compensation_base` and the detail
 page already renders its history. This closes a loop that is half-built, and it
@@ -66,7 +70,7 @@ overlap, so it belongs in the repository with a test.
 
 ---
 
-## Phase 4 — HR
+## Phase 4 — HR (in progress)
 
 `docs/module-hr.md` · 19 tables. The largest module, and the one with the most
 user-facing surface.

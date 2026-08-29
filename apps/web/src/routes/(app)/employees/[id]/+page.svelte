@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, currentTimeIn, money } from "$lib/format"
+  import { calendarDate, currentTimeIn, money, number } from "$lib/format"
 
   let { data, form } = $props()
 
@@ -261,6 +261,131 @@
             </tbody>
           </table>
         </div>
+      {/if}
+
+      {#if tab === "Compensation"}
+        <!--
+          The rest of total compensation. Every figure is in the currency it is
+          paid in and formatted in that market's locale — an Indian HRA reads as
+          ₹45,000 whoever is looking (L24). Nothing here is summed into a single
+          "total": adding INR to GBP would require an exchange rate the product
+          deliberately does not invent (BR-FP-003).
+        -->
+        {#if data.allowances.length > 0}
+          <div>
+            <h3 class="mt-2 text-sm font-medium">Allowances</h3>
+            <ul class="list mt-1">
+              {#each data.allowances as a (a.id)}
+                <li class="list-row px-0">
+                  <div class="list-col-grow">
+                    <p class="text-sm font-medium">{a.allowance_name}</p>
+                    <p class="text-base-content/70 text-xs capitalize">
+                      {a.allowance_type.replaceAll("_", " ")}
+                      {#if a.is_reimbursement}· reimbursement{/if}
+                      {#if a.is_taxable === false}· non-taxable{/if}
+                    </p>
+                  </div>
+                  <p class="text-sm tabular-nums">
+                    {money(a.amount, a.currency, locale)}
+                    <span class="text-base-content/70">/{a.frequency}</span>
+                  </p>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if data.variablePay.length > 0}
+          <div>
+            <h3 class="mt-2 text-sm font-medium">Variable pay</h3>
+            <p class="text-base-content/70 text-xs">
+              Target at full attainment — not earnings, and not guaranteed.
+            </p>
+            <ul class="list mt-1">
+              {#each data.variablePay as v (v.id)}
+                <li class="list-row px-0">
+                  <div class="list-col-grow">
+                    <p class="text-sm font-medium">{v.component_name}</p>
+                    <p class="text-base-content/70 text-xs capitalize">
+                      {v.component_type.replaceAll("_", " ")} · {v.payment_frequency}
+                    </p>
+                  </div>
+                  <p class="text-sm tabular-nums">
+                    {money(v.target_amount, v.currency, locale)}
+                    <span class="text-base-content/70">target</span>
+                  </p>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if data.equity.length > 0}
+          <div>
+            <h3 class="mt-2 text-sm font-medium">Equity</h3>
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Granted</th>
+                    <th>Type</th>
+                    <th class="text-right">Shares</th>
+                    <th class="text-right">Vested</th>
+                    <th class="text-right">Strike</th>
+                    <th>Vesting</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each data.equity as g (g.id)}
+                    <tr>
+                      <td class="tabular-nums"
+                        >{calendarDate(g.grant_date, locale)}</td
+                      >
+                      <td class="text-sm uppercase">{g.grant_type}</td>
+                      <!-- Shares are counts, not money: `number`, not `money`. -->
+                      <td class="text-right tabular-nums"
+                        >{number(g.shares_granted, locale)}</td
+                      >
+                      <td class="text-right tabular-nums">
+                        {number(g.shares_vested, locale)}
+                        <span class="text-base-content/70 text-xs">
+                          ({Math.round(
+                            (g.shares_vested / g.shares_granted) * 100,
+                          )}%)
+                        </span>
+                      </td>
+                      <td class="text-right tabular-nums">
+                        {g.exercise_price
+                          ? money(g.exercise_price, g.currency ?? "USD", locale)
+                          : "—"}
+                      </td>
+                      <td class="text-base-content/70 text-xs">
+                        {g.vesting_cliff_months}m cliff ·
+                        {g.vesting_period_months}m total
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {/if}
+
+        {#if data.workSchedule}
+          <div class="bg-base-200 rounded-box px-3 py-2">
+            <p class="text-base-content/70 text-xs">Work schedule</p>
+            <p class="text-sm">
+              {data.workSchedule.schedule_name ??
+                data.workSchedule.schedule_type}
+              {#if data.workSchedule.standard_hours_per_week}
+                · {Number(data.workSchedule.standard_hours_per_week)} hours/week
+              {/if}
+              {#if data.workSchedule.timezone}
+                · {data.workSchedule.timezone}
+              {/if}
+            </p>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
