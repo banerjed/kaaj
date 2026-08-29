@@ -1,0 +1,1173 @@
+[
+  {
+    "id": "AL-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-AL",
+    "fixture": "EMP-AL-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "AL new hire report",
+      "AL withholding certificate",
+      "AL labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "AK-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-AK",
+    "fixture": "EMP-AK-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "AK new hire report",
+      "AK labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "AZ-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-AZ",
+    "fixture": "EMP-AZ-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "AZ new hire report",
+      "AZ withholding certificate",
+      "AZ labor poster packet",
+      "AZ paid sick time notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-sick-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "AR-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-AR",
+    "fixture": "EMP-AR-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "AR new hire report",
+      "AR withholding certificate",
+      "AR labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "CA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-CA",
+    "fixture": "EMP-CA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "CA new hire report",
+      "CA DE 4",
+      "CA 2810.5 wage notice",
+      "CA paid sick leave notice",
+      "CA labor poster packet",
+      "CA translated notice packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-de4",
+      "wrong-language",
+      "missing-2810-5"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "CO-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-CO",
+    "fixture": "EMP-CO-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "CO new hire report",
+      "CO withholding certificate",
+      "CO labor poster packet",
+      "CO paid sick leave notice",
+      "CO FAMLI notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "CT-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-CT",
+    "fixture": "EMP-CT-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "CT new hire report",
+      "CT withholding certificate",
+      "CT labor poster packet",
+      "CT paid leave notice",
+      "CT paid sick leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "DE-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-DE",
+    "fixture": "EMP-DE-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "DE new hire report",
+      "DE withholding certificate",
+      "DE labor poster packet",
+      "DE paid family medical leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "paid-leave-before-effective-date"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "DC-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-DC",
+    "fixture": "EMP-DC-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "DC new hire report",
+      "DC withholding certificate",
+      "DC labor poster packet",
+      "DC paid family leave notice",
+      "DC sick and safe leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "FL-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-FL",
+    "fixture": "EMP-FL-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "FL new hire report",
+      "FL labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "GA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-GA",
+    "fixture": "EMP-GA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "GA new hire report",
+      "GA withholding certificate",
+      "GA labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "HI-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-HI",
+    "fixture": "EMP-HI-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "HI new hire report",
+      "HI withholding certificate",
+      "HI labor poster packet",
+      "HI TDI notice",
+      "HI prepaid health care notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-disability-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "ID-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-ID",
+    "fixture": "EMP-ID-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "ID new hire report",
+      "ID withholding certificate",
+      "ID labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "IL-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-IL",
+    "fixture": "EMP-IL-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "IL new hire report",
+      "IL withholding certificate",
+      "IL labor poster packet",
+      "IL paid leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "IN-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-IN",
+    "fixture": "EMP-IN-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "IN new hire report",
+      "IN withholding certificate",
+      "IN county withholding record",
+      "IN labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "IA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-IA",
+    "fixture": "EMP-IA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "IA new hire report",
+      "IA withholding certificate",
+      "IA labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "KS-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-KS",
+    "fixture": "EMP-KS-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "KS new hire report",
+      "KS withholding certificate",
+      "KS labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "KY-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-KY",
+    "fixture": "EMP-KY-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "KY new hire report",
+      "KY withholding certificate",
+      "KY local occupational tax record",
+      "KY labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "LA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-LA",
+    "fixture": "EMP-LA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "LA new hire report",
+      "LA withholding certificate",
+      "LA labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "ME-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-ME",
+    "fixture": "EMP-ME-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "ME new hire report",
+      "ME withholding certificate",
+      "ME labor poster packet",
+      "ME earned paid leave notice",
+      "ME paid family medical leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MD-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MD",
+    "fixture": "EMP-MD-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MD new hire report",
+      "MD withholding certificate",
+      "MD county withholding record",
+      "MD labor poster packet",
+      "MD sick and safe leave notice",
+      "MD paid family medical leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MA",
+    "fixture": "EMP-MA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MA new hire report",
+      "MA Form M-4",
+      "MA labor poster packet",
+      "MA earned sick time notice",
+      "MA PFML notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-m4",
+      "missing-pfml-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MI-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MI",
+    "fixture": "EMP-MI-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MI new hire report",
+      "MI withholding certificate",
+      "MI city withholding review",
+      "MI labor poster packet",
+      "MI earned sick time notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MN-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MN",
+    "fixture": "EMP-MN-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MN new hire report",
+      "MN withholding certificate",
+      "MN wage theft notice",
+      "MN labor poster packet",
+      "MN earned sick and safe time notice",
+      "MN paid leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-wage-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MS-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MS",
+    "fixture": "EMP-MS-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MS new hire report",
+      "MS withholding certificate",
+      "MS labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MO-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MO",
+    "fixture": "EMP-MO-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MO new hire report",
+      "MO withholding certificate",
+      "MO local earnings tax review",
+      "MO labor poster packet",
+      "MO paid sick leave review"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "MT-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-MT",
+    "fixture": "EMP-MT-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "MT new hire report",
+      "MT withholding certificate",
+      "MT labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NE-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NE",
+    "fixture": "EMP-NE-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NE new hire report",
+      "NE withholding certificate",
+      "NE labor poster packet",
+      "NE paid sick leave review"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NV-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NV",
+    "fixture": "EMP-NV-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NV new hire report",
+      "NV labor poster packet",
+      "NV paid leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "missing-paid-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NH-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NH",
+    "fixture": "EMP-NH-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NH new hire report",
+      "NH labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NJ-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NJ",
+    "fixture": "EMP-NJ-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NJ new hire report",
+      "NJ-W4",
+      "NJ labor poster packet",
+      "NJ earned sick leave notice",
+      "NJ TDI/FLI notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-nj-w4",
+      "missing-earned-sick-leave-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NM-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NM",
+    "fixture": "EMP-NM-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NM new hire report",
+      "NM withholding certificate",
+      "NM labor poster packet",
+      "NM paid sick leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-sick-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NY-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NY",
+    "fixture": "EMP-NY-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NY new hire report",
+      "NY IT-2104",
+      "NY wage theft prevention notice",
+      "NY labor poster packet",
+      "NY PFL/DB notice",
+      "NY paid sick leave notice",
+      "NYC/Yonkers withholding review"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-it-2104",
+      "missing-wage-notice",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "NC-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-NC",
+    "fixture": "EMP-NC-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "NC new hire report",
+      "NC withholding certificate",
+      "NC labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "ND-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-ND",
+    "fixture": "EMP-ND-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "ND new hire report",
+      "ND withholding certificate",
+      "ND labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "OH-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-OH",
+    "fixture": "EMP-OH-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "OH new hire report",
+      "OH withholding certificate",
+      "OH municipal withholding record",
+      "OH school district withholding record",
+      "OH labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "OK-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-OK",
+    "fixture": "EMP-OK-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "OK new hire report",
+      "OK withholding certificate",
+      "OK labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "OR-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-OR",
+    "fixture": "EMP-OR-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "OR new hire report",
+      "OR withholding certificate",
+      "OR transit tax record",
+      "OR labor poster packet",
+      "OR sick time notice",
+      "OR paid leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "PA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-PA",
+    "fixture": "EMP-PA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "PA new hire report",
+      "PA withholding certificate",
+      "PA REV-419",
+      "PA residency certification",
+      "PA PSD/EIT record",
+      "PA labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-rev-419",
+      "local-tax-not-reevaluated"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "RI-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-RI",
+    "fixture": "EMP-RI-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "RI new hire report",
+      "RI withholding certificate",
+      "RI labor poster packet",
+      "RI TDI/TCI notice",
+      "RI paid sick and safe leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-disability-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "SC-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-SC",
+    "fixture": "EMP-SC-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "SC new hire report",
+      "SC withholding certificate",
+      "SC labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "SD-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-SD",
+    "fixture": "EMP-SD-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "SD new hire report",
+      "SD labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "TN-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-TN",
+    "fixture": "EMP-TN-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "TN new hire report",
+      "TN labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "TX-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-TX",
+    "fixture": "EMP-TX-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "TX new hire report",
+      "TX labor poster packet",
+      "TX workers compensation election notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "missing-workers-comp-election-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "UT-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-UT",
+    "fixture": "EMP-UT-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "UT new hire report",
+      "UT withholding certificate",
+      "UT labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "VT-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-VT",
+    "fixture": "EMP-VT-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "VT new hire report",
+      "VT withholding certificate",
+      "VT labor poster packet",
+      "VT paid sick leave notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "missing-paid-sick-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "VA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-VA",
+    "fixture": "EMP-VA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "VA new hire report",
+      "VA withholding certificate",
+      "VA labor poster packet",
+      "VA paid sick leave applicability review"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "WA-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-WA",
+    "fixture": "EMP-WA-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "WA new hire report",
+      "WA labor poster packet",
+      "WA paid sick leave notice",
+      "WA PFML notice",
+      "WA Cares notice"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "missing-pfml-notice"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "WV-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-WV",
+    "fixture": "EMP-WV-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "WV new hire report",
+      "WV withholding certificate",
+      "WV labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "WI-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-WI",
+    "fixture": "EMP-WI-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "WI new hire report",
+      "WI withholding certificate",
+      "WI labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "missing-withholding-form",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  },
+  {
+    "id": "WY-HIRE-001",
+    "source": "docs/testplan-us-state-employment.md",
+    "risk": "R0",
+    "jurisdiction": "US-WY",
+    "fixture": "EMP-WY-HIRE-001",
+    "ruleVersion": "planning-2026-08-29",
+    "expectedDocuments": [
+      "Form I-9",
+      "Federal Form W-4",
+      "WY new hire report",
+      "WY labor poster packet"
+    ],
+    "expectedAuditEvents": ["statutory_packet.generated"],
+    "negativeCases": [
+      "late-new-hire-report",
+      "state-income-tax-form-incorrectly-required",
+      "stale-rule-version"
+    ],
+    "testTypes": ["unit", "invariant", "golden-file", "audit"]
+  }
+]

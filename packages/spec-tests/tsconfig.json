@@ -1,0 +1,12 @@
+{
+  "extends": "@kaaj/typescript-config/base.json",
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": ["node", "vitest"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

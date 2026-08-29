@@ -38,24 +38,25 @@ fixtures to automation, and how high-risk areas stay current.
 9. **Regression gate**
    - Every bug fix adds or updates traceability coverage.
 10. **Periodic review**
-   - Compliance sources and high-risk fixtures are refreshed on cadence.
+
+- Compliance sources and high-risk fixtures are refreshed on cadence.
 
 ---
 
 ## Ownership
 
-| Area | Review Owner |
-|---|---|
-| HR and employee lifecycle | HR/product |
-| US state employment records | HR/compliance |
-| Payroll calculation and filing | Payroll/compliance/finance |
-| Accounting and period close | Finance/controller |
-| Tax and jurisdiction logic | Finance/compliance |
-| PII, encryption, document access | Security/compliance |
-| Multi-tenant isolation | Engineering/security |
-| Marketing consent and deliverability | Marketing/compliance |
-| AI assistant permissions | Product/security |
-| Accessibility and mobile | Product/design/engineering |
+| Area                                 | Review Owner               |
+| ------------------------------------ | -------------------------- |
+| HR and employee lifecycle            | HR/product                 |
+| US state employment records          | HR/compliance              |
+| Payroll calculation and filing       | Payroll/compliance/finance |
+| Accounting and period close          | Finance/controller         |
+| Tax and jurisdiction logic           | Finance/compliance         |
+| PII, encryption, document access     | Security/compliance        |
+| Multi-tenant isolation               | Engineering/security       |
+| Marketing consent and deliverability | Marketing/compliance       |
+| AI assistant permissions             | Product/security           |
+| Accessibility and mobile             | Product/design/engineering |
 
 For `R0` requirements, engineering cannot self-approve product correctness.
 
@@ -63,16 +64,16 @@ For `R0` requirements, engineering cannot self-approve product correctness.
 
 ## Source Update Cadence
 
-| Source Type | Cadence | Trigger |
-|---|---|---|
-| Federal payroll/tax forms | Annual plus immediate updates | IRS form/table update |
-| State withholding forms | Annual plus immediate updates | State revenue update |
-| State new hire reporting | Quarterly | State agency page or file spec update |
-| State leave/disability/PFML/PFL | Quarterly plus annual rate updates | Rate, wage cap, threshold, notice update |
-| Workplace posters/notices | Quarterly | Poster/form update |
-| Benefits carrier formats | Per carrier release | Carrier file spec update |
-| Accounting/tax integrations | Per provider release | API or file format change |
-| Marketing consent law | Semiannual plus legal update | CAN-SPAM, CASL, GDPR, TCPA, platform policy change |
+| Source Type                     | Cadence                            | Trigger                                            |
+| ------------------------------- | ---------------------------------- | -------------------------------------------------- |
+| Federal payroll/tax forms       | Annual plus immediate updates      | IRS form/table update                              |
+| State withholding forms         | Annual plus immediate updates      | State revenue update                               |
+| State new hire reporting        | Quarterly                          | State agency page or file spec update              |
+| State leave/disability/PFML/PFL | Quarterly plus annual rate updates | Rate, wage cap, threshold, notice update           |
+| Workplace posters/notices       | Quarterly                          | Poster/form update                                 |
+| Benefits carrier formats        | Per carrier release                | Carrier file spec update                           |
+| Accounting/tax integrations     | Per provider release               | API or file format change                          |
+| Marketing consent law           | Semiannual plus legal update       | CAN-SPAM, CASL, GDPR, TCPA, platform policy change |
 
 Every update creates or confirms a rule-version record. Do not silently edit
 historical expectations.
@@ -86,10 +87,15 @@ implementation-independent: it tests requirements, fixtures, golden expected
 outputs, statutory source metadata, and invariants before those behaviors are
 wired into the web application.
 
-The first automated suite is the US state employment packet coverage. It checks
-that every state plus DC has an `R0` baseline hire case, a matching worker
-fixture, expected statutory documents, expected audit evidence, no-income-tax
-withholding guardrails, local tax review guardrails, and source governance.
+The first automated suites cover US state employment packets plus the named
+high-risk invariants for accounting, payroll, tenancy, sensitive-data access,
+workflow/integration safety, and marketing consent. They check all-state `R0`
+employment coverage, I-9 timing and retention, effective-dated employment
+records, double-entry balance, closed-period controls, source document
+reconciliation, FX settlement, bank-feed idempotency, payroll immutability,
+gross-to-net reconciliation, tax ceilings, withholding versions, garnishment
+priority, custom-field isolation, tenant filtering, MFA-sensitive reads,
+notification action safety, and suppression/consent history.
 
 Run it with:
 
