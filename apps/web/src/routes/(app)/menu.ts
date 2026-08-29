@@ -201,7 +201,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       {
         id: "settings-departments",
         label: "Departments",
-        ...soon,
+        url: "/settings/departments",
       },
       {
         id: "settings-job-titles",
