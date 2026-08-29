@@ -1,6 +1,6 @@
 # Build Plan: Firm Profile, then Employee Profile
 
-**Status:** Phase 0 and Phase 1 complete · Phase 2 directory and detail done
+**Status:** Phase 0 and Phase 1 complete · Phase 2 core complete (directory, detail, create/edit)
 **Started:** 2026-08-28
 **Living document.** The checklist below is the source of truth for what is
 done. Tick a box only when the step is verified, not when the code is written.
@@ -368,8 +368,10 @@ Nine repositories under `apps/web/src/lib/server/employee-profile/`:
       remaining tabs per `html-mockups/employee-detail.html`:
       Personal Information, Employment Details, Compensation, Assets,
       Training & Certifications, Documents
-- [ ] **Create / edit** — progressive disclosure and an onboarding wizard per
-      doc 02, with the sub-resource tables as nested sections
+- [x] **Create / edit** — `/employees/new` and `/employees/[id]/edit`, sharing
+      one form component; validation via `@kaaj/validation` and `@kaaj/enums`
+- [ ] Sub-resource tabs: Assets, Training & Certifications, Documents
+- [ ] The onboarding wizard from doc 02 (the form is a single page today)
 
 ---
 

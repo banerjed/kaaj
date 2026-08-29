@@ -119,6 +119,13 @@
     </span>
   </form>
 
+  <div class="mt-3 flex justify-end">
+    <a class="btn btn-primary btn-sm gap-2" href="/employees/new">
+      <span class="iconify lucide--user-plus size-4"></span>
+      New Employee
+    </a>
+  </div>
+
   {#if data.employees.length === 0}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="card-body items-center py-16 text-center">

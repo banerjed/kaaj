@@ -188,3 +188,147 @@ export async function compensationHistory(
      ORDER BY effective_from DESC
   `
 }
+
+export type EmployeeInput = {
+  first_name: string
+  last_name: string
+  middle_name: string | null
+  preferred_name: string | null
+  email: string
+  phone: string | null
+  employee_id: string
+  gender: string | null
+  pronouns: string | null
+  marital_status: string | null
+  birth_date: string | null
+  employment_status: string
+  employment_type: string
+  start_date: string
+  end_date: string | null
+  department_code: string | null
+  job_title: string | null
+  job_level: string | null
+  location_code: string | null
+  timezone: string | null
+  manager_id: string | null
+  pay_frequency: string | null
+  introduction: string | null
+}
+
+/**
+ * `created_by` is NOT NULL with no default on this table, so it must be
+ * supplied. It takes the acting user's id — the audit trail is the point.
+ */
+export async function create(
+  tx: Tx,
+  tenantId: string,
+  input: EmployeeInput,
+  actorId: string,
+): Promise<{ id: string }> {
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO employees (
+      tenant_id, employee_id, first_name, last_name, middle_name,
+      preferred_name, email, phone, gender, pronouns, marital_status,
+      birth_date, employment_status, employment_type, start_date, end_date,
+      department_code, job_title, job_level, location_code, timezone,
+      manager_id, pay_frequency, introduction,
+      is_active, created_at, updated_at, created_by
+    ) VALUES (
+      ${tenantId}, ${input.employee_id}, ${input.first_name}, ${input.last_name},
+      ${input.middle_name}, ${input.preferred_name}, ${input.email},
+      ${input.phone}, ${input.gender}::gender, ${input.pronouns}::pronouns,
+      ${input.marital_status}::marital_status, ${input.birth_date}::date,
+      ${input.employment_status}::employment_status, ${input.employment_type},
+      ${input.start_date}::date, ${input.end_date}::date,
+      ${input.department_code}, ${input.job_title}, ${input.job_level},
+      ${input.location_code}, ${input.timezone}, ${input.manager_id},
+      ${input.pay_frequency}::pay_frequency, ${input.introduction},
+      -- Someone who has already left is created inactive, so the directory's
+      -- default view and the status field cannot disagree from the outset.
+      ${input.employment_status === "active"},
+      now(), now(), ${actorId}
+    )
+    RETURNING id
+  `
+  return row
+}
+
+export async function update(
+  tx: Tx,
+  id: string,
+  input: EmployeeInput,
+): Promise<void> {
+  await tx`
+    UPDATE employees SET
+      employee_id       = ${input.employee_id},
+      first_name        = ${input.first_name},
+      last_name         = ${input.last_name},
+      middle_name       = ${input.middle_name},
+      preferred_name    = ${input.preferred_name},
+      email             = ${input.email},
+      phone             = ${input.phone},
+      gender            = ${input.gender}::gender,
+      pronouns          = ${input.pronouns}::pronouns,
+      marital_status    = ${input.marital_status}::marital_status,
+      birth_date        = ${input.birth_date}::date,
+      employment_status = ${input.employment_status}::employment_status,
+      employment_type   = ${input.employment_type},
+      start_date        = ${input.start_date}::date,
+      end_date          = ${input.end_date}::date,
+      department_code   = ${input.department_code},
+      job_title         = ${input.job_title},
+      job_level         = ${input.job_level},
+      location_code     = ${input.location_code},
+      timezone          = ${input.timezone},
+      manager_id        = ${input.manager_id},
+      pay_frequency     = ${input.pay_frequency}::pay_frequency,
+      introduction      = ${input.introduction},
+      is_active         = ${input.employment_status === "active"},
+      updated_at        = now(),
+      version           = version + 1
+    WHERE id = ${id}
+  `
+}
+
+/** Everyone who could be someone's manager, for the picker. */
+export async function managerOptions(
+  tx: Tx,
+  excludeId?: string,
+): Promise<{ id: string; name: string }[]> {
+  return tx<{ id: string; name: string }[]>`
+    SELECT id, first_name || ' ' || last_name AS name
+      FROM employees
+     WHERE is_active
+       AND (${excludeId ?? null}::uuid IS NULL OR id <> ${excludeId ?? null}::uuid)
+     ORDER BY last_name, first_name
+  `
+}
+
+/**
+ * Would setting `managerId` as this employee's manager create a reporting
+ * cycle? Same shape of problem as the department tree: the FK cannot express
+ * acyclicity, and a loop makes any "walk up the chain" query non-terminating.
+ */
+export async function wouldReportToSelf(
+  tx: Tx,
+  employeeId: string,
+  managerId: string | null,
+): Promise<boolean> {
+  if (!managerId) return false
+  if (managerId === employeeId) return true
+
+  const rows = await tx<{ id: string; manager_id: string | null }[]>`
+    SELECT id, manager_id FROM employees
+  `
+  const managerOf = new Map(rows.map((r) => [r.id, r.manager_id]))
+
+  let cursor: string | null = managerId
+  const seen = new Set<string>()
+  while (cursor) {
+    if (cursor === employeeId) return true
+    if (seen.has(cursor)) return true
+    seen.add(cursor)
+    cursor = managerOf.get(cursor) ?? null
+  }
+  return false
+}

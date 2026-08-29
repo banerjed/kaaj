@@ -118,6 +118,10 @@
           {/if}
         </div>
         <div class="flex flex-col items-end gap-1">
+          <a class="btn btn-sm gap-2" href={`/employees/${e.id}/edit`}>
+            <span class="iconify lucide--pencil size-4"></span>
+            Edit
+          </a>
           <span
             class={`badge ${e.employment_status === "active" ? "badge-success" : "badge-ghost"}`}
           >
