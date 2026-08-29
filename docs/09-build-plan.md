@@ -1,6 +1,6 @@
 # Build Plan: Firm Profile, then Employee Profile
 
-**Status:** Phase 0 complete · Phase 1 seven of eight pages · Phase 2 directory and detail done
+**Status:** Phase 0 and Phase 1 complete · Phase 2 directory and detail done
 **Started:** 2026-08-28
 **Living document.** The checklist below is the source of truth for what is
 done. Tick a box only when the step is verified, not when the code is written.
@@ -323,20 +323,20 @@ from Phase 0 is the pattern; the other eight follow it.
 
 - [x] `firm_locations` · `firm_departments` · `firm_job_titles` · `firm_job_levels`
 - [x] `firm_payroll_policies` (+ `tenants`, `payroll_pay_schedules`)
-- [ ] `firm_benefits_packages` · `firm_benefits_plans`
-- [x] `firm_holidays` · [ ] `firm_benefit_items`
+- [x] `firm_benefits_packages` · [ ] `firm_benefits_plans` (carrier detail, deferred)
+- [x] `firm_holidays` · `firm_benefit_items`
 
 Pages, with URLs from the module spec § Page Specifications — not from Nexus:
 
 | Page | URL | Notes | Done |
 |---|---|---|---|
 | Company profile | `/settings/company` | tenant info, regional settings, live formatting preview | [x] |
-| Locations | `/settings/locations` | read-only list; **create/edit still to do** | [~] |
+| Locations | `/settings/locations` | 3-tab modal, HQ rule, archive guard | [x] |
 | Departments | `/settings/departments` | tree via `parent_department_id`; cycle guard | [x] |
 | Job titles & levels | `/settings/job-titles` | levels nested; multi-currency bands per market | [x] |
 | Payroll policies | `/settings/payroll/policies` | firm-wide default + per-office overrides | [x] |
 | Pay schedules | `/settings/payroll/schedules` | 12-date projection, two timezones, clash flags | [x] |
-| Benefits | `/settings/benefits` | packages → plans → items | [ ] |
+| Benefits | `/settings/benefits` | packages → items, multi-currency costs | [x] |
 | Holidays | `/settings/holidays` | per-office calendar, per-office date locale | [x] |
 
 **Reuse rather than rebuild:**

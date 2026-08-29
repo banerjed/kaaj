@@ -211,7 +211,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       {
         id: "settings-benefits",
         label: "Benefits",
-        ...soon,
+        url: "/settings/benefits",
       },
       {
         id: "settings-holidays",
