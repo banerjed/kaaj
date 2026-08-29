@@ -6,7 +6,8 @@ import * as allowances from "$lib/server/compensation/compensation_allowances.re
 import * as variablePay from "$lib/server/compensation/compensation_variable.repo"
 import * as equity from "$lib/server/compensation/compensation_equity.repo"
 import * as schedules from "$lib/server/compensation/compensation_work_schedules.repo"
-import { formString } from "$lib/server/forms"
+import { FormReader } from "$lib/server/forms"
+import { isPositive } from "$lib/decimal"
 import { allEnumerations } from "@kaaj/enums"
 import * as employees from "$lib/server/employee-profile/employees.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
@@ -35,7 +36,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       // off-list ("Promotion", "raise") reached the INSERT and came back as an
       // unhandled 500.
       changeReasons: allEnumerations().get("change_reason") ?? [],
-      compensationTypes: ["salary", "hourly", "commission", "contract"],
+      // Also a Postgres enum; a hand-typed list here drifts from the type.
+      compensationTypes: allEnumerations().get("compensation_type") ?? [],
       // The rest of total compensation. One transaction, so the tab shows a
       // consistent picture rather than five independently-timed reads.
       allowances: await allowances.currentForEmployee(tx, params.id),
@@ -60,46 +62,47 @@ export const actions: Actions = {
     const actorId = locals.user?.id
     if (!actorId) error(403, "No user")
 
-    const data = await request.formData()
-    const effectiveFrom = formString(data, "effective_from")
-    const amount = formString(data, "amount").trim()
-    const currency = formString(data, "currency")
-    const payFrequency = formString(data, "pay_frequency")
+    const f = new FormReader(await request.formData())
 
-    const errorFields: string[] = []
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
-      errorFields.push("effective_from")
-    } else if (Number.isNaN(Date.parse(`${effectiveFrom}T00:00:00Z`))) {
-      // The shape check passes 2026-13-45; only a parse catches it. Otherwise
-      // the ::date cast fails as an unhandled 500 on a crafted POST.
-      errorFields.push("effective_from")
-    }
+    const effectiveFrom = f.date("effective_from", { required: true })
 
-    // Kept as a string all the way to Postgres: numeric(12,2) exceeds what a
+    // Kept as a string all the way to Postgres: numeric(15,2) exceeds what a
     // float64 holds exactly, and parsing here would be the one place precision
     // is lost (L25). At most two decimals, because more are silently rounded
     // by the column and the user would never be told.
-    if (!/^\d{1,10}(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
-      errorFields.push("amount")
-    }
+    const amount = f.decimal("amount", {
+      required: true,
+      scale: 2,
+      integerDigits: 13,
+    })
+    if (amount && !isPositive(amount)) f.reject("amount")
 
-    const changeReason = formString(data, "change_reason").trim()
-    const reasons = allEnumerations().get("change_reason") ?? []
-    if (changeReason !== "" && !reasons.includes(changeReason)) {
-      errorFields.push("change_reason")
-    }
+    const currency = f.currency("currency", { required: true })
 
-    const compensationType = formString(data, "compensation_type") || "salary"
+    // Every one of these is a Postgres enum. Unvalidated, an unknown value was
+    // not a field error but an unhandled 500 — on the action that sets pay
+    // (L34).
+    const changeReason = f.enumValue("change_reason", "change_reason")
+    const compensationType = f.enumValue(
+      "compensation_type",
+      "compensation_type",
+      {
+        fallback: "salary",
+      },
+    )
+    const payFrequency = f.enumValue("pay_frequency", "pay_frequency", {
+      fallback: "monthly",
+    })
 
-    if (!currency) errorFields.push("currency")
-
-    if (errorFields.length) {
-      return fail(400, {
-        errorFields,
-        message: errorFields.includes("amount")
-          ? "Enter a positive amount with at most two decimal places."
-          : "Some fields need attention.",
-      })
+    if (!f.ok) {
+      return fail(
+        400,
+        f.problem(
+          f.errorFields.includes("amount")
+            ? "Enter a positive amount with at most two decimal places."
+            : "Some fields need attention.",
+        ),
+      )
     }
 
     try {
@@ -113,10 +116,10 @@ export const actions: Actions = {
             compensation_type: compensationType,
             amount,
             currency,
-            pay_frequency: payFrequency || "monthly",
+            pay_frequency: payFrequency,
             annual_equivalent: null,
-            overtime_eligible: formString(data, "overtime_eligible") === "on",
-            change_reason: changeReason || null,
+            overtime_eligible: f.bool("overtime_eligible"),
+            change_reason: changeReason,
           },
           actorId,
         ),

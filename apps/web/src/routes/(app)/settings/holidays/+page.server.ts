@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as holidays from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader, formList } from "$lib/server/forms"
 
 /** /settings/holidays — module-firm-profile.md § Holiday Calendar. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -26,51 +26,39 @@ export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
+
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const id = formString(data, "id")
-    const name = formString(data, "name").trim()
-    const date = formString(data, "date")
-    const locationCode = formString(data, "location_code")
+    const id = f.uuid("id")
+    const name = f.text("name", { required: true, max: 255 })
+    const date = f.date("date", { required: true })
+    const locationCode = f.text("location_code", { required: true, max: 100 })
+    const nameI18n = f.i18n(
+      "name_i18n",
+      formList(data, "supported_locales"),
+      255,
+    )
 
-    const errorFields: string[] = []
-    if (name === "") errorFields.push("name")
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errorFields.push("date")
-    if (!locationCode) errorFields.push("location_code")
-
-    const supported = data
-      .getAll("supported_locales")
-      .filter((v): v is string => typeof v === "string")
-    const nameI18n: Record<string, string> = {}
-    for (const l of supported) {
-      const v = formString(data, `name_i18n.${l}`).trim()
-      if (v !== "") nameI18n[l] = v
+    const input = {
+      location_code: locationCode,
+      name,
+      name_i18n: nameI18n,
+      date,
+      is_paid: f.bool("is_paid"),
+      is_mandatory: f.bool("is_mandatory"),
+      is_recurring: f.bool("is_recurring"),
+      holiday_id: f.text("holiday_id", { max: 100 }),
     }
 
-    return withTenant(tenantId, async (tx) => {
-      if (errorFields.length === 0) {
-        if (await holidays.clashes(tx, locationCode, date, id || undefined)) {
-          return fail(400, {
-            errorFields: ["date"],
-            message: "That office already observes a holiday on that date.",
-          })
-        }
-      } else {
-        return fail(400, {
-          errorFields,
-          message: "Some fields need attention.",
-        })
-      }
+    if (!f.ok) return fail(400, f.problem())
 
-      const input = {
-        location_code: locationCode,
-        name,
-        name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
-        date,
-        is_paid: formString(data, "is_paid") === "on",
-        is_mandatory: formString(data, "is_mandatory") === "on",
-        is_recurring: formString(data, "is_recurring") === "on",
-        holiday_id: formString(data, "holiday_id").trim() || null,
+    return withTenant(tenantId, async (tx) => {
+      if (await holidays.clashes(tx, locationCode, date, id || undefined)) {
+        return fail(400, {
+          errorFields: ["date"],
+          message: "That office already observes a holiday on that date.",
+        })
       }
 
       if (id) await holidays.update(tx, id, input)
@@ -81,8 +69,9 @@ export const actions: Actions = {
 
   remove: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing holiday." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing holiday."))
     await withTenant(locals.tenantId, (tx) => holidays.remove(tx, id))
     return { removed: true }
   },

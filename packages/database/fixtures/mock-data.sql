@@ -133,9 +133,9 @@ WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 
 -- Job levels with multi-currency salary ranges
 INSERT INTO firm_job_levels (id, tenant_id, job_title_id, level_name, level_name_i18n, salary_ranges, sort_order) VALUES
-    ('7eb579fc-befd-5ef6-9ad2-d94544a3bf93', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5a252af5-2ac9-5bfe-aaa9-743f4260a4bb', 'L3', '{"en-US": "L3"}'::jsonb, '{"USD": {"min": 95000, "max": 130000}, "INR": {"min": 1800000, "max": 2600000}}'::jsonb, 1),
-    ('82c7ef42-42a7-530c-81e7-3ca0a96d4a2f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5a252af5-2ac9-5bfe-aaa9-743f4260a4bb', 'L4', '{"en-US": "L4"}'::jsonb, '{"USD": {"min": 125000, "max": 165000}, "INR": {"min": 2500000, "max": 3400000}}'::jsonb, 2),
-    ('d61e889e-7e4e-5f63-a058-bc50b3a11a7c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '002ca495-22e8-58ba-b7ef-cf5cd13e9a56', 'C2', '{"en-US": "C2"}'::jsonb, '{"USD": {"min": 110000, "max": 150000}, "GBP": {"min": 75000, "max": 100000}}'::jsonb, 1);
+    ('7eb579fc-befd-5ef6-9ad2-d94544a3bf93', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5a252af5-2ac9-5bfe-aaa9-743f4260a4bb', 'L3', '{"en-US": "L3"}'::jsonb, '{"USD": {"min": "95000", "max": "130000"}, "INR": {"min": "1800000", "max": "2600000"}}'::jsonb, 1),
+    ('82c7ef42-42a7-530c-81e7-3ca0a96d4a2f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5a252af5-2ac9-5bfe-aaa9-743f4260a4bb', 'L4', '{"en-US": "L4"}'::jsonb, '{"USD": {"min": "125000", "max": "165000"}, "INR": {"min": "2500000", "max": "3400000"}}'::jsonb, 2),
+    ('d61e889e-7e4e-5f63-a058-bc50b3a11a7c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '002ca495-22e8-58ba-b7ef-cf5cd13e9a56', 'C2', '{"en-US": "C2"}'::jsonb, '{"USD": {"min": "110000", "max": "150000"}, "GBP": {"min": "75000", "max": "100000"}}'::jsonb, 1);
 
 -- 12 employees across 3 locations, 6 departments, with a manager hierarchy
 INSERT INTO employees (id, tenant_id, employee_id, employee_number, first_name, last_name, email, phone, employment_status, employment_type, start_date, birth_date, department_code, job_title, job_level, location_code, manager_id, timezone, currency, base_amount, compensation_type, pay_frequency, overtime_eligible, default_billable_rate, fte, is_active, custom_fields, celebration_preferences, pto_balances, created_at, updated_at, created_by) VALUES

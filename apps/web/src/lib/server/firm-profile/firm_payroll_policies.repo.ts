@@ -10,11 +10,16 @@ import type { Tx } from "../db/tenant"
  * countries.
  */
 
+/**
+ * Strings, not numbers. These are rates and quantities — CLAUDE.md's
+ * `numeric(18,4)` family — and a JSON number round-trips through a float64 on
+ * the way back out of JSONB. Nothing here is arithmetic in JavaScript.
+ */
 export type OvertimeRules = {
-  daily_threshold_hours?: number
-  weekly_threshold_hours?: number
-  multiplier?: number
-  double_time_after_hours?: number
+  daily_threshold_hours?: string
+  weekly_threshold_hours?: string
+  multiplier?: string
+  double_time_after_hours?: string
 }
 
 export type PayrollPolicy = {

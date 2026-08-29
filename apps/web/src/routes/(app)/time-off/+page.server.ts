@@ -6,7 +6,7 @@ import * as balances from "$lib/server/hr/hr_time_off_balances.repo"
 import * as policies from "$lib/server/hr/hr_time_off_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader } from "$lib/server/forms"
 
 /**
  * /time-off — module-hr.md.
@@ -47,15 +47,15 @@ export const actions: Actions = {
     const userId = locals.user?.id
     if (!userId) error(403, "No user")
 
-    const data = await request.formData()
-    const id = formString(data, "id")
-    const decision = formString(data, "decision")
-    const denialReason = formString(data, "denial_reason").trim() || null
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    const decision = f.choice("decision", ["approved", "denied"] as const, {
+      required: true,
+    })
+    // Shown to the requester, so it is bounded like any other stored text.
+    const denialReason = f.text("denial_reason", { max: 1000 })
 
-    if (!id) return fail(400, { message: "Missing request." })
-    if (decision !== "approved" && decision !== "denied") {
-      return fail(400, { message: "Unknown decision." })
-    }
+    if (!f.ok) return fail(400, f.problem("Missing request."))
 
     try {
       await withTenant(tenantId, async (tx) => {
@@ -65,7 +65,13 @@ export const actions: Actions = {
           SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
         `
         if (!me?.employee_id) throw new DecisionRefused("self_approval")
-        await requests.decide(tx, id, decision, me.employee_id, denialReason)
+        await requests.decide(
+          tx,
+          id,
+          decision as requests.Decision,
+          me.employee_id,
+          denialReason,
+        )
       })
     } catch (e) {
       if (e instanceof DecisionRefused) {

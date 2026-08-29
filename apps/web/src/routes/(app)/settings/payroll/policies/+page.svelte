@@ -233,8 +233,6 @@
               >
               <input
                 name="daily_threshold_hours"
-                type="number"
-                step="0.5"
                 inputmode="decimal"
                 class="input w-full tabular-nums"
                 value={current?.overtime_rules?.daily_threshold_hours ?? ""}
@@ -247,8 +245,6 @@
               >
               <input
                 name="weekly_threshold_hours"
-                type="number"
-                step="0.5"
                 inputmode="decimal"
                 class="input w-full tabular-nums"
                 value={current?.overtime_rules?.weekly_threshold_hours ?? ""}
@@ -259,8 +255,6 @@
               <span class="label text-base-content/70 text-xs">Multiplier</span>
               <input
                 name="multiplier"
-                type="number"
-                step="0.1"
                 inputmode="decimal"
                 class="input w-full tabular-nums"
                 value={current?.overtime_rules?.multiplier ?? ""}
@@ -273,8 +267,6 @@
               >
               <input
                 name="double_time_after_hours"
-                type="number"
-                step="0.5"
                 inputmode="decimal"
                 class="input w-full tabular-nums"
                 value={current?.overtime_rules?.double_time_after_hours ?? ""}

@@ -225,25 +225,52 @@ Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
 
-**Validate every form field in the action, not just the ones the browser
-guards.** `required`, `maxlength` and `type` are UX; they vanish on a crafted
-POST. Every field an action writes needs a server-side check for **presence,
-shape and length** — `varchar(n)`, `uuid` and Postgres enums are the last line
-of defence and their failure mode is a 500, not a field error
-([L34](docs/10-lessons-learned.md)). Enum membership comes from `@kaaj/enums`,
-country-specific formats from `@kaaj/validation`, never a regex at the call
-site.
-
-**An optional-field parser has three outcomes, not two.** Blank, valid, and
-*rejected*. Collapsing invalid into the same return value as blank deletes the
-field and reports success — an overtime multiplier vanished this way and
-overtime silently computed at 1x ([L33](docs/10-lessons-learned.md)).
-
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern
 silently absorbs future violations, which is how a suite quietly stops testing
 anything.
+
+---
+
+## Forms
+
+**Every field an action writes goes through `FormReader`
+(`$lib/server/forms.ts`). No exceptions, and no `formString` for a value that
+reaches a column.** `required`, `maxlength` and `type` are browser UX and vanish
+on a crafted POST; `varchar(n)`, `uuid` and Postgres enums are the *last* line
+of defence and their failure mode is an unhandled 500, not a field error
+([L34](docs/10-lessons-learned.md)).
+
+| Column | Reader | What it stops |
+|---|---|---|
+| `varchar(n)`, `text` | `text(name, { max: n })` | `value too long` — a 500. `max` **must** match the column; count is in code points, as Postgres counts |
+| `uuid` | `uuid(name)` | `invalid input syntax for type uuid` from any hidden `id` |
+| a Postgres enum | `enumValue(name, "<type>")` | `invalid input value for enum`; values come from `@kaaj/enums`, which `./check` keeps in step |
+| a fixed set on `varchar` | `choice(name, ALLOWED)` | anything off-list reaching display code |
+| `date` | `date(name)` | `2026-13-45` — well-shaped, not real, and a 500 on the cast |
+| money and rates | `decimal(name, { scale })` | a float64 round trip, and a third decimal the column would round away in silence |
+| `int4` | `integer(name, { min, max })` | out-of-range — also a 500 |
+| a locale / zone / currency | `locale` / `timezone` / `currency` | `en_US` and friends: `RangeError` inside `Intl`, on every page that formats a figure for that office ([L24](docs/10-lessons-learned.md)) |
+
+Country-specific formats still come from `@kaaj/validation` — never a regex at
+the call site — and the result is length-checked before it is stored.
+
+**An optional field has three outcomes, not two.** Blank, valid, and
+*rejected*. Collapsing invalid into the same return as blank deletes the field
+and reports success: an overtime multiplier vanished exactly this way and
+overtime then computed at 1x ([L33](docs/10-lessons-learned.md)). `FormReader`
+is built around this; a hand-rolled `Number(x) || 0` is not.
+
+**A rule the reader cannot express calls `f.reject("field")`** — a cycle, a
+date clash, an inverted band — so every failure arrives through one path and
+the page can put the cursor on the field.
+
+`src/lib/server/forms.test.ts` is the regression guard. Every case in it
+returned a 500, or a silent `saved: true`, against the running app before the
+reader existed. Add to it when a new reader is added.
+
+---
 
 ## Money
 
@@ -272,8 +299,18 @@ wrong, and it is where money actually dies — not in the database.
 - Form fields use `inputmode="decimal"`, never `type="number"` — the latter
   round-trips through a float in the browser.
 
+**Money inside JSONB is a string too.** `salary_ranges`, `costs_by_currency`,
+`overtime_rules` — a JSON *number* is stored exactly by Postgres and then handed
+to JavaScript as a float64 on the way back out, so the loss happens on read
+where nothing looks wrong. Store `"95000"`, not `95000`. Ordering checks go
+through `compareDecimal` in `$lib/decimal.ts`, which compares without parsing;
+`./check` cannot see inside a JSONB column, so this rule is the only guard.
+
 **Arithmetic happens in SQL, not in JavaScript.** Summing invoice lines,
 computing gross pay, prorating: all `NUMERIC` in Postgres, where it is exact.
+This bit once: a component added `employee + employer` from a JSONB cost map,
+which was a float64 round trip — and became silent string *concatenation* the
+moment those fields were correctly typed as strings, with no type error.
 
 **Currency travels with the amount, always,** and is never converted for
 display (BR-FP-003). A figure is shown in its currency of record, formatted in

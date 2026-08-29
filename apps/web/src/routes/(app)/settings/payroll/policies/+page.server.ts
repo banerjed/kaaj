@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as policies from "$lib/server/firm-profile/firm_payroll_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader } from "$lib/server/forms"
 
 const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
 
@@ -18,63 +18,71 @@ export const load: PageServerLoad = async ({ locals }) => {
   }))
 }
 
-/** A blank numeric field means "not set", which is not the same as zero. */
-const optionalNumber = (raw: string): number | undefined => {
-  const trimmed = raw.trim()
-  if (trimmed === "") return undefined
-  const n = Number(trimmed)
-  return Number.isFinite(n) && n >= 0 ? n : undefined
-}
-
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
-    const data = await request.formData()
 
-    const id = formString(data, "id")
-    const rounding = formString(data, "time_rounding") || "none"
-    const startDay = Number(formString(data, "workweek_start_day"))
+    const f = new FormReader(await request.formData())
 
-    const errorFields: string[] = []
-    if (!ROUNDING.includes(rounding as (typeof ROUNDING)[number]))
-      errorFields.push("time_rounding")
-    if (!Number.isInteger(startDay) || startDay < 0 || startDay > 6)
-      errorFields.push("workweek_start_day")
+    const id = f.uuid("id")
+    const rounding = f.choice("time_rounding", ROUNDING, { fallback: "none" })
+    // The select always submits one; 0 (Sunday) only if a crafted POST omits it.
+    const startDay = f.integer("workweek_start_day", { min: 0, max: 6 }) ?? 0
 
-    // Overtime thresholds only make sense ordered: double time cannot begin
-    // before overtime does.
-    const daily = optionalNumber(formString(data, "daily_threshold_hours"))
-    const weekly = optionalNumber(formString(data, "weekly_threshold_hours"))
-    const multiplier = optionalNumber(formString(data, "multiplier"))
-    const doubleAfter = optionalNumber(
-      formString(data, "double_time_after_hours"),
-    )
-    if (daily !== undefined && doubleAfter !== undefined && doubleAfter < daily)
-      errorFields.push("double_time_after_hours")
+    // Hours and multipliers stay strings: they are the numeric(18,4) family,
+    // and a blank one means "not set", which is not the same as zero. Anything
+    // unparseable is REFUSED here — dropping it wrote a policy with no
+    // multiplier at all, answered 200, and left overtime computing at 1x (L33).
+    const daily = f.decimal("daily_threshold_hours", {
+      scale: 4,
+      min: 0,
+      max: 24,
+    })
+    const weekly = f.decimal("weekly_threshold_hours", {
+      scale: 4,
+      min: 0,
+      max: 168,
+    })
+    const multiplier = f.decimal("multiplier", { scale: 4, min: 0, max: 10 })
+    const doubleAfter = f.decimal("double_time_after_hours", {
+      scale: 4,
+      min: 0,
+      max: 24,
+    })
 
-    if (errorFields.length) {
-      return fail(400, {
-        errorFields,
-        message: errorFields.includes("double_time_after_hours")
-          ? "Double time cannot start before overtime does."
-          : "Some fields need attention.",
-      })
+    // Ordered, or double time begins before overtime does.
+    if (
+      daily !== null &&
+      doubleAfter !== null &&
+      Number(doubleAfter) < Number(daily)
+    ) {
+      f.reject("double_time_after_hours")
+    }
+
+    if (!f.ok) {
+      return fail(
+        400,
+        f.problem(
+          f.errorFields.includes("double_time_after_hours")
+            ? "Double time cannot start before overtime does."
+            : "Some fields need attention.",
+        ),
+      )
     }
 
     const overtime: policies.OvertimeRules = {}
-    if (daily !== undefined) overtime.daily_threshold_hours = daily
-    if (weekly !== undefined) overtime.weekly_threshold_hours = weekly
-    if (multiplier !== undefined) overtime.multiplier = multiplier
-    if (doubleAfter !== undefined)
-      overtime.double_time_after_hours = doubleAfter
+    if (daily !== null) overtime.daily_threshold_hours = daily
+    if (weekly !== null) overtime.weekly_threshold_hours = weekly
+    if (multiplier !== null) overtime.multiplier = multiplier
+    if (doubleAfter !== null) overtime.double_time_after_hours = doubleAfter
 
     const input = {
-      location_code: formString(data, "location_code") || null,
+      location_code: f.text("location_code", { max: 100 }),
       overtime_rules: overtime,
       time_rounding: rounding,
       workweek_start_day: startDay,
-      require_time_tracking: formString(data, "require_time_tracking") === "on",
+      require_time_tracking: f.bool("require_time_tracking"),
     }
 
     await withTenant(tenantId, async (tx) => {
@@ -86,8 +94,9 @@ export const actions: Actions = {
 
   remove: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing policy." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing policy."))
     await withTenant(locals.tenantId, (tx) => policies.remove(tx, id))
     return { removed: true }
   },

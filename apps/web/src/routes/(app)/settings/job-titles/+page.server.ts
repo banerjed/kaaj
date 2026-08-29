@@ -5,7 +5,7 @@ import * as levels from "$lib/server/firm-profile/firm_job_levels.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import type { SalaryRanges } from "$lib/server/firm-profile/firm_job_levels.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader, formList } from "$lib/server/forms"
 import { allEnumerations } from "@kaaj/enums"
 
 /** /settings/job-titles — module-firm-profile.md § Job Titles Page. */
@@ -29,71 +29,58 @@ export const load: PageServerLoad = async ({ locals }) => {
   return { jobTitles, jobLevels, locations, eeocCategories: eeoc }
 }
 
-const nullIfBlank = (v: string) => (v.trim() === "" ? null : v.trim())
-
 /**
  * Salary bands arrive as `range.<CUR>.min` / `.max` pairs. A currency with both
  * fields blank is omitted rather than stored as zeros — "no band for this
  * market" and "a band of nothing" are different statements.
  */
-function readRanges(data: FormData): {
-  ranges: SalaryRanges
-  malformed: string[]
-} {
+/**
+ * Salary bands, as strings. `Number("")` is 0, so the old reader turned a band
+ * with a blank maximum into "max 0" rather than refusing it, and every value
+ * went through a float64 on the way to a numeric column (CLAUDE.md § Money).
+ */
+function readRanges(data: FormData, f: FormReader): SalaryRanges {
   const ranges: SalaryRanges = {}
-  const malformed: string[] = []
 
   for (const key of new Set(
     [...data.keys()]
       .filter((k) => k.startsWith("range."))
       .map((k) => k.split(".")[1]),
   )) {
-    const rawMin = formString(data, `range.${key}.min`).trim()
-    const rawMax = formString(data, `range.${key}.max`).trim()
-    if (rawMin === "" && rawMax === "") continue
-
-    const min = Number(rawMin)
-    const max = Number(rawMax)
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      malformed.push(key)
-      continue
-    }
-    ranges[key] = { min, max }
+    const opts = { scale: 2, min: 0 }
+    const min = f.decimal(`range.${key}.min`, opts)
+    const max = f.decimal(`range.${key}.max`, opts)
+    if (min === null && max === null) continue
+    // Half a band is not a band. Naming the missing side puts the cursor there.
+    if (min === null) f.reject(`range.${key}.min`)
+    else if (max === null) f.reject(`range.${key}.max`)
+    else ranges[key] = { min, max }
   }
-  return { ranges, malformed }
+  return ranges
 }
 
 export const actions: Actions = {
   saveTitle: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
+
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const id = formString(data, "id")
-    const title = formString(data, "title").trim()
-    const errorFields: string[] = []
-    if (title === "") errorFields.push("title")
-
-    const supported = data
-      .getAll("supported_locales")
-      .filter((v): v is string => typeof v === "string")
-    const titleI18n: Record<string, string> = {}
-    for (const l of supported) {
-      const v = formString(data, `title_i18n.${l}`).trim()
-      if (v !== "") titleI18n[l] = v
-    }
-
-    if (errorFields.length) {
-      return fail(400, { errorFields, message: "Some fields need attention." })
-    }
-
+    const id = f.uuid("id")
     const input = {
-      title,
-      title_i18n: Object.keys(titleI18n).length ? titleI18n : null,
-      description: nullIfBlank(formString(data, "description")),
-      is_exempt: formString(data, "is_exempt") === "on",
-      eeoc_category: nullIfBlank(formString(data, "eeoc_category")),
+      title: f.text("title", { required: true, max: 255 }),
+      title_i18n: f.i18n(
+        "title_i18n",
+        formList(data, "supported_locales"),
+        255,
+      ),
+      description: f.text("description", { max: 5000 }),
+      is_exempt: f.bool("is_exempt"),
+      eeoc_category: f.enumValue("eeoc_category", "eeoc_category"),
     }
+
+    if (!f.ok) return fail(400, f.problem())
 
     await withTenant(tenantId, async (tx) => {
       if (id) await titles.update(tx, id, input)
@@ -104,8 +91,9 @@ export const actions: Actions = {
 
   archiveTitle: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing job title." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing job title."))
     await withTenant(locals.tenantId, (tx) => titles.archive(tx, id))
     return { archived: true }
   },
@@ -113,35 +101,32 @@ export const actions: Actions = {
   saveLevel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
+
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const id = formString(data, "id")
-    const jobTitleId = formString(data, "job_title_id")
-    const levelName = formString(data, "level_name").trim()
-
-    const errorFields: string[] = []
-    if (levelName === "") errorFields.push("level_name")
-    if (!jobTitleId) errorFields.push("job_title_id")
-
-    const { ranges, malformed } = readRanges(data)
-    const invalid = [...malformed, ...levels.invalidCurrencies(ranges)]
-    for (const c of invalid) errorFields.push(`range.${c}`)
-
-    if (errorFields.length) {
-      return fail(400, {
-        errorFields,
-        message: invalid.length
-          ? `Check the ${invalid.join(", ")} band — the maximum must be at least the minimum.`
-          : "Some fields need attention.",
-      })
+    const id = f.uuid("id")
+    const input = {
+      job_title_id: f.uuid("job_title_id", { required: true }),
+      level_name: f.text("level_name", { required: true, max: 100 }),
+      level_name_i18n: null,
+      salary_ranges: readRanges(data, f),
+      // int4, so a crafted 99999999999 is an out-of-range 500 without a cap.
+      sort_order: f.integer("sort_order", { min: 0, max: 32767 }) ?? 0,
     }
 
-    const input = {
-      job_title_id: jobTitleId,
-      level_name: levelName,
-      level_name_i18n: null,
-      salary_ranges: ranges,
-      sort_order: Number(formString(data, "sort_order")) || 0,
+    const inverted = levels.invalidCurrencies(input.salary_ranges)
+    for (const c of inverted) f.reject(`range.${c}.max`)
+
+    if (!f.ok) {
+      return fail(
+        400,
+        f.problem(
+          inverted.length
+            ? `Check the ${inverted.join(", ")} band — the maximum must be at least the minimum.`
+            : "Some fields need attention.",
+        ),
+      )
     }
 
     await withTenant(tenantId, async (tx) => {
@@ -153,8 +138,9 @@ export const actions: Actions = {
 
   removeLevel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing level." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing level."))
     await withTenant(locals.tenantId, (tx) => levels.remove(tx, id))
     return { removed: true }
   },

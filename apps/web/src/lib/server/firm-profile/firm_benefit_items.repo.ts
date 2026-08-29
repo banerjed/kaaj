@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { isNegative } from "$lib/decimal"
 
 /**
  * firm_benefit_items — what is actually in a package.
@@ -12,7 +13,11 @@ import type { Tx } from "../db/tenant"
  *     "INR": { "employee": 2500, "employer": 9000 } }
  */
 
-export type BenefitCost = { employee: number; employer: number }
+/**
+ * Strings. These are money, and JSONB hands a JSON number back to JavaScript as
+ * a float64 — see CLAUDE.md § Money.
+ */
+export type BenefitCost = { employee: string; employer: string }
 export type CostsByCurrency = Record<string, BenefitCost>
 
 export type BenefitItem = {
@@ -24,13 +29,31 @@ export type BenefitItem = {
   carrier_name: string | null
   carrier_varies_by_location: boolean | null
   costs_by_currency: CostsByCurrency | null
+  /** employee + employer per currency, summed in SQL. See the note below. */
+  total_by_currency: Record<string, string> | null
 }
 
 export async function list(tx: Tx): Promise<BenefitItem[]> {
   return tx<BenefitItem[]>`
     SELECT id, benefits_package_id, benefit_type, benefit_name,
            benefit_name_i18n, carrier_name, carrier_varies_by_location,
-           costs_by_currency
+           costs_by_currency,
+           -- The true cost of a benefit is employer + employee. Added here, as
+           -- NUMERIC, because that is where addition is exact: the component
+           -- adding two JSON numbers was arithmetic on money in JavaScript.
+           (
+             SELECT jsonb_object_agg(
+                      cur,
+                      to_jsonb(
+                        (
+                          coalesce((c ->> 'employee')::numeric, 0) +
+                          coalesce((c ->> 'employer')::numeric, 0)
+                        )::text
+                      )
+                    )
+               FROM jsonb_each(coalesce(costs_by_currency, '{}'::jsonb))
+                 AS each_cost(cur, c)
+           ) AS total_by_currency
       FROM firm_benefit_items
      ORDER BY benefit_type ASC, benefit_name ASC
   `
@@ -97,12 +120,6 @@ export async function remove(tx: Tx, id: string): Promise<void> {
  */
 export function invalidCosts(costs: CostsByCurrency): string[] {
   return Object.entries(costs)
-    .filter(
-      ([, c]) =>
-        !Number.isFinite(c.employee) ||
-        !Number.isFinite(c.employer) ||
-        c.employee < 0 ||
-        c.employer < 0,
-    )
+    .filter(([, c]) => isNegative(c.employee) || isNegative(c.employer))
     .map(([currency]) => currency)
 }

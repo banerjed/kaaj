@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { compareDecimal, isNegative } from "$lib/decimal"
 
 /**
  * firm_job_levels — the bands within a job title.
@@ -14,7 +15,12 @@ import type { Tx } from "../db/tenant"
  * every time the rate moved.
  */
 
-export type SalaryRange = { min: number; max: number }
+/**
+ * Strings. A band is money, and JSONB hands a JSON number back to JavaScript as
+ * a float64 — see CLAUDE.md § Money. Postgres itself stores jsonb numbers as
+ * `numeric` and would keep them exact; the loss is on the way out.
+ */
+export type SalaryRange = { min: string; max: string }
 export type SalaryRanges = Record<string, SalaryRange>
 
 export type FirmJobLevel = {
@@ -94,10 +100,9 @@ export function invalidCurrencies(ranges: SalaryRanges): string[] {
   return Object.entries(ranges)
     .filter(
       ([, r]) =>
-        !Number.isFinite(r.min) ||
-        !Number.isFinite(r.max) ||
-        r.min < 0 ||
-        r.max < r.min,
+        isNegative(r.min) ||
+        isNegative(r.max) ||
+        compareDecimal(r.max, r.min) < 0,
     )
     .map(([currency]) => currency)
 }

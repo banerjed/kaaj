@@ -190,3 +190,16 @@ describe("number", () => {
     expect(number(1234567.89, "en-IN")).toBe("12,34,567.89")
   })
 })
+
+describe("a stored locale Intl rejects", () => {
+  it("degrades instead of throwing, in every formatter", () => {
+    // firm_locations.locale is written by a form. Before it was validated,
+    // `en_US` — the POSIX spelling — could land there, and RangeError from
+    // Intl would take down every page formatting a figure for that office.
+    expect(() => number("1234.5", "en_US")).not.toThrow()
+    expect(() => calendarDate("2026-03-07", "en_US")).not.toThrow()
+    expect(() => money("1234.50", "USD", "en_US")).not.toThrow()
+    expect(number("1234.5", "en_US")).toBe("1234.5")
+    expect(calendarDate("2026-03-07", "en_US")).toBe("2026-03-07")
+  })
+})

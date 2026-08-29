@@ -1,4 +1,4 @@
-import { formString } from "$lib/server/forms"
+import { FormReader, formString } from "$lib/server/forms"
 import {
   sanitizeEmail,
   sanitizeName,
@@ -46,6 +46,12 @@ export type ParsedEmployeeForm =
 
 export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
   const errorFields: string[] = []
+  const f = new FormReader(data)
+
+  // These columns are `text`, so Postgres will not stop a pasted megabyte.
+  // The caps are generous; the point is that there is one (L34).
+  const shortText = { max: 100 } as const
+  const managerId = f.uuid("manager_id")
 
   // Names go through @kaaj/validation rather than a trim: it handles the
   // apostrophes, hyphens and non-Latin scripts that a naive check rejects.
@@ -125,6 +131,8 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
     errorFields.push("birth_date")
   }
 
+  errorFields.push(...f.errorFields)
+
   if (errorFields.length > 0) {
     const unique = [...new Set(errorFields)]
     return {
@@ -142,8 +150,8 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
     input: {
       first_name: firstResult.value,
       last_name: lastResult.value,
-      middle_name: nullIfBlank(formString(data, "middle_name")),
-      preferred_name: nullIfBlank(formString(data, "preferred_name")),
+      middle_name: f.text("middle_name", shortText),
+      preferred_name: f.text("preferred_name", shortText),
       email: emailResult.value,
       phone,
       employee_id: employeeId,
@@ -155,14 +163,16 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
       employment_type: type,
       start_date: startDate,
       end_date: endDate,
-      department_code: nullIfBlank(formString(data, "department_code")),
-      job_title: nullIfBlank(formString(data, "job_title")),
-      job_level: nullIfBlank(formString(data, "job_level")),
-      location_code: nullIfBlank(formString(data, "location_code")),
-      timezone: nullIfBlank(formString(data, "timezone")),
-      manager_id: nullIfBlank(formString(data, "manager_id")),
+      department_code: f.text("department_code", shortText),
+      job_title: f.text("job_title", { max: 255 }),
+      job_level: f.text("job_level", shortText),
+      location_code: f.text("location_code", shortText),
+      timezone: f.timezone("timezone"),
+      // uuid: an arbitrary string here was `invalid input syntax for type
+      // uuid`, i.e. an unhandled 500 rather than a field error.
+      manager_id: managerId,
       pay_frequency: payFrequency,
-      introduction: nullIfBlank(formString(data, "introduction")),
+      introduction: f.text("introduction", { max: 5000 }),
     },
   }
 }

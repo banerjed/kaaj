@@ -2,8 +2,12 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
-import { validateRegional } from "$lib/firm-profile/regional"
+import { FormReader, formString, formList } from "$lib/server/forms"
+import {
+  validateRegional,
+  DATE_FORMATS,
+  TIME_FORMATS,
+} from "$lib/firm-profile/regional"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 
 /**
@@ -22,23 +26,14 @@ export const load: PageServerLoad = async ({ locals }) => {
   return { company: tenant }
 }
 
-/** Multi-selects post one entry per checked value. */
-const formList = (data: FormData, name: string) =>
-  data.getAll(name).filter((v): v is string => typeof v === "string")
-
-/** "" is how an HTML form says "empty"; the column wants NULL. */
-const nullIfBlank = (value: string) => {
-  const trimmed = value.trim()
-  return trimmed === "" ? null : trimmed
-}
-
 export const actions: Actions = {
   update: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
 
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const companyName = formString(data, "company_name").trim()
+    const companyName = f.text("company_name", { required: true, max: 255 })
     const defaultLocale = formString(data, "default_locale")
     const supportedLocales = formList(data, "supported_locales")
     const defaultCurrency = formString(data, "default_currency")
@@ -60,7 +55,15 @@ export const actions: Actions = {
       existing_locales: existing?.supported_locales ?? null,
     })
 
-    if (companyName === "") errorFields.push("company_name")
+    // Both drive display formatting for the whole tenant, and both were
+    // written straight through from the form (L34).
+    const dateFormat = f.choice("date_format", DATE_FORMATS, {
+      fallback: "MM/DD/YYYY",
+    })
+    const timeFormat = f.choice("time_format", TIME_FORMATS, {
+      fallback: "12h",
+    })
+    errorFields.push(...f.errorFields)
 
     // Country-specific formats come from @kaaj/validation, never a regex here:
     // maintaining these rules twice is how a wrong tax identifier reaches a
@@ -101,19 +104,17 @@ export const actions: Actions = {
       tenants.update(tx, {
         company_name: companyName,
         company_name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
-        legal_entity_name: nullIfBlank(formString(data, "legal_entity_name")),
-        industry: nullIfBlank(formString(data, "industry")),
-        company_size: nullIfBlank(formString(data, "company_size")),
+        legal_entity_name: f.text("legal_entity_name", { max: 255 }),
+        industry: f.text("industry", { max: 100 }),
+        company_size: f.text("company_size", { max: 50 }),
         default_locale: defaultLocale,
         supported_locales: supportedLocales,
         default_currency: defaultCurrency,
         supported_currencies: supportedCurrencies,
         default_timezone: defaultTimezone,
-        date_format: formString(data, "date_format"),
-        time_format: formString(data, "time_format"),
-        primary_contact_name: nullIfBlank(
-          formString(data, "primary_contact_name"),
-        ),
+        date_format: dateFormat,
+        time_format: timeFormat,
+        primary_contact_name: f.text("primary_contact_name", { max: 255 }),
         primary_contact_email: contactEmail,
         primary_contact_phone: contactPhone,
       }),

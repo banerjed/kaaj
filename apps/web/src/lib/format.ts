@@ -116,9 +116,17 @@ export function number(value: number | string | null, locale: string): string {
   if (value === null || value === "") return "—"
   const n = typeof value === "string" ? Number(value) : value
   if (!Number.isFinite(n)) return "—"
-  return cached(`n:${locale}`, () => new Intl.NumberFormat(locale)).format(
-    n,
-  ) as string
+  try {
+    return cached(`n:${locale}`, () => new Intl.NumberFormat(locale)).format(
+      n,
+    ) as string
+  } catch {
+    // A stored locale Intl rejects — `en_US`, the POSIX spelling — is a
+    // RangeError, and one bad row would take down every page that formats a
+    // figure for that office. The form refuses these now; rows written before
+    // it did are still out there.
+    return String(n)
+  }
 }
 
 /**
@@ -137,11 +145,17 @@ export function calendarDate(
   if (!value) return "—"
   const date = value instanceof Date ? value : new Date(`${value}T00:00:00Z`)
   if (Number.isNaN(date.getTime())) return "—"
-  return cached(
-    `d:${locale}:${style}`,
-    () =>
-      new Intl.DateTimeFormat(locale, { dateStyle: style, timeZone: "UTC" }),
-  ).format(date) as string
+  try {
+    return cached(
+      `d:${locale}:${style}`,
+      () =>
+        new Intl.DateTimeFormat(locale, { dateStyle: style, timeZone: "UTC" }),
+    ).format(date) as string
+  } catch {
+    // Same guard as `number()`: ISO is wrong-looking but readable, and far
+    // better than a 500 on the whole page.
+    return date.toISOString().slice(0, 10)
+  }
 }
 
 /** An instant, shown in a specific zone — timestamps, "current time here". */

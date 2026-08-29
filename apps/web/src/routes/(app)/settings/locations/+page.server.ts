@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as locations from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader, formList, formString } from "$lib/server/forms"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 
 /**
@@ -17,90 +17,72 @@ export const load: PageServerLoad = async ({ locals }) => {
   return { locations: rows }
 }
 
-const nullIfBlank = (v: string) => (v.trim() === "" ? null : v.trim())
-
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
-    const data = await request.formData()
 
-    const id = formString(data, "id")
-    const name = formString(data, "name").trim()
+    const data = await request.formData()
+    const f = new FormReader(data)
+
+    const id = f.uuid("id")
     // Uppercased: UNIQUE (tenant_id, location_code), and "uk-lon" and "UK-LON"
     // would otherwise be two offices that read as one.
-    const code = formString(data, "location_code").trim().toUpperCase()
-    const country = formString(data, "country").trim().toUpperCase()
-    const timezone = formString(data, "timezone")
-
-    const errorFields: string[] = []
-    if (name === "") errorFields.push("name")
-    if (!/^[A-Z0-9-]{2,50}$/.test(code)) errorFields.push("location_code")
-    if (!/^[A-Z]{2}$/.test(country)) errorFields.push("country")
-
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: timezone })
-    } catch {
-      errorFields.push("timezone")
-    }
+    const code = f.text("location_code", {
+      required: true,
+      max: 50,
+      upper: true,
+      pattern: /^[A-Z0-9-]{2,50}$/,
+    })
 
     // Country-specific formats come from @kaaj/validation, never a regex here.
-    const rawEmail = formString(data, "email").trim()
     let email: string | null = null
+    const rawEmail = formString(data, "email").trim()
     if (rawEmail !== "") {
       const r = sanitizeEmail(rawEmail)
-      if (r.valid) email = r.value
-      else errorFields.push("email")
+      if (r.valid && r.value.length <= 255) email = r.value
+      else f.reject("email")
     }
 
-    const rawPhone = formString(data, "phone").trim()
     let phone: string | null = null
+    const rawPhone = formString(data, "phone").trim()
     if (rawPhone !== "") {
       const r = sanitizePhoneNumber(rawPhone)
-      if (r.valid) phone = r.value
-      else errorFields.push("phone")
+      // varchar(20): a valid international number with an extension can exceed
+      // it, and the column would answer with a 500 rather than a field error.
+      if (r.valid && r.value.length <= 20) phone = r.value
+      else f.reject("phone")
     }
 
-    const rawCapacity = formString(data, "capacity").trim()
-    let capacity: number | null = null
-    if (rawCapacity !== "") {
-      const n = Number(rawCapacity)
-      if (Number.isInteger(n) && n >= 0) capacity = n
-      else errorFields.push("capacity")
-    }
-
-    const supported = data
-      .getAll("supported_locales")
-      .filter((v): v is string => typeof v === "string")
-    const nameI18n: Record<string, string> = {}
-    for (const l of supported) {
-      const v = formString(data, `name_i18n.${l}`).trim()
-      if (v !== "") nameI18n[l] = v
-    }
-
-    if (errorFields.length) {
-      return fail(400, { errorFields, message: "Some fields need attention." })
-    }
-
-    const isHq = formString(data, "is_headquarters") === "on"
+    const isHq = f.bool("is_headquarters")
     const input = {
-      name,
-      name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
+      name: f.text("name", { required: true, max: 255 }),
+      name_i18n: f.i18n("name_i18n", formList(data, "supported_locales"), 255),
       location_code: code,
-      address_line1: nullIfBlank(formString(data, "address_line1")),
-      address_line2: nullIfBlank(formString(data, "address_line2")),
-      city: nullIfBlank(formString(data, "city")),
-      state: nullIfBlank(formString(data, "state")),
-      postal_code: nullIfBlank(formString(data, "postal_code")),
-      country,
-      timezone,
-      locale: nullIfBlank(formString(data, "locale")),
-      currency: nullIfBlank(formString(data, "currency")),
+      address_line1: f.text("address_line1", { max: 255 }),
+      address_line2: f.text("address_line2", { max: 255 }),
+      city: f.text("city", { max: 100 }),
+      state: f.text("state", { max: 100 }),
+      postal_code: f.text("postal_code", { max: 20 }),
+      country: f.text("country", {
+        required: true,
+        max: 2,
+        upper: true,
+        pattern: /^[A-Z]{2}$/,
+      }),
+      timezone: f.timezone("timezone", { required: true }),
+      // Validated, not merely trimmed. This column is the locale every figure
+      // for this office is formatted in (L24), and `en_US` — the POSIX
+      // spelling — is a RangeError inside Intl, on every page that shows one.
+      locale: f.locale("locale"),
+      currency: f.currency("currency"),
       phone,
       email,
       is_headquarters: isHq,
-      capacity,
+      capacity: f.integer("capacity", { min: 0, max: 2147483647 }),
     }
+
+    if (!f.ok) return fail(400, f.problem())
 
     await withTenant(tenantId, async (tx) => {
       // Demote BEFORE writing. A partial unique index enforces one HQ per
@@ -118,9 +100,10 @@ export const actions: Actions = {
   archive: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const data = await request.formData()
-    const id = formString(data, "id")
-    const code = formString(data, "location_code")
-    if (!id) return fail(400, { message: "Missing location." })
+    const f = new FormReader(data)
+    const id = f.uuid("id", { required: true })
+    const code = f.text("location_code", { required: true, max: 50 })
+    if (!f.ok) return fail(400, f.problem("Missing location."))
 
     return withTenant(locals.tenantId, async (tx) => {
       // Refuse rather than orphan: employees and holidays point at this office

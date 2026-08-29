@@ -31,11 +31,14 @@
     packageId: string
   } | null>(null)
 
-  /** Employer + employee, so the true cost of a benefit is visible. */
-  const totalCost = (item: BenefitItem, currency: string) => {
-    const c = item.costs_by_currency?.[currency]
-    return c ? c.employee + c.employer : null
-  }
+  /**
+   * Employer + employee, so the true cost of a benefit is visible. Summed in
+   * SQL, not here: these are money, they arrive as strings, and adding them in
+   * JavaScript was both a float64 round trip and — once they became strings —
+   * string concatenation that TypeScript would not have caught.
+   */
+  const totalCost = (item: BenefitItem, currency: string) =>
+    item.total_by_currency?.[currency] ?? null
 </script>
 
 <svelte:head>

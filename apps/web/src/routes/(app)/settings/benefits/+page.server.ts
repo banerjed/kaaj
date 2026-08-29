@@ -5,7 +5,7 @@ import * as items from "$lib/server/firm-profile/firm_benefit_items.repo"
 import type { CostsByCurrency } from "$lib/server/firm-profile/firm_benefit_items.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { formString } from "$lib/server/forms"
+import { FormReader, formList } from "$lib/server/forms"
 
 /** The benefit kinds the product understands. */
 const BENEFIT_TYPES = [
@@ -32,68 +32,57 @@ export const load: PageServerLoad = async ({ locals }) => {
   }))
 }
 
-const nullIfBlank = (v: string) => (v.trim() === "" ? null : v.trim())
-
 /**
  * Costs arrive as `cost.<CUR>.employee` / `.employer`. A currency with both
  * blank is omitted rather than stored as zeros — "not offered in that market"
  * and "free in that market" are different statements.
  */
-function readCosts(data: FormData): {
-  costs: CostsByCurrency
-  malformed: string[]
-} {
+/**
+ * Benefit costs, as strings (CLAUDE.md § Money). A blank side reads as zero —
+ * "the employer pays none of it" is a real answer here, unlike a blank salary
+ * band — but anything unparseable is refused rather than silently becoming 0.
+ */
+function readCosts(data: FormData, f: FormReader): CostsByCurrency {
   const costs: CostsByCurrency = {}
-  const malformed: string[] = []
 
   for (const cur of new Set(
     [...data.keys()]
       .filter((k) => k.startsWith("cost."))
       .map((k) => k.split(".")[1]),
   )) {
-    const rawEmployee = formString(data, `cost.${cur}.employee`).trim()
-    const rawEmployer = formString(data, `cost.${cur}.employer`).trim()
-    if (rawEmployee === "" && rawEmployer === "") continue
-
-    const employee = Number(rawEmployee || 0)
-    const employer = Number(rawEmployer || 0)
-    if (!Number.isFinite(employee) || !Number.isFinite(employer)) {
-      malformed.push(cur)
-      continue
-    }
-    costs[cur] = { employee, employer }
+    const opts = { scale: 2, min: 0 }
+    const employee = f.decimal(`cost.${cur}.employee`, opts)
+    const employer = f.decimal(`cost.${cur}.employer`, opts)
+    if (employee === null && employer === null) continue
+    costs[cur] = { employee: employee ?? "0", employer: employer ?? "0" }
   }
-  return { costs, malformed }
+  return costs
 }
 
 export const actions: Actions = {
   savePackage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
+
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const id = formString(data, "id")
-    const name = formString(data, "name").trim()
-    if (name === "") {
-      return fail(400, {
-        errorFields: ["name"],
-        message: "A package needs a name.",
-      })
-    }
-
-    const supported = data
-      .getAll("supported_locales")
-      .filter((v): v is string => typeof v === "string")
-    const nameI18n: Record<string, string> = {}
-    for (const l of supported) {
-      const v = formString(data, `name_i18n.${l}`).trim()
-      if (v !== "") nameI18n[l] = v
-    }
-
+    const id = f.uuid("id")
     const input = {
-      name,
-      name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
-      description: nullIfBlank(formString(data, "description")),
+      name: f.text("name", { required: true, max: 255 }),
+      name_i18n: f.i18n("name_i18n", formList(data, "supported_locales"), 255),
+      description: f.text("description", { max: 5000 }),
+    }
+
+    if (!f.ok) {
+      return fail(
+        400,
+        f.problem(
+          f.errorFields.includes("name")
+            ? "A package needs a name."
+            : "Some fields need attention.",
+        ),
+      )
     }
 
     await withTenant(tenantId, async (tx) => {
@@ -105,8 +94,9 @@ export const actions: Actions = {
 
   archivePackage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing package." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing package."))
     await withTenant(locals.tenantId, (tx) => packages.archive(tx, id))
     return { archived: true }
   },
@@ -114,41 +104,34 @@ export const actions: Actions = {
   saveItem: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const tenantId = locals.tenantId
+
     const data = await request.formData()
+    const f = new FormReader(data)
 
-    const id = formString(data, "id")
-    const packageId = formString(data, "benefits_package_id")
-    const benefitName = formString(data, "benefit_name").trim()
-    const benefitType = formString(data, "benefit_type")
-
-    const errorFields: string[] = []
-    if (benefitName === "") errorFields.push("benefit_name")
-    if (!packageId) errorFields.push("benefits_package_id")
-    if (!BENEFIT_TYPES.includes(benefitType as (typeof BENEFIT_TYPES)[number]))
-      errorFields.push("benefit_type")
-
-    const { costs, malformed } = readCosts(data)
-    const bad = [...malformed, ...items.invalidCosts(costs)]
-    for (const c of bad) errorFields.push(`cost.${c}`)
-
-    if (errorFields.length) {
-      return fail(400, {
-        errorFields,
-        message: bad.length
-          ? `Check the ${bad.join(", ")} cost — amounts cannot be negative.`
-          : "Some fields need attention.",
-      })
+    const id = f.uuid("id")
+    const input = {
+      benefits_package_id: f.uuid("benefits_package_id", { required: true }),
+      benefit_type:
+        f.choice("benefit_type", BENEFIT_TYPES, { required: true }) ?? "",
+      benefit_name: f.text("benefit_name", { required: true, max: 255 }),
+      benefit_name_i18n: null,
+      carrier_name: f.text("carrier_name", { max: 255 }),
+      carrier_varies_by_location: f.bool("carrier_varies_by_location"),
+      costs_by_currency: readCosts(data, f),
     }
 
-    const input = {
-      benefits_package_id: packageId,
-      benefit_type: benefitType,
-      benefit_name: benefitName,
-      benefit_name_i18n: null,
-      carrier_name: nullIfBlank(formString(data, "carrier_name")),
-      carrier_varies_by_location:
-        formString(data, "carrier_varies_by_location") === "on",
-      costs_by_currency: costs,
+    const negative = items.invalidCosts(input.costs_by_currency)
+    for (const c of negative) f.reject(`cost.${c}.employee`)
+
+    if (!f.ok) {
+      return fail(
+        400,
+        f.problem(
+          negative.length
+            ? `Check the ${negative.join(", ")} cost — amounts cannot be negative.`
+            : "Some fields need attention.",
+        ),
+      )
     }
 
     await withTenant(tenantId, async (tx) => {
@@ -160,8 +143,9 @@ export const actions: Actions = {
 
   removeItem: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing benefit." })
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing benefit."))
     await withTenant(locals.tenantId, (tx) => items.remove(tx, id))
     return { removed: true }
   },
