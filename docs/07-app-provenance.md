@@ -71,6 +71,14 @@ preference:
 The shell is borrowed. The navigation, the data, and the accessibility floor
 are the product's own.
 
+**What was changed by preference, not because it was broken** — divergence from
+the [canonical reference](https://nexus.daisyui.com/dashboards/ecommerce) is
+fine; undocumented divergence is drift:
+
+| Divergence | Why |
+|---|---|
+| The firm's name sits in the topbar, beside the menu toggle, at `text-xl` | Nexus puts its search palette there and shows no tenant identity anywhere — it is a single-tenant demo. This is multi-tenant software where an admin may hold accounts in several firms, and "which company am I editing?" must be answerable without opening a menu. The sidebar's `text-xs` line under the user's name is not an answer |
+
 ---
 
 ## Why this starter

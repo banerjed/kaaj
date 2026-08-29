@@ -4,18 +4,24 @@
   import type { ISidebarUser } from "./user"
 
   // Nexus's search palette, language switcher and notification tray were
-  // removed, not rewired (L15). Originals in nexus-sveltekit-ref/.
+  // removed, not rewired (L15). The firm's name occupies the slot Nexus gives
+  // the palette — a deliberate divergence, recorded in 07-app-provenance.md.
 
-  let { user }: { user?: ISidebarUser } = $props()
+  let {
+    user,
+    companyName,
+  }: { user?: ISidebarUser; companyName?: string | null } = $props()
 </script>
 
 <div
   role="navigation"
   aria-label="Navbar"
-  class="flex items-center justify-between px-3"
+  class="flex items-center justify-between gap-2 px-3"
   id="layout-topbar"
 >
-  <div class="inline-flex items-center gap-3">
+  <!-- min-w-0 on both the group and the name: without it a long firm name
+       refuses to shrink and pushes the buttons off-screen (L11). -->
+  <div class="inline-flex min-w-0 items-center gap-3">
     <label
       class="btn btn-square btn-ghost btn-sm"
       aria-label="Leftmenu toggle"
@@ -23,8 +29,16 @@
     >
       <span class="iconify lucide--menu size-5"></span>
     </label>
+    {#if companyName}
+      <span
+        class="text-base-content min-w-0 truncate text-xl font-semibold tracking-tight"
+        title={companyName}
+      >
+        {companyName}
+      </span>
+    {/if}
   </div>
-  <div class="inline-flex items-center gap-0.5">
+  <div class="inline-flex shrink-0 items-center gap-0.5">
     <ThemeToggle class="btn btn-sm btn-circle btn-ghost" />
     <label
       for="layout-rightbar-drawer"

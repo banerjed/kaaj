@@ -49,7 +49,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     icon: "lucide--clipboard-list",
     label: "HR",
     children: [
-      { id: "hr-time-off", label: "Time Off", ...soon },
+      { id: "hr-time-off", label: "Time Off", url: "/time-off" },
       { id: "hr-attendance", label: "Attendance", ...soon },
       { id: "hr-reviews", label: "Performance", ...soon },
       { id: "hr-onboarding", label: "Onboarding", ...soon },
