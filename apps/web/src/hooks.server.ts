@@ -53,10 +53,12 @@ export const supabase: Handle = async ({ event, resolve }) => {
    * validating the JWT, this function also calls `getUser()` to validate the
    * JWT before returning the session.
    */
-  let authResult: Promise<{
-    session: import("@supabase/supabase-js").Session | null
-    user: import("@supabase/supabase-js").User | null
-  }> | undefined
+  let authResult:
+    | Promise<{
+        session: import("@supabase/supabase-js").Session | null
+        user: import("@supabase/supabase-js").User | null
+      }>
+    | undefined
   let amrResult: Promise<AMREntry[] | null> | undefined
 
   event.locals.safeGetSession = async ({ includeAmr = false } = {}) => {
@@ -82,9 +84,7 @@ export const supabase: Handle = async ({ event, resolve }) => {
     amrResult ??= event.locals.supabase.auth.mfa
       .getAuthenticatorAssuranceLevel()
       .then(({ data, error: amrError }) =>
-        amrError
-          ? null
-          : (data.currentAuthenticationMethods as AMREntry[]),
+        amrError ? null : (data.currentAuthenticationMethods as AMREntry[]),
       )
     return { session, user, amr: await amrResult }
   }

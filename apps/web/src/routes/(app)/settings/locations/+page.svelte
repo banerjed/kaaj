@@ -7,6 +7,16 @@
   // different countries must read the same schedule the same way.
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
 
+  // The clock has to tick. `currentTimeAt` reads `new Date()`, which is not a
+  // reactive dependency, so without this the column freezes at page load and
+  // then quietly drifts — a wrong time that looks live. Half a minute is finer
+  // than the minutes it displays. $effect cleans the interval up on unmount.
+  let now = $state(new Date())
+  $effect(() => {
+    const id = setInterval(() => (now = new Date()), 30_000)
+    return () => clearInterval(id)
+  })
+
   const currentTimeAt = (timezone: string) => {
     try {
       return new Intl.DateTimeFormat(locale, {
@@ -14,7 +24,7 @@
         minute: "2-digit",
         timeZoneName: "short",
         timeZone: timezone,
-      }).format(new Date())
+      }).format(now)
     } catch {
       return timezone // unknown IANA zone: show it rather than hide it
     }

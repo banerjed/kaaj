@@ -1,53 +1,30 @@
 import type { ISidebarMenuItem } from "./SidebarMenuItem.svelte"
 
-const findItem = (
-  menuItems: ISidebarMenuItem[],
-  url: string,
-): ISidebarMenuItem | null => {
-  for (const item of menuItems) {
-    if (item.url == url) {
-      return item
-    }
-    if (item.children) {
-      const fItem = findItem(item.children, url)
-      if (fItem) {
-        return fItem
-      }
-    }
-  }
-  return null
-}
-
+/**
+ * The ids of the item matching `url` and every ancestor above it, so the
+ * sidebar can expand the right groups and mark the right item active.
+ *
+ * Nexus found the item recursively and then walked the tree a second time with
+ * three hardcoded nested loops to recover its ancestors — traversing everything
+ * twice, and silently returning nothing for anything below the third level.
+ * This collects the path on the way down, in one pass, at any depth.
+ */
 export const getActivatedItemParentKeys = (
   menuItems: ISidebarMenuItem[],
   url: string,
 ): string[] => {
-  const menuItem = findItem(menuItems, url)
-
-  if (!menuItem) return []
-  const list = []
-
-  for (const item of menuItems) {
-    if (item.id == menuItem.id) {
-      list.push(item.id)
+  const walk = (
+    items: ISidebarMenuItem[],
+    trail: string[],
+  ): string[] | null => {
+    for (const item of items) {
+      const path = [...trail, item.id]
+      if (item.url === url) return path
+      const found = item.children && walk(item.children, path)
+      if (found) return found
     }
-    if (item.children) {
-      for (const iItem of item.children) {
-        if (iItem.id == menuItem.id) {
-          list.push(item.id)
-          list.push(iItem.id)
-        }
-        if (iItem.children != null) {
-          for (const i2Item of iItem.children) {
-            if (i2Item.id == menuItem.id) {
-              list.push(item.id)
-              list.push(iItem.id)
-              list.push(i2Item.id)
-            }
-          }
-        }
-      }
-    }
+    return null
   }
-  return list
+
+  return walk(menuItems, []) ?? []
 }

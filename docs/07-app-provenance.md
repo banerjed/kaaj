@@ -42,6 +42,11 @@ to someone who did not build it, and a template purchase link does not belong
 inside a customer's payroll system. The credit is recorded in this document
 instead.
 
+**Canonical reference: <https://nexus.daisyui.com/dashboards/ecommerce>.** The
+live template. Always compare a finished screen against it before calling the
+work done; the divergence table below is the record of where we knowingly
+depart from it.
+
 Copied under `apps/web/src/lib/`: `components/admin-layout/`, `styles/`,
 `contexts/ConfigProvider.svelte`, `Logo`, `ThemeToggle`, `PageTitle`.
 

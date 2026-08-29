@@ -394,6 +394,12 @@ Comments still earned inline, without a lesson reference:
 - a deliberate deviation that looks like a mistake
 - a `why not the obvious thing` that would otherwise be re-attempted
 
+**Compare against the live template before calling UI work done.**
+<https://nexus.daisyui.com/dashboards/ecommerce> is canonical — spacing, card
+and table treatment, type scale, density, empty and loading states, breakpoint
+behaviour. It is also the fastest way to settle "is this how Nexus does it, or
+did we invent it?", which is the question behind L9-L18 and L23.
+
 **SQL is the exception.** `supabase/migrations/` and
 `packages/database/fixtures/` keep their long headers: the four pre-existing
 migrations set that house style, they are the authoritative schema, and they are

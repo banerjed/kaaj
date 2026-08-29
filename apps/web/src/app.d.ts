@@ -1,4 +1,9 @@
-import { Session, SupabaseClient, type AMREntry, User } from "@supabase/supabase-js"
+import {
+  Session,
+  SupabaseClient,
+  type AMREntry,
+  User,
+} from "@supabase/supabase-js"
 import { Database } from "./DatabaseDefinitions"
 import type { SafeAuthSession } from "$lib/server/auth_session"
 

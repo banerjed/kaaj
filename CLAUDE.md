@@ -139,6 +139,25 @@ caller.
 
 ---
 
+## The UI reference
+
+**<https://nexus.daisyui.com/dashboards/ecommerce> is the canonical example.**
+Compare every screen against it before calling UI work done — spacing, card and
+table treatment, type scale, density, empty and loading states, and how the
+shell behaves at each breakpoint.
+
+It is the live version of the template in `nexus-sveltekit-ref`, so it is also
+the fastest way to answer "is this how Nexus does it, or did we invent it?" —
+the question behind most of the UI entries in
+[docs/10-lessons-learned.md](docs/10-lessons-learned.md).
+
+What we deliberately diverge on, and why, is recorded in
+[docs/07-app-provenance.md](docs/07-app-provenance.md): the information
+architecture, the URLs, the accessibility floor, and any demo feature with
+nothing behind it. Divergence is fine — *undocumented* divergence is drift.
+
+---
+
 ## Before building a module
 
 Read **[docs/10-lessons-learned.md](docs/10-lessons-learned.md)**. It is a

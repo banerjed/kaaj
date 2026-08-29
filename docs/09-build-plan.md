@@ -443,5 +443,8 @@ Finally, and non-negotiably before any push:
 All ten steps green. Non-zero exit means do not push.
 
 **Definition of done, per phase:** `./check` green, the pages render the
-Northwind fixture's real rows as `app_user` under RLS, and no module data path
-touches `supabaseServiceRole` or PostgREST.
+Northwind fixture's real rows as `app_user` under RLS, no module data path
+touches `supabaseServiceRole` or PostgREST, and **the finished screen has been
+compared against <https://nexus.daisyui.com/dashboards/ecommerce>** — the
+canonical template — with any deliberate divergence recorded in
+[07-app-provenance.md](./07-app-provenance.md).

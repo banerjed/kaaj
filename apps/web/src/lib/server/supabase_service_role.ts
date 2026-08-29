@@ -8,5 +8,11 @@ import type { Database } from "../../DatabaseDefinitions"
 export const supabaseServiceRole = createClient<Database>(
   PUBLIC_SUPABASE_URL,
   PRIVATE_SUPABASE_SERVICE_ROLE,
-  { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  },
 )
