@@ -1,7 +1,6 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as attendance from "$lib/server/hr/hr_attendance.repo"
-import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
 import { FormReader } from "$lib/server/forms"
 
@@ -18,7 +17,6 @@ const STATUSES = ["present", "late", "absent", "early_departure"] as const
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
-  const userId = locals.user?.id
 
   // The URL is the filter state (doc 03), so a filtered view is shareable and
   // survives a reload. Read through the same reader the actions use: a crafted
@@ -33,12 +31,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const status = f.choice("status", STATUSES) ?? ""
   const employeeId = f.uuid("employee")
 
+  // One query, because that is all the page reads (doc 03).
   return withTenant(locals.tenantId, async (tx) => {
-    const [me] = await tx<{ employee_id: string | null }[]>`
-      SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
-    `
-    const myEmployeeId = me?.employee_id ?? null
-
     return {
       days: await attendance.list(tx, {
         from: from ?? undefined,
@@ -46,8 +40,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         status,
         employeeId: employeeId ?? undefined,
       }),
-      locations: await locationsRepo.list(tx),
-      myEmployeeId,
       statuses: STATUSES,
       // A bad filter is not worth a 400 on a read — it is dropped, and the page
       // reflects what was actually applied rather than what was asked for.

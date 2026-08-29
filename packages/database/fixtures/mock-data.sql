@@ -713,7 +713,11 @@ INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in
     ('5deac028-5785-5f13-b0d3-cc571169bbba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-07', '2026-01-07T03:31:00Z', '2026-01-07T12:01:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('e2b2e36c-224e-5181-a638-a9a10b3b0a1e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-08', '2026-01-08T03:32:00Z', '2026-01-08T12:02:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('e39d3de1-81f0-58d8-a050-d579c8b8549a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-08', '2026-01-08T14:34:00Z', '2026-01-08T22:00:00Z', 30, 6.9333, 6.9333, NULL, 'late', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('3f0c1d6e-9a44-5c2b-8e17-6b2f4d8a10c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-09', '2026-01-09T19:00:00Z', '2026-01-10T04:00:00Z', 30, 8.5, 8.0, 0.5, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+    ('3f0c1d6e-9a44-5c2b-8e17-6b2f4d8a10c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-09', '2026-01-09T19:00:00Z', '2026-01-10T04:00:00Z', 30, 8.5, 8.0, 0.5, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    -- A real night shift: 22:00-06:00 in New York. Both instants land on ONE
+    -- UTC date, so comparing UTC dates calls this a normal day — the inverse
+    -- of the Auckland error. Only the LOCAL dates say what it is.
+    ('7c41a92d-3b58-5e6f-9012-4a8de7c30b91', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-12', '2026-01-13T03:00:00Z', '2026-01-13T11:00:00Z', 30, 7.5, 7.5, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Benefits enrolments with dependents and beneficiaries as queryable JSONB (FR-HR-008)
 INSERT INTO hr_benefits_enrollments (id, tenant_id, employee_id, plan_year, benefit_type, plan_name, coverage_level, enrollment_date, effective_date, dependents, beneficiaries, election_details, status, created_at, updated_at) VALUES

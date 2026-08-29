@@ -84,6 +84,10 @@ Build in three slices, each shippable:
    side done:* `/attendance` shows the timesheet in each office's own zone,
    filtered by date range and status, with the hours identity tested.
 
+   `totals()` in the repository is built and tested but not yet on a page — it
+   is what US-HR-022 ("my timesheet for this pay period") needs, and it exists
+   so the summing stays in SQL when that lands.
+
    **Deferred, deliberately, and not started:** clock in/out (US-HR-021) and
    corrections (US-HR-025) need a write path with an audit trail — approval
    state must not be inferable from a query alone. Overtime is *stored*, not

@@ -375,8 +375,8 @@ writing the other, and pick a test value that distinguishes rounding from
 truncation — `.9052`, not `.9012` ([L25](docs/10-lessons-learned.md)).
 
 **Display goes through `$lib/format.ts`. Nothing formats money itself.**
-`money()`, `number()`, `calendarDate()`, `instant()`, `localised()` are the only
-places `Intl` is constructed for display. A component that reaches for
+`money()`, `approxMoney()`, `number()`, `hours()`, `calendarDate()`, `instant()`
+and `localised()` are the only places `Intl` is constructed for display. A component that reaches for
 `Intl.NumberFormat` or `toLocaleString()` is a bug — it will drift from the rest
 of the app, and it will pick up the *browser's* locale rather than the market's.
 

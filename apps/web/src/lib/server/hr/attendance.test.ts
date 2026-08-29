@@ -17,7 +17,11 @@ describe("what the driver returns", () => {
     // timestamptz does, so it arrives already parsed. Declaring both as
     // `string` type-checks and then fails at runtime.
     const [row] = await withTenant(NORTHWIND, (tx) =>
-      attendance.list(tx, { employeeId: TOM }),
+      attendance.list(tx, {
+        employeeId: TOM,
+        from: "2026-01-09",
+        to: "2026-01-09",
+      }),
     )
     expect(row.clock_in_time).toBeInstanceOf(Date)
     expect(typeof row.total_hours).toBe("string")
@@ -45,10 +49,10 @@ describe("attendance hours", () => {
     const t = await withTenant(NORTHWIND, (tx) =>
       attendance.totals(tx, TOM, "2026-01-01", "2026-01-31"),
     )
-    expect(t.days).toBe(1)
-    expect(t.total_hours).toBe("8.5000")
+    expect(t.days).toBe(2) // the evening shift and the night shift
+    expect(t.total_hours).toBe("16.0000")
     // The one fixture row that splits into regular and overtime.
-    expect(t.regular_hours).toBe("8.0000")
+    expect(t.regular_hours).toBe("15.5000")
     expect(t.overtime_hours).toBe("0.5000")
   })
 })
@@ -84,14 +88,39 @@ describe("attendance and the office timezone", () => {
     // 14:00–23:00 in New York is 19:00Z to 04:00Z the following day. The row
     // belongs to the 9th; only the UTC clock-out is on the 10th.
     const [shift] = await withTenant(NORTHWIND, (tx) =>
-      attendance.list(tx, { employeeId: TOM }),
+      attendance.list(tx, {
+        employeeId: TOM,
+        from: "2026-01-09",
+        to: "2026-01-09",
+      }),
     )
     expect(shift.attendance_date).toBe("2026-01-09")
     expect(shift.clock_in_local).toBe("14:00")
     expect(shift.clock_out_local).toBe("23:00")
-    expect(shift.crosses_utc_midnight).toBe(true)
+    // Two UTC dates, ONE local day — so this is NOT an overnight shift, however
+    // much the UTC timestamps suggest otherwise.
+    expect(shift.crosses_local_midnight).toBe(false)
     expect(shift.clock_out_time!.toISOString().slice(0, 10)).toBe("2026-01-10")
     expect(shift.attendance_date).toBe("2026-01-09")
+  })
+
+  it("flags a night shift by the office's day, not by UTC's", async () => {
+    // The inverse case, and the one that makes the rule concrete. 22:00-06:00
+    // in New York is 03:00Z-11:00Z — a SINGLE UTC date. Comparing UTC dates
+    // calls a genuine night shift a normal day, and calls an ordinary
+    // 09:00-17:30 in Auckland (UTC+13) an overnight one. Only the local dates
+    // describe the shift (L35).
+    const [night] = await withTenant(NORTHWIND, (tx) =>
+      attendance.list(tx, { from: "2026-01-12", to: "2026-01-12" }),
+    )
+    expect(night.clock_in_local).toBe("22:00")
+    expect(night.clock_out_local).toBe("06:00")
+    expect(night.crosses_local_midnight).toBe(true)
+    // Both instants share one UTC date: the old check would have said false.
+    expect(night.clock_in_time!.toISOString().slice(0, 10)).toBe("2026-01-13")
+    expect(night.clock_out_time!.toISOString().slice(0, 10)).toBe("2026-01-13")
+    // And the row still belongs to the day the shift started, locally.
+    expect(night.attendance_date).toBe("2026-01-12")
   })
 
   it("does not raise on a blank employee filter", async () => {
@@ -99,6 +128,6 @@ describe("attendance and the office timezone", () => {
     const rows = await withTenant(NORTHWIND, (tx) =>
       attendance.list(tx, { employeeId: "" }),
     )
-    expect(rows).toHaveLength(8)
+    expect(rows).toHaveLength(9)
   })
 })

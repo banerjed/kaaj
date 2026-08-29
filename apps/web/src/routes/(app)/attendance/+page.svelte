@@ -1,6 +1,7 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, hours, instant } from "$lib/format"
+  import { isPositive } from "$lib/decimal"
 
   let { data } = $props()
 
@@ -123,13 +124,13 @@
               <p class="text-base-content/70 text-xs">
                 {calendarDate(d.attendance_date, d.locale ?? tenantLocale)}
                 · {inOffice(d.clock_in_time, d)}–{inOffice(d.clock_out_time, d)}
-                {#if d.crosses_utc_midnight}
+                {#if d.crosses_local_midnight}
                   <span class="badge badge-ghost badge-xs ms-1">overnight</span>
                 {/if}
               </p>
               <p class="text-base-content/70 text-xs">
                 {worked(d.total_hours, d)} worked
-                {#if d.overtime_hours && Number(d.overtime_hours) > 0}
+                {#if d.overtime_hours && isPositive(d.overtime_hours)}
                   · {worked(d.overtime_hours, d)} overtime
                 {/if}
               </p>
@@ -173,12 +174,14 @@
                 </td>
                 <td class="text-sm tabular-nums">
                   {inOffice(d.clock_out_time, d)}
-                  {#if d.crosses_utc_midnight}
-                    <!-- The shift ended on a later UTC day. Worth showing: it
-                         is why attendance_date cannot come from a ::date cast. -->
+                  {#if d.crosses_local_midnight}
+                    <!-- Ended on a later day in the OFFICE. Comparing the UTC
+                         dates instead would flag an ordinary Auckland day and
+                         miss a real New York night shift (L35). -->
                     <span
                       class="badge badge-ghost badge-xs ms-1"
-                      title="Ended on the next UTC day">overnight</span
+                      title="Ended the following day in this office"
+                      >overnight</span
                     >
                   {/if}
                 </td>
@@ -191,7 +194,7 @@
                   {worked(d.total_hours, d)}
                 </td>
                 <td class="text-right text-sm tabular-nums">
-                  {#if d.overtime_hours && Number(d.overtime_hours) > 0}
+                  {#if d.overtime_hours && isPositive(d.overtime_hours)}
                     {worked(d.overtime_hours, d)}
                   {:else}
                     <span class="text-base-content/70">—</span>
