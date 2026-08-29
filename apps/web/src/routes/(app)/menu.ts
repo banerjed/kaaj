@@ -40,7 +40,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     icon: "lucide--users",
     label: "Employees",
     children: [
-      { id: "employees-directory", label: "Directory", ...soon },
+      { id: "employees-directory", label: "Directory", url: "/employees" },
       { id: "employees-org-chart", label: "Org Chart", ...soon },
     ],
   },
