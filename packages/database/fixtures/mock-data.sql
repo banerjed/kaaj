@@ -695,14 +695,25 @@ INSERT INTO hr_change_requests (id, tenant_id, request_id, requested_by, request
     ('2ebe3bba-ab7a-5999-8a97-5626214170a8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'CR-003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'name_change', 'pending', '{"field": "last_name", "currentValue": "Raman", "requestedValue": "Raman-Iyer", "reason": "Marriage"}'::jsonb, '[{"approver_id": "a87e0200-0849-53b6-a491-e882feace3f5", "role": "hr_admin", "status": "pending", "approved_at": null}]'::jsonb, '[{"user_id": "bf17b1af-963b-53ef-9083-21506fb34e9c", "comment": "Marriage", "created_at": "2026-01-01T09:00:00Z"}]'::jsonb, '[{"document_type": "marriage_certificate", "file_url": "/storage/change-requests/CR-003/marriage-certificate.pdf"}]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Clock in/out attendance records (FR-HR)
-INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in_time, clock_out_time, break_minutes, total_hours, regular_hours, status, created_at, updated_at) VALUES
-    ('cf64fb8a-ec72-5b98-942f-ab43e406d329', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-06', '2026-01-06T09:00:00Z', '2026-01-06T17:30:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('7474f042-c201-579c-ab38-40c9e2b92930', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07', '2026-01-07T09:01:00Z', '2026-01-07T17:31:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('967a2bf5-6529-58a6-9f4e-c3e336643080', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-08', '2026-01-08T09:02:00Z', '2026-01-08T17:32:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('8590ba46-72f8-5da4-a045-caea4064ee32', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-06', '2026-01-06T09:00:00Z', '2026-01-06T17:30:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('5deac028-5785-5f13-b0d3-cc571169bbba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-07', '2026-01-07T09:01:00Z', '2026-01-07T17:31:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('e2b2e36c-224e-5181-a638-a9a10b3b0a1e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-08', '2026-01-08T09:02:00Z', '2026-01-08T17:32:00Z', 45, 7.75, 7.75, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('e39d3de1-81f0-58d8-a050-d579c8b8549a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-08', '2026-01-08T09:34:00Z', '2026-01-08T17:00:00Z', 30, 6.93, 6.93, 'late', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+--
+-- clock_in_time/clock_out_time are timestamptz: an INSTANT, not a wall clock.
+-- These were originally written as '09:00:00Z' for a Bangalore employee, which
+-- is 14:30 IST — a plausible-looking row that only reads wrong once a page
+-- renders it in the office's zone. Times below are the real UTC instants of the
+-- intended local times (IST +05:30, EST -05:00 in January).
+--
+-- Tom's 2026-01-09 row is deliberate: an evening shift whose clock_out lands on
+-- the NEXT UTC day. attendance_date is the LOCAL date, and cannot be derived
+-- from the UTC timestamp without the office's timezone.
+INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in_time, clock_out_time, break_minutes, total_hours, regular_hours, overtime_hours, status, created_at, updated_at) VALUES
+    ('cf64fb8a-ec72-5b98-942f-ab43e406d329', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-06', '2026-01-06T03:30:00Z', '2026-01-06T12:00:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('7474f042-c201-579c-ab38-40c9e2b92930', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07', '2026-01-07T03:31:00Z', '2026-01-07T12:01:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('967a2bf5-6529-58a6-9f4e-c3e336643080', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-08', '2026-01-08T03:32:00Z', '2026-01-08T12:02:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('8590ba46-72f8-5da4-a045-caea4064ee32', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-06', '2026-01-06T03:30:00Z', '2026-01-06T12:00:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('5deac028-5785-5f13-b0d3-cc571169bbba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-07', '2026-01-07T03:31:00Z', '2026-01-07T12:01:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e2b2e36c-224e-5181-a638-a9a10b3b0a1e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-08', '2026-01-08T03:32:00Z', '2026-01-08T12:02:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('e39d3de1-81f0-58d8-a050-d579c8b8549a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-08', '2026-01-08T14:34:00Z', '2026-01-08T22:00:00Z', 30, 6.9333, 6.9333, NULL, 'late', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('3f0c1d6e-9a44-5c2b-8e17-6b2f4d8a10c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-09', '2026-01-09T19:00:00Z', '2026-01-10T04:00:00Z', 30, 8.5, 8.0, 0.5, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Benefits enrolments with dependents and beneficiaries as queryable JSONB (FR-HR-008)
 INSERT INTO hr_benefits_enrollments (id, tenant_id, employee_id, plan_year, benefit_type, plan_name, coverage_level, enrollment_date, effective_date, dependents, beneficiaries, election_details, status, created_at, updated_at) VALUES

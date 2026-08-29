@@ -14,6 +14,7 @@ import {
   localised,
   money,
   number,
+  hours,
 } from "./format"
 
 /**
@@ -201,5 +202,32 @@ describe("a stored locale Intl rejects", () => {
     expect(() => money("1234.50", "USD", "en_US")).not.toThrow()
     expect(number("1234.5", "en_US")).toBe("1234.5")
     expect(calendarDate("2026-03-07", "en_US")).toBe("2026-03-07")
+  })
+})
+
+describe("hours", () => {
+  it("reads as a timesheet, not as a decimal", () => {
+    expect(hours("7.7500", "en-US")).toBe("7h 45m")
+    expect(hours("8.5000", "en-US")).toBe("8h 30m")
+    expect(hours("0.5000", "en-US")).toBe("30m")
+    expect(hours("8.0000", "en-US")).toBe("8h")
+  })
+
+  it("does not lose the fourth decimal the way a printed decimal does", () => {
+    // Intl caps fraction digits at 3 by default, so `number()` renders the
+    // stored 6.9333 as "6.933" — neither the stored value nor a recognisable
+    // number. 6.9333h is 6h 56m.
+    expect(hours("6.9333", "en-US")).toBe("6h 56m")
+    expect(number("6.9333", "en-US")).toBe("6.933")
+  })
+
+  it("formats the numbers in the office's locale", () => {
+    expect(hours("1234.5", "en-IN")).toBe("1,234h 30m")
+  })
+
+  it("handles a blank, a null and a negative correction", () => {
+    expect(hours(null, "en-US")).toBe("—")
+    expect(hours("", "en-US")).toBe("—")
+    expect(hours("-1.25", "en-US")).toBe("-1h 15m")
   })
 })

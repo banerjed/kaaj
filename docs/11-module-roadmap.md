@@ -80,8 +80,16 @@ Build in three slices, each shippable:
 1. **Time off** — `hr_time_off_policies`, `_balances`, `_requests`. A request
    page, an approval queue, and a balance that is computed from the ledger
    rather than stored as a running total.
-2. **Attendance** — `hr_attendance`, tied to the office's timezone and the
-   holiday calendar Phase 1 built.
+2. **Attendance** — `hr_attendance`, tied to the office's timezone. ✅ *read
+   side done:* `/attendance` shows the timesheet in each office's own zone,
+   filtered by date range and status, with the hours identity tested.
+
+   **Deferred, deliberately, and not started:** clock in/out (US-HR-021) and
+   corrections (US-HR-025) need a write path with an audit trail — approval
+   state must not be inferable from a query alone. Overtime is *stored*, not
+   computed: `firm_payroll_policies` has no rows, so deriving OT from the
+   policy Phase 1 built has nothing behind it yet. The holiday tie-in — flagging
+   attendance on a day the office observes as a holiday — is also not built.
 3. **Performance and onboarding** — `hr_reviews`, `hr_review_cycles`,
    `hr_goals`, `hr_feedback`, `hr_onboarding_templates`, `_tasks`.
 

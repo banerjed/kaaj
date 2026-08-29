@@ -279,6 +279,12 @@ await repo.update(tx, id, {
 })
 ```
 
+**Never pass `''` to a parameter that is cast.** SQL does not short-circuit, so
+`(${x} = '' OR c = ${x}::date)` evaluates the cast anyway — and for `::date`
+postgres.js serialises it in the driver and throws `RangeError: Invalid time
+value` before the query is sent. Pass `null` and test `IS NULL`
+([L37](docs/10-lessons-learned.md)).
+
 **A rule the reader cannot express calls `f.reject("field")`** — a cycle, a
 date clash, an inverted band — so every failure arrives through one path and
 the page can put the cursor on the field.
@@ -286,6 +292,34 @@ the page can put the cursor on the field.
 `src/lib/server/forms.test.ts` is the regression guard. Every case in it
 returned a 500, or a silent `saved: true`, against the running app before the
 reader existed. Add to it when a new reader is added.
+
+---
+
+## Time
+
+**A `timestamptz` is an instant. Render it in the OFFICE's timezone** —
+`firm_locations.timezone` — never the viewer's and never UTC. The same instant
+is a 09:00 start in Bangalore and a 22:30 finish in New York, and only one of
+those is a workday. `instant()` in `$lib/format.ts` takes the zone; nothing
+formats a time itself.
+
+**A local date is not derivable from a `timestamptz`.** `hr_attendance.attendance_date`
+is the date in the office, and a shift ending 23:00 in New York is 04:00 UTC the
+next day. A `::date` cast on a timestamp column is the bug — `AT TIME ZONE`
+first ([L35](docs/10-lessons-learned.md)).
+
+**`DATE` columns carry no zone and are formatted in UTC** — a hire date is that
+day everywhere. That is `calendarDate()`, and it is a different function from
+`instant()` for exactly this reason.
+
+**postgres.js returns `timestamptz` as a `Date` and `NUMERIC` as a string.**
+`types: {}` registers custom handlers, it does not remove built-in ones
+([L36](docs/10-lessons-learned.md)). Declare repository types from what the
+driver returns, not from the column type.
+
+**Durations go through `hours()`**, which renders `7h 45m`. Printing decimal
+hours lets `Intl`'s default three-digit cap turn a stored `6.9333` into
+`6.933` — neither the stored value nor a number anyone recognises.
 
 ---
 

@@ -130,6 +130,36 @@ export function number(value: number | string | null, locale: string): string {
 }
 
 /**
+ * A duration held as decimal hours — `total_hours`, `overtime_hours`.
+ *
+ * Rendered as hours and minutes, which is the unit a timesheet is read in and
+ * the unit a dispute is settled in. Printing the decimal instead invites
+ * `Intl`'s default three-fraction-digit cap to quietly turn `6.9333` into
+ * `6.933`, which is neither the stored value nor a number anyone recognises.
+ *
+ * The column is `numeric(18,4)`, so the value arrives as a string. It is parsed
+ * once, here, at the point of display — never for arithmetic.
+ */
+export function hours(
+  value: string | number | null | undefined,
+  locale: string,
+): string {
+  if (value === null || value === undefined || value === "") return "—"
+  const decimal = typeof value === "string" ? Number(value) : value
+  if (!Number.isFinite(decimal)) return "—"
+
+  const negative = decimal < 0
+  const totalMinutes = Math.round(Math.abs(decimal) * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+
+  const sign = negative ? "-" : ""
+  if (h === 0) return `${sign}${number(m, locale)}m`
+  if (m === 0) return `${sign}${number(h, locale)}h`
+  return `${sign}${number(h, locale)}h ${number(m, locale)}m`
+}
+
+/**
  * A calendar date — `start_date`, `date` on a holiday.
  *
  * These columns are DATE, not TIMESTAMPTZ: they carry no time and no zone. A

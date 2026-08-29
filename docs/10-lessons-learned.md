@@ -442,6 +442,49 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L35 — A `timestamptz` fixture written as wall-clock time is invisible
+
+`hr_attendance.clock_in_time` is `timestamptz` — an instant. The fixture wrote
+`'2026-01-06T09:00:00Z'` for a Bangalore employee, which is **14:30 IST**. Every
+row inserted, `./check` stayed green through 575 isolation checks and 167
+specification checks, and the data looked entirely reasonable in `psql`, because
+`psql` prints UTC and 09:00 is a plausible start time.
+
+It is only wrong once something renders it in the office's zone, which is the
+one thing a specification check does not do.
+
+**`AT TIME ZONE` the office, then read it.** And a second rule falls out of the
+same table: **`attendance_date` is the LOCAL date and cannot be derived from the
+timestamps.** A shift ending 23:00 in New York is 04:00 UTC the next day, so
+`clock_out_time::date` is legitimately a day ahead of the day the shift belongs
+to. A `::date` cast in a query is the bug; the fixture now carries exactly one
+such shift so a test can fail on it.
+
+### L36 — `types: {}` adds parsers, it does not remove them
+
+`client.ts` passes `types: {}` to postgres.js with the comment "Keep NUMERIC as
+a string". That works — but not for the reason it reads as. The option
+*registers custom* type handlers; it does not disable the built-in ones.
+`NUMERIC` survives as a string because postgres.js has no built-in parser for
+it, while `timestamptz` does and arrives as a **`Date`**.
+
+So two columns of the same row come back as different kinds of thing. Declaring
+a `timestamptz` as `string` in a repository type compiles, passes review, and
+throws `\`.slice is not a function\`` at runtime. Check what the driver
+actually returns before writing the type.
+
+### L37 — `''` is not a safe placeholder for any cast, not just `uuid`
+
+L-time-off recorded that `(${x} = '' OR id = ${x}::uuid)` still raises, because
+SQL does not short-circuit. The same expression with `::date` fails **earlier
+and differently**: postgres.js reads the `::date` hint, serialises the parameter
+itself, and throws `RangeError: Invalid time value` from `new Date("")` before
+the query is ever sent — a driver error, not a Postgres one, so it does not look
+like SQL at all.
+
+Pass `null` and test `IS NULL`. It casts cleanly through both mechanisms, for
+every type.
+
 **A validator that runs after its own gate is not a validator.** The fix for
 L33/L34 reintroduced L33 in the three files it patched in place rather than
 rewrote: the readers sat inside the object literal passed to `update()`, which
