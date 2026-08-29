@@ -4,8 +4,9 @@
 **Created:** August 29, 2026
 **Scope:** Spec-based test plan for US per-state employment records and local
 statutory employment documents.
-**Initial states:** New Jersey, New York, Massachusetts, California,
-Washington, Pennsylvania.
+**Coverage:** All 50 US states plus the District of Columbia. New Jersey,
+New York, Massachusetts, California, Washington, and Pennsylvania remain the
+first deep-dive states.
 **External source retrieval date:** August 29, 2026.
 
 ---
@@ -71,9 +72,12 @@ Federal source URLs:
 - https://www.irs.gov/publications/p15t
 - https://www.uscis.gov/i-9-central/form-i-9-resources/handbook-for-employers-m-274
 - https://www.acf.hhs.gov/css/employers/employer-responsibilities/new-hire-reporting
+- https://acf.gov/css/resource/new-hire-reporting-answers-to-employer-questions
 - https://www.dol.gov/general/topics/posters
 - https://www.dol.gov/agencies/whd/fmla/posters
 - https://www.osha.gov/publications/poster
+- https://www.dol.gov/agencies/wb/featured-paid-leave
+- https://www.dol.gov/agencies/oasam/centers-offices/office-of-the-senior-procurement-executive/office-of-small-and-disadvantaged-business-utilization/compliance-assistance/state/contacts
 
 ---
 
@@ -105,7 +109,123 @@ Every state suite must cover these dimensions:
 
 ---
 
-## State Matrix
+## All-State Expansion Matrix
+
+This matrix defines the minimum state-specific test focus for every US state
+and DC. It does not replace the rule-version registry. Exact forms, rates,
+thresholds, notices, translations, due dates, local ordinances, and effective
+dates must be confirmed from official state sources before automation is
+treated as authoritative.
+
+Each state requires these baseline fixture variants:
+
+- `<STATE>-HIRE-001`: ordinary new hire packet.
+- `<STATE>-REHIRE-001`: rehire at, before, and after the state's reporting
+  threshold.
+- `<STATE>-REMOTE-001`: remote worker whose home and legal employer worksite
+  differ.
+- `<STATE>-MOVE-001`: transfer or residence change into or out of the state.
+- `<STATE>-TERM-001`: termination/separation packet and retention rules.
+- `<STATE>-LANG-001`: primary language other than English where official
+  translated notices exist.
+- `<STATE>-LOCAL-001`: local tax or local notice fixture where the state has
+  meaningful local overlays.
+
+| State | Employment Record And Document Focus | Payroll And Withholding Focus | Leave, Sick, Poster, Local Focus |
+|---|---|---|---|
+| AL | New hire reporting, rehire reporting, employer registration, workers' compensation and unemployment records, child labor/minor records where applicable | Alabama withholding certificate/rules, unemployment wage reporting, local occupational tax review where applicable | State/federal poster packet, workers' compensation notice, no broad statewide paid sick/PFML test unless source changes |
+| AK | New hire reporting, remote worksite classification, workers' compensation, wage/hour recordkeeping | No state income tax withholding; unemployment wage reporting; source-verify local payroll obligations | Alaska paid sick leave status must be source-verified by effective date; wage/hour posters, OSHA state-plan equivalents where applicable |
+| AZ | New hire reporting, rehire reporting, employer registration, minor/employment eligibility records | Arizona withholding election, unemployment wage reporting | Earned paid sick time accrual/use/carryover, state minimum wage poster, no local income tax withholding |
+| AR | New hire reporting, rehire reporting, workers' compensation, unemployment records, child labor records | Arkansas withholding certificate/rules, unemployment wage reporting | State poster packet, wage/hour notices, no broad statewide paid sick/PFML test unless source changes |
+| CA | See California deep-dive section | See California deep-dive section | See California deep-dive section |
+| CO | New hire reporting, rehire reporting, wage notice/pay transparency records, unemployment and workers' compensation | Colorado withholding certificate/rules, unemployment wage reporting, local occupational tax review where applicable | Healthy Families and Workplaces sick leave, FAMLI premiums/benefits, COMPS/wage posters, pay transparency and job-posting records |
+| CT | New hire reporting, rehire reporting, wage notice, unemployment, workers' compensation | Connecticut withholding certificate/rules, unemployment wage reporting | Paid sick leave, CT Paid Leave contributions, sexual harassment training notices, state poster packet |
+| DE | New hire reporting, rehire reporting, employer registration, unemployment and workers' compensation | Delaware withholding certificate/rules, unemployment wage reporting | Paid family and medical leave program rollout by effective date, state poster packet, no broad statewide paid sick test unless source changes |
+| DC | New hire reporting, rehire reporting, wage notice, unemployment, workers' compensation | DC withholding certificate/rules, unemployment wage reporting, local payroll tax review | DC paid family leave, accrued sick and safe leave, wage theft notices, DC poster packet |
+| FL | New hire reporting, rehire reporting, E-Verify/eligibility rules where applicable, unemployment and workers' compensation | No state income tax withholding; reemployment tax wage reporting | Workers' compensation and unemployment notices, state/federal posters, no broad statewide paid sick/PFML test unless source changes |
+| GA | New hire reporting, rehire reporting, E-Verify rules where applicable, unemployment and workers' compensation | Georgia withholding certificate/rules, unemployment wage reporting | State poster packet, child labor records, no broad statewide paid sick/PFML test unless source changes |
+| HI | New hire reporting, rehire reporting, prepaid health care coverage records, workers' compensation, unemployment | Hawaii withholding certificate/rules, unemployment wage reporting | Temporary Disability Insurance, prepaid health care notices, family leave eligibility, state poster packet |
+| ID | New hire reporting, rehire reporting, unemployment and workers' compensation records | Idaho withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| IL | New hire reporting, rehire reporting, wage notices, unemployment and workers' compensation | Illinois withholding certificate/rules, unemployment wage reporting, local payroll/tax review for Chicago/Cook overlays | Paid Leave for All Workers, Chicago/Cook paid leave/sick overlays where applicable, mandatory posters |
+| IN | New hire reporting, rehire reporting, unemployment and workers' compensation | Indiana withholding certificate/rules, county income tax/local withholding, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| IA | New hire reporting, rehire reporting, unemployment and workers' compensation | Iowa withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| KS | New hire reporting, rehire reporting, unemployment and workers' compensation | Kansas withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| KY | New hire reporting, rehire reporting, unemployment and workers' compensation | Kentucky withholding certificate/rules, local occupational/license taxes, unemployment wage reporting | State poster packet, local payroll tax source verification, no broad statewide paid sick/PFML test unless source changes |
+| LA | New hire reporting, rehire reporting, unemployment and workers' compensation | Louisiana withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| ME | New hire reporting, rehire reporting, unemployment and workers' compensation | Maine withholding certificate/rules, unemployment wage reporting | Earned paid leave, paid family and medical leave rollout by source-versioned year, state poster packet |
+| MD | New hire reporting, rehire reporting, wage notices, unemployment and workers' compensation | Maryland withholding certificate/rules, county income tax withholding, unemployment wage reporting | Earned sick and safe leave, paid family and medical leave rollout by effective date, state poster packet |
+| MA | See Massachusetts deep-dive section | See Massachusetts deep-dive section | See Massachusetts deep-dive section |
+| MI | New hire reporting, rehire reporting, unemployment and workers' compensation | Michigan withholding certificate/rules, local income tax review for city taxes, unemployment wage reporting | Earned Sick Time Act or successor source-versioned rules, minimum wage/overtime posters, state poster packet |
+| MN | New hire reporting, rehire reporting, wage theft notice, unemployment and workers' compensation | Minnesota withholding certificate/rules, unemployment wage reporting | Earned Sick and Safe Time, Paid Leave rollout, local ordinance review, wage theft notices, poster packet |
+| MS | New hire reporting, rehire reporting, unemployment and workers' compensation | Mississippi withholding rules/certificate, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| MO | New hire reporting, rehire reporting, unemployment and workers' compensation | Missouri withholding certificate/rules, local earnings tax review for Kansas City and St. Louis, unemployment wage reporting | Paid sick leave status must be source-verified because recent changes make stale rules likely; state poster packet |
+| MT | New hire reporting, rehire reporting, unemployment and workers' compensation | Montana withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| NE | New hire reporting, rehire reporting, unemployment and workers' compensation | Nebraska withholding certificate/rules, unemployment wage reporting | Paid sick leave status must be source-verified by effective date, state poster packet |
+| NV | New hire reporting, rehire reporting, unemployment and workers' compensation | No state income tax withholding; unemployment wage reporting and commerce/payroll tax review where applicable | Paid leave for covered private employers, domestic violence leave, state poster packet |
+| NH | New hire reporting, rehire reporting, unemployment and workers' compensation | No broad wage income tax withholding; unemployment wage reporting | Voluntary paid family/medical leave insurance review, state poster packet, no broad statewide paid sick test unless source changes |
+| NJ | See New Jersey deep-dive section | See New Jersey deep-dive section | See New Jersey deep-dive section |
+| NM | New hire reporting, rehire reporting, unemployment and workers' compensation | New Mexico withholding certificate/rules, unemployment wage reporting | Healthy Workplaces paid sick leave, state poster packet, local ordinance review |
+| NY | See New York deep-dive section | See New York deep-dive section | See New York deep-dive section |
+| NC | New hire reporting, rehire reporting, unemployment and workers' compensation | North Carolina withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| ND | New hire reporting, rehire reporting, unemployment and workers' compensation | North Dakota withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| OH | New hire reporting, rehire reporting, unemployment and workers' compensation | Ohio withholding certificate/rules, municipal income tax, school district withholding, RITA/CCA/local collector routing, unemployment wage reporting | State poster packet, local tax address-change fixtures, no broad statewide paid sick/PFML test unless source changes |
+| OK | New hire reporting, rehire reporting, unemployment and workers' compensation | Oklahoma withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| OR | New hire reporting, rehire reporting, unemployment and workers' compensation | Oregon withholding certificate/rules, statewide transit tax, TriMet/Lane transit taxes where applicable, unemployment wage reporting | Oregon sick time, Paid Leave Oregon, mandatory poster packet, local tax source verification |
+| PA | See Pennsylvania deep-dive section | See Pennsylvania deep-dive section | See Pennsylvania deep-dive section |
+| RI | New hire reporting, rehire reporting, unemployment and workers' compensation | Rhode Island withholding certificate/rules, unemployment wage reporting | Temporary Disability Insurance, Temporary Caregiver Insurance, paid sick and safe leave, state poster packet |
+| SC | New hire reporting, rehire reporting, unemployment and workers' compensation | South Carolina withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| SD | New hire reporting, rehire reporting, unemployment and workers' compensation | No state income tax withholding; unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| TN | New hire reporting, rehire reporting, unemployment and workers' compensation | No broad wage income tax withholding; unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| TX | New hire reporting, rehire reporting, unemployment and workers' compensation | No state income tax withholding; unemployment wage reporting | Payday law notices, workers' compensation opt-in/non-subscriber notices, no broad statewide paid sick/PFML test unless source changes |
+| UT | New hire reporting, rehire reporting, unemployment and workers' compensation | Utah withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| VT | New hire reporting, rehire reporting, unemployment and workers' compensation | Vermont withholding certificate/rules, unemployment wage reporting | Paid sick leave, voluntary family/medical leave insurance review, state poster packet |
+| VA | New hire reporting, rehire reporting, unemployment and workers' compensation | Virginia withholding certificate/rules, unemployment wage reporting | Paid sick leave for covered home health workers and any expanded source-versioned obligations, voluntary PFML insurance review, state poster packet |
+| WA | See Washington deep-dive section | See Washington deep-dive section | See Washington deep-dive section |
+| WV | New hire reporting, rehire reporting, unemployment and workers' compensation | West Virginia withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| WI | New hire reporting, rehire reporting, unemployment and workers' compensation | Wisconsin withholding certificate/rules, unemployment wage reporting | State poster packet, no broad statewide paid sick/PFML test unless source changes |
+| WY | New hire reporting, rehire reporting, unemployment and workers' compensation | No state income tax withholding; unemployment wage reporting | Workers' compensation and unemployment notices, state poster packet, no broad statewide paid sick/PFML test unless source changes |
+
+### All-State Source Registry Requirement
+
+Before a state is implemented or automated, create source-version rows for:
+
+- State new hire reporting agency, deadline, fields, rehire threshold, and
+  submission methods.
+- State revenue/tax withholding guide, employee withholding certificate, default
+  withholding treatment, filing frequency, and annual reconciliation.
+- State unemployment insurance registration, wage base, wage reporting, and
+  notices.
+- Workers' compensation coverage, posters, notices, and exemptions.
+- State labor poster packet and industry-specific notices.
+- Paid sick leave, paid family/medical leave, disability leave, safe leave, or
+  voluntary insurance programs.
+- Wage notice, pay stub, payday, pay transparency, final-pay, and separation
+  notice requirements.
+- Local tax and local notice rules.
+- Official translated notices where available.
+
+### Required All-State Negative Tests
+
+Every state must include these negative cases:
+
+- New hire report generated after the state deadline.
+- Rehire incorrectly treated as not reportable.
+- Employee moved into state but payroll jurisdiction did not change.
+- Residence state changed but local tax or reciprocal certificate was not
+  re-evaluated.
+- Missing withholding form uses the wrong fallback.
+- State with no income tax incorrectly asks for a withholding certificate.
+- State paid leave contribution applied before its source-versioned effective
+  date.
+- State or local sick leave notice omitted from packet where required.
+- Local tax state does not re-evaluate after home or work address change.
+- Statutory packet generated from stale rule version after a rule update.
+- Document generated in English only when official translated notice is
+  required by the fixture.
+
+---
+
+## Deep-Dive State Matrix
 
 ### New Jersey
 

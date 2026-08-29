@@ -38,7 +38,8 @@ Purpose: US multi-state professional-services employer.
 
 Coverage:
 
-- NJ, NY, MA, CA, WA, PA offices and remote workers.
+- All 50 states plus DC through generated state fixture variants, with first
+  deep-dive offices and remote workers in NJ, NY, MA, CA, WA, and PA.
 - Payroll, HR, benefits, compensation, time tracking, accounting, projects.
 - Multi-state and local tax scenarios.
 - Statutory onboarding packets.
@@ -237,6 +238,9 @@ that pass format validators but cannot identify real people.
 
 Each high-risk calculation needs boundary data:
 
+- Every state and DC has baseline hire, rehire, remote, move, termination,
+  language, and local-overlay variants as defined in
+  [testplan-us-state-employment.md](./testplan-us-state-employment.md).
 - Date just before, on, and after rule effective date.
 - Rehire just before, on, and after reporting threshold.
 - Employer size just below, on, and above threshold.
@@ -262,4 +266,3 @@ Before fixtures are accepted:
 - Cross-module stories include all affected modules.
 - Negative variants are named alongside happy paths.
 - Fixtures can be replayed deterministically.
-

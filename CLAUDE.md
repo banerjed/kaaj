@@ -225,6 +225,20 @@ Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
 
+**Validate every form field in the action, not just the ones the browser
+guards.** `required`, `maxlength` and `type` are UX; they vanish on a crafted
+POST. Every field an action writes needs a server-side check for **presence,
+shape and length** — `varchar(n)`, `uuid` and Postgres enums are the last line
+of defence and their failure mode is a 500, not a field error
+([L34](docs/10-lessons-learned.md)). Enum membership comes from `@kaaj/enums`,
+country-specific formats from `@kaaj/validation`, never a regex at the call
+site.
+
+**An optional-field parser has three outcomes, not two.** Blank, valid, and
+*rejected*. Collapsing invalid into the same return value as blank deletes the
+field and reports success — an overtime multiplier vanished this way and
+overtime silently computed at 1x ([L33](docs/10-lessons-learned.md)).
+
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern

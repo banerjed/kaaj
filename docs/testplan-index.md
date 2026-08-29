@@ -36,8 +36,8 @@ The central rule is simple:
    - Catastrophic-risk areas: payroll, accounting, tenancy, PII, permissions,
      documents, workflows, and integrations.
 5. [testplan-us-state-employment.md](./testplan-us-state-employment.md)
-   - Dedicated US employment-record and statutory-document coverage for NJ, NY,
-     MA, CA, WA, and PA.
+   - Dedicated US employment-record and statutory-document coverage for all 50
+     states plus DC, with deep dives for NJ, NY, MA, CA, WA, and PA.
 6. [testplan-fixtures.md](./testplan-fixtures.md)
    - Golden tenants, golden employees, jurisdiction scenarios, and expected
      outputs needed for repeatable spec tests.
@@ -137,4 +137,3 @@ for a module. Reviews must answer:
 - Are audit and permission expectations present?
 - Are fixtures realistic enough to catch cross-module errors?
 - Are negative cases stronger than "missing required field" tests?
-

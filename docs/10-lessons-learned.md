@@ -403,6 +403,51 @@ assume the two column definitions match; check.
 The full set of money rules now lives in CLAUDE.md under **Money**, and
 `./check` enforces the type choice via the `money/numeric-not-float` invariant.
 
+### L33 — A parser that returns `undefined` for garbage deletes the field
+
+`readOptionalNumber` in the payroll-policies action returned `undefined` for
+blank, for unparseable, and for negative alike:
+
+```ts
+const n = Number(trimmed)
+return Number.isFinite(n) && n >= 0 ? n : undefined   // three cases, one answer
+```
+
+The caller then wrote the key only when the value was defined, so an overtime
+multiplier of `abc` — or `1,5`, which is how half the world types 1.5 —
+produced `{"daily_threshold_hours": 8}` with **no multiplier at all**, a `200`,
+and `saved: true`. Overtime silently computes at 1x. Confirmed by POSTing it:
+the row landed with the field missing and the user was told it saved.
+
+**"Absent" and "invalid" are different answers and need different return
+values.** A parser for an optional field returns three states, not two:
+`null` for blank, the value, or a rejection the caller must surface. The same
+shape is wrong in `sort_order: Number(...) || 0`, which turns garbage into 0.
+
+### L34 — Unvalidated form input reaches Postgres as a 500, not a field error
+
+Every write action guards `if (!id) fail(...)` and then passes the id straight
+into a query. Postgres, not the action, is doing the validating — and it
+answers with an exception, which SvelteKit renders as `Internal Error`. Four
+POSTs against the running app, all `500`:
+
+| Input | What Postgres said |
+|---|---|
+| a 300-character department name | `value too long for character varying(255)` |
+| `id=not-a-uuid` on any archive/remove | `invalid input syntax for type uuid` |
+| `compensation_type=NOT_AN_ENUM` on a raise | `invalid input value for enum` |
+
+None is a crash a user can reach through the UI, and that is exactly why it
+survived review: the browser's own `required` and `maxlength` hide it, and the
+fixture never carries a bad value. It is reachable by any crafted POST, and by
+a paste into a field with no `maxlength`.
+
+**The column type is not the validator.** `varchar(n)`, `uuid` and enum types
+are the last line, and their failure mode is a 500. Check length, shape and
+enum membership in the action, where a `fail(400, { errorFields })` puts the
+user back in the form. `@kaaj/enums` already has the enum values, and
+`./check` keeps them current.
+
 ---
 
 ## Process
