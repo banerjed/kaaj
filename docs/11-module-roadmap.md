@@ -163,6 +163,8 @@ far:
 - Pages render the Northwind fixture's real rows as `app_user` under RLS.
 - No module data path touches `supabaseServiceRole` or PostgREST.
 - Money and dates read in the locale of the market they belong to (L24).
+- No `approxMoney()` on any figure a person acts on — payslips, invoice
+  lines, salary bands, tax figures. Abbreviation is for scale only.
 - The finished screen compared against
   <https://nexus.daisyui.com/dashboards/ecommerce>.
 - Anything that failed silently gets an entry in

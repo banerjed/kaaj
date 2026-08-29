@@ -35,20 +35,11 @@ function cached<T extends Intl.NumberFormat | Intl.DateTimeFormat>(
 }
 
 /**
- * Money, in the currency it is denominated in — never converted.
+ * Money, EXACT, in the currency it is denominated in — never converted.
  *
- * `{ compact: true }` abbreviates by the LOCALE's own convention, which is why
- * there is no lakh/crore code anywhere in this file — Intl already knows:
- *
- *     en-US  18,123,432  ->  $18.12M
- *     en-IN   1,423,323  ->  ₹14.23L      (lakh)
- *     en-IN  18,123,432  ->  ₹1.81Cr      (crore)
- *     ja-JP  18,123,432  ->  ￥1812.34万   (man)
- *
- * Use compact for dashboards, chart axes, totals and any figure a person reads
- * to get a sense of scale. NEVER for a figure someone acts on — a payslip, an
- * invoice line, a salary band, anything reconciled against a bank statement.
- * ₹14.23L is not a number you can pay someone.
+ * This is the default and should be the overwhelming majority of call sites.
+ * For an abbreviated figure use `approxMoney`, which is a separate function on
+ * purpose — see the note there.
  *
  * `amount` is a string because Postgres returns NUMERIC as one: the salaries
  * here run to 3,200,000.0000 and `numeric(18,4)` exceeds what a float64 holds
@@ -91,6 +82,34 @@ export function money(
     // code stays visible rather than being rendered as dollars).
     return `${currency} ${value}`
   }
+}
+
+/**
+ * Money, ABBREVIATED, by the locale's own convention.
+ *
+ * There is no lakh/crore code anywhere in this file — Intl already knows:
+ *
+ *     en-US  18,123,432  ->  $18.12M
+ *     en-IN   1,423,323  ->  ₹14.23L      (lakh)
+ *     en-IN  18,123,432  ->  ₹1.81Cr      (crore)
+ *     ja-JP  18,123,432  ->  ￥1812.34万   (man)
+ *
+ * FOR SCALE, NEVER FOR ACTION. Dashboards, chart axes, summary tiles, "total
+ * headcount cost" — yes. Payslips, invoice lines, salary bands, tax figures,
+ * anything reconciled against a bank statement or acted on — never.
+ * `₹14.23L` is not a number you can pay someone.
+ *
+ * This exists as its own function rather than `money(..., { compact: true })`
+ * so the choice is legible at the CALL SITE. `approxMoney` on a payslip line
+ * reads wrong to a reviewer; a `compact: true` buried in an options object does
+ * not. The rule is in CLAUDE.md § Money.
+ */
+export function approxMoney(
+  amount: string | number | null | undefined,
+  currency: string,
+  locale: string,
+): string {
+  return money(amount, currency, locale, { compact: true })
 }
 
 export function number(value: number | string | null, locale: string): string {

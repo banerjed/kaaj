@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { money, number } from "$lib/format"
+  import { approxMoney, money, number } from "$lib/format"
   import {
     DATE_FORMATS,
     TIME_FORMATS,
@@ -87,9 +87,7 @@
   // the rest of the product defeats its only purpose.
   const previewCurrency = $derived(money("1234.56", currency, locale))
   const previewNumber = $derived(number(1234567.89, locale))
-  const previewCompact = $derived(
-    money("18123432", currency, locale, { compact: true }),
-  )
+  const previewCompact = $derived(approxMoney("18123432", currency, locale))
 </script>
 
 <svelte:head>

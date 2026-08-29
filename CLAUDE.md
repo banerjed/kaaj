@@ -278,8 +278,9 @@ places `Intl` is constructed for display. A component that reaches for
 `Intl.NumberFormat` or `toLocaleString()` is a bug — it will drift from the rest
 of the app, and it will pick up the *browser's* locale rather than the market's.
 
-**Abbreviation is `money(amount, currency, locale, { compact: true })`,** and it
-follows the locale's own convention — there is no lakh/crore code anywhere,
+**Two functions, and the choice is visible at the call site:** `money()` is
+exact and is the default; `approxMoney()` abbreviates. It follows the locale's
+own convention — there is no lakh/crore code anywhere,
 because `Intl` already knows:
 
 ```
@@ -292,10 +293,9 @@ ja-JP  18,123,432  ->  ￥1812.34万   (man)
 Decimals are capped at 2, not forced, so `950` stays `$950` rather than
 `$950.00`.
 
-**Compact is for scale, never for action.** Dashboards, chart axes, summary
-tiles, "total headcount cost" — yes. Payslips, invoice lines, salary bands,
-anything reconciled against a bank statement or acted on — never. `₹14.23L` is
-not a number you can pay someone.
+`approxMoney` is a separate function rather than an option so a reviewer sees
+the choice — `approxMoney` on a payslip line reads wrong; a `compact: true`
+buried in an options object does not.
 
 **Not integer minor units.** The other defensible answer, rejected: every query
 needs division to be readable, JPY (0 decimals) and BHD (3) break the ×100
@@ -313,6 +313,14 @@ new colour pair needs measuring in all six; see
 **Customization is data, never code.** Customers customize through rows, custom
 field definitions and settings — never per-tenant schema changes or per-tenant
 code. See [docs/06-customization-model.md](docs/06-customization-model.md).
+
+**Abbreviated money is for scale, never for action.** `approxMoney()` belongs
+on dashboards, chart axes and summary tiles — figures a person reads to get a
+sense of size. It must never appear on a payslip, an invoice line, a salary
+band, a tax figure, or anything reconciled against a bank statement. `₹14.23L`
+is not a number you can pay someone, and the abbreviation is lossy on purpose.
+When in doubt, use `money()`: being exact where approximation would have done
+is a cosmetic problem, and the reverse is a financial one.
 
 **Custom fields must never feed payroll or accounting calculations.** They are
 untyped and untested. A customer needing a custom allowance on a payslip is a

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest"
  */
 const norm = (s: string) => s.replace(/\u00a0/g, " ")
 import {
+  approxMoney,
   calendarDate,
   currentTimeIn,
   instant,
@@ -81,27 +82,21 @@ describe("money", () => {
 describe("money — compact", () => {
   it("abbreviates by each locale's own convention, not a hardcoded scale", () => {
     // No lakh/crore code exists anywhere in the product; Intl already knows.
-    expect(norm(money("18123432", "USD", "en-US", { compact: true }))).toBe(
-      "$18.12M",
-    )
-    expect(norm(money("1423323", "INR", "en-IN", { compact: true }))).toBe(
-      "₹14.23L",
-    )
-    expect(norm(money("18123432", "INR", "en-IN", { compact: true }))).toBe(
-      "₹1.81Cr",
-    )
+    expect(norm(approxMoney("18123432", "USD", "en-US"))).toBe("$18.12M")
+    expect(norm(approxMoney("1423323", "INR", "en-IN"))).toBe("₹14.23L")
+    expect(norm(approxMoney("18123432", "INR", "en-IN"))).toBe("₹1.81Cr")
   })
 
   it("caps decimals rather than forcing them", () => {
     // A minimum of 2 would render $950 as "$950.00" and ₹45,000 as "₹45.00K".
-    expect(norm(money("950", "USD", "en-US", { compact: true }))).toBe("$950")
-    expect(norm(money("45000", "INR", "en-IN", { compact: true }))).toBe("₹45K")
+    expect(norm(approxMoney("950", "USD", "en-US"))).toBe("$950")
+    expect(norm(approxMoney("45000", "INR", "en-IN"))).toBe("₹45K")
   })
 
   it("keeps the currency of record when abbreviating", () => {
     // Same rule as the full form: a London reader still sees rupees, and still
     // sees them abbreviated the Indian way.
-    const asSeenInLondon = money("18123432", "INR", "en-IN", { compact: true })
+    const asSeenInLondon = approxMoney("18123432", "INR", "en-IN")
     expect(asSeenInLondon).toContain("Cr")
     expect(asSeenInLondon).toContain("₹")
   })
@@ -109,7 +104,7 @@ describe("money — compact", () => {
   it("is never used where an exact figure is needed", () => {
     // Documentation as much as assertion: compact is lossy on purpose.
     // ₹14.23L is not a number anyone can be paid.
-    expect(money("1423323", "INR", "en-IN", { compact: true })).not.toBe(
+    expect(approxMoney("1423323", "INR", "en-IN")).not.toBe(
       money("1423323", "INR", "en-IN"),
     )
   })
