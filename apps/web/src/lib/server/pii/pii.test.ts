@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import { afterAll, describe, expect, it } from "vitest"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
@@ -506,5 +507,20 @@ describe("an erased subject", () => {
         pii.sealField(tx, subject(NADIA), taxField(NADIA), "123-45-6789"),
       ),
     ).rejects.toThrow(pii.SubjectErased)
+  })
+})
+
+describe("the published development key", () => {
+  it("is the one in .env.example, and the guard names it exactly", async () => {
+    // If this ever fails, .env.example was regenerated and the guard in keys.ts
+    // no longer recognises the key it is meant to refuse — which would fail
+    // open, in production, silently.
+    const source = await readFile(
+      new URL("../../../../.env.example", import.meta.url),
+      "utf8",
+    )
+    const declared = source.match(/^PRIVATE_PII_KEK="1:([^"]+)"/m)?.[1]
+    expect(declared).toBeDefined()
+    expect(keyRing().byVersion.get(1)!.toString("base64")).toBe(declared)
   })
 })

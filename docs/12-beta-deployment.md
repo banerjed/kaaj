@@ -105,7 +105,15 @@ and no password, deliberately — "set out of band, never in a migration".
 ALTER ROLE app_user WITH PASSWORD '<from your secret store>';
 ```
 
-**b. Register the access-token hook.** Dashboard →
+**b. Set and archive `PRIVATE_PII_KEK`.** Generate with
+`echo "1:$(openssl rand -base64 32)"`, put it in the host's secret store, and
+back it up somewhere that is not the database. The app refuses to start with the
+published development key when `dev` is false, so a copied `.env.example` fails
+loudly — but nothing can tell you that you have no backup. Losing this key
+destroys every encrypted field permanently
+([13-pii-encryption.md](./13-pii-encryption.md)).
+
+**c. Register the access-token hook.** Dashboard →
 *Authentication → Hooks → Customize Access Token (JWT) Claims* →
 `public.custom_access_token_hook`.
 

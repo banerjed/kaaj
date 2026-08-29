@@ -176,17 +176,48 @@ dirtying the second table and watching it fail.
 
 ---
 
+## Where the key lives
+
+| | Committed? | Value |
+|---|---|---|
+| `apps/web/.env.example` | **Yes** | The development key. Public by design |
+| `apps/web/.env.local` | No (`.env.*` is gitignored) | Same development key, copied by `./setup` |
+| `apps/web/.env.prod` | No (gitignored) | Empty. **A real key has never been generated** |
+| A secret store | — | Where the production key must go, and does not exist yet |
+
+The development key is published in this repository on purpose — the same class
+of credential as the `app_user` password and the well-known local Supabase
+service-role JWT that already sit in that file. It exists so a fresh clone can
+read the fixture.
+
+**Because it is published, `keyRing()` refuses it whenever `dev` is false.**
+That guard is the one that matters here: the likeliest way this design fails is
+not cryptanalysis, it is someone copying `.env.example` onto a server. Every
+other signal would look correct — real AES-256-GCM ciphertext in the column,
+`./check` green — while anyone with the source could decrypt it. A test asserts
+the guard still names the exact key `.env.example` declares, so regenerating one
+without the other fails loudly here rather than silently in production.
+
 ## Deployment
 
 `PRIVATE_PII_KEK` must be set before the first encrypted write, and **backed up
-independently of the database**. Losing it destroys every encrypted field with
-no recovery — that is the design working as intended, and it is why the key
-belongs in a managed secret store with its own backup, not in a `.env` file on
-one machine.
+independently of the database.**
 
-The local development value in `.env.example` is a public, deterministic demo
-credential — the same class as the `app_user` password. It exists so a fresh
-clone can read the fixture. **Never point it at anything real.**
+Losing it destroys every encrypted field with no recovery. That is the design
+working as intended — it is the same property that makes erasure real — and it
+is why the key belongs in a managed secret store with its own durability and
+audit log, not in a `.env` file on one machine:
+
+- Fly.io / Render secrets, AWS Secrets Manager, GCP Secret Manager
+- 1Password / Doppler / Vault
+
+Two consequences worth planning for before real data exists:
+
+1. **A database backup is not a backup of your data** unless the key is backed
+   up too, separately. Restoring Postgres without the key restores ciphertext.
+2. **Key custody is a people problem.** Decide now who can retrieve it, how a
+   successor gets it, and where the break-glass copy lives. A key only one
+   person can reach is an outage waiting for a holiday.
 
 ---
 

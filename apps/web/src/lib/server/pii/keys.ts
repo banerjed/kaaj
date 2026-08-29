@@ -1,3 +1,4 @@
+import { dev } from "$app/environment"
 import { env } from "$env/dynamic/private"
 import { KEY_BYTES } from "./envelope"
 
@@ -33,6 +34,16 @@ import { KEY_BYTES } from "./envelope"
  * possible without a flag day: add a version, re-wrap in the background, drop
  * the old one when nothing references it.
  */
+/**
+ * The development key that ships in `.env.example`, and therefore in the public
+ * repository. Refusing it outside dev is the one guard that matters here: the
+ * likeliest way this design fails is not cryptanalysis, it is someone copying
+ * the example file onto a server. Everything else about the setup would look
+ * correct — the column would hold real AES-256-GCM ciphertext, `./check` would
+ * be green — and anyone with the repository could decrypt it.
+ */
+const PUBLISHED_DEV_KEY = "xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
+
 export type KeyRing = {
   current: { version: number; key: Buffer }
   byVersion: Map<number, Buffer>
@@ -85,6 +96,21 @@ export function keyRing(): KeyRing {
 
   if (byVersion.size === 0) {
     throw new Error("PRIVATE_PII_KEK is set but contains no usable key.")
+  }
+
+  if (!dev) {
+    for (const [version, key] of byVersion) {
+      if (key.toString("base64") === PUBLISHED_DEV_KEY) {
+        throw new Error(
+          `PRIVATE_PII_KEK version ${version} is the development key from ` +
+            "apps/web/.env.example, which is published in this repository — " +
+            "anyone who can read the source could decrypt every protected " +
+            "field. Generate a real one with `openssl rand -base64 32` and " +
+            "keep it in a secret store with its own backup, never in a file " +
+            "beside the code.",
+        )
+      }
+    }
   }
 
   const newest = Math.max(...byVersion.keys())
