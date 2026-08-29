@@ -1,6 +1,6 @@
 # Build Plan: Firm Profile, then Employee Profile
 
-**Status:** Phase 0 complete; Phase 1 in progress
+**Status:** Phase 0 complete · Phase 1 seven of eight pages · Phase 2 directory and detail done
 **Started:** 2026-08-28
 **Living document.** The checklist below is the source of truth for what is
 done. Tick a box only when the step is verified, not when the code is written.
@@ -321,22 +321,23 @@ at exactly the paths `api-surface.md` enumerates. Each gets the canonical
 `list / getById / create / update / archive|remove`. `firm_locations.repo.ts`
 from Phase 0 is the pattern; the other eight follow it.
 
-- [ ] `firm_locations` · `firm_departments` · `firm_job_titles` · `firm_job_levels`
-- [ ] `firm_payroll_policies` · `firm_benefits_packages` · `firm_benefits_plans`
-- [ ] `firm_benefit_items` · `firm_holidays`
+- [x] `firm_locations` · `firm_departments` · `firm_job_titles` · `firm_job_levels`
+- [x] `firm_payroll_policies` (+ `tenants`, `payroll_pay_schedules`)
+- [ ] `firm_benefits_packages` · `firm_benefits_plans`
+- [x] `firm_holidays` · [ ] `firm_benefit_items`
 
 Pages, with URLs from the module spec § Page Specifications — not from Nexus:
 
 | Page | URL | Notes | Done |
 |---|---|---|---|
-| Company profile | `/settings/company` | tenant info, regional settings, live formatting preview | [ ] |
-| Locations | `/settings/locations` | 3-tab modal (basic / regional / contact), timezone preview | [ ] |
-| Departments | `/settings/departments` | tree via `parent_department_id`, org-chart view | [ ] |
-| Job titles & levels | `/settings/job-titles` | levels nested; `salary_ranges` JSONB is multi-currency | [ ] |
-| Payroll policies | `/settings/payroll/policies` | overtime rules, rounding, workweek start | [ ] |
-| Pay schedules | `/settings/payroll/schedules` | next-12-pay-dates preview in two timezones | [ ] |
+| Company profile | `/settings/company` | tenant info, regional settings, live formatting preview | [x] |
+| Locations | `/settings/locations` | read-only list; **create/edit still to do** | [~] |
+| Departments | `/settings/departments` | tree via `parent_department_id`; cycle guard | [x] |
+| Job titles & levels | `/settings/job-titles` | levels nested; multi-currency bands per market | [x] |
+| Payroll policies | `/settings/payroll/policies` | firm-wide default + per-office overrides | [x] |
+| Pay schedules | `/settings/payroll/schedules` | 12-date projection, two timezones, clash flags | [x] |
 | Benefits | `/settings/benefits` | packages → plans → items | [ ] |
-| Holidays | `/settings/holidays` | per-location calendar, recurrence | [ ] |
+| Holidays | `/settings/holidays` | per-office calendar, per-office date locale | [x] |
 
 **Reuse rather than rebuild:**
 
@@ -358,12 +359,13 @@ Nine repositories under `apps/web/src/lib/server/employee-profile/`:
 `employee_training_records`, `employee_bank_accounts`, `employee_group_members`,
 `employee_group_roles`, `employee_user_groups`.
 
-- [ ] **Directory** `/employees` — one `load`, one query joining `employees` +
+- [x] **Directory** `/employees` — one `load`, one query joining `employees` +
       `firm_departments` + `compensation_base`. Doc 03's one-page-one-query
       rule; `api-surface.md` names this exact join as its worked example.
       Server-side pagination, filter state in the URL, columns per
       `html-mockups/employees.html`
-- [ ] **Detail** `/employees/[id]` — tabs per `html-mockups/employee-detail.html`:
+- [x] **Detail** `/employees/[id]` — Personal / Employment / Compensation tabs;
+      remaining tabs per `html-mockups/employee-detail.html`:
       Personal Information, Employment Details, Compensation, Assets,
       Training & Certifications, Documents
 - [ ] **Create / edit** — progressive disclosure and an onboarding wizard per

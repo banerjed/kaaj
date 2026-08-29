@@ -1,0 +1,216 @@
+<script lang="ts">
+  import PageTitle from "$lib/components/PageTitle.svelte"
+  import { calendarDate, currentTimeIn, money } from "$lib/format"
+
+  let { data } = $props()
+
+  const e = $derived(data.employee)
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
+
+  // This person's own office decides how their money and dates read (L24).
+  const office = $derived(
+    data.locations.find((l) => l.location_code === e.location_code),
+  )
+  const locale = $derived(office?.locale ?? tenantLocale)
+
+  const fullName = $derived(
+    [e.preferred_name || e.first_name, e.middle_name, e.last_name]
+      .filter(Boolean)
+      .join(" "),
+  )
+  const initials = $derived(
+    `${(e.preferred_name || e.first_name)[0] ?? ""}${e.last_name[0] ?? ""}`.toUpperCase(),
+  )
+
+  /**
+   * Tenure in whole months, from the start date to today or the leaving date.
+   * Calendar arithmetic, not days/30 — "1 year 2 months" has to match what a
+   * person would say.
+   */
+  const tenure = $derived.by(() => {
+    if (!e.start_date) return "—"
+    const start = new Date(`${e.start_date}T00:00:00Z`)
+    const end = e.end_date ? new Date(`${e.end_date}T00:00:00Z`) : new Date()
+    let months =
+      (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+      (end.getUTCMonth() - start.getUTCMonth())
+    if (end.getUTCDate() < start.getUTCDate()) months -= 1
+    if (months < 0) return "Not started"
+    const years = Math.floor(months / 12)
+    const rest = months % 12
+    return (
+      [
+        years ? `${years} ${years === 1 ? "year" : "years"}` : "",
+        rest ? `${rest} ${rest === 1 ? "month" : "months"}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ") || "Less than a month"
+    )
+  })
+
+  const TABS = ["Personal", "Employment", "Compensation"] as const
+  let tab = $state<(typeof TABS)[number]>("Personal")
+
+  const field = (label: string, value: string | null | undefined) => ({
+    label,
+    value: value && value !== "" ? value : "—",
+  })
+
+  const personal = $derived([
+    field("Full name", fullName),
+    field("Preferred name", e.preferred_name),
+    field("Email", e.email),
+    field("Phone", e.phone),
+    field("Pronouns", e.pronouns?.replaceAll("_", "/")),
+    field(
+      "Date of birth",
+      e.birth_date ? calendarDate(e.birth_date, locale) : null,
+    ),
+  ])
+
+  const employment = $derived([
+    field("Employee ID", e.employee_id),
+    field("Job title", e.job_title),
+    field("Level", e.job_level),
+    field("Department", e.department_name),
+    field("Manager", e.manager_name),
+    field("Office", office?.name ?? e.location_code),
+    field("Employment type", e.employment_type?.replaceAll("_", " ")),
+    field("Started", calendarDate(e.start_date, locale, "long")),
+    field("Tenure", tenure),
+    ...(e.end_date
+      ? [field("Left", calendarDate(e.end_date, locale, "long"))]
+      : []),
+  ])
+</script>
+
+<svelte:head>
+  <title>{fullName} · Kaaj</title>
+</svelte:head>
+
+<div class="p-4 lg:p-6">
+  <PageTitle
+    title={fullName}
+    items={[
+      { label: "Employees", path: "/employees" },
+      { label: fullName, active: true },
+    ]}
+  />
+
+  <div class="card bg-base-100 mt-4 shadow">
+    <div class="card-body gap-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="avatar avatar-placeholder">
+          <div class="bg-primary text-primary-content w-16 rounded-full">
+            <span class="text-xl font-medium">{initials}</span>
+          </div>
+        </div>
+        <div class="grow">
+          <h2 class="text-lg font-medium">{fullName}</h2>
+          <p class="text-base-content/70 text-sm">
+            {e.job_title ?? "—"}
+            {#if e.department_name}· {e.department_name}{/if}
+          </p>
+          {#if office}
+            <p class="text-base-content/70 text-sm">
+              {office.name} · {currentTimeIn(office.timezone, locale)} local
+            </p>
+          {/if}
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span
+            class={`badge ${e.employment_status === "active" ? "badge-success" : "badge-ghost"}`}
+          >
+            {e.employment_status.replaceAll("_", " ")}
+          </span>
+          {#if e.base_amount}
+            <span class="text-lg font-medium tabular-nums">
+              {money(e.base_amount, e.currency ?? "USD", locale)}
+            </span>
+            <span class="text-base-content/70 text-xs">
+              {e.pay_frequency?.replaceAll("_", " ") ?? ""}
+            </span>
+          {/if}
+        </div>
+      </div>
+
+      <div role="tablist" class="tabs tabs-border">
+        {#each TABS as t (t)}
+          <button
+            role="tab"
+            class={`tab ${tab === t ? "tab-active" : ""}`}
+            aria-selected={tab === t}
+            onclick={() => (tab = t)}
+          >
+            {t}
+          </button>
+        {/each}
+      </div>
+
+      {#if tab === "Personal"}
+        <dl class="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          {#each personal as f (f.label)}
+            <div class="flex justify-between gap-4 border-b border-dashed pb-2">
+              <dt class="text-base-content/70 text-sm">{f.label}</dt>
+              <dd class="text-end text-sm">{f.value}</dd>
+            </div>
+          {/each}
+        </dl>
+      {:else if tab === "Employment"}
+        <dl class="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          {#each employment as f (f.label)}
+            <div class="flex justify-between gap-4 border-b border-dashed pb-2">
+              <dt class="text-base-content/70 text-sm">{f.label}</dt>
+              <dd class="text-end text-sm">{f.value}</dd>
+            </div>
+          {/each}
+        </dl>
+      {:else if data.compensation.length === 0}
+        <p class="text-base-content/70 py-6 text-center text-sm">
+          No effective-dated compensation recorded.
+        </p>
+      {:else}
+        <!--
+            History, newest first. Amounts read in this person's own market:
+            an India salary in lakhs even when a New York manager is looking.
+          -->
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>From</th>
+                <th>To</th>
+                <th class="text-right">Amount</th>
+                <th>Frequency</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each data.compensation as c, i (c.effective_from)}
+                <tr class:font-medium={i === 0 && !c.effective_to}>
+                  <td class="tabular-nums"
+                    >{calendarDate(c.effective_from, locale)}</td
+                  >
+                  <td class="tabular-nums">
+                    {c.effective_to
+                      ? calendarDate(c.effective_to, locale)
+                      : "Current"}
+                  </td>
+                  <td class="text-right tabular-nums">
+                    {money(c.amount, c.currency, locale)}
+                  </td>
+                  <td class="text-sm"
+                    >{c.pay_frequency?.replaceAll("_", " ") ?? "—"}</td
+                  >
+                  <td class="text-base-content/70 text-sm"
+                    >{c.change_reason ?? "—"}</td
+                  >
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
+  </div>
+</div>
