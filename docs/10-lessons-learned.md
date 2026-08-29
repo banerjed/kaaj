@@ -348,6 +348,29 @@ client creation, avatar initials/display names, form-field extraction and
 form-error checks. Keep these helpers narrow and boring. The goal is one source
 of truth for repeated behavior, not a generic framework inside the app.
 
+### L24 — There is no per-user locale column
+
+`module-firm-profile.md` § UI i18n Requirements says monetary values, dates and
+numbers are "formatted per **user's** locale". No such column exists anywhere in
+the 98 tables — `tenants.default_locale`, `tenants.supported_locales`,
+`firm_locations.locale` and `translations.locale` are all there is. A user
+preference cannot be stored, so it cannot be honoured.
+
+**What is used instead, and why it is not a fudge.** Money is formatted in the
+locale of the OFFICE that uses that currency (`firm_locations.locale`, which the
+fixture populates: `IN-BLR → en-IN`, `UK-LON → en-GB`). An INR band is what
+Bangalore pays, and it reads correctly only in `en-IN` — ₹18,00,000 with lakh
+grouping, not ₹1,800,000. Formatting every currency in the tenant default gets
+the symbol right and the grouping wrong, which looks fine to a reader who does
+not use that currency and wrong to everyone who does.
+
+This is the correct default even once a user preference exists: the market's
+convention belongs to the money, not to the reader.
+
+Closing the gap needs a column (`tenant_users.locale` is the natural home) and
+a migration. Until then, `localeForCurrency()` in `$lib/format.ts` is the single
+place that decides, so there is one thing to change.
+
 ---
 
 ## Process

@@ -206,7 +206,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       {
         id: "settings-job-titles",
         label: "Job Titles",
-        ...soon,
+        url: "/settings/job-titles",
       },
       {
         id: "settings-benefits",

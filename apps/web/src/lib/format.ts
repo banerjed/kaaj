@@ -177,3 +177,29 @@ export function currentTimeIn(
     return timezone
   }
 }
+
+/**
+ * The locale a given currency should be formatted in, taken from the office
+ * that uses it.
+ *
+ * An INR band is what the Bangalore office pays, so it reads correctly only in
+ * `en-IN`: ₹18,00,000 (lakh grouping), not ₹1,800,000. Formatting every
+ * currency in the tenant's default locale gets the symbol right and the
+ * grouping wrong, which looks fine to a reader who does not use that currency
+ * and wrong to everyone who does.
+ *
+ * `firm_locations.locale` is the per-office override the schema already
+ * carries. Falls back to the tenant default for a currency no office uses.
+ *
+ * NOTE: the spec says "formatted per USER's locale", but no per-user locale
+ * column exists anywhere in the schema — see docs/10-lessons-learned.md L24.
+ * Market locale is the closest correct thing until that gap is closed.
+ */
+export function localeForCurrency(
+  locations: { currency: string | null; locale: string | null }[],
+  currency: string,
+  fallbackLocale: string,
+): string {
+  const office = locations.find((l) => l.currency === currency && l.locale)
+  return office?.locale ?? fallbackLocale
+}

@@ -49,6 +49,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@kaaj/enums": "workspace:*",
     "@kaaj/validation": "workspace:*",
     "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/auth-ui-svelte": "^0.2.9",

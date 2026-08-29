@@ -5,7 +5,10 @@
   "type": "module",
   "description": "The single source of truth for enumerated values, shared by the database, API and clients",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
     "./enumerations.json": "./src/enumerations.json"
   },
   "scripts": {
@@ -17,5 +20,6 @@
   "devDependencies": {
     "@kaaj/eslint-config": "workspace:*",
     "eslint": "^9.0.0"
-  }
+  },
+  "types": "./src/index.d.ts"
 }

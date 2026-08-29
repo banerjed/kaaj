@@ -22,6 +22,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@kaaj/enums':
+        specifier: workspace:*
+        version: link:../../packages/enums
       '@kaaj/validation':
         specifier: workspace:*
         version: link:../../packages/validation
