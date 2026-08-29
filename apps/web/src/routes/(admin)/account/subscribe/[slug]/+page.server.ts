@@ -5,20 +5,21 @@ import {
   fetchSubscription,
   getOrCreateCustomerId,
 } from "../../subscription_helpers.server"
+import { pricingPlans } from "../../../../(marketing)/pricing/pricing_plans"
 import type { PageServerLoad } from "./$types"
 const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" })
 
 export const load: PageServerLoad = async ({
   params,
   url,
-  locals: { safeGetSession, supabaseServiceRole },
+  locals: { session, user, supabaseServiceRole },
 }) => {
-  const { session, user } = await safeGetSession()
-  if (!session) {
+  if (!session || !user) {
     redirect(303, "/login")
   }
 
-  if (params.slug === "free_plan") {
+  const plan = pricingPlans.find((candidate) => candidate.stripe_price_id === params.slug)
+  if (!plan?.stripe_price_id) {
     // plan with no stripe_price_id. Redirect to account home
     redirect(303, "/account")
   }
@@ -47,7 +48,7 @@ export const load: PageServerLoad = async ({
     const stripeSession = await stripe.checkout.sessions.create({
       line_items: [
         {
-          price: params.slug,
+          price: plan.stripe_price_id,
           quantity: 1,
         },
       ],

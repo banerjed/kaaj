@@ -1,11 +1,10 @@
 import { fail, redirect } from "@sveltejs/kit"
 import { sendAdminEmail, sendUserEmail } from "$lib/mailer"
+import { formString } from "$lib/server/forms"
 import { WebsiteBaseUrl } from "../../../../config"
 
 export const actions = {
-  toggleEmailSubscription: async ({ locals: { supabase, safeGetSession } }) => {
-    const { session } = await safeGetSession()
-
+  toggleEmailSubscription: async ({ locals: { session, supabase } }) => {
     if (!session) {
       redirect(303, "/login")
     }
@@ -32,14 +31,13 @@ export const actions = {
       unsubscribed: newUnsubscribedStatus,
     }
   },
-  updateEmail: async ({ request, locals: { supabase, safeGetSession } }) => {
-    const { session } = await safeGetSession()
+  updateEmail: async ({ request, locals: { session, supabase } }) => {
     if (!session) {
       redirect(303, "/login")
     }
 
     const formData = await request.formData()
-    const email = formData.get("email") as string
+    const email = formString(formData, "email")
 
     let validationError
     if (!email || email === "") {
@@ -75,17 +73,20 @@ export const actions = {
       email,
     }
   },
-  updatePassword: async ({ request, locals: { supabase, safeGetSession } }) => {
-    const { session, user, amr } = await safeGetSession()
+  updatePassword: async ({
+    request,
+    locals: { session, user, supabase, safeGetSession },
+  }) => {
     if (!session) {
       redirect(303, "/login")
     }
 
     const formData = await request.formData()
-    const newPassword1 = formData.get("newPassword1") as string
-    const newPassword2 = formData.get("newPassword2") as string
-    const currentPassword = formData.get("currentPassword") as string
+    const newPassword1 = formString(formData, "newPassword1")
+    const newPassword2 = formString(formData, "newPassword2")
+    const currentPassword = formString(formData, "currentPassword")
 
+    const { amr } = await safeGetSession({ includeAmr: true })
     // Can check if we're a "password recovery" session by checking session amr
     // let currentPassword take priority if provided (user can use either form)
     const recoveryAmr = amr?.find((x) => x.method === "recovery")
@@ -100,9 +101,6 @@ export const actions = {
           errorMessage:
             'Recovery code expired. Please log out, then use "Forgot Password" on the sign in page to reset your password. Codes are valid for 15 minutes.',
           errorFields: [],
-          newPassword1,
-          newPassword2,
-          currentPassword: "",
         })
       }
     }
@@ -139,9 +137,6 @@ export const actions = {
       return fail(400, {
         errorMessage: validationError,
         errorFields: [...new Set(errorFields)], // unique values
-        newPassword1,
-        newPassword2,
-        currentPassword,
       })
     }
 
@@ -166,29 +161,21 @@ export const actions = {
       console.error("Error updating password", error)
       return fail(500, {
         errorMessage: "Unknown error. If this persists please contact us.",
-        newPassword1,
-        newPassword2,
-        currentPassword,
       })
     }
 
-    return {
-      newPassword1,
-      newPassword2,
-      currentPassword,
-    }
+    return {}
   },
   deleteAccount: async ({
     request,
-    locals: { supabase, supabaseServiceRole, safeGetSession },
+    locals: { session, user, supabase, supabaseServiceRole },
   }) => {
-    const { session, user } = await safeGetSession()
     if (!session || !user?.id) {
       redirect(303, "/login")
     }
 
     const formData = await request.formData()
-    const currentPassword = formData.get("currentPassword") as string
+    const currentPassword = formString(formData, "currentPassword")
 
     if (!currentPassword) {
       return fail(400, {
@@ -224,16 +211,15 @@ export const actions = {
     await supabase.auth.signOut()
     redirect(303, "/")
   },
-  updateProfile: async ({ request, locals: { supabase, safeGetSession } }) => {
-    const { session, user } = await safeGetSession()
+  updateProfile: async ({ request, locals: { session, user, supabase } }) => {
     if (!session || !user?.id) {
       redirect(303, "/login")
     }
 
     const formData = await request.formData()
-    const fullName = formData.get("fullName") as string
-    const companyName = formData.get("companyName") as string
-    const website = formData.get("website") as string
+    const fullName = formString(formData, "fullName")
+    const companyName = formString(formData, "companyName")
+    const website = formString(formData, "website")
 
     let validationError
     const fieldMaxTextLength = 50
@@ -285,7 +271,7 @@ export const actions = {
         full_name: fullName,
         company_name: companyName,
         website: website,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
         unsubscribed: priorProfile?.unsubscribed ?? false,
       })
       .select()
@@ -328,8 +314,7 @@ export const actions = {
       website,
     }
   },
-  signout: async ({ locals: { supabase, safeGetSession } }) => {
-    const { session } = await safeGetSession()
+  signout: async ({ locals: { session, supabase } }) => {
     if (session) {
       await supabase.auth.signOut()
       redirect(303, "/")

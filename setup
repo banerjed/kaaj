@@ -304,6 +304,37 @@ else
   exit 1
 fi
 
+# The application connects as app_user, NOT as the owner. FORCE ROW LEVEL
+# SECURITY is bypassed by the table owner, so an app built against DATABASE_URL
+# (postgres) has RLS in name only and every isolation bug stays invisible until
+# production — the failure ADR-003 rule 3 exists to prevent.
+#
+# The migration creates the role with LOGIN but deliberately sets no password:
+# "the password is set out of band — never in a migration." Out of band, for a
+# disposable local stack, is here. This is the same class of well-known demo
+# credential as the keys in .env.local, and it is why this script must never be
+# pointed at a customer's infrastructure.
+psql "$DATABASE_URL" -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'" >/dev/null 2>&1 \
+  && ok "app_user password set ${D}(local demo credential)${N}" \
+  || { bad "could not set the app_user password"; exit 1; }
+
+# Prove the role is actually usable AND that it does not bypass RLS. With no
+# tenant claim set, app_user must see zero rows. Seeing rows here means the
+# connection is really the owner, and every page built on it would leak across
+# tenants.
+export APP_DATABASE_URL="${APP_DATABASE_URL:-postgresql://app_user:app_user@127.0.0.1:54322/postgres}"
+APP_ROWS="$(psql "$APP_DATABASE_URL" -X -t -A -c 'SELECT count(*) FROM employees' 2>/dev/null || echo FAIL)"
+if [ "$APP_ROWS" = "0" ]; then
+  ok "app_user connects and RLS denies it ${D}(0 rows without a tenant claim)${N}"
+elif [ "$APP_ROWS" = "FAIL" ]; then
+  bad "app_user cannot connect on APP_DATABASE_URL"
+  exit 1
+else
+  bad "app_user sees ${APP_ROWS} rows with no tenant claim — RLS is not in effect"
+  echo "    ${D}the connection is bypassing row-level security; do not build on it${N}"
+  exit 1
+fi
+
 # =============================================================================
 # 6. Generated artifacts
 # =============================================================================

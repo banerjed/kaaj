@@ -1,15 +1,22 @@
-@import "tailwindcss";
+/*
+ * The single Tailwind entry point for the whole application.
+ *
+ * Two entry points would mean two daisyUI theme sets landing on `:root` and
+ * whichever loaded second winning. Instead both themes coexist, selected by the
+ * nearest `data-theme` ancestor (L17): `saasstartertheme` for (marketing) and
+ * (admin)/account, Nexus's six for (app).
+ */
 
+/* The Nexus shell: tailwind, the six themes, layout and component styles. */
+@import "$lib/styles/app.css";
+
+/* Used by the marketing blog's `prose` classes. */
 @plugin '@tailwindcss/typography';
-@plugin "daisyui" {
-  /* Disable all other themes which forces the default theme created below. You can add a dark mode theme using daisyui if you like, and it will automatically use it when the user's system is in dark mode. Docs: https://daisyui.com/docs/themes/ */
-  themes: false;
-}
 
 @plugin "daisyui/theme" {
   name: "saasstartertheme";
-  default: true; /* set as default */
-  prefersdark: false; /* set as default dark mode (prefers-color-scheme:dark) */
+  /* Not `default: true` — Nexus's `light` holds that. */
+  prefersdark: false;
   color-scheme: light; /* color of browser-provided UI */
 
   --color-primary: #180042;
@@ -85,4 +92,55 @@ button[disabled].authBtn::before {
   font-size: 14px;
   content: "Loading...";
   color: oklch(var(--pc));
+}
+
+/*
+ * Doc 04's 44px touch floor, in one rule rather than on each control (L12).
+ * daisyUI's btn-sm is 32px. Coarse pointers only: the floor is for fingers.
+ */
+@media (pointer: coarse) {
+  .btn,
+  .input,
+  .select,
+  .textarea,
+  .file-input,
+  .tab {
+    min-height: 2.75rem;
+  }
+
+  /* Or they come out 44px tall and 32px wide. */
+  .btn-square,
+  .btn-circle {
+    min-width: 2.75rem;
+  }
+}
+
+/*
+ * Contrast floor for secondary text (L22).
+ *
+ * `--color-base-content` at 50-60% alpha fails WCAG AA on a light background:
+ * measured 3.17:1 and 4.26:1 against 4.5:1 required. 70% measures 5.88:1. The
+ * component utilities were lifted to /70; daisyUI's own table header sets 60%
+ * itself, so it is raised here rather than at every call site.
+ *
+ * Dark themes already pass at any of these alphas — light-on-dark loses less
+ * contrast per unit of transparency — so this is not conditional on the theme.
+ */
+.table :where(thead, tfoot) {
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+
+/*
+ * Contrast floor for secondary text (L22).
+ *
+ * `--color-base-content` at 50-60% alpha fails WCAG AA on a light background:
+ * 3.17:1 and 4.26:1 against the 4.5:1 required. 70% measures 5.88:1. The
+ * component utilities were lifted to /70; daisyUI sets 60% on table headers
+ * itself, so that one is raised here rather than at every call site.
+ *
+ * Not conditional on the theme: dark themes already pass at any of these
+ * alphas, because light-on-dark loses less contrast per unit of transparency.
+ */
+.table :where(thead, tfoot) {
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
 }

@@ -1,15 +1,10 @@
 <script lang="ts">
-  import { getContext } from "svelte"
-  import type { Writable } from "svelte/store"
   import SettingsModule from "../settings/settings_module.svelte"
   import PricingModule from "../../../../(marketing)/pricing/pricing_module.svelte"
   import {
     pricingPlans,
     defaultPlanId,
   } from "../../../../(marketing)/pricing/pricing_plans"
-
-  let adminSection: Writable<string> = getContext("adminSection")
-  adminSection.set("billing")
 
   let { data } = $props()
 
@@ -27,7 +22,7 @@
   {data.isActiveCustomer ? "Billing" : "Select a Plan"}
 </h1>
 <div>
-  View our <a href="/pricing" target="_blank" class="link">pricing page</a> for details.
+  View our <a href="/pricing" class="link">pricing page</a> for details.
 </div>
 
 {#if !data.isActiveCustomer}

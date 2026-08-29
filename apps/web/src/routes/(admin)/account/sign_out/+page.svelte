@@ -1,14 +1,14 @@
 <script lang="ts">
   import { goto } from "$app/navigation"
+  import { getBrowserSupabase } from "$lib/supabase/browser"
   import { onMount } from "svelte"
 
-  let { data } = $props()
-
-  let supabase = $derived(data.supabase)
   let message = $state("Signing out....")
 
   // on mount, sign out
   onMount(() => {
+    const supabase = getBrowserSupabase()
+
     supabase.auth.signOut().then(({ error }) => {
       if (error) {
         message = "There was an issue signing out."

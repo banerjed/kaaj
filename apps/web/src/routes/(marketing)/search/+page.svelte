@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { page } from "$app/stores"
   import { browser } from "$app/environment"
   import { onMount } from "svelte"
   import Fuse from "fuse.js"
   import type { FuseResult } from "fuse.js"
-  import { goto } from "$app/navigation"
+  import { replaceState } from "$app/navigation"
   import { dev } from "$app/environment"
+  import { page } from "$app/state"
 
   const fuseOptions = {
     keys: [
@@ -18,31 +18,64 @@
   }
 
   let fuse: Fuse<SearchDocument> | undefined = $state()
+  let loadPromise: Promise<void> | undefined
+  let searchInput: HTMLInputElement | undefined = $state()
+  let resultLinks: HTMLAnchorElement[] = $state([])
 
-  let loading = $state(true)
+  let loading = $state(false)
   let error = $state(false)
-  onMount(async () => {
-    try {
-      const response = await fetch("/search/api.json")
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const searchData = await response.json()
-      if (searchData && searchData.index && searchData.indexData) {
-        const index = Fuse.parseIndex<SearchDocument>(searchData.index)
-        fuse = new Fuse<SearchDocument>(
-          searchData.indexData,
-          fuseOptions,
-          index,
-        )
-      }
-    } catch (e) {
-      console.error("Failed to load search data", e)
-      error = true
-    } finally {
-      loading = false
-      document.getElementById("search-input")?.focus()
+  function ensureSearchLoaded() {
+    if (fuse || loadPromise) {
+      return loadPromise
     }
+
+    loading = true
+    error = false
+    loadPromise = fetch("/search/api.json")
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const searchData = await response.json()
+        if (searchData?.index && searchData.indexData) {
+          const index = Fuse.parseIndex<SearchDocument>(searchData.index)
+          fuse = new Fuse<SearchDocument>(
+            searchData.indexData,
+            fuseOptions,
+            index,
+          )
+        }
+      })
+      .catch((e) => {
+        console.error("Failed to load search data", e)
+        error = true
+      })
+      .finally(() => {
+        loading = false
+        loadPromise = undefined
+      })
+
+    return loadPromise
+  }
+
+  onMount(() => {
+    const syncFromHash = () => {
+      const hashQuery = decodeURIComponent(window.location.hash.slice(1))
+      if (hashQuery !== searchQuery) {
+        searchQuery = hashQuery
+      }
+    }
+
+    syncFromHash()
+    searchInput?.focus()
+
+    if (searchQuery.trim()) {
+      void ensureSearchLoaded()
+    }
+
+    window.addEventListener("hashchange", syncFromHash)
+    return () => window.removeEventListener("hashchange", syncFromHash)
   })
 
   // The shape of an indexed document, i.e. what /search/api.json contains.
@@ -56,17 +89,46 @@
   // `result.item` in the markup below comes from.
   let results: FuseResult<SearchDocument>[] = $state([])
 
-  // searchQuery is $page.url.hash minus the "#" at the beginning if present
-  let searchQuery = $state(decodeURIComponent($page.url.hash.slice(1) ?? ""))
+  // searchQuery is the URL hash minus the "#" at the beginning if present.
+  let searchQuery = $state(
+    browser ? decodeURIComponent(window.location.hash.slice(1)) : "",
+  )
   $effect(() => {
-    if (fuse) {
-      results = fuse.search(searchQuery)
+    const query = searchQuery.trim()
+    focusItem = 0
+    resultLinks = []
+
+    if (!query) {
+      results = []
+      return
     }
+
+    void ensureSearchLoaded()
+
+    if (!fuse) {
+      results = []
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      results = fuse ? fuse.search(query, { limit: 20 }) : []
+    }, 120)
+
+    return () => clearTimeout(timeout)
   })
   // Update the URL hash when searchQuery changes so the browser can bookmark/share the search results
   $effect(() => {
-    if (browser && window.location.hash.slice(1) !== searchQuery) {
-      goto("#" + searchQuery, { keepFocus: true })
+    if (!browser) {
+      return
+    }
+
+    const encodedQuery = encodeURIComponent(searchQuery)
+    const nextHash = encodedQuery ? `#${encodedQuery}` : ""
+    if (window.location.hash !== nextHash) {
+      replaceState(
+        `${page.url.pathname}${page.url.search}${nextHash}`,
+        page.state,
+      )
     }
   })
 
@@ -82,9 +144,9 @@
         focusItem = results.length
       }
       if (focusItem === 0) {
-        document.getElementById("search-input")?.focus()
+        searchInput?.focus()
       } else {
-        document.getElementById(`search-result-${focusItem}`)?.focus()
+        resultLinks[focusItem - 1]?.focus()
       }
     }
   }
@@ -114,7 +176,11 @@
       class="grow w-full"
       placeholder="Search"
       bind:value={searchQuery}
-      onfocus={() => (focusItem = 0)}
+      bind:this={searchInput}
+      onfocus={() => {
+        focusItem = 0
+        void ensureSearchLoaded()
+      }}
       aria-label="Search input"
     />
   </label>
@@ -140,10 +206,11 @@
   {/if}
 
   <div>
-    {#each results as result, i}
+    {#each results as result, i (result.item.path)}
       <a
         href={result.item.path || "/"}
         id="search-result-{i + 1}"
+        bind:this={resultLinks[i]}
         class="card my-6 bg-white shadow-xl flex-row overflow-hidden focus:mx-[-10px] focus:my-[-5px] focus:border-4 focus:border-secondary"
       >
         <div class="flex-none w-6 md:w-32 bg-secondary"></div>

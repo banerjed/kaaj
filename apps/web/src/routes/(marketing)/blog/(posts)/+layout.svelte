@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { page } from "$app/stores"
+  import { page } from "$app/state"
   import { error } from "@sveltejs/kit"
   import { sortedBlogPosts, type BlogPost } from "./../posts"
   import { WebsiteName } from "../../../../config"
@@ -22,7 +22,7 @@
     }
     return searchPost
   }
-  let currentPost = $derived(getCurrentPost($page.url.pathname))
+  let currentPost = $derived(getCurrentPost(page.url.pathname))
 
   function buildLdJson(post: BlogPost) {
     return {
@@ -39,7 +39,7 @@
     }/script>`,
   )
 
-  let pageUrl = $derived($page.url.origin + $page.url.pathname)
+  let pageUrl = $derived(page.url.origin + page.url.pathname)
 </script>
 
 <svelte:head>

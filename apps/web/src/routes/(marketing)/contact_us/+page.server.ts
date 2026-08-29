@@ -1,5 +1,6 @@
 import { fail } from "@sveltejs/kit"
 import { sendAdminEmail } from "$lib/mailer.js"
+import { formString } from "$lib/server/forms"
 
 /** @type {import('./$types').Actions} */
 export const actions = {
@@ -7,7 +8,7 @@ export const actions = {
     const formData = await request.formData()
     const errors: { [fieldName: string]: string } = {}
 
-    const firstName = formData.get("first_name")?.toString() ?? ""
+    const firstName = formString(formData, "first_name")
     if (firstName.length < 2) {
       errors["first_name"] = "First name is required"
     }
@@ -15,7 +16,7 @@ export const actions = {
       errors["first_name"] = "First name too long"
     }
 
-    const lastName = formData.get("last_name")?.toString() ?? ""
+    const lastName = formString(formData, "last_name")
     if (lastName.length < 2) {
       errors["last_name"] = "Last name is required"
     }
@@ -23,7 +24,7 @@ export const actions = {
       errors["last_name"] = "Last name too long"
     }
 
-    const email = formData.get("email")?.toString() ?? ""
+    const email = formString(formData, "email")
     if (email.length < 6) {
       errors["email"] = "Email is required"
     } else if (email.length > 500) {
@@ -32,17 +33,17 @@ export const actions = {
       errors["email"] = "Invalid email"
     }
 
-    const company = formData.get("company")?.toString() ?? ""
+    const company = formString(formData, "company")
     if (company.length > 500) {
       errors["company"] = "Company too long"
     }
 
-    const phone = formData.get("phone")?.toString() ?? ""
+    const phone = formString(formData, "phone")
     if (phone.length > 100) {
       errors["phone"] = "Phone number too long"
     }
 
-    const message = formData.get("message")?.toString() ?? ""
+    const message = formString(formData, "message")
     if (message.length > 2000) {
       errors["message"] = "Message too long (" + message.length + " of 2000)"
     }
@@ -61,7 +62,7 @@ export const actions = {
         company_name: company,
         phone,
         message_body: message,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
 
     if (insertError) {

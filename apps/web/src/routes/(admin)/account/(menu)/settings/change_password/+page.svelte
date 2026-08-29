@@ -1,23 +1,20 @@
 <script lang="ts">
-  import { page } from "$app/stores"
-  import { getContext } from "svelte"
-  import type { Writable } from "svelte/store"
+  import { page } from "$app/state"
+  import {
+    getBrowserSupabase,
+    type BrowserSupabaseClient,
+  } from "$lib/supabase/browser"
+  import { onMount } from "svelte"
   import SettingsModule from "../settings_module.svelte"
-
-  let adminSection: Writable<string> = getContext("adminSection")
-  adminSection.set("settings")
 
   let { data } = $props()
   let user = $derived(data.user)
-  let supabase = $derived(data.supabase)
+  let supabase: BrowserSupabaseClient | null = $state(null)
 
   // True if definitely has a password, but can be false if they
   // logged in with oAuth or email link
   // Supabase does not maintain an AMR typedef so we cast through any
-  let amr: { method: string }[] | undefined = $derived(
-    (user as unknown as Record<string, unknown>)?.amr as
-      { method: string }[] | undefined,
-  )
+  let amr: { method: string }[] | undefined = $derived(data.amr ?? undefined)
   let hasPassword = $derived(
     amr?.find((x) => x.method === "password") ? true : false,
   )
@@ -28,22 +25,31 @@
   let sendBtnDisabled = $state(false)
   let sendBtnText = $state("Send Set Password Email")
   let sentEmail = $state(false)
+
+  onMount(() => {
+    supabase = getBrowserSupabase()
+  })
+
   let sendForgotPassword = () => {
     sendBtnDisabled = true
     sendBtnText = "Sending..."
 
     let email = user?.email
-    if (email) {
-      supabase.auth
-        .resetPasswordForEmail(email, {
-          redirectTo: `${$page.url.origin}/auth/callback?next=%2Faccount%2Fsettings%2Freset_password`,
-        })
-        .then((d) => {
-          sentEmail = d.error ? false : true
-          sendBtnDisabled = false
-          sendBtnText = "Send Forgot Password Email"
-        })
+    if (!email || !supabase) {
+      sendBtnDisabled = false
+      sendBtnText = "Send Forgot Password Email"
+      return
     }
+
+    supabase.auth
+      .resetPasswordForEmail(email, {
+        redirectTo: `${page.url.origin}/auth/callback?next=%2Faccount%2Fsettings%2Freset_password`,
+      })
+      .then((d) => {
+        sentEmail = d.error ? false : true
+        sendBtnDisabled = false
+        sendBtnText = "Send Forgot Password Email"
+      })
   }
 </script>
 

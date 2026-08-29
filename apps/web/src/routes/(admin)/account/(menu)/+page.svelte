@@ -1,11 +1,3 @@
-<script lang="ts">
-  import { getContext } from "svelte"
-  import type { Writable } from "svelte/store"
-
-  let adminSection: Writable<string> = getContext("adminSection")
-  adminSection.set("home")
-</script>
-
 <svelte:head>
   <title>Account</title>
 </svelte:head>

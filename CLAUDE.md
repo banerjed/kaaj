@@ -1,7 +1,7 @@
 # Kaaj
 
 Unified workplace management software for SMBs. Multi-tenant SaaS, competing
-with Zoho and Odoo on integrated modules rather than depth in any one.
+with Zoho and Odoo
 
 ---
 
@@ -139,6 +139,47 @@ caller.
 
 ---
 
+## Before building a module
+
+Read **[docs/10-lessons-learned.md](docs/10-lessons-learned.md)**. It is a
+running list of the traps in this codebase, each of which failed *silently* —
+an empty page, an unstyled component, a control no keyboard can reach. Comments
+in the app code reference it by number (`L4`, `L11`) rather than restating it.
+
+Append to it when something bites. Do not rewrite past entries.
+
+### Keep this file and the lessons file current
+
+**When a salient bug is found in generated code, write the rule down before
+moving on.** A bug that is fixed but not recorded gets regenerated — by the next
+contributor, or by the next model, from the same plausible-looking assumption
+that produced it the first time. The fix costs an hour; the rule costs a line.
+
+Where it goes:
+
+| Kind of finding | Goes in |
+|---|---|
+| A trap in *this* codebase — a thing that fails silently, a stale doc, a library behaviour that surprises | `docs/10-lessons-learned.md`, as a new `Lnn` |
+| A rule that changes how code should be *written* here — a convention, a forbidden pattern, a required check | **this file**, under `Rules that are easy to get wrong` |
+| Both | Both. The lesson explains; the rule constrains |
+
+A finding qualifies as salient if any of these hold:
+
+- it produced **no error** — an empty page, a silently unstyled component, a
+  control no keyboard can reach, a check that passed vacuously
+- it would be **repeated by someone reasonable** working from the docs as they
+  stand, which usually means a doc is stale and should be corrected too
+- it was **found by looking rather than by testing**, which means the test suite
+  has a blind spot worth naming
+- fixing it required **reading a dependency's source** to discover the real
+  behaviour
+
+Do not record ordinary bugs, one-off typos, or anything the code already makes
+obvious. This file is read in full on every session; every line added is a line
+everyone pays for. If an entry stops being true, delete it.
+
+---
+
 ## Rules that are easy to get wrong
 
 **Migrations, not `schema.sql`.** `packages/database/reference/schema.sql` is the design
@@ -170,6 +211,12 @@ exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern
 silently absorbs future violations, which is how a suite quietly stops testing
 anything.
+
+**Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
+light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
+mode either way — so the failure is invisible if you only check one theme. Any
+new colour pair needs measuring in all six; see
+[L22](docs/10-lessons-learned.md).
 
 **Customization is data, never code.** Customers customize through rows, custom
 field definitions and settings — never per-tenant schema changes or per-tenant

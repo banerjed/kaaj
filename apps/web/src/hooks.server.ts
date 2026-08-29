@@ -1,13 +1,13 @@
 // src/hooks.server.ts
-import { PRIVATE_SUPABASE_SERVICE_ROLE } from "$env/static/private"
 import {
   PUBLIC_SUPABASE_ANON_KEY,
   PUBLIC_SUPABASE_URL,
 } from "$env/static/public"
 import { createServerClient } from "@supabase/ssr"
-import { createClient, type AMREntry } from "@supabase/supabase-js"
+import type { AMREntry } from "@supabase/supabase-js"
 import type { Handle } from "@sveltejs/kit"
 import { sequence } from "@sveltejs/kit/hooks"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 
 export const supabase: Handle = async ({ event, resolve }) => {
   event.locals.supabase = createServerClient(
@@ -36,11 +36,7 @@ export const supabase: Handle = async ({ event, resolve }) => {
     },
   )
 
-  event.locals.supabaseServiceRole = createClient(
-    PUBLIC_SUPABASE_URL,
-    PRIVATE_SUPABASE_SERVICE_ROLE,
-    { auth: { persistSession: false } },
-  )
+  event.locals.supabaseServiceRole = supabaseServiceRole
 
   // https://github.com/supabase/auth-js/issues/888#issuecomment-2189298518
   if ("suppressGetSessionWarning" in event.locals.supabase.auth) {
@@ -57,34 +53,40 @@ export const supabase: Handle = async ({ event, resolve }) => {
    * validating the JWT, this function also calls `getUser()` to validate the
    * JWT before returning the session.
    */
-  event.locals.safeGetSession = async () => {
-    const {
-      data: { session },
-    } = await event.locals.supabase.auth.getSession()
-    if (!session) {
-      return { session: null, user: null, amr: null }
-    }
+  let authResult: Promise<{
+    session: import("@supabase/supabase-js").Session | null
+    user: import("@supabase/supabase-js").User | null
+  }> | undefined
+  let amrResult: Promise<AMREntry[] | null> | undefined
 
-    const {
-      data: { user },
-      error: userError,
-    } = await event.locals.supabase.auth.getUser()
-    if (userError) {
-      // JWT validation has failed
-      return { session: null, user: null, amr: null }
-    }
+  event.locals.safeGetSession = async ({ includeAmr = false } = {}) => {
+    authResult ??= (async () => {
+      const {
+        data: { session },
+      } = await event.locals.supabase.auth.getSession()
+      if (!session) return { session: null, user: null }
 
-    const { data: aal, error: amrError } =
-      await event.locals.supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (amrError) {
+      const {
+        data: { user },
+        error: userError,
+      } = await event.locals.supabase.auth.getUser()
+      if (userError) return { session: null, user: null }
+      return { session, user }
+    })()
+
+    const { session, user } = await authResult
+    if (!includeAmr || !session || !user) {
       return { session, user, amr: null }
     }
 
-    return {
-      session,
-      user,
-      amr: aal.currentAuthenticationMethods as AMREntry[],
-    }
+    amrResult ??= event.locals.supabase.auth.mfa
+      .getAuthenticatorAssuranceLevel()
+      .then(({ data, error: amrError }) =>
+        amrError
+          ? null
+          : (data.currentAuthenticationMethods as AMREntry[]),
+      )
+    return { session, user, amr: await amrResult }
   }
 
   return resolve(event, {
@@ -100,8 +102,48 @@ const authGuard: Handle = async ({ event, resolve }) => {
   const { session, user } = await event.locals.safeGetSession()
   event.locals.session = session
   event.locals.user = user
+  event.locals.amr = null
+
+  // ADR-003 rule 5: tenant context is resolved ONCE, here. No membership means
+  // no claim means no tenant — which fails closed to zero rows, not an error.
+  const claims = appMetadataFromToken(session?.access_token)
+  event.locals.tenantId = claims.tenantId
+  event.locals.tenantRole = claims.role
 
   return resolve(event)
+}
+
+/**
+ * Read `app_metadata` out of the ACCESS TOKEN, not out of `user.app_metadata`
+ * — which is the obvious place and is always empty of these claims (L4).
+ *
+ * Decoding without verifying is safe here only because `safeGetSession` has
+ * already validated this exact token through `getUser()`.
+ */
+function appMetadataFromToken(accessToken?: string): {
+  tenantId: string | null
+  role: string | null
+} {
+  const none = { tenantId: null, role: null }
+  if (!accessToken) return none
+
+  const payload = accessToken.split(".")[1]
+  if (!payload) return none
+
+  try {
+    const json = Buffer.from(payload, "base64url").toString("utf8")
+    const claims = JSON.parse(json) as {
+      app_metadata?: { tenant_id?: unknown; role?: unknown }
+    }
+    const tenantId = claims.app_metadata?.tenant_id
+    const role = claims.app_metadata?.role
+    return {
+      tenantId: typeof tenantId === "string" && tenantId ? tenantId : null,
+      role: typeof role === "string" && role ? role : null,
+    }
+  } catch {
+    return none // malformed token = missing tenant, not a crash
+  }
 }
 
 export const handle: Handle = sequence(supabase, authGuard)

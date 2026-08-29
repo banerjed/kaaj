@@ -261,37 +261,54 @@
         Built with <a
           href="https://kit.svelte.dev"
           class="link font-bold"
-          target="_blank">SvelteKit</a
+          target="_blank"
+          rel="noreferrer">SvelteKit</a
         >,
-        <a href="https://supabase.com" class="link font-bold" target="_blank"
-          >Supabase</a
+        <a
+          href="https://supabase.com"
+          class="link font-bold"
+          target="_blank"
+          rel="noreferrer">Supabase</a
         >,
-        <a href="https://stripe.com" class="link font-bold" target="_blank"
-          >Stripe</a
+        <a
+          href="https://stripe.com"
+          class="link font-bold"
+          target="_blank"
+          rel="noreferrer">Stripe</a
         >,
-        <a href="https://tailwindcss.com" class="link font-bold" target="_blank"
-          >Tailwind</a
+        <a
+          href="https://tailwindcss.com"
+          class="link font-bold"
+          target="_blank"
+          rel="noreferrer">Tailwind</a
         >,
-        <a href="https://daisyui.com" class="link font-bold" target="_blank"
-          >DaisyUI</a
+        <a
+          href="https://daisyui.com"
+          class="link font-bold"
+          target="_blank"
+          rel="noreferrer">DaisyUI</a
         >, and
         <a
           href="https://www.postgresql.org"
           class="link font-bold"
-          target="_blank">Postgres</a
+          target="_blank"
+          rel="noreferrer">Postgres</a
         >
       </div>
       <div
         class="mt-6 md:mt-4 flex flex-row flex-wrap gap-4 place-content-center"
       >
-        <a href="https://github.com/CriticalMoments/CMSaasStarter">
-          <button class="btn btn-primary px-6">★ us on Github</button>
+        <a
+          href="https://github.com/CriticalMoments/CMSaasStarter"
+          class="btn btn-primary px-6"
+        >
+          ★ us on Github
         </a>
         <a
           href="https://github.com/CriticalMoments/CMSaasStarter/tree/main#saas-starter"
+          class="btn btn-outline btn-primary px-6"
         >
-          <button class="btn btn-outline btn-primary px-6">Read the Docs</button
-          >
+          Read the Docs
         </a>
       </div>
     </div>
@@ -343,13 +360,11 @@
             {#if feature.link}
               <a
                 href={feature.link}
-                class="pb-4"
-                target={feature.newPage ? "_blank" : ""}
+                class="btn btn-xs btn-outline rounded-full btn-primary min-w-[100px] mb-4"
+                target={feature.newPage ? "_blank" : undefined}
+                rel={feature.newPage ? "noreferrer" : undefined}
               >
-                <button
-                  class="btn btn-xs btn-outline rounded-full btn-primary min-w-[100px]"
-                  >{feature.linkText ? feature.linkText : "Try It"}</button
-                >
+                {feature.linkText ? feature.linkText : "Try It"}
               </a>
             {/if}
           </div>
@@ -370,7 +385,12 @@
         class="flex flex-col lg:flex-row mt-6 gap-6 place-content-center content-center"
       >
         <div class="hidden md:block">
-          <a href="https://criticalmoments.io" target="_blank" class="link">
+          <a
+            href="https://criticalmoments.io"
+            target="_blank"
+            rel="noreferrer"
+            class="link"
+          >
             <div class="mockup-browser border">
               <div class="mockup-browser-toolbar">
                 <div class="input" style="background:#eee;">
@@ -388,7 +408,12 @@
           </a>
         </div>
         <div class="md:hidden">
-          <a href="https://criticalmoments.io" target="_blank" class="link">
+          <a
+            href="https://criticalmoments.io"
+            target="_blank"
+            rel="noreferrer"
+            class="link"
+          >
             <div class="card shadow-xl border overflow-hidden">
               <img
                 alt="Screenshot of criticalmoments.io homepage"
@@ -401,7 +426,11 @@
         <div class="min-w-[270px] lg:min-w-[420px] flex mt-6 lg:mt-0">
           <div class="my-auto">
             <div class="px-4 text-lg md:text-xl">
-              <a href="https://criticalmoments.io" class="" target="_blank"
+              <a
+                href="https://criticalmoments.io"
+                class=""
+                target="_blank"
+                rel="noreferrer"
                 >SaaS Starter was created by <span
                   class="font-bold whitespace-nowrap">Critical Moments</span
                 >: a SDK to to help mobile apps
@@ -414,14 +443,18 @@
               Our <a
                 href="https://criticalmoments.io"
                 class="link font-bold"
-                target="_blank">webpage</a
+                target="_blank"
+                rel="noreferrer">webpage</a
               > is the best example of SaaS Starter with style and real content.
             </div>
             <div class="mt-4 text-large">
-              <a href="https://criticalmoments.io" target="_blank">
-                <button class="btn btn-primary btn-wide mt-3"
-                  >See it in Action</button
-                >
+              <a
+                href="https://criticalmoments.io"
+                target="_blank"
+                rel="noreferrer"
+                class="btn btn-primary btn-wide mt-3"
+              >
+                See it in Action
               </a>
             </div>
           </div>

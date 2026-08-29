@@ -28,6 +28,46 @@ upstream.
 
 ---
 
+## The second source: Nexus (UI template)
+
+The product shell — sidebar, topbar, theming, and the table and form component
+patterns — comes from **Nexus SvelteKit 3.0.0**, a commercial daisyUI admin
+template by Denish Navadiya (`nexus-sveltekit-ref`, a machine-local symlink; it
+is not committed).
+
+**Attribution lives here rather than in the running application.** Nexus's
+footer shipped with its author's byline and a "Buy Now" link to the daisyUI
+store. Both were removed from `Footer.svelte`: a byline attributes the product
+to someone who did not build it, and a template purchase link does not belong
+inside a customer's payroll system. The credit is recorded in this document
+instead.
+
+Copied under `apps/web/src/lib/`: `components/admin-layout/`, `styles/`,
+`contexts/ConfigProvider.svelte`, `Logo`, `ThemeToggle`, `PageTitle`.
+
+**What was changed on the way in, and why** — each of these was a defect, not a
+preference:
+
+| Change | Reason |
+|---|---|
+| `warningFilter` NOT copied from `svelte.config.js` | It suppressed every accessibility warning, against docs 02 (WCAG 2.1 AA) and 04. It also tested for `"ally_"` when the real Svelte prefix is `a11y_`, so it never worked. Removing it surfaced **73 real lint errors**, all since fixed |
+| Rightbar options given `role`/`tabindex`/keydown | Every appearance control was `onclick` on a plain `<div>`: mouse-only, no tab stop, invisible to screen readers. WCAG 2.1.1 and 4.1.2 failures |
+| ~35 self-closing non-void tags corrected | `<span />` is an open tag in HTML; everything after it nested inside |
+| `Sidebar` active-item tracking moved to `$derived` | Seeded `$state` captured only the initial `menuItems`, so a menu that changes would highlight against a stale array |
+| Search / language / notification widgets deleted | Convincing shells over hardcoded data. See the note in `Topbar.svelte` |
+| Demo identity replaced with the session user | "Denish N", "John Doe", avatar images, a fake team roster, and an "Upgrade — save 30%" panel |
+| `Logo` redrawn as markup | Pointed at two PNGs that do not exist in this repo |
+| Touch-target floor moved from `min-h-11` utilities to one `pointer: coarse` rule | A per-element utility has to be remembered at every call site forever; the rule covers controls not yet written |
+| Hand-built mobile cards replaced with daisyUI `list`, hand-built footer with `footer` | Both components already existed; rebuilding them is how spacing drifts page by page |
+| Four Google Fonts families reduced to one, moved to `<link>` | Chained `@import url()` is render-blocking three requests deep — docs 03 and 04 both forbid it |
+| Six plugin stylesheets dropped | apexcharts, quill, filepond, flatpickr, swiper, sortablejs are not installed; they are most of the template's weight |
+| Menu replaced wholesale | Nexus ships Ecommerce / Gen-AI / Agentic. The IA is doc 02's five module groups |
+
+The shell is borrowed. The navigation, the data, and the accessibility floor
+are the product's own.
+
+---
+
 ## Why this starter
 
 It already matches the architecture we settled on, which is most of the value:

@@ -18,7 +18,7 @@ export interface Database {
           last_name: string | null
           message_body: string | null
           phone: string | null
-          updated_at: Date | null
+          updated_at: string | null
         }
         Insert: {
           company_name?: string | null
@@ -28,7 +28,7 @@ export interface Database {
           last_name?: string | null
           message_body?: string | null
           phone?: string | null
-          updated_at?: Date | null
+          updated_at?: string | null
         }
         Update: {
           company_name?: string | null
@@ -38,7 +38,7 @@ export interface Database {
           last_name?: string | null
           message_body?: string | null
           phone?: string | null
-          updated_at?: Date | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -56,7 +56,7 @@ export interface Database {
           avatar_url?: string | null
           full_name?: string | null
           id: string
-          updated_at?: Date | null
+          updated_at?: string | null
           company_name?: string | null
           website?: string | null
           unsubscribed: boolean
@@ -82,17 +82,17 @@ export interface Database {
       stripe_customers: {
         Row: {
           stripe_customer_id: string
-          updated_at: Date | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           stripe_customer_id: string
-          updated_at?: Date | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           stripe_customer_id?: string
-          updated_at?: Date | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [

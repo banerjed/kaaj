@@ -49,7 +49,7 @@ export const getOrCreateCustomerId = async ({
         company_name: profile.company_name ?? "",
         website: profile.website ?? "",
       },
-    })
+    }, { idempotencyKey: `customer-${user.id}` })
   } catch (e) {
     return { error: e }
   }
@@ -64,11 +64,21 @@ export const getOrCreateCustomerId = async ({
     .insert({
       user_id: user.id,
       stripe_customer_id: customer.id,
-      updated_at: new Date(),
+      updated_at: new Date().toISOString(),
     })
 
   if (insertError) {
-    return { error: insertError }
+    // Another request may have won the unique insert after Stripe created the
+    // customer. Return that canonical row instead of reporting a false error.
+    const { data: existingCustomer, error: lookupError } = await supabaseServiceRole
+      .from("stripe_customers")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single()
+    if (lookupError || !existingCustomer?.stripe_customer_id) {
+      return { error: insertError }
+    }
+    return { customerId: existingCustomer.stripe_customer_id }
   }
 
   return { customerId: customer.id }

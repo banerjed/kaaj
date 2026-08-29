@@ -7,10 +7,9 @@ const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" })
 
 export const load: PageServerLoad = async ({
   url,
-  locals: { safeGetSession, supabaseServiceRole },
+  locals: { session, user, supabaseServiceRole },
 }) => {
-  const { session, user } = await safeGetSession()
-  if (!session) {
+  if (!session || !user) {
     redirect(303, "/login")
   }
 

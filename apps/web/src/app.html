@@ -1,9 +1,26 @@
 <!doctype html>
-<html lang="en">
+<!--
+  `group/html` is load-bearing, not decoration. 25 styles across ThemeToggle,
+  Rightbar and Sidebar are written as `group-data-[...]/html:` — they target the
+  <html> element as a named Tailwind group. Without the class none of them ever
+  match, and they fail silently: the theme toggle keeps showing one icon, the
+  appearance panel shows no selected state, the sidebar peek button never
+  changes. Nothing errors. (L23)
+-->
+<html lang="en" class="group/html">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <!-- No maximum-scale / user-scalable=no: pinch-zoom must keep working. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Here, not via CSS @import, which the preload scanner cannot see (L18). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inclusive+Sans:wght@400;500;600;700&display=swap"
+    />
     %sveltekit.head%
   </head>
   <body

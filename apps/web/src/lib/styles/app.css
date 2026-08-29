@@ -1,0 +1,32 @@
+/*
+ * The Nexus style tree, trimmed to what Kaaj loads. Imported by src/app.css.
+ *
+ * The apexcharts / carousel / filepond / flatpickr / select / text-editor
+ * sheets are still in this directory but not imported — each styles a plugin
+ * we have not installed. Restore an @import when the plugin arrives.
+ */
+
+/* Root Styling */
+@import "./typography.css";
+@import "./tailwind.css";
+@import "./daisyui.css";
+
+/* Custom Declarations */
+@import "./core/animation.css";
+@import "./core/components.css";
+
+/* Page wise */
+@import "./pages/layout.css";
+@import "./pages/components.css";
+
+/* Plugin Overriding */
+@import "./plugins/scrollbar.css";
+
+/****  Plugins  ****/
+/* Animations */
+@plugin "tailwindcss-motion";
+
+/* Only the `lucide` prefix: the only set the shell uses. */
+@plugin "@iconify/tailwind4" {
+  prefixes: lucide;
+}

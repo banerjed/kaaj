@@ -1,5 +1,6 @@
 <script lang="ts">
   import { applyAction, enhance } from "$app/forms"
+  import { fieldError } from "$lib/form_errors"
   import type { SubmitFunction } from "@sveltejs/kit"
   import "../../../../app.css"
 
@@ -27,11 +28,6 @@
   let fullName = $derived(profile?.full_name ?? "")
   let companyName = $derived(profile?.company_name ?? "")
   let website = $derived(profile?.website ?? "")
-
-  const fieldError = (liveForm: FormAccountUpdateResult, name: string) => {
-    let errors = liveForm?.errorFields ?? []
-    return errors.includes(name)
-  }
 
   const handleSubmit: SubmitFunction = () => {
     loading = true

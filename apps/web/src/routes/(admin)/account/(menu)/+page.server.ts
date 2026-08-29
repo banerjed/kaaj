@@ -1,8 +1,7 @@
 import { redirect } from "@sveltejs/kit"
 
 export const actions = {
-  signout: async ({ locals: { supabase, safeGetSession } }) => {
-    const { session } = await safeGetSession()
+  signout: async ({ locals: { session, supabase } }) => {
     if (session) {
       await supabase.auth.signOut()
       redirect(303, "/")

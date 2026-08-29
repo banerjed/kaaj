@@ -1,7 +1,6 @@
 <script lang="ts">
   import "../../../../app.css"
-  import { writable } from "svelte/store"
-  import { setContext } from "svelte"
+  import { page } from "$app/state"
   import { WebsiteName } from "../../../../config"
   interface Props {
     children?: import("svelte").Snippet
@@ -9,12 +8,13 @@
 
   let { children }: Props = $props()
 
-  const adminSectionStore = writable("")
-  setContext("adminSection", adminSectionStore)
-  let adminSection: string | undefined = $state()
-  adminSectionStore.subscribe((value) => {
-    adminSection = value
-  })
+  let adminSection = $derived(
+    page.url.pathname.startsWith("/account/billing")
+      ? "billing"
+      : page.url.pathname.startsWith("/account/settings")
+        ? "settings"
+        : "home",
+  )
 
   function closeDrawer(): void {
     const adminDrawer = document.getElementById(
@@ -33,7 +33,11 @@
       </div>
       <div class="flex-none">
         <div class="dropdown dropdown-end">
-          <label for="admin-drawer" class="btn btn-ghost btn-circle">
+          <label
+            for="admin-drawer"
+            class="btn btn-ghost btn-circle"
+            aria-label="Open account menu"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-5 w-5"
@@ -66,7 +70,13 @@
           class="normal-case menu-title text-xl font-bold text-primary flex flex-row"
         >
           <a href="/" class="grow">{WebsiteName}</a>
-          <label for="admin-drawer" class="lg:hidden ml-3"> &#x2715; </label>
+          <label
+            for="admin-drawer"
+            class="lg:hidden ml-3"
+            aria-label="Close account menu"
+          >
+            &#x2715;
+          </label>
         </div>
       </li>
       <li>

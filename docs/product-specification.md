@@ -41,7 +41,8 @@ This document outlines the specifications for a comprehensive, web-based SaaS pl
 
 ## Product Vision
 
-To empower small and medium-sized businesses with enterprise-grade business management tools that are affordable, easy to use, and scalable, enabling them to compete effectively in their markets while reducing administrative overhead.
+To empower small and medium-sized businesses with enterprise-grade business management tools that are affordable, easy to use, and scalable,
+enabling them to compete effectively in their markets while reducing administrative overhead.
 
 ### Problem Statement
 SMBs currently face several challenges:
@@ -113,7 +114,11 @@ A unified, modular SaaS platform that:
 4. **Reliability**: 99.9% uptime SLA
 5. **Security**: SOC 2 Type II compliance within 12 months
 6. **Extensibility**: Well-documented API for custom integrations
-
+7. **AI First**: AI first. Aim to complete each business workflow within 5 minutes. Aim to answer any query within a minute
+8. **Customizable**: Have some levels of custom fields per client
+9. **Easy onboarding**: Make onboarding a new client within a day. Requires migrating their data from legacy systems to new systems, and requires
+     strong ability to import legacy data, transform/clean the data, and import to the new system.
+10. **Mobile enabled**: Simple mobile access.
 ---
 
 ## System Architecture Overview
@@ -123,64 +128,64 @@ A unified, modular SaaS platform that:
 This is a **multi-tenant SaaS platform** designed to serve multiple organizations globally with complete data isolation and comprehensive internationalization support.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          EDGE LAYER                                  │
+┌────────────────────────────────────────────────────────────────────┐
+│                          EDGE LAYER                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
 │  │  CDN / Cache │  │     DNS      │  │     WAF      │              │
 │  └──────────────┘  └──────────────┘  └──────────────┘              │
-│  (Static assets, DDoS protection, TLS termination)                  │
+│  (Static assets, DDoS protection, TLS termination)                 │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              APPLICATION (single deployable unit)                   │
+│                                                                     │
+│  SvelteKit server — request pipeline                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │   Tenant     │  │     Auth     │  │     i18n     │               │
+│  │   Context    │→ │   Session    │→ │   Resolver   │               │
+│  │ (hooks.server)│  │              │  │             │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+│                              │                                      │
+│                              ▼                                      │
+│  Modules (code boundaries, one process, one transaction scope)      │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                │
+│  │   Firm   │ │    HR    │ │ Payroll  │ │  Compen- │                │
+│  │  Profile │ │          │ │          │ │  sation  │                │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘                │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                │
+│  │Ticketing │ │ Projects │ │   Time   │ │Accounting│                │
+│  │          │ │  & Tasks │ │ Tracking │ │          │                │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘                │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                             │
+│  │ Employee │ │  Change  │ │    AI    │                             │
+│  │  Profile │ │ Requests │ │Assistant │                             │
+│  └──────────┘ └──────────┘ └──────────┘                             │
+│                                                                     │
+│  Modules share one database and one transaction scope. Cross-module │
+│  workflows are ordinary transactions, not distributed sagas.        │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│              APPLICATION (single deployable unit)                    │
-│                                                                       │
-│  SvelteKit server — request pipeline                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │   Tenant     │  │     Auth     │  │     i18n     │              │
-│  │   Context    │→ │   Session    │→ │   Resolver   │              │
-│  │ (hooks.server)│  │              │  │              │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
-│                              │                                        │
-│                              ▼                                        │
-│  Modules (code boundaries, one process, one transaction scope)       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐              │
-│  │   Firm   │ │    HR    │ │ Payroll  │ │  Compen- │              │
-│  │  Profile │ │          │ │          │ │  sation  │              │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐              │
-│  │Ticketing │ │ Projects │ │   Time   │ │Accounting│              │
-│  │          │ │  & Tasks │ │ Tracking │ │          │              │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                            │
-│  │ Employee │ │  Change  │ │    AI    │                            │
-│  │  Profile │ │ Requests │ │Assistant │                            │
-│  └──────────┘ └──────────┘ └──────────┘                            │
-│                                                                       │
-│  Modules share one database and one transaction scope. Cross-module  │
-│  workflows are ordinary transactions, not distributed sagas.         │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        DATA LAYER                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
+│                        DATA LAYER                                   │
+│  ┌────────────────────────────────────────────────────────────-─┐   │
 │  │  PostgreSQL (Multi-Tenant Database)                          │   │
 │  │  • Shared schema with tenant_id isolation                    │   │
 │  │  • Row-level security policies (FORCE RLS, non-owner role)   │   │
 │  │  • Every table includes tenant_id; indexes lead with it      │   │
 │  │  • Full-text search via tsvector + GIN                       │   │
 │  │  • Background jobs via SKIP LOCKED queue table               │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │   │
-│  │  │   Primary    │  │  Read        │  │   Backup     │      │   │
-│  │  │   (Write)    │  │  Replicas    │  │   + PITR     │      │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │   │
+│  │  │   Primary    │  │  Read        │  │   Backup     │        │   │
+│  │  │   (Write)    │  │  Replicas    │  │   + PITR     │        │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘        │   │
+│  └────────────────────────────────────────────────────────────-─┘   │
+│                                                                     │
+│  ┌────────────────────────────────────────────────────────────-──┐  │
 │  │  Object Storage (S3-compatible)                               │  │
 │  │  • Documents  • Attachments  • Images  • Exports              │  │
-│  └──────────────────────────────────────────────────────────────┘  │
+│  └────────────────────────────────────────────────────────────-──┘  │
 └─────────────────────────────────────────────────────────────────────┘
 
 Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
@@ -244,18 +249,13 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **Application** (one deployable unit)
 - Svelte / SvelteKit (https://svelte.dev) on Node LTS, `@sveltejs/adapter-node`
-- Server-side rendering; `+page.server.ts` load functions and form actions
-- `+server.ts` for the public REST API (OpenAPI documented)
-- Data access in `$lib/server/` — a build-enforced server-only boundary
-- Background work: worker process from the same image, pulling from a
-  Postgres job table via `SELECT ... FOR UPDATE SKIP LOCKED`
 
 **Backend platform: Supabase** (see [ADR-008](./05-architecture-decisions.md#adr-008-supabase-as-the-backend-platform))
 - Database: Supabase PostgreSQL — the only datastore
 - Authentication: Supabase Auth (signup, login, MFA, OAuth/SSO, sessions)
 - File Storage: Supabase Storage (documents, images, exports)
 - Search: PostgreSQL full-text search (`tsvector` + GIN)
-- Queues and cache: PostgreSQL (no Redis)
+- Queues and cache: PostgreSQL
 - Schema: [`data-models/schema.sql`](../packages/database/reference/schema.sql) — authoritative
 - Not used: PostgREST as the primary API, Edge Functions, Realtime
 
@@ -345,13 +345,13 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **Key Features**:
 - Natural language interface for all platform functionality
-- Contextual help and documentation search
+- Contextual help and documentation search (with permissions to prevent unauthorized access to sensitive info)
 - Direct action execution through conversation
 - Multi-turn conversations with context preservation
 - Smart suggestions based on user context
 - Multi-lingual support (all platform locales)
 - Proactive assistance and reminders
-- Knowledge base powered by RAG (Retrieval Augmented Generation)
+- Knowledge base (needs to honor file & content permissions; we don't want to allow users querying for sensitive info)
 - Integration with all platform modules
 - Voice input support (future)
 - File attachment handling (future)

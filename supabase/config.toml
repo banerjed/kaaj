@@ -68,7 +68,13 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["../packages/database/fixtures/mock-data.sql"]
+sql_paths = [
+  "../packages/database/fixtures/mock-data.sql",
+  # Development logins. Must load AFTER mock-data.sql: it derives auth.users
+  # rows from the tenant_users rows that file seeds. DEV ONLY — well-known
+  # passwords; see the header of the file itself.
+  "../packages/database/fixtures/dev-users.sql",
+]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -156,11 +162,11 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://127.0.0.1:5173"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:5173"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -281,9 +287,16 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# Kaaj: this is LOAD-BEARING, not optional. custom_access_token_hook() stamps
+# app_metadata.tenant_id into the JWT; app.current_tenant_id() reads that claim,
+# and all 98 RLS policies filter on it. Without this registration the function
+# exists but is never called, login succeeds, no claim is stamped, and every
+# query returns zero rows with no error. See
+# supabase/migrations/20260827000002_auth_and_grants.sql section 3.
+# The hosted equivalent is Authentication > Hooks > Customize Access Token (JWT) Claims.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]

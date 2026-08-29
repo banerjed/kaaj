@@ -1,0 +1,21 @@
+/* Fonts load from app.html, not from here (L18). Nexus's four families and
+   its [data-font-family] switcher are gone; Kaaj has one typeface. */
+
+/** Typography config for tailwindcss **/
+@theme {
+  --font-sans: "Inclusive Sans", sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+}
+
+body {
+  @apply font-sans text-base;
+}
+
+strong {
+  @apply font-medium;
+}

@@ -44,5 +44,20 @@ module.exports = {
     // no-undef has been turned off because of this:
     // basically, it causes issues and TS does those checks so it's redundant
     // https://typescript-eslint.io/linting/troubleshooting#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
+
+    // An underscore prefix marks a binding that is deliberately unused, and the
+    // rule should trust it. The case that motivated this: getConnection(_tenantId)
+    // carries the tier-aware signature ADR-009 specifies, so the per-subdomain
+    // router can be dropped in later without touching a single call site.
+    // Deleting the parameter to satisfy the linter would mean changing every
+    // repository on the day that lands.
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+      },
+    ],
   },
 }
