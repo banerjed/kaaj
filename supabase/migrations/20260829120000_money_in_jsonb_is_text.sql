@@ -8,13 +8,20 @@
 --
 -- `::numeric::text` rather than a plain cast, so 95000 becomes '95000' and not
 -- '95000.0', and so a value that was already text is left alone.
+--
+-- A side that is absent stays absent. Writing `null` in its place would look
+-- harmless and then reach the validators, which expect a string.
 
 UPDATE firm_job_levels
    SET salary_ranges = (
-         SELECT coalesce(jsonb_object_agg(cur, jsonb_build_object(
-                  'min', to_jsonb(((band ->> 'min')::numeric)::text),
-                  'max', to_jsonb(((band ->> 'max')::numeric)::text)
-                )), '{}'::jsonb)
+         SELECT coalesce(jsonb_object_agg(cur, band - 'min' - 'max'
+                  || CASE WHEN band ? 'min' THEN jsonb_build_object(
+                       'min', to_jsonb(((band ->> 'min')::numeric)::text))
+                     ELSE '{}'::jsonb END
+                  || CASE WHEN band ? 'max' THEN jsonb_build_object(
+                       'max', to_jsonb(((band ->> 'max')::numeric)::text))
+                     ELSE '{}'::jsonb END
+                ), '{}'::jsonb)
            FROM jsonb_each(salary_ranges) AS r(cur, band)
        )
  WHERE salary_ranges IS NOT NULL
@@ -27,10 +34,14 @@ UPDATE firm_job_levels
 
 UPDATE firm_benefit_items
    SET costs_by_currency = (
-         SELECT coalesce(jsonb_object_agg(cur, jsonb_build_object(
-                  'employee', to_jsonb(((c ->> 'employee')::numeric)::text),
-                  'employer', to_jsonb(((c ->> 'employer')::numeric)::text)
-                )), '{}'::jsonb)
+         SELECT coalesce(jsonb_object_agg(cur, c - 'employee' - 'employer'
+                  || CASE WHEN c ? 'employee' THEN jsonb_build_object(
+                       'employee', to_jsonb(((c ->> 'employee')::numeric)::text))
+                     ELSE '{}'::jsonb END
+                  || CASE WHEN c ? 'employer' THEN jsonb_build_object(
+                       'employer', to_jsonb(((c ->> 'employer')::numeric)::text))
+                     ELSE '{}'::jsonb END
+                ), '{}'::jsonb)
            FROM jsonb_each(costs_by_currency) AS r(cur, c)
        )
  WHERE costs_by_currency IS NOT NULL

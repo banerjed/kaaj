@@ -45,6 +45,7 @@ export const actions: Actions = {
       max: 168,
     })
     const multiplier = f.decimal("multiplier", { scale: 4, min: 0, max: 10 })
+    const locationCode = f.text("location_code", { max: 100 })
     const doubleAfter = f.decimal("double_time_after_hours", {
       scale: 4,
       min: 0,
@@ -78,7 +79,7 @@ export const actions: Actions = {
     if (doubleAfter !== null) overtime.double_time_after_hours = doubleAfter
 
     const input = {
-      location_code: f.text("location_code", { max: 100 }),
+      location_code: locationCode,
       overtime_rules: overtime,
       time_rounding: rounding,
       workweek_start_day: startDay,

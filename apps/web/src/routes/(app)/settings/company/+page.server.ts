@@ -63,6 +63,14 @@ export const actions: Actions = {
     const timeFormat = f.choice("time_format", TIME_FORMATS, {
       fallback: "12h",
     })
+    // Read before the gate, not inline in the update below: the argument object
+    // is evaluated after it, so a rejection there would never be reported and
+    // the field would save as NULL (L33).
+    const legalEntityName = f.text("legal_entity_name", { max: 255 })
+    const industry = f.text("industry", { max: 100 })
+    const companySize = f.text("company_size", { max: 50 })
+    const contactName = f.text("primary_contact_name", { max: 255 })
+
     errorFields.push(...f.errorFields)
 
     // Country-specific formats come from @kaaj/validation, never a regex here:
@@ -104,9 +112,9 @@ export const actions: Actions = {
       tenants.update(tx, {
         company_name: companyName,
         company_name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
-        legal_entity_name: f.text("legal_entity_name", { max: 255 }),
-        industry: f.text("industry", { max: 100 }),
-        company_size: f.text("company_size", { max: 50 }),
+        legal_entity_name: legalEntityName,
+        industry,
+        company_size: companySize,
         default_locale: defaultLocale,
         supported_locales: supportedLocales,
         default_currency: defaultCurrency,
@@ -114,7 +122,7 @@ export const actions: Actions = {
         default_timezone: defaultTimezone,
         date_format: dateFormat,
         time_format: timeFormat,
-        primary_contact_name: f.text("primary_contact_name", { max: 255 }),
+        primary_contact_name: contactName,
         primary_contact_email: contactEmail,
         primary_contact_phone: contactPhone,
       }),

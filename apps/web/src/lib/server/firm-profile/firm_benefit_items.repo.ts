@@ -120,6 +120,12 @@ export async function remove(tx: Tx, id: string): Promise<void> {
  */
 export function invalidCosts(costs: CostsByCurrency): string[] {
   return Object.entries(costs)
-    .filter(([, c]) => isNegative(c.employee) || isNegative(c.employer))
+    .filter(
+      ([, c]) =>
+        typeof c?.employee !== "string" ||
+        typeof c?.employer !== "string" ||
+        isNegative(c.employee) ||
+        isNegative(c.employer),
+    )
     .map(([currency]) => currency)
 }

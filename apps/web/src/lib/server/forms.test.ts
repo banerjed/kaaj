@@ -117,6 +117,17 @@ describe("the column type is not the validator (L34)", () => {
     expect(good.date("effective_from", { required: true })).toBe("2026-02-28")
   })
 
+  it("rejects an OPTIONAL field that is over-length, not just a required one", () => {
+    // The bug this guards: a reader called inside the object literal that is
+    // built after `if (!f.ok)` raises its rejection too late to be reported,
+    // and an optional field returns null — so an over-length middle_name saved
+    // as NULL with a 303. Every reader must run before the gate.
+    const f = form({ middle_name: "M".repeat(200) })
+    expect(f.text("middle_name", { max: 100 })).toBeNull()
+    expect(f.ok).toBe(false)
+    expect(f.errorFields).toEqual(["middle_name"])
+  })
+
   it("refuses a required field that is absent", () => {
     const f = form({})
     f.text("name", { required: true, max: 255 })

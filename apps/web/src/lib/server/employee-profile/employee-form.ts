@@ -50,8 +50,22 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
 
   // These columns are `text`, so Postgres will not stop a pasted megabyte.
   // The caps are generous; the point is that there is one (L34).
+  //
+  // Every one of these is read HERE, not inline in the returned object: the
+  // object is built after the gate below, so a rejection raised there would
+  // arrive too late to be reported and the field would save as NULL with a
+  // 303. That is L33's failure mode, and it is easy to reintroduce by writing
+  // `f.text(...)` at the point of use.
   const shortText = { max: 100 } as const
   const managerId = f.uuid("manager_id")
+  const middleName = f.text("middle_name", shortText)
+  const preferredName = f.text("preferred_name", shortText)
+  const departmentCode = f.text("department_code", shortText)
+  const jobTitle = f.text("job_title", { max: 255 })
+  const jobLevel = f.text("job_level", shortText)
+  const locationCode = f.text("location_code", shortText)
+  const timezone = f.timezone("timezone")
+  const introduction = f.text("introduction", { max: 5000 })
 
   // Names go through @kaaj/validation rather than a trim: it handles the
   // apostrophes, hyphens and non-Latin scripts that a naive check rejects.
@@ -150,8 +164,8 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
     input: {
       first_name: firstResult.value,
       last_name: lastResult.value,
-      middle_name: f.text("middle_name", shortText),
-      preferred_name: f.text("preferred_name", shortText),
+      middle_name: middleName,
+      preferred_name: preferredName,
       email: emailResult.value,
       phone,
       employee_id: employeeId,
@@ -163,16 +177,16 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
       employment_type: type,
       start_date: startDate,
       end_date: endDate,
-      department_code: f.text("department_code", shortText),
-      job_title: f.text("job_title", { max: 255 }),
-      job_level: f.text("job_level", shortText),
-      location_code: f.text("location_code", shortText),
-      timezone: f.timezone("timezone"),
+      department_code: departmentCode,
+      job_title: jobTitle,
+      job_level: jobLevel,
+      location_code: locationCode,
+      timezone,
       // uuid: an arbitrary string here was `invalid input syntax for type
       // uuid`, i.e. an unhandled 500 rather than a field error.
       manager_id: managerId,
       pay_frequency: payFrequency,
-      introduction: f.text("introduction", { max: 5000 }),
+      introduction,
     },
   }
 }

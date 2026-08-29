@@ -99,7 +99,11 @@ export async function remove(tx: Tx, id: string): Promise<void> {
 export function invalidCurrencies(ranges: SalaryRanges): string[] {
   return Object.entries(ranges)
     .filter(
+      // A side can be missing on a row written before the form refused one.
+      // `compareDecimal` expects a string, so guard rather than throw.
       ([, r]) =>
+        typeof r?.min !== "string" ||
+        typeof r?.max !== "string" ||
         isNegative(r.min) ||
         isNegative(r.max) ||
         compareDecimal(r.max, r.min) < 0,
