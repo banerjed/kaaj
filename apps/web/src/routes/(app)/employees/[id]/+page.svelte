@@ -2,7 +2,9 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money } from "$lib/format"
 
-  let { data } = $props()
+  let { data, form } = $props()
+
+  let recordingRaise = $state(false)
 
   const e = $derived(data.employee)
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -169,11 +171,27 @@
             </div>
           {/each}
         </dl>
-      {:else if data.compensation.length === 0}
+      {:else}
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-base-content/70 text-sm">
+            A raise is a new dated record, never an edit — the history is what
+            makes a past payroll reproducible.
+          </p>
+          <button
+            class="btn btn-primary btn-sm gap-2"
+            onclick={() => (recordingRaise = true)}
+          >
+            <span class="iconify lucide--trending-up size-4"></span>
+            Record change
+          </button>
+        </div>
+      {/if}
+
+      {#if tab === "Compensation" && data.compensation.length === 0}
         <p class="text-base-content/70 py-6 text-center text-sm">
           No effective-dated compensation recorded.
         </p>
-      {:else}
+      {:else if tab === "Compensation"}
         <!--
             History, newest first. Amounts read in this person's own market:
             an India salary in lakhs even when a New York manager is looking.
@@ -218,3 +236,99 @@
     </div>
   </div>
 </div>
+
+{#if recordingRaise}
+  <div class="modal modal-open" role="dialog" aria-label="Record a pay change">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">Record a pay change</h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        This creates a new dated record for {fullName} and closes the current one
+        the day before it starts. Nothing existing is overwritten.
+      </p>
+
+      {#if form?.message}
+        <div role="alert" class="alert alert-error mt-3">
+          <span class="iconify lucide--circle-alert size-5"></span>
+          <span>{form.message}</span>
+        </div>
+      {/if}
+
+      <form method="POST" action="?/addRaise" class="mt-4 grid gap-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Effective from</legend>
+            <input
+              name="effective_from"
+              type="date"
+              class="input w-full"
+              required
+            />
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Reason</legend>
+            <input
+              name="change_reason"
+              class="input w-full"
+              placeholder="annual_review"
+            />
+          </fieldset>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <fieldset class="fieldset sm:col-span-2">
+            <legend class="fieldset-legend">Amount</legend>
+            <!-- inputmode=decimal rather than type=number: the value is kept
+                 as a string end to end so numeric(12,2) never round-trips
+                 through a float (L25). -->
+            <input
+              name="amount"
+              inputmode="decimal"
+              class="input w-full tabular-nums"
+              value={e.base_amount ?? ""}
+              required
+            />
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Currency</legend>
+            <select
+              name="currency"
+              class="select w-full"
+              value={e.currency ?? data.tenant?.default_currency}
+            >
+              {#each data.tenant?.supported_currencies ?? [] as c (c)}
+                <option value={c}>{c}</option>
+              {/each}
+            </select>
+          </fieldset>
+        </div>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Pay frequency</legend>
+          <select
+            name="pay_frequency"
+            class="select w-full"
+            value={e.pay_frequency ?? "monthly"}
+          >
+            {#each data.payFrequencies as f (f)}
+              <option value={f}>{f.replaceAll("_", " ")}</option>
+            {/each}
+          </select>
+        </fieldset>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (recordingRaise = false)}>Cancel</button
+          >
+          <button type="submit" class="btn btn-primary">Record</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (recordingRaise = false)}
+    ></button>
+  </div>
+{/if}
