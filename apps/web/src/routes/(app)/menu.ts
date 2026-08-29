@@ -219,6 +219,11 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/settings/holidays",
       },
       {
+        id: "settings-pay-schedules",
+        label: "Pay Schedules",
+        url: "/settings/payroll/schedules",
+      },
+      {
         id: "settings-payroll",
         label: "Payroll Policies",
         ...soon,
