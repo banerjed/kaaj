@@ -371,6 +371,28 @@ Closing the gap needs a column (`tenant_users.locale` is the natural home) and
 a migration. Until then, `localeForCurrency()` in `$lib/format.ts` is the single
 place that decides, so there is one thing to change.
 
+### L25 — Money columns disagree on scale, and Postgres truncates silently
+
+`compensation_base.amount` is `numeric(12,2)`. `employees.base_amount`, the
+denormalised copy the directory falls back to, is `numeric(18,4)`.
+
+The cache can therefore hold precision the authoritative column cannot. Writing
+`12345678.9012` to both stores `12345678.90` in one and `12345678.9012` in the
+other — **Postgres truncates to scale without warning** — and the directory then
+shows a different figure depending on whether an effective-dated row happens to
+be current that day.
+
+`addRaise` now rounds to the authoritative scale before writing the cache, so
+the two always agree. A test asserts it.
+
+**The real fix is a migration** reconciling the two columns, and it should
+happen before payroll (Phase 6) reads either. Until then, `addRaise` is the
+single place that writes both, which is what makes the workaround safe.
+
+**General rule:** when a value is stored in two places, one of them is
+authoritative and the other must be derived from it in the same transaction, at
+the authoritative type. Do not assume the two column definitions match — check.
+
 ---
 
 ## Process
