@@ -1,6 +1,7 @@
 # PII Encryption
 
-**Status:** implemented for `employees.ssn_tax_id`; the remaining fields are
+**Status:** implemented for `employees.ssn_tax_id` and
+`employee_bank_accounts.account_number_encrypted`; the remaining fields are
 named and tracked below
 **Created:** 2026-08-29
 
@@ -165,6 +166,13 @@ is meant to catch:
 | `pii/ciphertext-is-sealed` | a repository writing the raw value into a `_ct` column — the regression that type-checks, passes review, and leaves the identifier in the clear under a name that says otherwise |
 | `pii/pending-tracked` | a tracked column vanishing without the list being edited |
 | `pii/keys-are-wrapped` | raw key material stored in `pii_keys` |
+| `pii/encrypted-name-is-honest` | a column *named* as encrypted holding something that is not. `employee_bank_accounts.account_number_encrypted` shipped full of `enc:<uuid>` placeholders — a name asserting protection is worse than an honest plaintext name, because nobody re-reads it |
+
+The first version of `pii/ciphertext-is-sealed` had `FROM employees` hardcoded,
+so registering a second encrypted field produced a check that **passed while its
+column was full of plaintext** — a vacuous pass in the guard whose entire job is
+catching them. It is now dynamic over the registry, and that was proved by
+dirtying the second table and watching it fail.
 
 ---
 

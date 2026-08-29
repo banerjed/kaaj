@@ -1116,4 +1116,20 @@ UPDATE employees SET ssn_tax_id_ct = '{"v":1,"k":1,"iv":"1tpvPzaJlwMWd1PE","ct":
 -- One honoured erasure request, so the audit trail is not empty and the
 -- "erased" read path has something to return.
 INSERT INTO pii_erasures (tenant_id, subject_type, subject_id, subject_label, reason, requested_by) VALUES
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'E003', 'Data subject erasure request (GDPR Art. 17)', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'E012', 'Data subject erasure request (GDPR Art. 17)', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Bank account numbers, sealed under the same per-employee keys. account_number_last4
+-- stays plaintext on purpose: it is what a person uses to recognise their own
+-- account, and four digits identify nobody on their own.
+INSERT INTO pii_keys (tenant_id, subject_type, subject_id, key_label, kek_version, wrapped_dek) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"xdCR1Bvv6XXicFGb","ct":"CVrB33oDS8MTqBrGLwAkidQBa/eUR8LE2joqIImVfAjS3c+b38coiJlYt+M=","tag":"TN2mxLHfsG+tt45c4W12sw=="}'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"oYw3sYOoIUASyrT9","ct":"zY68mLhVqU3FSI3cPk1UMU37Mh2c82YUxho98QSEVBpseitekszKfpYEPvs=","tag":"y8fKRaIOQAhLBKLvmqe/Fg=="}'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"yk9XihbtqrgWVKq1","ct":"N9j6oqLSmeyRTI4+fTBN2e0wfrt4dbvYtqT/XzTGd0krNJkUoiJVrVkrl3g=","tag":"6rWQUBn0nd7rO/3t3U9uHg=="}'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"/5zMU/nzegHReGCy","ct":"YQu2jjkM+yZYWTDalTL48/9AsR29yRGy/jrGNea+r2LqIUgi9qL3J/0C/zY=","tag":"1r6emZkmL0r2gtIklPE6ug=="}');
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"mv8lOMBwNFdDUkM1","ct":"nyUWqAsg557+oQ==","tag":"WhUcXqIE6SXWxYQ7srh0+g=="}' WHERE id = '2126f414-630c-5e02-9aa7-c399facb3401';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"VGFLzUoV6Uh2tXdX","ct":"plT+ZVSJ03TJzw==","tag":"I8Vm5KMwuZvuR9WSRqvbvw=="}' WHERE id = '34a7cbd3-f5bf-5b13-86eb-6bef76e90c4b';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"Zm0qGmKNv5LDS2nO","ct":"m02nssji/WfNaw==","tag":"pPXvh0MD6sqXLKw9p7nLqA=="}' WHERE id = '392ca0d4-b157-5011-a291-a2f42a7fe4c2';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"twHJLcRa/shjyZkv","ct":"HNVI6gbOLDqpfg==","tag":"Wc3TpJ3WnKH8EZHbpjTxYg=="}' WHERE id = '63fb798f-93a9-5fcb-ba44-ce65cbbd4693';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"43GDtygjV/xU1v3i","ct":"y5cqy0kAfsyB4g==","tag":"Mt4hy2wEGQmxZPTxzwfhLg=="}' WHERE id = '84274790-b9c2-5b7c-b4b3-d285ed8d3204';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"IM8fNL7t1UqkKzp5","ct":"aIi4bb3BW3WDnA==","tag":"hc0ZtxkKMKxFrwWRoD+vcQ=="}' WHERE id = 'd8944f60-d19c-5f8f-b0e3-133a26453b16';
+UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"hGH0/KB+A1mFBq6/","ct":"aaf3Fn+3Nv8Y4g==","tag":"N2ydHXzEeQ9VbwleGtzZTA=="}' WHERE id = 'fb7bc54b-4f47-5429-9747-eede693b51c4';

@@ -137,9 +137,12 @@ BEGIN
     SELECT count(*) INTO remaining FROM employees WHERE ssn_tax_id IS NOT NULL;
     IF remaining > 0 THEN
         RAISE EXCEPTION
-            'employees.ssn_tax_id still holds % plaintext value(s). Run the '
-            'backfill (pnpm --filter @kaaj/web pii:backfill) to encrypt them '
-            'into ssn_tax_id_ct, then re-run this migration.', remaining;
+            'employees.ssn_tax_id still holds % plaintext value(s). Encrypt '
+            'them into ssn_tax_id_ct first — sealField() in '
+            'apps/web/src/lib/server/pii/pii.repo.ts, one row at a time with '
+            'the row id as the binding — then re-run this migration. Doing it '
+            'in SQL is not possible and not meant to be: the key is not in '
+            'this database.', remaining;
     END IF;
 END $$;
 

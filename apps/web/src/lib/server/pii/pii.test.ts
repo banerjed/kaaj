@@ -13,6 +13,7 @@ import {
   wrapKey,
 } from "./envelope"
 import * as pii from "./pii.repo"
+import { _resetKeyRing, _useKeyRingForTest, keyRing } from "./keys"
 
 /**
  * PII encryption. The envelope cases are pure; the rest run against the real
@@ -22,8 +23,11 @@ import * as pii from "./pii.repo"
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
-/** Has an erasure record and deliberately NO key. */
-const PRIYA = "bf17b1af-963b-53ef-9083-21506fb34e9c"
+/** Deliberately holds no PII and no key: the "first use" and "nothing to
+ *  erase" subject. Priya has a bank account, so she has a key. */
+const NADIA = "385f5ae5-e567-5fb6-98f8-b45007099ff8"
+/** No key, no PII, and no erasure record: the "first use" subject. */
+const LENA = "18503470-ba5c-5450-bc3e-b0a2454d757f"
 
 const subject = (id: string, tenantId = NORTHWIND): pii.Subject => ({
   tenantId,
@@ -219,24 +223,25 @@ describe("the stored fixture", () => {
 
 describe("writing an encrypted field", () => {
   it("mints a key on first use and reads back what was written", async () => {
+    // LENA, not LENA: LENA carries an erasure record and sealField refuses.
     const result = await inRollback(async (tx) => {
       const before = await tx<
         { n: number }[]
       >`SELECT count(*)::int AS n FROM pii_keys`
       const sealed = await pii.sealField(
         tx,
-        subject(PRIYA),
-        taxField(PRIYA),
+        subject(LENA),
+        taxField(LENA),
         "AAAPA1234A",
       )
-      await tx`UPDATE employees SET ssn_tax_id_ct = ${sealed} WHERE id = ${PRIYA}`
+      await tx`UPDATE employees SET ssn_tax_id_ct = ${sealed} WHERE id = ${LENA}`
       const after = await tx<
         { n: number }[]
       >`SELECT count(*)::int AS n FROM pii_keys`
       const read = await pii.openField(
         tx,
-        subject(PRIYA),
-        taxField(PRIYA),
+        subject(LENA),
+        taxField(LENA),
         sealed,
       )
       return {
@@ -332,7 +337,7 @@ describe("erasure — GDPR Article 17", () => {
 
   it("records the request even when there was no key to destroy", async () => {
     const result = await inRollback((tx) =>
-      pii.eraseSubject(tx, subject(PRIYA), {
+      pii.eraseSubject(tx, subject(NADIA), {
         reason: "Data subject request",
         requestedBy: null,
         subjectLabel: "E003",
@@ -398,5 +403,108 @@ describe("key rotation", () => {
     }
     const stored = serialiseEnvelope(encrypt("secret", key, 3, binding))
     expect(decrypt(parseEnvelope(stored)!, key, binding)).toBe("secret")
+  })
+})
+
+describe("rotating the master key", () => {
+  // The claim the whole envelope design rests on: rotating the KEK re-wraps one
+  // small row per subject and leaves every field ciphertext untouched. Asserted
+  // with two versions configured, because with one it is trivially true.
+  const twoVersions = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const v1 = keyRing().byVersion.get(1)!.toString("base64")
+    _useKeyRingForTest(`1:${v1},2:${newDataKey().toString("base64")}`)
+    try {
+      return await fn()
+    } finally {
+      _resetKeyRing()
+    }
+  }
+
+  it("re-wraps the key and leaves the field ciphertext byte-identical", async () => {
+    const result = await twoVersions(() =>
+      inRollback(async (tx) => {
+        const [before] = await tx<
+          { wrapped_dek: string; kek_version: number }[]
+        >`SELECT wrapped_dek, kek_version FROM pii_keys WHERE subject_id = ${SARAH}`
+        const [emp] = await tx<{ ssn_tax_id_ct: string }[]>`
+          SELECT ssn_tax_id_ct FROM employees WHERE id = ${SARAH}
+        `
+
+        const pending = await pii.needsRewrap(tx)
+        await pii.rewrapSubject(tx, subject(SARAH))
+
+        const [after] = await tx<
+          { wrapped_dek: string; kek_version: number }[]
+        >`SELECT wrapped_dek, kek_version FROM pii_keys WHERE subject_id = ${SARAH}`
+        const [empAfter] = await tx<{ ssn_tax_id_ct: string }[]>`
+          SELECT ssn_tax_id_ct FROM employees WHERE id = ${SARAH}
+        `
+        const opened = await pii.openField(
+          tx,
+          subject(SARAH),
+          taxField(SARAH),
+          empAfter.ssn_tax_id_ct,
+        )
+        return { before, after, emp, empAfter, opened, pending }
+      }),
+    )
+
+    // Everything was written under version 1, so everything is pending.
+    expect(result.pending.length).toBeGreaterThan(0)
+    expect(result.before.kek_version).toBe(1)
+    expect(result.after.kek_version).toBe(2)
+    expect(result.after.wrapped_dek).not.toBe(result.before.wrapped_dek)
+    // The point: not one byte of field ciphertext changed.
+    expect(result.empAfter.ssn_tax_id_ct).toBe(result.emp.ssn_tax_id_ct)
+    expect(result.opened).toEqual({ value: "123-45-6789", erased: false })
+  })
+
+  it("is a no-op for a subject already on the newest key", async () => {
+    const versions = await twoVersions(() =>
+      inRollback(async (tx) => {
+        await pii.rewrapSubject(tx, subject(SARAH))
+        const [once] = await tx<{ wrapped_dek: string }[]>`
+          SELECT wrapped_dek FROM pii_keys WHERE subject_id = ${SARAH}
+        `
+        await pii.rewrapSubject(tx, subject(SARAH))
+        const [twice] = await tx<{ wrapped_dek: string }[]>`
+          SELECT wrapped_dek FROM pii_keys WHERE subject_id = ${SARAH}
+        `
+        return { once: once.wrapped_dek, twice: twice.wrapped_dek }
+      }),
+    )
+    expect(versions.twice).toBe(versions.once)
+  })
+
+  it("refuses to read a row wrapped under a key that has been removed", async () => {
+    // Dropping a version while rows still reference it must be loud. Silently
+    // reading it as "no value" would look like data loss and hide a botched
+    // rotation.
+    await expect(
+      inRollback(async (tx) => {
+        await tx`UPDATE pii_keys SET kek_version = 99 WHERE subject_id = ${SARAH}`
+        const [emp] = await tx<{ ssn_tax_id_ct: string }[]>`
+          SELECT ssn_tax_id_ct FROM employees WHERE id = ${SARAH}
+        `
+        return pii.openField(
+          tx,
+          subject(SARAH),
+          taxField(SARAH),
+          emp.ssn_tax_id_ct,
+        )
+      }),
+    ).rejects.toThrow(/version 99/)
+  })
+})
+
+describe("an erased subject", () => {
+  it("does not silently acquire new PII", async () => {
+    // A fresh key minted beside a standing erasure record is either a mistake
+    // or a re-hire. Both deserve a deliberate decision.
+    await expect(
+      inRollback((tx) =>
+        pii.sealField(tx, subject(NADIA), taxField(NADIA), "123-45-6789"),
+      ),
+    ).rejects.toThrow(pii.SubjectErased)
   })
 })

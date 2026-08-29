@@ -31,7 +31,17 @@ const IV_BYTES = 12
 const TAG_BYTES = 16
 export const KEY_BYTES = 32
 
-/** The stored shape. `v` is the envelope format, `k` the key version. */
+/**
+ * The stored shape.
+ *
+ * `v` is the envelope format. `k` records which MASTER key version was current
+ * when the value was written — it is provenance, not a lookup: the field is
+ * encrypted with the subject's data key, and `decrypt` never reads `k`. After a
+ * master rotation `pii_keys.kek_version` moves to 2 while existing fields still
+ * say `k: 1`, and that is correct: nothing about the field changed. There is no
+ * data-key version, because rotating a DEK means re-encrypting the fields and
+ * would be a different operation entirely.
+ */
 export type Envelope = {
   v: 1
   k: number

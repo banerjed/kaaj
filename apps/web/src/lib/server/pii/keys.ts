@@ -114,3 +114,18 @@ export function kekForVersion(version: number): Buffer {
 export const _resetKeyRing = () => {
   cached = null
 }
+
+/**
+ * Tests only. `$env/dynamic/private` does not observe a later `process.env`
+ * mutation, so a rotation test cannot get a second key in by that route — and
+ * rotation is the one procedure that is untestable with a single key.
+ */
+export const _useKeyRingForTest = (raw: string) => {
+  cached = null
+  const saved = env.PRIVATE_PII_KEK
+  ;(env as Record<string, string | undefined>).PRIVATE_PII_KEK = raw
+  const ring = keyRing()
+  ;(env as Record<string, string | undefined>).PRIVATE_PII_KEK = saved
+  cached = ring
+  return ring
+}

@@ -119,6 +119,29 @@ async function keyLabel(tx: Tx, tenantId: string): Promise<string | null> {
   return `${prefix}-${digits}`
 }
 
+/**
+ * True when this subject has an erasure on record. `sealField` refuses to mint a
+ * fresh key for them: new PII arriving for someone whose data was erased is
+ * either a mistake or a re-hire, and both deserve a deliberate decision rather
+ * than a silent new key beside a standing erasure record.
+ */
+export async function isErased(tx: Tx, subject: Subject): Promise<boolean> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM pii_erasures
+     WHERE tenant_id = ${subject.tenantId}
+       AND subject_type = ${subject.subjectType}
+       AND subject_id = ${subject.subjectId}
+  `
+  return row.n > 0
+}
+
+export class SubjectErased extends Error {
+  constructor(readonly subjectId: string) {
+    super(`subject ${subjectId} has an erasure on record`)
+    this.name = "SubjectErased"
+  }
+}
+
 export async function sealField(
   tx: Tx,
   subject: Subject,
@@ -127,6 +150,7 @@ export async function sealField(
   cache?: KeyCache,
 ): Promise<string | null> {
   if (plaintext === null || plaintext === "") return null
+  if (await isErased(tx, subject)) throw new SubjectErased(subject.subjectId)
   const ring = keyRing()
   const dek = await dataKey(tx, subject, cache)
   const binding: Binding = { tenantId: subject.tenantId, ...field }

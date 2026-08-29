@@ -287,7 +287,10 @@ SELECT 'money/exemption-live', '(stale exemptions)',
 -- ciphertext column must. Re-adding either name is a failure.
 CREATE TEMP TABLE _pii_encrypted (tbl TEXT, plaintext_col TEXT, ct_col TEXT);
 INSERT INTO _pii_encrypted VALUES
-  ('employees', 'ssn_tax_id', 'ssn_tax_id_ct');
+  ('employees', 'ssn_tax_id', 'ssn_tax_id_ct'),
+  -- The plaintext half never existed here: the column was created as
+  -- `account_number_encrypted` and shipped holding `enc:<uuid>` placeholders.
+  ('employee_bank_accounts', 'account_number', 'account_number_encrypted');
 
 -- Columns that hold PII and are NOT yet encrypted. Named so they are tracked
 -- rather than forgotten: when one is encrypted it moves to the list above, and
@@ -330,25 +333,84 @@ SELECT 'pii/plaintext-removed', e.tbl || '.' || e.plaintext_col,
 --    the rule that catches the real regression: a repository that writes the
 --    raw value into the _ct column type-checks, passes review, and leaves the
 --    identifier in the clear under a name that says otherwise.
-INSERT INTO _inv (rule, subject, passed, detail)
-SELECT 'pii/ciphertext-is-sealed', e.tbl || '.' || e.ct_col, bad = 0,
-       CASE WHEN bad = 0 THEN 'ok'
-            ELSE bad || ' value(s) are not an AES-GCM envelope' END
-  FROM _pii_encrypted e
-  CROSS JOIN LATERAL (
-    SELECT count(*) AS bad FROM (
-      SELECT to_jsonb(t) -> e.ct_col AS v
-        FROM (SELECT * FROM employees) t
-       WHERE e.tbl = 'employees'
-    ) x
-    WHERE x.v IS NOT NULL AND x.v <> 'null'::jsonb
-      AND NOT (
-        (x.v #>> '{}') ~ '^\{"v":1,'
-        AND (x.v #>> '{}')::jsonb ? 'iv'
-        AND (x.v #>> '{}')::jsonb ? 'ct'
-        AND (x.v #>> '{}')::jsonb ? 'tag'
-      )
-  ) s;
+--
+--    Dynamic over the registry, NOT one hardcoded table. The first version had
+--    `FROM employees` baked in, so registering a second encrypted field gave a
+--    check that PASSED while its column was full of plaintext — a vacuous pass
+--    in the guard whose whole job is catching them.
+DO $rule2$
+DECLARE
+    e         RECORD;
+    bad       BIGINT;
+    col_found BOOLEAN;
+BEGIN
+    FOR e IN SELECT * FROM _pii_encrypted LOOP
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns c
+             WHERE c.table_schema = 'public'
+               AND c.table_name = e.tbl AND c.column_name = e.ct_col
+        ) INTO col_found;
+
+        IF NOT col_found THEN
+            -- Rule 1 reports the missing column. This rule must not claim to
+            -- have inspected values it could never reach.
+            INSERT INTO _inv (rule, subject, passed, detail)
+            VALUES ('pii/ciphertext-is-sealed', e.tbl || '.' || e.ct_col, false,
+                    'column does not exist, so no value could be inspected');
+            CONTINUE;
+        END IF;
+
+        EXECUTE format(
+            $q$SELECT count(*) FROM %I WHERE %I IS NOT NULL AND %I !~ '^\{"v":1,'$q$,
+            e.tbl, e.ct_col, e.ct_col
+        ) INTO bad;
+
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('pii/ciphertext-is-sealed', e.tbl || '.' || e.ct_col, bad = 0,
+                CASE WHEN bad = 0 THEN 'ok'
+                     ELSE bad || ' value(s) are not an AES-GCM envelope' END);
+    END LOOP;
+END $rule2$;
+
+-- Columns whose NAME claims encryption while the content is not yet encrypted.
+-- Listed rather than filtered, so removing one is a deliberate act. These are
+-- the accounting module's own bank details; the subject is the firm, not an
+-- employee, so they wait for that module to define its subject type.
+CREATE TEMP TABLE _pii_name_exempt (col TEXT PRIMARY KEY, reason TEXT);
+INSERT INTO _pii_name_exempt VALUES
+  ('bank_accounts.account_number_encrypted',
+   'company bank details; subject is the firm, pending the accounting module');
+
+-- 2b. A column NAMED as though it were encrypted must actually be encrypted.
+--     `employee_bank_accounts.account_number_encrypted` held `enc:<uuid>` — a
+--     placeholder that looks handled and is not. A name asserting protection is
+--     worse than an honest plaintext name, because nobody re-reads it.
+DO $rule2b$
+DECLARE
+    c   RECORD;
+    bad BIGINT;
+BEGIN
+    FOR c IN
+        SELECT table_name AS tbl, column_name AS col
+          FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND column_name ~ '(_encrypted|_ct)$'
+           AND data_type IN ('text', 'character varying')
+           AND table_name || '.' || column_name NOT IN
+               (SELECT col FROM _pii_name_exempt)
+         ORDER BY table_name, column_name
+    LOOP
+        EXECUTE format(
+            $q$SELECT count(*) FROM %I WHERE %I IS NOT NULL AND %I !~ '^\{"v":1,'$q$,
+            c.tbl, c.col, c.col
+        ) INTO bad;
+
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('pii/encrypted-name-is-honest', c.tbl || '.' || c.col, bad = 0,
+                CASE WHEN bad = 0 THEN 'ok'
+                     ELSE bad || ' value(s) in a column named as encrypted are not' END);
+    END LOOP;
+END $rule2b$;
 
 -- 3. A pending column must still be there. If it is gone, it was encrypted (or
 --    dropped) and the lists above are stale — which is exactly when this file
