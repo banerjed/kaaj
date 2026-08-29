@@ -1098,3 +1098,22 @@ END $$;
 DROP FUNCTION IF EXISTS uuid_generate_v5_compat(UUID, TEXT);
 
 COMMIT;
+
+-- Per-subject PII keys, wrapped under the well-known LOCAL development
+-- master key (see apps/web/.env.example). Deterministic so the fixture is
+-- stable; worthless outside a dev machine, exactly like the app_user password.
+INSERT INTO pii_keys (tenant_id, subject_type, subject_id, key_label, kek_version, wrapped_dek) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', '6d466aa9-e51a-5d52-9015-152600855932', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"FdaH2nrPhjgi5A2x","ct":"W0KI7tdtpwZyal4BpdUa1VAf13K20kV/gSkFyzV4oBzAzaATaxoAZ3uZKcI=","tag":"LsS6POURTlKaCrNgbTkstg=="}'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"orhA1KAbMHvY3eHS","ct":"V8tFnmc5gosjV/0ZGgLneGpQHpn/fm9y23epUMCBuv0iqS6xuZsdpvxm3AY=","tag":"F5gGE/JotwVFndzh5lLM6g=="}'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'a87e0200-0849-53b6-a491-e882feace3f5', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"KtDGluEzmwSEgwTp","ct":"ZshtYxkupfR7dz2hP+cNkM3ME/dMVZMidY86WJnZbZzSFNfmyI3I4JcSNac=","tag":"Ph1+WBLZcGHL8VrVNe44Dw=="}');
+
+-- Three tax identifiers, sealed. Obviously-fake values, and the only way the
+-- encrypt/decrypt round trip is exercised against fixture data at all.
+UPDATE employees SET ssn_tax_id_ct = '{"v":1,"k":1,"iv":"teDh8u0riCj3a5x0","ct":"g1sZGhIGdODWCUA=","tag":"o1hkvnef1O4pRk8S1ze/Kg=="}' WHERE id = '6d466aa9-e51a-5d52-9015-152600855932';
+UPDATE employees SET ssn_tax_id_ct = '{"v":1,"k":1,"iv":"pvyJxAC0sw3Ri/4A","ct":"znOh7Gfh/Qdt9w==","tag":"cLsTa+CV8476qoRp8QWBLw=="}' WHERE id = 'db1f1f2b-b140-5948-a34e-1c998ed98757';
+UPDATE employees SET ssn_tax_id_ct = '{"v":1,"k":1,"iv":"1tpvPzaJlwMWd1PE","ct":"gm+xoUDU/pcIBjw=","tag":"8C0Ma/5oJDOsUAmjS/ex7A=="}' WHERE id = 'a87e0200-0849-53b6-a491-e882feace3f5';
+
+-- One honoured erasure request, so the audit trail is not empty and the
+-- "erased" read path has something to return.
+INSERT INTO pii_erasures (tenant_id, subject_type, subject_id, subject_label, reason, requested_by) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'E003', 'Data subject erasure request (GDPR Art. 17)', '48ccc5de-9ba7-5461-ab49-160a1146ed85');

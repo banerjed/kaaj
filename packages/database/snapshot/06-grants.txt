@@ -147,6 +147,10 @@ payroll_tax_rates	app_user	DELETE,INSERT,SELECT,UPDATE
 payroll_tax_rates	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payroll_tax_withholding_certificates	app_user	DELETE,INSERT,SELECT,UPDATE
 payroll_tax_withholding_certificates	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+pii_erasures	app_user	DELETE,INSERT,SELECT,UPDATE
+pii_erasures	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+pii_keys	app_user	DELETE,INSERT,SELECT,UPDATE
+pii_keys	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 pm_automation_executions	app_user	DELETE,INSERT,SELECT,UPDATE
 pm_automation_executions	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 pm_automations	app_user	DELETE,INSERT,SELECT,UPDATE

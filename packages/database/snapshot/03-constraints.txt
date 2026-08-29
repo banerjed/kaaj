@@ -291,6 +291,11 @@ payroll_tax_rates	payroll_tax_rates_tenant_id_tax_rate_id_key	u	UNIQUE (tenant_i
 payroll_tax_withholding_certificates	fk_payroll_tax_withholding_certificates_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 payroll_tax_withholding_certificates	payroll_tax_withholding_certificates_pkey	p	PRIMARY KEY (id)
 payroll_tax_withholding_certificates	payroll_tax_withholding_certificates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+pii_erasures	pii_erasures_pkey	p	PRIMARY KEY (id)
+pii_erasures	pii_erasures_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pii_keys	pii_keys_one_per_subject	u	UNIQUE (tenant_id, subject_type, subject_id)
+pii_keys	pii_keys_pkey	p	PRIMARY KEY (id)
+pii_keys	pii_keys_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 pm_automation_executions	fk_pm_automation_executions_automation_id	f	FOREIGN KEY (automation_id) REFERENCES pm_automations(id)
 pm_automation_executions	pm_automation_executions_pkey	p	PRIMARY KEY (id)
 pm_automation_executions	pm_automation_executions_tenant_id_execution_id_key	u	UNIQUE (tenant_id, execution_id)

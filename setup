@@ -264,6 +264,17 @@ else
   echo "    ${D}so these defaults work as-is. Nothing to fill in.${N}"
 fi
 
+# An .env.local written before PII encryption landed has no master key, and the
+# failure is at the far end: pages render until one touches an encrypted field,
+# then throw. Backfilling it is safe — the local key is a public demo value.
+if ! grep -q '^PRIVATE_PII_KEK=' apps/web/.env.local 2>/dev/null; then
+  sed -n '/^# Field-level PII encryption/,/^PRIVATE_PII_KEK=/p' apps/web/.env.example \
+    >> apps/web/.env.local
+  ok "PRIVATE_PII_KEK added to .env.local ${D}(local demo key)${N}"
+else
+  ok "PRIVATE_PII_KEK present"
+fi
+
 # =============================================================================
 # 5. Database
 # =============================================================================

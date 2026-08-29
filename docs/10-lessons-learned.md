@@ -442,6 +442,27 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L38 — A key derived from an identifier is not a key
+
+`module-employee-profile.md` specifies
+`encryption_key = DERIVE_KEY(org_prefix + org_4digit_code)`, and it reads like
+cryptography: there is a KDF, PBKDF2 and Argon2 are named, AES-256-GCM is
+required. It is not. A public prefix plus four digits is ten thousand
+candidates — about 13 bits — and a KDF raises the cost of one guess, not of ten
+thousand. Both inputs are also *stored in the database the encryption
+protects*, so the recipe ships with the ciphertext.
+
+Implemented as written, `./check` would have passed, the column would have held
+real AES-256-GCM ciphertext, and the whole thing would have been decryptable in
+seconds by anyone with a dump.
+
+**A specification can be confidently wrong about security, and it will not look
+wrong.** The tell is not the algorithm — that part was fine — but the *entropy
+of the key input*. When a spec names a KDF, ask what is being derived from and
+count the possibilities. Here the fix preserved the spec's stated storage
+format (`{prefix}-{4digit}` is a key *label*) while replacing the key material
+with 32 random bytes.
+
 ### L35 — A `timestamptz` fixture written as wall-clock time is invisible
 
 `hr_attendance.clock_in_time` is `timestamptz` — an instant. The fixture wrote

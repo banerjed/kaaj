@@ -73,6 +73,8 @@ payroll_runs	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(
 payroll_tax_deposits	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 payroll_tax_rates	tenant_isolation	ALL	public	((tenant_id IS NULL) OR (tenant_id = app.current_tenant_id()))	(tenant_id = app.current_tenant_id())
 payroll_tax_withholding_certificates	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+pii_erasures	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+pii_keys	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 pm_automation_executions	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 pm_automations	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 pm_dashboard_widgets	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())

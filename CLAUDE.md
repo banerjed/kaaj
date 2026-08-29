@@ -71,9 +71,9 @@ take effect.
 
 | Step | Proves | Count |
 |---|---|---|
-| tenant isolation | every RLS policy actually filters, per table | 575 |
+| tenant isolation | every RLS policy actually filters, per table | 587 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold | 40 |
+| schema invariants | ADR design rules hold | 62 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 21 tests |
@@ -427,6 +427,28 @@ is a cosmetic problem, and the reverse is a financial one.
 **Custom fields must never feed payroll or accounting calculations.** They are
 untyped and untested. A customer needing a custom allowance on a payslip is a
 modelling gap to fix in the product, not a custom field.
+
+**PII is encrypted in the application, never in SQL, and always through
+`$lib/server/pii`.** `sealField`/`openField` are the only write and read paths.
+They bind every ciphertext to `tenant | table | column | row`, so a value cannot
+be moved between rows or tenants, and a call site that assembles that binding by
+hand will eventually get it wrong.
+
+- **Never add a plaintext PII column.** `./check` has four `pii/*` rules and
+  they fail on exactly this. A new PII column is either encrypted or added to
+  `_pii_pending` in `verify-invariants.sql` with a reason — a committed literal,
+  like every other exemption here.
+- **Never index a PII column.** A btree keeps every value readable in its pages,
+  and dropping the column does not scrub them.
+- **Keys are per EMPLOYEE.** GDPR Art. 17 is an individual right; a tenant-wide
+  key cannot answer it. Erasure destroys the key, which reaches backups that
+  `UPDATE ... SET NULL` never will.
+- **The spec's `DERIVE_KEY(org_prefix + org_4digit_code)` must not be
+  implemented** — it is ~13 bits, and both inputs live in the database it
+  protects. It is a key *label*. See
+  [docs/13-pii-encryption.md](docs/13-pii-encryption.md).
+- **`PRIVATE_PII_KEK` is backed up separately from the database.** Losing it
+  destroys every encrypted field, by design.
 
 **`PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely.** Server-side and
 worker only — never in anything reachable from a request handler, and never in a

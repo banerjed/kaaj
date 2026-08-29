@@ -218,7 +218,7 @@ cd app && npm run db:verify        # everything below, in one command
 Or individually:
 
 ```bash
-# 1. Tenant isolation — 575 assertions across all tenant-scoped tables
+# 1. Tenant isolation — 587 assertions across all tenant-scoped tables
 psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-rls.sql
 
 # 2. Specification — 167 assertions drawn from the module specs

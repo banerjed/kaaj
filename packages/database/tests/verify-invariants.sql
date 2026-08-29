@@ -272,6 +272,102 @@ SELECT 'money/exemption-live', '(stale exemptions)',
                 'ok');
 
 
+
+-- -----------------------------------------------------------------------------
+-- PII: the plaintext must be gone, and must stay gone
+-- -----------------------------------------------------------------------------
+-- Encryption is only as good as the last person to add a column. These three
+-- rules make a regression a failed build rather than a discovery during a
+-- breach. Both lists are committed literals for the reason every list in this
+-- file is: a pattern match would silently absorb the next mistake.
+--
+-- See docs/13-pii-encryption.md and apps/web/src/lib/server/pii/.
+
+-- Columns that HAVE been encrypted. The plaintext must no longer exist, and the
+-- ciphertext column must. Re-adding either name is a failure.
+CREATE TEMP TABLE _pii_encrypted (tbl TEXT, plaintext_col TEXT, ct_col TEXT);
+INSERT INTO _pii_encrypted VALUES
+  ('employees', 'ssn_tax_id', 'ssn_tax_id_ct');
+
+-- Columns that hold PII and are NOT yet encrypted. Named so they are tracked
+-- rather than forgotten: when one is encrypted it moves to the list above, and
+-- this rule fails until the list is edited. Nothing here may reach production
+-- holding real data — see docs/13-pii-encryption.md § What is not encrypted yet.
+CREATE TEMP TABLE _pii_pending (tbl TEXT, col TEXT, reason TEXT);
+INSERT INTO _pii_pending VALUES
+  ('employee_bank_accounts', 'routing_number', 'bank detail; no consumer yet'),
+  ('employee_bank_accounts', 'ifsc_code',      'bank detail; no consumer yet'),
+  ('employee_bank_accounts', 'sort_code',      'bank detail; no consumer yet'),
+  ('employee_bank_accounts', 'iban',           'bank detail; no consumer yet'),
+  ('employee_bank_accounts', 'bic_swift',      'bank detail; no consumer yet'),
+  ('hr_emergency_contacts',  'phone_primary',  'third-party contact data'),
+  ('hr_emergency_contacts',  'phone_secondary','third-party contact data'),
+  ('hr_emergency_contacts',  'email',          'third-party contact data'),
+  ('hr_emergency_contacts',  'address',        'third-party contact data'),
+  ('employee_certifications','certification_number', 'licence identifier'),
+  ('clients',                'tax_id',         'counterparty tax identifier'),
+  ('vendors',                'bank_account_number',  'counterparty bank detail'),
+  ('vendors',                'bank_routing_number',  'counterparty bank detail'),
+  ('bank_accounts',          'account_number', 'own bank detail'),
+  ('bank_accounts',          'iban',           'own bank detail'),
+  ('bank_accounts',          'routing_number', 'own bank detail'),
+  ('bank_accounts',          'swift_code',     'own bank detail');
+
+-- 1. An encrypted field's plaintext column must not exist, and its ciphertext
+--    column must.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'pii/plaintext-removed', e.tbl || '.' || e.plaintext_col,
+       NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                    WHERE c.table_schema = 'public' AND c.table_name = e.tbl
+                      AND c.column_name = e.plaintext_col)
+       AND EXISTS (SELECT 1 FROM information_schema.columns c
+                    WHERE c.table_schema = 'public' AND c.table_name = e.tbl
+                      AND c.column_name = e.ct_col),
+       'plaintext column must be absent and ' || e.ct_col || ' present'
+  FROM _pii_encrypted e;
+
+-- 2. Every value in a ciphertext column must actually be an envelope. This is
+--    the rule that catches the real regression: a repository that writes the
+--    raw value into the _ct column type-checks, passes review, and leaves the
+--    identifier in the clear under a name that says otherwise.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'pii/ciphertext-is-sealed', e.tbl || '.' || e.ct_col, bad = 0,
+       CASE WHEN bad = 0 THEN 'ok'
+            ELSE bad || ' value(s) are not an AES-GCM envelope' END
+  FROM _pii_encrypted e
+  CROSS JOIN LATERAL (
+    SELECT count(*) AS bad FROM (
+      SELECT to_jsonb(t) -> e.ct_col AS v
+        FROM (SELECT * FROM employees) t
+       WHERE e.tbl = 'employees'
+    ) x
+    WHERE x.v IS NOT NULL AND x.v <> 'null'::jsonb
+      AND NOT (
+        (x.v #>> '{}') ~ '^\{"v":1,'
+        AND (x.v #>> '{}')::jsonb ? 'iv'
+        AND (x.v #>> '{}')::jsonb ? 'ct'
+        AND (x.v #>> '{}')::jsonb ? 'tag'
+      )
+  ) s;
+
+-- 3. A pending column must still be there. If it is gone, it was encrypted (or
+--    dropped) and the lists above are stale — which is exactly when this file
+--    needs a reviewed edit rather than a silent pass.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'pii/pending-tracked', p.tbl || '.' || p.col,
+       EXISTS (SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema = 'public' AND c.table_name = p.tbl
+                  AND c.column_name = p.col),
+       'still plaintext: ' || p.reason
+  FROM _pii_pending p;
+
+-- 4. The key table must never be readable without RLS, and must never hold a
+--    key that is not wrapped.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'pii/keys-are-wrapped', 'pii_keys.wrapped_dek',
+       NOT EXISTS (SELECT 1 FROM pii_keys WHERE wrapped_dek !~ '^\{"v":1,'),
+       'every stored data key must be an envelope, never raw material';
+
 \echo '=================== SCHEMA INVARIANTS ==================='
 SELECT rule,
        count(*) AS checks,

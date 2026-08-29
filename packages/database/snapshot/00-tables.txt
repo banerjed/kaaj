@@ -73,6 +73,8 @@ payroll_runs	t	t
 payroll_tax_deposits	t	t
 payroll_tax_rates	t	t
 payroll_tax_withholding_certificates	t	t
+pii_erasures	t	t
+pii_keys	t	t
 pm_automation_executions	t	t
 pm_automations	t	t
 pm_dashboard_widgets	t	t

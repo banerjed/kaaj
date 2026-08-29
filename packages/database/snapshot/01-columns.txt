@@ -506,7 +506,6 @@ employees	9	phone	text	f
 employees	10	employee_number	text	f	
 employees	11	gender	gender	f	
 employees	12	marital_status	marital_status	f	
-employees	13	ssn_tax_id	text	f	
 employees	14	social_media_links	jsonb	f	'{}'::jsonb
 employees	15	timezone	text	f	'America/New_York'::text
 employees	16	employment_status	employment_status	t	'active'::employment_status
@@ -547,6 +546,7 @@ employees	50	salary_structure	jsonb	f	'{}'::jsonb
 employees	51	variable_compensation	jsonb	f	'[]'::jsonb
 employees	52	benefits_elections	jsonb	f	'{}'::jsonb
 employees	53	fte	numeric(18,4)	f	1.00
+employees	54	ssn_tax_id_ct	text	f	
 employment_terms	1	id	uuid	t	gen_random_uuid()
 employment_terms	2	tenant_id	uuid	t	
 employment_terms	3	employee_id	uuid	t	
@@ -1515,6 +1515,25 @@ payroll_tax_withholding_certificates	21	document_url	text	f
 payroll_tax_withholding_certificates	22	submitted_at	timestamp with time zone	f	
 payroll_tax_withholding_certificates	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 payroll_tax_withholding_certificates	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+pii_erasures	1	id	uuid	t	gen_random_uuid()
+pii_erasures	2	tenant_id	uuid	t	
+pii_erasures	3	subject_type	text	t	
+pii_erasures	4	subject_id	uuid	t	
+pii_erasures	5	subject_label	text	f	
+pii_erasures	6	reason	text	t	
+pii_erasures	7	requested_by	uuid	f	
+pii_erasures	8	erased_at	timestamp with time zone	t	now()
+pii_erasures	9	created_at	timestamp with time zone	t	now()
+pii_erasures	10	updated_at	timestamp with time zone	t	now()
+pii_keys	1	id	uuid	t	gen_random_uuid()
+pii_keys	2	tenant_id	uuid	t	
+pii_keys	3	subject_type	text	t	'employee'::text
+pii_keys	4	subject_id	uuid	t	
+pii_keys	5	key_label	text	f	
+pii_keys	6	kek_version	integer	t	
+pii_keys	7	wrapped_dek	text	t	
+pii_keys	8	created_at	timestamp with time zone	t	now()
+pii_keys	9	updated_at	timestamp with time zone	t	now()
 pm_automation_executions	1	id	uuid	t	gen_random_uuid()
 pm_automation_executions	2	tenant_id	uuid	t	
 pm_automation_executions	3	execution_id	text	f	

@@ -61,6 +61,8 @@ payroll_runs	trg_payroll_runs_updated_at	CREATE TRIGGER trg_payroll_runs_updated
 payroll_tax_deposits	trg_payroll_tax_deposits_updated_at	CREATE TRIGGER trg_payroll_tax_deposits_updated_at BEFORE UPDATE ON public.payroll_tax_deposits FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 payroll_tax_rates	trg_payroll_tax_rates_updated_at	CREATE TRIGGER trg_payroll_tax_rates_updated_at BEFORE UPDATE ON public.payroll_tax_rates FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 payroll_tax_withholding_certificates	trg_payroll_tax_withholding_certificates_updated_at	CREATE TRIGGER trg_payroll_tax_withholding_certificates_updated_at BEFORE UPDATE ON public.payroll_tax_withholding_certificates FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+pii_erasures	set_updated_at	CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.pii_erasures FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+pii_keys	set_updated_at	CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.pii_keys FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 pm_automations	trg_pm_automations_updated_at	CREATE TRIGGER trg_pm_automations_updated_at BEFORE UPDATE ON public.pm_automations FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 pm_dashboard_widgets	trg_pm_dashboard_widgets_updated_at	CREATE TRIGGER trg_pm_dashboard_widgets_updated_at BEFORE UPDATE ON public.pm_dashboard_widgets FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 pm_dashboards	trg_pm_dashboards_updated_at	CREATE TRIGGER trg_pm_dashboards_updated_at BEFORE UPDATE ON public.pm_dashboards FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()

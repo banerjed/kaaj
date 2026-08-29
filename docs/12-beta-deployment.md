@@ -164,7 +164,7 @@ These are open items, and they change what kind of beta this can be.
 
 | Gap | Consequence for a beta |
 |---|---|
-| **PII encryption is deferred** | `employees.ssn_tax_id` is plaintext. The spec requires field-level encryption. **Do not put real national identifiers in a beta** until this is closed — it is scheduled before payroll for exactly this reason ([11-module-roadmap.md](./11-module-roadmap.md)) |
+| **PII encryption: partly closed** | `employees.ssn_tax_id` is now AES-256-GCM with per-employee keys ([13-pii-encryption.md](./13-pii-encryption.md)). **`PRIVATE_PII_KEK` must be set and backed up separately before the first write.** Seventeen columns — bank details, emergency contacts, counterparty identifiers — are still plaintext and tracked by `./check`; none may carry real data yet |
 | **Authorization is tenant-only** | Any authenticated member can edit any employee, including their own pay. Fine for a friendly design-partner beta; not fine for one with untrusted users |
 | **No signup → tenant flow** | Tenants are created by hand. Deliberate for a beta; a blocker for self-serve |
 | **No backups tested** | Supabase takes them. Restoring one has never been rehearsed. Rehearse before real data lands |
