@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
+  import { money, number } from "$lib/format"
   import {
     DATE_FORMATS,
     TIME_FORMATS,
@@ -81,17 +82,13 @@
       "—",
     ),
   )
-  const previewCurrency = $derived(
-    fmt(
-      () =>
-        new Intl.NumberFormat(locale, { style: "currency", currency }).format(
-          1234.56,
-        ),
-      "—",
-    ),
-  )
-  const previewNumber = $derived(
-    fmt(() => new Intl.NumberFormat(locale).format(1234567.89), "—"),
+  // Through the shared formatter, not raw Intl. This panel exists to show what
+  // the rest of the product will look like, so formatting it differently from
+  // the rest of the product defeats its only purpose.
+  const previewCurrency = $derived(money("1234.56", currency, locale))
+  const previewNumber = $derived(number(1234567.89, locale))
+  const previewCompact = $derived(
+    money("18123432", currency, locale, { compact: true }),
   )
 </script>
 
@@ -224,7 +221,7 @@
           settings.
         </p>
         <dl class="grid gap-3">
-          {#each [["Date", previewDate], ["Time", previewTime], ["Currency", previewCurrency], ["Number", previewNumber]] as [label, value] (label)}
+          {#each [["Date", previewDate], ["Time", previewTime], ["Currency", previewCurrency], ["Number", previewNumber], ["Abbreviated", previewCompact]] as [label, value] (label)}
             <div class="bg-base-200 rounded-box px-3 py-2">
               <dt class="text-base-content/70 text-xs">{label}</dt>
               <dd class="font-medium tabular-nums">{value}</dd>
@@ -232,7 +229,7 @@
           {/each}
         </dl>
         <p class="text-base-content/70 text-xs">
-          Sample: 1 December 2026, 15:45 UTC, 1234.56
+          Sample: 1 December 2026, 15:45 UTC, 1234.56, 18,123,432
         </p>
       </div>
     </div>

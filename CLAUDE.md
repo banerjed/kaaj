@@ -272,6 +272,31 @@ in two columns of different scale, round to the authoritative one before
 writing the other, and pick a test value that distinguishes rounding from
 truncation — `.9052`, not `.9012` ([L25](docs/10-lessons-learned.md)).
 
+**Display goes through `$lib/format.ts`. Nothing formats money itself.**
+`money()`, `number()`, `calendarDate()`, `instant()`, `localised()` are the only
+places `Intl` is constructed for display. A component that reaches for
+`Intl.NumberFormat` or `toLocaleString()` is a bug — it will drift from the rest
+of the app, and it will pick up the *browser's* locale rather than the market's.
+
+**Abbreviation is `money(amount, currency, locale, { compact: true })`,** and it
+follows the locale's own convention — there is no lakh/crore code anywhere,
+because `Intl` already knows:
+
+```
+en-US  18,123,432  ->  $18.12M
+en-IN   1,423,323  ->  ₹14.23L      (lakh)
+en-IN  18,123,432  ->  ₹1.81Cr      (crore)
+ja-JP  18,123,432  ->  ￥1812.34万   (man)
+```
+
+Decimals are capped at 2, not forced, so `950` stays `$950` rather than
+`$950.00`.
+
+**Compact is for scale, never for action.** Dashboards, chart axes, summary
+tiles, "total headcount cost" — yes. Payslips, invoice lines, salary bands,
+anything reconciled against a bank statement or acted on — never. `₹14.23L` is
+not a number you can pay someone.
+
 **Not integer minor units.** The other defensible answer, rejected: every query
 needs division to be readable, JPY (0 decimals) and BHD (3) break the ×100
 assumption, and `Intl.NumberFormat` wants major units. `NUMERIC` gives

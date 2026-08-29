@@ -37,6 +37,19 @@ function cached<T extends Intl.NumberFormat | Intl.DateTimeFormat>(
 /**
  * Money, in the currency it is denominated in — never converted.
  *
+ * `{ compact: true }` abbreviates by the LOCALE's own convention, which is why
+ * there is no lakh/crore code anywhere in this file — Intl already knows:
+ *
+ *     en-US  18,123,432  ->  $18.12M
+ *     en-IN   1,423,323  ->  ₹14.23L      (lakh)
+ *     en-IN  18,123,432  ->  ₹1.81Cr      (crore)
+ *     ja-JP  18,123,432  ->  ￥1812.34万   (man)
+ *
+ * Use compact for dashboards, chart axes, totals and any figure a person reads
+ * to get a sense of scale. NEVER for a figure someone acts on — a payslip, an
+ * invoice line, a salary band, anything reconciled against a bank statement.
+ * ₹14.23L is not a number you can pay someone.
+ *
  * `amount` is a string because Postgres returns NUMERIC as one: the salaries
  * here run to 3,200,000.0000 and `numeric(18,4)` exceeds what a float64 holds
  * exactly. Parsing happens once, here, at the point of display.
@@ -63,7 +76,12 @@ export function money(
           style: "currency",
           currency,
           ...(options.compact
-            ? { notation: "compact", maximumFractionDigits: 1 }
+            ? {
+                notation: "compact",
+                // A cap, not a minimum: 18,123,432 renders as $18.12M while
+                // 950 stays $950 rather than becoming $950.00.
+                maximumFractionDigits: 2,
+              }
             : {}),
         }),
     ).format(value) as string
