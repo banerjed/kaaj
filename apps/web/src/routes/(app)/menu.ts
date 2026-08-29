@@ -191,7 +191,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       {
         id: "settings-company",
         label: "Company Profile",
-        ...soon,
+        url: "/settings/company",
       },
       {
         id: "settings-locations",
