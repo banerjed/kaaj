@@ -262,6 +262,23 @@ and reports success: an overtime multiplier vanished exactly this way and
 overtime then computed at 1x ([L33](docs/10-lessons-learned.md)). `FormReader`
 is built around this; a hand-rolled `Number(x) || 0` is not.
 
+**Read every field BEFORE `if (!f.ok)`, never inside the object built after
+it.** A reader called in the argument to `create`/`update` runs after the gate
+has already passed, so its rejection is raised too late to be reported — and a
+non-required field returns `null` on rejection, so the column saves as NULL and
+the action answers `saved: true`. This has bitten once, in the same commit that
+documented L33. Assign to a local above the gate and reference the local:
+
+```ts
+const middleName = f.text("middle_name", { max: 100 })   // ✅ before
+if (!f.ok) return fail(400, f.problem())
+await repo.update(tx, id, { middle_name: middleName })
+
+await repo.update(tx, id, {
+  middle_name: f.text("middle_name", { max: 100 }),      // ❌ never reported
+})
+```
+
 **A rule the reader cannot express calls `f.reject("field")`** — a cycle, a
 date clash, an inverted band — so every failure arrives through one path and
 the page can put the cursor on the field.

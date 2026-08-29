@@ -79,6 +79,29 @@ historical expectations.
 
 ---
 
+## Executable Spec Harness
+
+Executable spec tests live in `packages/spec-tests`. This package is
+implementation-independent: it tests requirements, fixtures, golden expected
+outputs, statutory source metadata, and invariants before those behaviors are
+wired into the web application.
+
+The first automated suite is the US state employment packet coverage. It checks
+that every state plus DC has an `R0` baseline hire case, a matching worker
+fixture, expected statutory documents, expected audit evidence, no-income-tax
+withholding guardrails, local tax review guardrails, and source governance.
+
+Run it with:
+
+```sh
+pnpm test:spec
+```
+
+As production code matures, each pure resolver in `packages/spec-tests/src`
+should be replaced or paired with a thin adapter that calls the real domain
+service. The requirement cases and golden fixtures should remain stable unless
+the spec or source-versioned law changes.
+
 ## Promotion Criteria
 
 ### From Spec To Planned Test
@@ -201,4 +224,3 @@ These should be resolved before high-risk automation begins:
 - Which compliance sources require legal counsel review before implementation?
 - What is the rule for accepting third-party tax/payroll provider calculations?
 - Which tests block every PR, and which run as nightly or pre-release suites?
-

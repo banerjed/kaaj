@@ -442,6 +442,19 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+**A validator that runs after its own gate is not a validator.** The fix for
+L33/L34 reintroduced L33 in the three files it patched in place rather than
+rewrote: the readers sat inside the object literal passed to `update()`, which
+is evaluated after `if (!f.ok)`. Thirteen fields — every optional one on the
+employee record among them — accepted anything and saved NULL with a 303.
+
+Two things made it invisible. TypeScript is happy: the reader returns
+`string | null` and the column is nullable, so the types line up exactly as
+they would if it worked. And the unit tests all read a field and *then* check
+`ok`, which is the correct order — they cannot see a call site that does it in
+the wrong one. The sweep that found it was structural: for each action, the
+line number of the gate, then a grep for readers below it.
+
 **The column type is not the validator.** `varchar(n)`, `uuid` and enum types
 are the last line, and their failure mode is a 500. Check length, shape and
 enum membership in the action, where a `fail(400, { errorFields })` puts the
