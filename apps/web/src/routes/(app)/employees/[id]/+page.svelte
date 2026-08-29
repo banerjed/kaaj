@@ -1,12 +1,29 @@
 <script lang="ts">
+  import { untrack } from "svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money } from "$lib/format"
 
   let { data, form } = $props()
 
-  let recordingRaise = $state(false)
+  // Reopened when a submit failed. The form is a plain POST, so a fail(400) is
+  // a full document load: without this the modal — and the error inside it —
+  // would vanish and the page would look untouched. `untrack` marks the read
+  // as deliberately once-only; the page-level alert covers later renders.
+  let recordingRaise = $state(untrack(() => Boolean(form?.errorFields)))
+
+  const invalid = (n: string) =>
+    (form?.errorFields ?? []).includes(n) ? "input-error" : ""
 
   const e = $derived(data.employee)
+  const currencyOptions = $derived([
+    ...new Set(
+      [
+        ...(data.tenant?.supported_currencies ?? []),
+        data.tenant?.default_currency,
+        e.currency,
+      ].filter((c): c is string => Boolean(c)),
+    ),
+  ])
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
   // This person's own office decides how their money and dates read (L24).
@@ -98,6 +115,18 @@
       { label: fullName, active: true },
     ]}
   />
+
+  {#if form?.saved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Pay change recorded.</span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
 
   <div class="card bg-base-100 mt-4 shadow">
     <div class="card-body gap-4">
@@ -260,17 +289,22 @@
             <input
               name="effective_from"
               type="date"
-              class="input w-full"
+              class={`input w-full ${invalid("effective_from")}`}
               required
             />
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Reason</legend>
-            <input
+            <!-- change_reason is a Postgres enum; free text here was a 500. -->
+            <select
               name="change_reason"
-              class="input w-full"
-              placeholder="annual_review"
-            />
+              class={`select w-full ${invalid("change_reason")}`}
+            >
+              <option value="">Not stated</option>
+              {#each data.changeReasons as r (r)}
+                <option value={r}>{r.replaceAll("_", " ")}</option>
+              {/each}
+            </select>
           </fieldset>
         </div>
 
@@ -283,7 +317,7 @@
             <input
               name="amount"
               inputmode="decimal"
-              class="input w-full tabular-nums"
+              class={`input w-full tabular-nums ${invalid("amount")}`}
               value={e.base_amount ?? ""}
               required
             />
@@ -295,12 +329,31 @@
               class="select w-full"
               value={e.currency ?? data.tenant?.default_currency}
             >
-              {#each data.tenant?.supported_currencies ?? [] as c (c)}
+              <!-- Never an empty list: a tenant with NULL supported_currencies
+                   would otherwise render no options, submit no currency, and
+                   fail validation. The employee's own currency is included so
+                   it cannot be silently switched to option[0]. -->
+              {#each currencyOptions as c (c)}
                 <option value={c}>{c}</option>
               {/each}
             </select>
           </fieldset>
         </div>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Compensation type</legend>
+          <!-- Was hard-coded to "salary", which rewrote an hourly worker's
+               record as salaried and stored their hourly rate as a salary. -->
+          <select
+            name="compensation_type"
+            class="select w-full"
+            value={e.compensation_type ?? "salary"}
+          >
+            {#each data.compensationTypes as t (t)}
+              <option value={t}>{t}</option>
+            {/each}
+          </select>
+        </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Pay frequency</legend>

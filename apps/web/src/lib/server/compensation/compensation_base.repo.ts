@@ -11,9 +11,11 @@ export type { Tx }
  *
  * Nothing in the schema prevents two rows covering the same day. When that
  * happens the directory's `DISTINCT ON (employee_id) ... ORDER BY
- * effective_from DESC` picks one arbitrarily, and the same person shows a
- * different salary depending on nothing. Closing the open row is therefore
- * part of writing the new one, in the same transaction — see `addRaise`.
+ * effective_from DESC` picks one arbitrarily, so the same person shows a
+ * different salary on different page loads — and the detail page, which keys
+ * its history rows on `effective_from`, throws outright and stops rendering.
+ * Keeping the windows disjoint is therefore enforced HERE, at write time, and
+ * not merely asserted in a test.
  */
 
 export type CompensationBase = {
@@ -29,6 +31,24 @@ export type CompensationBase = {
   overtime_eligible: boolean | null
   change_reason: string | null
 }
+
+/** Why a write was refused, so the action can point at the right field. */
+export type RaiseRejection =
+  "duplicate_date" | "would_overlap" | "amount_out_of_range"
+
+export class RaiseRefused extends Error {
+  constructor(readonly reason: RaiseRejection) {
+    super(reason)
+    this.name = "RaiseRefused"
+  }
+}
+
+/**
+ * `compensation_base.amount` is numeric(12,2): ten integer digits. Beyond that
+ * Postgres raises `numeric field overflow`, which without this check reaches
+ * the user as an unhandled 500 rather than a field error.
+ */
+const MAX_INTEGER_DIGITS = 10
 
 export async function listForEmployee(
   tx: Tx,
@@ -63,13 +83,20 @@ export type RaiseInput = {
 /**
  * Record a new compensation record, closing whatever it supersedes.
  *
- * Both statements run in the caller's transaction, so there is never an instant
- * where two rows are open — which a check-then-write from the action could not
- * guarantee under concurrency.
+ * Refuses rather than corrupting, in three cases the first version got wrong:
  *
- * The previous row is closed the day BEFORE the new one starts, not on the same
- * day: `effective_to` is inclusive, and closing on the start date would leave
- * both rows covering it.
+ *  - **Same date.** The likeliest path in practice: record a change, notice the
+ *    amount was wrong, record it again for the same date. `effective_from <
+ *    new` closes nothing, so two open rows result. That is a correction, and it
+ *    belongs in `correct()`.
+ *  - **Backdating.** An effective date before the open row's start leaves both
+ *    open and overlapping.
+ *  - **A future row already exists.** A row starting later is not closed by one
+ *    starting earlier, so the new open-ended row swallows it.
+ *
+ * `overlaps()` is then re-checked inside the same transaction, so any case not
+ * anticipated above aborts the write rather than being discovered later by a
+ * page that will not render.
  */
 export async function addRaise(
   tx: Tx,
@@ -77,8 +104,25 @@ export async function addRaise(
   input: RaiseInput,
   actorId: string,
 ): Promise<void> {
-  // Postgres truncates silently to the column scale, so what comes back is not
-  // necessarily what went in — see the note on the employees UPDATE below.
+  const integerDigits = input.amount.split(".")[0].replace(/^0+(?=\d)/, "")
+  if (integerDigits.length > MAX_INTEGER_DIGITS) {
+    throw new RaiseRefused("amount_out_of_range")
+  }
+
+  const [counts] = await tx<{ same: number; later: number }[]>`
+    SELECT
+      count(*) FILTER (
+        WHERE effective_from = ${input.effective_from}::date)::int AS same,
+      count(*) FILTER (
+        WHERE effective_from > ${input.effective_from}::date)::int AS later
+      FROM compensation_base
+     WHERE employee_id = ${input.employee_id}
+  `
+  if (counts.same > 0) throw new RaiseRefused("duplicate_date")
+  if (counts.later > 0) throw new RaiseRefused("would_overlap")
+
+  // Close the open row the day BEFORE the new one starts: `effective_to` is
+  // inclusive, so closing on the start date leaves both covering it.
   await tx`
     UPDATE compensation_base
        SET effective_to = (${input.effective_from}::date - INTERVAL '1 day')
@@ -87,44 +131,86 @@ export async function addRaise(
        AND effective_from < ${input.effective_from}::date
   `
 
+  // Carry forward what the superseded row held. Without this, a raise silently
+  // drops the annual equivalent, the overtime flag and the standard hours —
+  // fields the form does not ask about and the person still has.
+  const [prev] = await tx<
+    {
+      annual_equivalent: string | null
+      overtime_eligible: boolean | null
+      standard_hours_per_day: string | null
+      standard_days_per_week: string | null
+    }[]
+  >`
+    SELECT annual_equivalent::text AS annual_equivalent, overtime_eligible,
+           standard_hours_per_day::text AS standard_hours_per_day,
+           standard_days_per_week::text AS standard_days_per_week
+      FROM compensation_base
+     WHERE employee_id = ${input.employee_id}
+     ORDER BY effective_from DESC
+     LIMIT 1
+  `
+
   await tx`
     INSERT INTO compensation_base (
       tenant_id, employee_id, effective_from, effective_to,
       compensation_type, amount, currency, pay_frequency,
-      annual_equivalent, overtime_eligible, change_reason, created_by
+      annual_equivalent, overtime_eligible,
+      standard_hours_per_day, standard_days_per_week,
+      change_reason, created_by
     ) VALUES (
       ${tenantId}, ${input.employee_id}, ${input.effective_from}::date, NULL,
       ${input.compensation_type}, ${input.amount}::numeric, ${input.currency},
       ${input.pay_frequency}::pay_frequency,
-      ${input.annual_equivalent}::numeric, ${input.overtime_eligible},
-      ${input.change_reason}, ${actorId}
+      ${input.annual_equivalent ?? prev?.annual_equivalent ?? null}::numeric,
+      ${input.overtime_eligible ?? prev?.overtime_eligible ?? false},
+      ${prev?.standard_hours_per_day ?? null}::numeric,
+      ${prev?.standard_days_per_week ?? null}::numeric,
+      ${input.change_reason}::change_reason, ${actorId}
     )
   `
 
-  // Keep the denormalised columns on `employees` in step. The directory falls
-  // back to them when no effective-dated row is current, so letting them drift
-  // means two answers to the same question.
-  //
-  // ROUNDED TO THE AUTHORITATIVE COLUMN'S SCALE. The two disagree in the
-  // schema: compensation_base.amount is numeric(12,2) while
-  // employees.base_amount is numeric(18,4), so the cache can hold precision the
-  // source of truth cannot. Writing the raw value to both stores 12345678.9012
-  // in one and 12345678.90 in the other, and the directory then shows a
-  // different figure depending on whether a dated row happens to be current.
-  // Rounding here makes them agree; see L25.
+  const overlapping = await overlaps(tx, input.employee_id)
+  if (overlapping.length > 0) throw new RaiseRefused("would_overlap")
+
+  await syncCache(tx, input.employee_id)
+}
+
+/**
+ * Bring the denormalised columns on `employees` in line with whichever row is
+ * CURRENT — not with whichever row was written last.
+ *
+ * The directory falls back to these when no dated row covers today. Writing a
+ * future-dated raise straight into them showed tomorrow's salary as today's pay
+ * for anyone in that state.
+ *
+ * `round()` matches what the `::numeric(12,2)` cast does on the authoritative
+ * column, so the cache — numeric(18,4), and able to hold more — agrees with it
+ * (L25).
+ */
+export async function syncCache(tx: Tx, employeeId: string): Promise<void> {
   await tx`
-    UPDATE employees
-       SET base_amount = round(${input.amount}::numeric, 2),
-           currency    = ${input.currency},
-           pay_frequency = ${input.pay_frequency}::pay_frequency,
-           updated_at  = now()
-     WHERE id = ${input.employee_id}
+    UPDATE employees e
+       SET base_amount   = round(c.amount, 2),
+           currency      = c.currency,
+           pay_frequency = c.pay_frequency,
+           updated_at    = now()
+      FROM (
+        SELECT amount, currency, pay_frequency
+          FROM compensation_base
+         WHERE employee_id = ${employeeId}
+           AND effective_from <= CURRENT_DATE
+           AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+         ORDER BY effective_from DESC
+         LIMIT 1
+      ) c
+     WHERE e.id = ${employeeId}
   `
 }
 
 /**
- * Rows whose windows overlap. Should always be empty; a test asserts it after
- * `addRaise`, because the invariant has no constraint behind it.
+ * Rows whose windows overlap. Should always be empty; `addRaise` checks it
+ * before committing, because the invariant has no constraint behind it.
  */
 export async function overlaps(
   tx: Tx,
@@ -143,17 +229,25 @@ export async function overlaps(
   `
 }
 
-/** A correction to an existing record — a typo, not a raise. */
+/**
+ * Fix an existing record — a typo, not a raise. Moves no dates.
+ *
+ * Re-syncs the cache afterwards: this is the SECOND writer of
+ * `compensation_base.amount`, and leaving `employees.base_amount` stale would
+ * reintroduce exactly the divergence L25 exists to prevent.
+ */
 export async function correct(
   tx: Tx,
   id: string,
   patch: { amount: string; currency: string; change_reason: string | null },
 ): Promise<void> {
-  await tx`
+  const [row] = await tx<{ employee_id: string }[]>`
     UPDATE compensation_base
        SET amount        = ${patch.amount}::numeric,
            currency      = ${patch.currency},
-           change_reason = ${patch.change_reason}
+           change_reason = ${patch.change_reason}::change_reason
      WHERE id = ${id}
+    RETURNING employee_id
   `
+  if (row) await syncCache(tx, row.employee_id)
 }

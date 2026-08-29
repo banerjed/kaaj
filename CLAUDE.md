@@ -231,6 +231,54 @@ does removing a justified one — both require a reviewed edit. A `NOT IN` patte
 silently absorbs future violations, which is how a suite quietly stops testing
 anything.
 
+## Money
+
+**`NUMERIC`, never `real`/`double precision`/`float`.** Postgres `NUMERIC` is
+exact base-10; the float types are binary and lose digits before any code sees
+them. Measured against this database: `99999.99` stored as `real` returns
+`100000`, and `1234567.89` returns `1234570`. No downstream rounding recovers
+that. `./check` fails on a monetary column declared as a float — see the
+`money/numeric-not-float` invariant.
+
+**Two scales, chosen deliberately:**
+
+| Kind | Type | Why |
+|---|---|---|
+| Money — salaries, invoices, premiums | `numeric(15,2)` | Ten trillion minor units; covers INR at crore scale |
+| Rates and quantities — hourly rates, hours, FTE | `numeric(18,4)` | A rate of 12.3456/hour is meaningful, and rounding it before multiplying compounds across a timesheet |
+
+**Money is a `string` in TypeScript, end to end.** This is the rule people get
+wrong, and it is where money actually dies — not in the database.
+
+- postgres.js returns `NUMERIC` as a **string**, and `client.ts` sets
+  `types: {}` so it stays one. Do not "helpfully" parse it.
+- `Number("9007199254740993.00")` is `9007199254740992`. Silently.
+- Repository types declare money as `string`. `$lib/format.ts` `money()` takes a
+  string and converts only inside `Intl.NumberFormat`.
+- Form fields use `inputmode="decimal"`, never `type="number"` — the latter
+  round-trips through a float in the browser.
+
+**Arithmetic happens in SQL, not in JavaScript.** Summing invoice lines,
+computing gross pay, prorating: all `NUMERIC` in Postgres, where it is exact.
+
+**Currency travels with the amount, always,** and is never converted for
+display (BR-FP-003). A figure is shown in its currency of record, formatted in
+the locale of the market it belongs to — see `localeForCurrency` and
+[L24](docs/10-lessons-learned.md).
+
+**Postgres ROUNDS to scale, silently — it does not truncate.**
+`12345678.9052::numeric(12,2)` is `12345678.91`. When the same value is stored
+in two columns of different scale, round to the authoritative one before
+writing the other, and pick a test value that distinguishes rounding from
+truncation — `.9052`, not `.9012` ([L25](docs/10-lessons-learned.md)).
+
+**Not integer minor units.** The other defensible answer, rejected: every query
+needs division to be readable, JPY (0 decimals) and BHD (3) break the ×100
+assumption, and `Intl.NumberFormat` wants major units. `NUMERIC` gives
+exactness without that tax.
+
+---
+
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
 mode either way — so the failure is invisible if you only check one theme. Any

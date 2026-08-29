@@ -96,9 +96,10 @@ describe("compensation effective dating", () => {
     expect(found).toEqual([])
   })
 
-  it("keeps the denormalised employees columns in step", async () => {
-    // The directory falls back to these when no dated row is current, so
-    // letting them drift gives two answers to the same question.
+  it("does NOT push a future-dated raise into the employees cache", async () => {
+    // The cache is what the directory falls back to when no dated row covers
+    // today, so writing a future amount into it shows tomorrow's salary as
+    // today's pay. 2026-10-01 has not arrived; the cache must not move.
     const row = await inRollback(async (tx) => {
       await comp.addRaise(
         tx,
@@ -122,24 +123,142 @@ describe("compensation effective dating", () => {
       `
       return e as { base_amount: string; currency: string }
     })
-    expect(Number(row.base_amount)).toBe(3500000)
+    // Still the currently-effective figure, not the future one.
+    expect(Number(row.base_amount)).toBe(3200000)
     expect(row.currency).toBe("INR")
   })
 
-  it("stores money at the authoritative column's scale, in both places", async () => {
-    // compensation_base.amount is numeric(12,2) and employees.base_amount is
-    // numeric(18,4). Postgres truncates to scale silently, so a 4-decimal value
-    // would land differently in the two columns and the directory would show a
-    // different figure depending on which one it read. Both must agree.
-    const result = await inRollback(async (tx) => {
+  it("does push a raise effective today into the cache", async () => {
+    const row = await inRollback(async (tx) => {
+      const [{ today }] =
+        await tx`SELECT to_char(CURRENT_DATE,'YYYY-MM-DD') AS today`
       await comp.addRaise(
         tx,
         NORTHWIND,
         {
           employee_id: CHEN,
-          effective_from: "2026-11-01",
+          effective_from: today as string,
           compensation_type: "salary",
-          amount: "12345678.9012",
+          amount: "3500000.00",
+          currency: "INR",
+          pay_frequency: "monthly",
+          annual_equivalent: null,
+          overtime_eligible: false,
+          change_reason: "annual_review",
+        },
+        ACTOR,
+      )
+      const [e] = await tx`
+        SELECT base_amount::text AS base_amount FROM employees WHERE id = ${CHEN}
+      `
+      return e as { base_amount: string }
+    })
+    expect(Number(row.base_amount)).toBe(3500000)
+  })
+
+  it("refuses a second record starting on the same date", async () => {
+    // The likeliest real path: record a change, notice a typo, record it again.
+    // Before this guard both rows stayed open, the directory picked one
+    // arbitrarily, and the detail page threw on a duplicate each-key.
+    await expect(
+      inRollback(async (tx) => {
+        const input = {
+          employee_id: CHEN,
+          effective_from: "2026-10-01",
+          compensation_type: "salary",
+          amount: "3500000.00",
+          currency: "INR",
+          pay_frequency: "monthly",
+          annual_equivalent: null,
+          overtime_eligible: false,
+          change_reason: "annual_review" as string | null,
+        }
+        await comp.addRaise(tx, NORTHWIND, input, ACTOR)
+        await comp.addRaise(tx, NORTHWIND, input, ACTOR)
+      }),
+    ).rejects.toThrow(/duplicate_date/)
+  })
+
+  it("refuses a record that starts before an existing later one", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        await comp.addRaise(
+          tx,
+          NORTHWIND,
+          {
+            employee_id: CHEN,
+            effective_from: "2027-01-01",
+            compensation_type: "salary",
+            amount: "3600000.00",
+            currency: "INR",
+            pay_frequency: "monthly",
+            annual_equivalent: null,
+            overtime_eligible: false,
+            change_reason: "annual_review",
+          },
+          ACTOR,
+        )
+        // Backdated relative to the row just written: would leave both open.
+        await comp.addRaise(
+          tx,
+          NORTHWIND,
+          {
+            employee_id: CHEN,
+            effective_from: "2026-10-01",
+            compensation_type: "salary",
+            amount: "3500000.00",
+            currency: "INR",
+            pay_frequency: "monthly",
+            annual_equivalent: null,
+            overtime_eligible: false,
+            change_reason: "correction",
+          },
+          ACTOR,
+        )
+      }),
+    ).rejects.toThrow(/would_overlap/)
+  })
+
+  it("refuses an amount wider than numeric(12,2) instead of 500ing", async () => {
+    await expect(
+      inRollback((tx) =>
+        comp.addRaise(
+          tx,
+          NORTHWIND,
+          {
+            employee_id: CHEN,
+            effective_from: "2026-10-01",
+            compensation_type: "salary",
+            amount: "99999999999.00", // 11 integer digits
+            currency: "INR",
+            pay_frequency: "monthly",
+            annual_equivalent: null,
+            overtime_eligible: false,
+            change_reason: "correction",
+          },
+          ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(/amount_out_of_range/)
+  })
+
+  it("stores money at the authoritative column's scale, in both places", async () => {
+    // compensation_base.amount is numeric(12,2) and employees.base_amount is
+    // numeric(18,4). Postgres ROUNDS to scale silently (it does not truncate),
+    // so a 4-decimal value lands differently in the two columns unless the
+    // cache is rounded the same way. .9052 distinguishes the two behaviours;
+    // .9012 would pass under either and prove nothing.
+    const result = await inRollback(async (tx) => {
+      const [{ today }] =
+        await tx`SELECT to_char(CURRENT_DATE,'YYYY-MM-DD') AS today`
+      await comp.addRaise(
+        tx,
+        NORTHWIND,
+        {
+          employee_id: CHEN,
+          effective_from: today as string,
+          compensation_type: "salary",
+          amount: "12345678.9052",
           currency: "INR",
           pay_frequency: "monthly",
           annual_equivalent: null,
@@ -155,9 +274,9 @@ describe("compensation effective dating", () => {
       return { rows, cached: (e as { base_amount: string }).base_amount }
     })
 
-    // The authoritative column holds two decimals...
-    expect(result.rows[0].amount).toBe("12345678.90")
-    // ...and the cache agrees with it rather than keeping the extra digits.
-    expect(Number(result.cached)).toBe(12345678.9)
+    // Rounded, not truncated: .9052 -> .91.
+    expect(result.rows[0].amount).toBe("12345678.91")
+    // And the cache agrees rather than keeping the extra digits.
+    expect(Number(result.cached)).toBe(12345678.91)
   })
 })

@@ -377,10 +377,16 @@ place that decides, so there is one thing to change.
 denormalised copy the directory falls back to, is `numeric(18,4)`.
 
 The cache can therefore hold precision the authoritative column cannot. Writing
-`12345678.9012` to both stores `12345678.90` in one and `12345678.9012` in the
-other — **Postgres truncates to scale without warning** — and the directory then
-shows a different figure depending on whether an effective-dated row happens to
-be current that day.
+`12345678.9052` to both stores `12345678.91` in one and `12345678.9052` in the
+other, and the directory then shows a different figure depending on whether an
+effective-dated row happens to be current that day.
+
+**Postgres ROUNDS to scale, silently. It does not truncate** — this entry
+originally said it did, which a review caught. `12345678.9052::numeric(12,2)` is
+`.91`, not `.90`. The distinction matters because someone implementing the rule
+below with `trunc()` would recreate the very drift it exists to prevent. The
+original test used `.9012`, which passes under either semantics and so pinned
+nothing; it now uses `.9052`.
 
 `addRaise` now rounds to the authoritative scale before writing the cache, so
 the two always agree. A test asserts it.
@@ -391,7 +397,11 @@ single place that writes both, which is what makes the workaround safe.
 
 **General rule:** when a value is stored in two places, one of them is
 authoritative and the other must be derived from it in the same transaction, at
-the authoritative type. Do not assume the two column definitions match — check.
+the authoritative type, with `round()` — matching what the cast does. Do not
+assume the two column definitions match; check.
+
+The full set of money rules now lives in CLAUDE.md under **Money**, and
+`./check` enforces the type choice via the `money/numeric-not-float` invariant.
 
 ---
 
@@ -413,6 +423,21 @@ shows what you did not.
 database bakes local experiments into the baseline. Already happened once: a
 manual `ALTER` left `invoices.total` as `numeric(18,2)` when the migration says
 `numeric(15,2)`.
+
+### L26 — `supabase db reset` drops the `app_user` password
+
+The migration deliberately creates `app_user` with `LOGIN` and no password
+("set out of band — never in a migration"), and `./setup` sets it. A bare
+`supabase db reset` therefore leaves the role unable to authenticate, and every
+database-backed test fails at once with `password authentication failed`.
+
+It reads like the tests broke. They did not; the credential went away.
+
+```bash
+psql "$DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
+```
+
+or just re-run `./setup`, which does it and re-verifies RLS.
 
 ### L21 — A page that renders empty is the default failure mode here
 

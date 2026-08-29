@@ -226,6 +226,52 @@ SELECT 'grants/data-api-closed', '(anon/authenticated DML)',
 -- REPORT
 -- =============================================================================
 \echo ''
+-- =============================================================================
+-- RULE: money is NUMERIC, never a binary float
+-- =============================================================================
+-- `real` is 32-bit IEEE-754 — about seven significant decimal digits. Against
+-- this very database, 99999.99 stored as `real` comes back as 100000, and
+-- 1234567.89 comes back as 1234570. The digits are gone before any application
+-- code sees them, so nothing downstream can recover them.
+--
+-- Four columns were declared this way and were corrected by
+-- 20260829000001_money_columns_are_numeric.sql. This rule stops the next one
+-- reaching production: a `real`/`double precision` column whose name looks
+-- monetary fails ./check rather than being noticed on a payslip.
+--
+-- The name pattern is a heuristic, so exemptions are literals with reasons, as
+-- everywhere else in this file.
+
+CREATE TEMP TABLE _float_money_exempt (col TEXT PRIMARY KEY, reason TEXT);
+-- (empty — no monetary column has a justified reason to be a float)
+
+CREATE TEMP TABLE _float_money AS
+SELECT c.table_name || '.' || c.column_name AS col
+  FROM information_schema.columns c
+ WHERE c.table_schema = 'public'
+   AND c.data_type IN ('real', 'double precision')
+   AND c.column_name ~ '(amount|cost|price|salary|pay|total|balance|premium|wage|fee|revenue|budget|deduction)';
+
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'money/numeric-not-float', '(float money columns)',
+       NOT EXISTS (SELECT 1 FROM _float_money m
+                    WHERE m.col NOT IN (SELECT col FROM _float_money_exempt)),
+       coalesce('monetary columns declared real/double precision: ' ||
+                (SELECT string_agg(m.col, ', ' ORDER BY m.col) FROM _float_money m
+                  WHERE m.col NOT IN (SELECT col FROM _float_money_exempt)),
+                'ok');
+
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'money/exemption-live', '(stale exemptions)',
+       NOT EXISTS (SELECT 1 FROM _float_money_exempt e
+                    WHERE e.col NOT IN (SELECT col FROM _float_money)),
+       coalesce('exemptions no longer matching any column: ' ||
+                (SELECT string_agg(e.col, ', ' ORDER BY e.col)
+                   FROM _float_money_exempt e
+                  WHERE e.col NOT IN (SELECT col FROM _float_money)),
+                'ok');
+
+
 \echo '=================== SCHEMA INVARIANTS ==================='
 SELECT rule,
        count(*) AS checks,

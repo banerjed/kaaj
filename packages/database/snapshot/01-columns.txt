@@ -190,7 +190,7 @@ clients	23	website	text	f
 clients	24	company_size	text	f	
 clients	25	currency	text	f	'USD'::text
 clients	26	payment_terms	text	f	'net_30'::text
-clients	27	default_hourly_rate	real	f	
+clients	27	default_hourly_rate	numeric(18,4)	f	
 clients	28	tax_id	text	f	
 clients	29	portal_access_enabled	boolean	f	false
 clients	30	account_manager_id	uuid	f	
@@ -644,9 +644,9 @@ firm_benefits_plans	9	network_type	text	f
 firm_benefits_plans	10	is_active	boolean	f	true
 firm_benefits_plans	11	effective_date	date	t	
 firm_benefits_plans	12	end_date	date	f	
-firm_benefits_plans	13	employee_cost_monthly	real	f	
-firm_benefits_plans	14	employer_cost_monthly	real	f	
-firm_benefits_plans	15	total_premium_monthly	real	f	
+firm_benefits_plans	13	employee_cost_monthly	numeric(15,2)	f	
+firm_benefits_plans	14	employer_cost_monthly	numeric(15,2)	f	
+firm_benefits_plans	15	total_premium_monthly	numeric(15,2)	f	
 firm_benefits_plans	16	currency	text	f	'USD'::text
 firm_benefits_plans	17	plan_details	jsonb	f	'{}'::jsonb
 firm_benefits_plans	18	cost_tiers	text	f	'[]'::text
