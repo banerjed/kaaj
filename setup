@@ -314,6 +314,13 @@ fi
 # disposable local stack, is here. This is the same class of well-known demo
 # credential as the keys in .env.local, and it is why this script must never be
 # pointed at a customer's infrastructure.
+# Development logins. Deliberately not in config.toml's [db.seed] sql_paths —
+# see the comment there — so it is applied here instead, where it can only ever
+# reach the local stack.
+psql "$DATABASE_URL" -X -q -f packages/database/fixtures/dev-users.sql >/dev/null 2>&1 \
+  && ok "development logins seeded ${D}(password: devpassword)${N}" \
+  || { bad "could not seed development logins"; exit 1; }
+
 psql "$DATABASE_URL" -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'" >/dev/null 2>&1 \
   && ok "app_user password set ${D}(local demo credential)${N}" \
   || { bad "could not set the app_user password"; exit 1; }

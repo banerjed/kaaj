@@ -68,13 +68,20 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = [
-  "../packages/database/fixtures/mock-data.sql",
-  # Development logins. Must load AFTER mock-data.sql: it derives auth.users
-  # rows from the tenant_users rows that file seeds. DEV ONLY — well-known
-  # passwords; see the header of the file itself.
-  "../packages/database/fixtures/dev-users.sql",
-]
+sql_paths = ["../packages/database/fixtures/mock-data.sql"]
+
+# dev-users.sql is DELIBERATELY NOT LISTED HERE.
+#
+# It creates Supabase Auth logins with the well-known password `devpassword`.
+# Anything in `sql_paths` is eligible for `supabase db push --include-seed`,
+# which would put those logins in a HOSTED project. The file carries its own
+# guard — it refuses unless the Northwind test tenant exists — but mock-data.sql
+# runs first in the same pass and creates exactly that tenant, so the guard
+# would pass. The only safe answer is for the file to be unreachable from the
+# Supabase CLI at all.
+#
+# `./setup` applies it explicitly with psql, alongside setting the app_user
+# password. After a bare `supabase db reset`, re-run `./setup` to log in again.
 
 [db.network_restrictions]
 # Enable management of network restrictions.
