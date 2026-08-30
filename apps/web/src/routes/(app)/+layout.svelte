@@ -4,9 +4,16 @@
   import Sidebar from "$lib/components/admin-layout/Sidebar.svelte"
   import Topbar from "$lib/components/admin-layout/Topbar.svelte"
   import ConfigProvider from "$lib/contexts/ConfigProvider.svelte"
+  import { visibleMenuItems } from "$lib/components/admin-layout/helpers"
   import { appMenuItems } from "./menu"
 
   let { data, children } = $props()
+
+  // Links this person cannot open are removed rather than shown and then
+  // refused. The pages still check for themselves (L44).
+  const menuItems = $derived(
+    visibleMenuItems(appMenuItems, new Set(data.permissions ?? [])),
+  )
 </script>
 
 <!-- The Nexus admin shell, with Kaaj's menu and the session user.
@@ -16,7 +23,7 @@
   <div class="size-full">
     <div class="flex">
       <Sidebar
-        menuItems={appMenuItems}
+        {menuItems}
         user={data.user}
         companyName={data.tenant?.company_name}
       />

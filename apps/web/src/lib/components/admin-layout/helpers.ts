@@ -28,3 +28,29 @@ export const getActivatedItemParentKeys = (
 
   return walk(menuItems, []) ?? []
 }
+
+/**
+ * The menu as this person should see it: entries carrying a `permission` they
+ * do not hold are removed, and a group left with no children goes with them.
+ *
+ * **This is not access control.** Every page's `load` and every action checks
+ * for itself; removing a link only stops the app offering a route that answers
+ * 403. Treating a hidden link as a guard is how an unguarded route ships (L44).
+ */
+export const visibleMenuItems = (
+  menuItems: ISidebarMenuItem[],
+  permissions: ReadonlySet<string>,
+): ISidebarMenuItem[] => {
+  const keep = (items: ISidebarMenuItem[]): ISidebarMenuItem[] =>
+    items.flatMap((item) => {
+      if (item.permission && !permissions.has(item.permission)) return []
+      if (!item.children) return [item]
+      const children = keep(item.children)
+      // A group whose every child was removed would render as a chevron that
+      // opens onto nothing.
+      if (children.length === 0) return []
+      return [{ ...item, children }]
+    })
+
+  return keep(menuItems)
+}

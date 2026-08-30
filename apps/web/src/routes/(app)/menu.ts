@@ -16,6 +16,11 @@ const soon: Pick<ISidebarMenuItem, "disabled" | "badges"> = {
   badges: ["soon"],
 }
 
+// An entry may carry `permission`. It is hidden from anyone who lacks it —
+// which is navigation hygiene, NOT access control. The page's own `load` is
+// what refuses the request; this only stops the app offering a link that leads
+// to an error page (L44).
+
 export const appMenuItems: ISidebarMenuItem[] = [
   {
     id: "overview-label",
@@ -66,7 +71,19 @@ export const appMenuItems: ISidebarMenuItem[] = [
     icon: "lucide--wallet",
     label: "Payroll",
     children: [
-      { id: "payroll-runs", label: "Pay Runs", ...soon },
+      {
+        id: "payroll-payslips",
+        label: "My Payslips",
+        url: "/payroll/payslips",
+      },
+      {
+        id: "payroll-runs",
+        label: "Pay Runs",
+        url: "/payroll/runs",
+        // Everyone in the firm's pay, on one page. Hidden from those who may
+        // not open it — the load refuses them regardless.
+        permission: "compensation.read.all",
+      },
       { id: "payroll-taxes", label: "Taxes", ...soon },
     ],
   },

@@ -78,6 +78,15 @@ describe("money", () => {
     expect(money("", "USD", "en-US")).toBe("—")
     expect(money("0", "USD", "en-US")).toBe("$0.00")
   })
+  it("refuses a missing currency rather than printing the word", () => {
+    // This rendered `undefined 216000.27` as a take-home figure. An unknown
+    // 3-letter code must still pass through verbatim — that fallback is
+    // deliberate — so the two cases are distinguished, not merged (L45).
+    expect(() =>
+      money("216000.27", undefined as unknown as string, "en-IN"),
+    ).toThrow(/3-letter currency/)
+    expect(money("100", "XYZ", "en-US")).toContain("XYZ")
+  })
 })
 
 describe("money — compact", () => {

@@ -2,6 +2,8 @@ import { redirect } from "@sveltejs/kit"
 import type { LayoutServerLoad } from "./$types"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { toSafeAuthSession } from "$lib/server/auth_session"
+import { contextFrom } from "$lib/server/auth/can"
+import { permissionsFor } from "@kaaj/authz"
 
 /**
  * The gate for every page in the product. The two failures differ: no session
@@ -37,9 +39,18 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     return row
   })
 
+  // Sent to the browser so the sidebar can drop links this person cannot
+  // open. It is their OWN capability list, not a secret, and it authorizes
+  // nothing: each load and action checks server-side regardless (L44).
+  const ctx = contextFrom(locals)
+  const permissions = ctx
+    ? [...permissionsFor(ctx.role, ctx.functionalRoles)]
+    : []
+
   return {
     session: toSafeAuthSession(session, user),
     tenant,
+    permissions,
     user: {
       id: user.id,
       email: user.email,

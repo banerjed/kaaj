@@ -16,6 +16,10 @@
     /** Kaaj addition: in the IA but not built yet. Renders as a dimmed
      * non-link — an <a href=""> would reload the current page. */
     disabled?: boolean
+    /** Kaaj addition: hide this entry from anyone without the permission.
+     * NAVIGATION ONLY. Hiding a link is not authorization — every load and
+     * action still checks for itself, and must keep doing so. */
+    permission?: string
   } & ISidebarMenuItemBadges
 </script>
 

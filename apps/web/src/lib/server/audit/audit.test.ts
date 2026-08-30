@@ -67,14 +67,27 @@ describe("writing to the trail", () => {
   it("stamps the time itself rather than trusting the caller", async () => {
     // occurred_at is what an auditor sorts and filters by. A row claiming to
     // have happened last year would sit quietly in the middle of the history.
+    //
+    // Compared against the DATABASE's clock, not this process's. The column
+    // defaults to now(), so the only honest comparison is to the clock that
+    // produced it — and the two clocks are on different machines here, with
+    // Postgres in a VM whose time drifts across a host sleep. Comparing to
+    // Date.now() made this fail for a reason that had nothing to do with
+    // auditing (L43).
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, { action: "x", entityType: "test" })
-      const [r] = await tx<{ occurred_at: Date }[]>`
-        SELECT occurred_at FROM audit_log ORDER BY id DESC LIMIT 1
+      const [r] = await tx<{ drift_seconds: string; is_default: boolean }[]>`
+        SELECT abs(extract(epoch FROM clock_timestamp() - occurred_at))::text
+                 AS drift_seconds,
+               occurred_at = now() AS is_default
+          FROM audit_log ORDER BY id DESC LIMIT 1
       `
       return r
     })
-    expect(Date.now() - row.occurred_at.getTime()).toBeLessThan(60_000)
+    // now() is transaction start, so a few seconds of test setup is expected.
+    expect(Number(row.drift_seconds)).toBeLessThan(60)
+    // The stronger claim: it is the column default, so no caller supplied it.
+    expect(row.is_default).toBe(true)
   })
 
   it("redacts what must never be logged, but records that it changed", async () => {

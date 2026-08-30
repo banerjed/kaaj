@@ -1,3 +1,5 @@
+import { dev } from "$app/environment"
+
 /**
  * Locale-aware formatting, bound to the TENANT's settings rather than the
  * browser's.
@@ -57,6 +59,23 @@ export function money(
   if (amount === null || amount === undefined || amount === "") return "—"
   const value = typeof amount === "string" ? Number(amount) : amount
   if (!Number.isFinite(value)) return "—"
+
+  // A MISSING currency is a caller bug, not an unknown currency, and the two
+  // must not share a fallback: the fallback below is `${currency} ${value}`,
+  // which rendered the word "undefined" next to a real take-home figure on a
+  // payslip (L45). Loud in development so it is found on the page that shows
+  // it. In production the amount is still shown, but UNLABELLED — which
+  // contradicts "currency travels with the amount" (BR-FP-003) and is accepted
+  // only as the lesser failure against blanking the figure entirely.
+  if (typeof currency !== "string" || !/^[A-Za-z]{3}$/.test(currency)) {
+    if (dev) {
+      throw new Error(
+        `money() needs a 3-letter currency; got ${JSON.stringify(currency)}. ` +
+          `Currency travels with the amount (BR-FP-003).`,
+      )
+    }
+    return number(value, locale)
+  }
 
   const key = `m:${locale}:${currency}:${options.compact ? "c" : "f"}`
   try {
