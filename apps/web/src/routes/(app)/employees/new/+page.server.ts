@@ -5,6 +5,7 @@ import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
   employeeEnums,
   parseEmployeeForm,
@@ -27,6 +28,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
   default: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "employee.create")
     const tenantId = locals.tenantId
     const actorId = locals.user?.id
     if (!actorId) error(403, "No user")

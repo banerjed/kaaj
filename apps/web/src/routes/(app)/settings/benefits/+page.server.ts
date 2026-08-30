@@ -5,6 +5,7 @@ import * as items from "$lib/server/firm-profile/firm_benefit_items.repo"
 import type { CostsByCurrency } from "$lib/server/firm-profile/firm_benefit_items.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 
 /** The benefit kinds the product understands. */
@@ -62,6 +63,7 @@ function readCosts(data: FormData, f: FormReader): CostsByCurrency {
 export const actions: Actions = {
   savePackage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
 
     const data = await request.formData()
@@ -94,6 +96,7 @@ export const actions: Actions = {
 
   archivePackage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing package."))
@@ -103,6 +106,7 @@ export const actions: Actions = {
 
   saveItem: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
 
     const data = await request.formData()
@@ -143,6 +147,7 @@ export const actions: Actions = {
 
   removeItem: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing benefit."))

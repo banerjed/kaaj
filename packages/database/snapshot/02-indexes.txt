@@ -455,6 +455,7 @@ tasks	tasks_tenant_id_task_id_key	CREATE UNIQUE INDEX tasks_tenant_id_task_id_ke
 tenant_settings	tenant_settings_pkey	CREATE UNIQUE INDEX tenant_settings_pkey ON public.tenant_settings USING btree (tenant_id, namespace, key)
 tenant_users	idx_tenant_users_created	CREATE INDEX idx_tenant_users_created ON public.tenant_users USING btree (tenant_id, created_at DESC)
 tenant_users	idx_tenant_users_employee_id	CREATE INDEX idx_tenant_users_employee_id ON public.tenant_users USING btree (tenant_id, employee_id)
+tenant_users	idx_tenant_users_functional_roles	CREATE INDEX idx_tenant_users_functional_roles ON public.tenant_users USING gin (tenant_id, functional_roles)
 tenant_users	idx_tenant_users_is_active	CREATE INDEX idx_tenant_users_is_active ON public.tenant_users USING btree (tenant_id, is_active)
 tenant_users	idx_tenant_users_user	CREATE INDEX idx_tenant_users_user ON public.tenant_users USING btree (user_id) WHERE is_active
 tenant_users	idx_tenant_users_user_id	CREATE INDEX idx_tenant_users_user_id ON public.tenant_users USING btree (tenant_id, user_id)

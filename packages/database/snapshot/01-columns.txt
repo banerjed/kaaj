@@ -1866,7 +1866,7 @@ tenant_users	1	id	uuid	t	gen_random_uuid()
 tenant_users	2	tenant_id	uuid	t	
 tenant_users	3	user_id	uuid	t	
 tenant_users	4	employee_id	uuid	f	
-tenant_users	5	role	text	t	'member'::text
+tenant_users	5	role	text	t	'employee'::text
 tenant_users	6	permissions	jsonb	t	'{}'::jsonb
 tenant_users	7	is_active	boolean	t	true
 tenant_users	8	is_default_tenant	boolean	t	false
@@ -1875,6 +1875,7 @@ tenant_users	10	accepted_at	timestamp with time zone	f
 tenant_users	11	last_active_at	timestamp with time zone	f	
 tenant_users	12	created_at	timestamp with time zone	t	now()
 tenant_users	13	updated_at	timestamp with time zone	t	now()
+tenant_users	14	functional_roles	text[]	t	'{}'::text[]
 tenants	1	id	uuid	t	gen_random_uuid()
 tenants	2	subdomain	character varying(100)	t	
 tenants	3	company_name	character varying(255)	t	

@@ -4,6 +4,7 @@ import * as schedules from "$lib/server/payroll/payroll_pay_schedules.repo"
 import * as holidaysRepo from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { formString } from "$lib/server/forms"
 
 const FREQUENCIES = ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const
@@ -24,6 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
     const data = await request.formData()
 
@@ -82,6 +84,7 @@ export const actions: Actions = {
 
   archive: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const id = formString(await request.formData(), "id")
     if (!id) return fail(400, { message: "Missing schedule." })
     await withTenant(locals.tenantId, (tx) => schedules.archive(tx, id))

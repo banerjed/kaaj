@@ -29,9 +29,19 @@ declare global {
        * Null means no active membership: "no rows", not an error.
        */
       tenantId: string | null
-      /** Membership role. Display and coarse UI gating only — real
-       * authorisation belongs in an RLS policy or a server action. */
+      /**
+       * The BASE role — owner | firm_admin | employee | contractor. Exactly
+       * one. See docs/14-access-control.md.
+       */
       tenantRole: string | null
+      /** Functional roles on top: hr_admin, payroll_admin, … Zero or more. */
+      functionalRoles: string[]
+      /**
+       * Which PERSON is asking, as distinct from which tenant. Null for a
+       * member who is not an employee. "See your own record" is not
+       * expressible without it.
+       */
+      employeeId: string | null
     }
     interface PageData {
       session: SafeAuthSession | null

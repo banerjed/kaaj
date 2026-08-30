@@ -971,8 +971,17 @@ WHERE sla_due_at IS NOT NULL;
 -- app_metadata.tenant_id, so it is load-bearing for login. It had no fixture,
 -- which meant its RLS was never exercised; packages/database/tests/verify-rls.sql flags that.
 -- user_id values are deterministic uuid5 stand-ins for auth.users rows.
-INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role, is_active,
-                          is_default_tenant, accepted_at)
+-- One BASE role, plus any number of FUNCTIONAL roles (docs/14-access-control.md).
+--
+-- `manager` is deliberately absent: it is derived from employees.manager_id,
+-- and Aisha (E005) has reports, so she IS a manager without being granted one.
+--
+-- E010 holds hr_admin and E001 holds payroll_admin, never the same person —
+-- whoever sets pay must not approve the run that pays it. A CHECK constraint
+-- refuses the combination, so this fixture is also the demonstration.
+INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role,
+                          functional_roles, is_active, is_default_tenant,
+                          accepted_at)
 SELECT
     uuid_generate_v5_compat(e.id, 'tenant_user'),
     e.tenant_id,
@@ -980,9 +989,12 @@ SELECT
     e.id,
     CASE e.employee_id
         WHEN 'E001' THEN 'owner'
-        WHEN 'E010' THEN 'hr_admin'
-        WHEN 'E005' THEN 'manager'
-        ELSE 'member'
+        ELSE 'employee'
+    END,
+    CASE e.employee_id
+        WHEN 'E001' THEN ARRAY['payroll_admin']::text[]
+        WHEN 'E010' THEN ARRAY['hr_admin']::text[]
+        ELSE '{}'::text[]
     END,
     TRUE, TRUE, '2026-01-01T09:00:00Z'
 FROM employees e

@@ -1,7 +1,7 @@
 # Role-Based Access Control
 
-**Status:** specification. Nothing in this document is enforced yet — see
-[Where we are today](#where-we-are-today)
+**Status:** steps 0-3 implemented and enforced. RLS visibility predicates
+(step 5) and the subject-access export (step 6) are still ahead
 **Created:** 2026-08-30
 
 This is the authorization model for Kaaj: who may see which rows, who may take
@@ -25,8 +25,9 @@ Measured against the running system, not assumed:
 |---|---|
 | Tenant isolation | **Enforced.** RLS, `FORCE`d on all 100 tables, 587 checks in `./check` |
 | Role claim | **Correct but decorative.** `custom_access_token_hook` reads `tenant_users.role` and stamps `app_metadata.role`; `hooks.server.ts` resolves it into `locals.tenantRole` |
-| Role enforcement | **None.** `locals.tenantRole` is read in exactly one place — `(app)/+layout.server.ts`, to render "Owner" under the user's name in the sidebar |
-| Write paths gated by role | **0 of 19** |
+| Role enforcement | **Application layer done.** `can()` / `requireCan()` in `$lib/server/auth/`, with the base + functional bundles |
+| Write paths gated by role | **23 of 23**, enforced by `authz/actions-are-guarded` in `./check` |
+| Row visibility by role | **Not yet.** RLS still filters by tenant only — step 5 |
 
 **The consequence, stated plainly: any authenticated member of a tenant can
 change anyone's pay.** `addRaise` authorizes on "has a tenant". So can
@@ -111,7 +112,17 @@ putting them in the same list invites a tenant granting it.
 
 ### Two separation-of-duties rules
 
-These are the reason the catalogue is not decorative:
+These are the reason the catalogue is not decorative. Both are enforced by
+`CHECK` constraints on `tenant_users`, so the combination is unreachable rather
+than merely discouraged.
+
+**They do not bind the `owner`, and no constraint could.** The owner holds every
+permission, including both halves of the payroll rule — and grants and removes
+roles, so any rule they hit they can remove first. That is a property of being
+the account owner, not a gap to close. The compensating controls are the audit
+trail (`created_by`/`updated_by`, `pii_erasures`) and keeping Owner to people
+already trusted with the company bank account. `firm_admin` is the most powerful
+role that *is* bound: it cannot grant itself `tenant.members.manage`.
 
 **1. Whoever sets pay must not approve the run that pays it.** `payroll_admin`
 gets `compensation.read.all` and `payroll.approve` but **never**

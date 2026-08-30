@@ -5,6 +5,7 @@ import * as levels from "$lib/server/firm-profile/firm_job_levels.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import type { SalaryRanges } from "$lib/server/firm-profile/firm_job_levels.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { allEnumerations } from "@kaaj/enums"
 
@@ -62,6 +63,7 @@ function readRanges(data: FormData, f: FormReader): SalaryRanges {
 export const actions: Actions = {
   saveTitle: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
 
     const data = await request.formData()
@@ -91,6 +93,7 @@ export const actions: Actions = {
 
   archiveTitle: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing job title."))
@@ -100,6 +103,7 @@ export const actions: Actions = {
 
   saveLevel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
 
     const data = await request.formData()
@@ -138,6 +142,7 @@ export const actions: Actions = {
 
   removeLevel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing level."))

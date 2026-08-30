@@ -76,6 +76,7 @@ take effect.
 | schema invariants | ADR design rules hold | 66 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
+| authorization | every form action authorizes before it writes | 23 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 21 tests |
 
 These are complementary and none substitutes for another:

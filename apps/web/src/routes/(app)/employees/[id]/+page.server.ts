@@ -7,6 +7,7 @@ import * as variablePay from "$lib/server/compensation/compensation_variable.rep
 import * as equity from "$lib/server/compensation/compensation_equity.repo"
 import * as schedules from "$lib/server/compensation/compensation_work_schedules.repo"
 import { FormReader } from "$lib/server/forms"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { isPositive } from "$lib/decimal"
 import { allEnumerations } from "@kaaj/enums"
 import * as employees from "$lib/server/employee-profile/employees.repo"
@@ -58,6 +59,9 @@ export const actions: Actions = {
    */
   addRaise: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    // hr_admin holds this; payroll_admin deliberately does not. Whoever sets
+    // pay must not be the one who approves the run that pays it.
+    requireCan(contextFrom(locals), "compensation.write")
     const tenantId = locals.tenantId
     const actorId = locals.user?.id
     if (!actorId) error(403, "No user")

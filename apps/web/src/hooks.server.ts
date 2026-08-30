@@ -109,6 +109,8 @@ const authGuard: Handle = async ({ event, resolve }) => {
   const claims = appMetadataFromToken(session?.access_token)
   event.locals.tenantId = claims.tenantId
   event.locals.tenantRole = claims.role
+  event.locals.functionalRoles = claims.functionalRoles
+  event.locals.employeeId = claims.employeeId
 
   return resolve(event)
 }
@@ -123,8 +125,15 @@ const authGuard: Handle = async ({ event, resolve }) => {
 function appMetadataFromToken(accessToken?: string): {
   tenantId: string | null
   role: string | null
+  functionalRoles: string[]
+  employeeId: string | null
 } {
-  const none = { tenantId: null, role: null }
+  const none = {
+    tenantId: null,
+    role: null,
+    functionalRoles: [] as string[],
+    employeeId: null,
+  }
   if (!accessToken) return none
 
   const payload = accessToken.split(".")[1]
@@ -133,13 +142,29 @@ function appMetadataFromToken(accessToken?: string): {
   try {
     const json = Buffer.from(payload, "base64url").toString("utf8")
     const claims = JSON.parse(json) as {
-      app_metadata?: { tenant_id?: unknown; role?: unknown }
+      app_metadata?: {
+        tenant_id?: unknown
+        role?: unknown
+        functional_roles?: unknown
+        employee_id?: unknown
+      }
     }
-    const tenantId = claims.app_metadata?.tenant_id
-    const role = claims.app_metadata?.role
+    const meta = claims.app_metadata
+    const tenantId = meta?.tenant_id
+    const role = meta?.role
+    const employeeId = meta?.employee_id
     return {
       tenantId: typeof tenantId === "string" && tenantId ? tenantId : null,
       role: typeof role === "string" && role ? role : null,
+      // A token minted before the claim existed has none. Absent reads as the
+      // floor — no functional roles — never as an escalation.
+      functionalRoles: Array.isArray(meta?.functional_roles)
+        ? meta.functional_roles.filter(
+            (r): r is string => typeof r === "string",
+          )
+        : [],
+      employeeId:
+        typeof employeeId === "string" && employeeId ? employeeId : null,
     }
   } catch {
     return none // malformed token = missing tenant, not a crash

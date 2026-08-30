@@ -162,11 +162,11 @@ before any of the above is called done:
    `employee_bank_accounts.account_number_encrypted`
    ([13-pii-encryption.md](./13-pii-encryption.md)). Seventeen columns remain
    plaintext and are tracked by `./check`; the fan-out is still ahead.
-1b. **Authorization.** Nineteen write actions are gated on "has a tenant" —
-   any member can change anyone's pay. Specified in
-   [14-access-control.md](./14-access-control.md); **steps 1-3 must land before
-   Phase 6**, which is the phase that turns "can edit a number" into "can pay
-   themselves".
+1b. **Authorization.** ✅ The pay-editing hole is closed: 23 of 23 write actions
+   authorize before writing, separation of duties is enforced by `CHECK`
+   constraints, and `./check` fails an ungated action
+   ([14-access-control.md](./14-access-control.md)). Still ahead: RLS row
+   visibility by role, and the subject-access export.
 2. **Per-user locale** (L24). A column, a migration, and one function to
    change.
 3. Command palette, AI assistant, org chart diagram, marketing module.

@@ -69,8 +69,14 @@ them. One person cannot hold both.
 
 This is the oldest control in payroll, and it exists because the alternative is
 that one person can quietly give themselves a raise and then approve their own
-payment. If your firm is small enough that this feels awkward, the usual answer
-is that the Owner holds Payroll Admin and one other person holds HR Admin.
+payment.
+
+**One honest limit: this rule does not bind the Owner.** An Owner can do
+everything, including both halves of it — and can change anyone's roles, so any
+rule they met they could remove first. That is what being the account owner
+means, not a gap we forgot. It is the reason to keep Owner to one or two people
+you would already trust with the company bank account, and to give everyone else
+the narrower roles above.
 
 ### IT Admin never sees tax IDs or bank details
 
@@ -124,8 +130,10 @@ a deliberate, recorded action, not something rendered on a page.
 | Bookkeeper (often external) | Contractor | Finance Admin |
 | Everyone else | Employee | — |
 
-The founder approves payroll; the office manager sets pay. That satisfies the
-separation rule without hiring anyone.
+The office manager sets pay; the founder approves the run. Note the founder is
+the Owner, so the rule does not constrain them — in a firm this size the founder
+*is* the control. The separation becomes real as soon as you have someone who is
+not the Owner doing one of the two jobs.
 
 ### A firm of about fifty
 

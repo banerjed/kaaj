@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formString, formList } from "$lib/server/forms"
 import {
   validateRegional,
@@ -29,6 +30,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
   update: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "tenant.settings.write")
 
     const data = await request.formData()
     const f = new FormReader(data)

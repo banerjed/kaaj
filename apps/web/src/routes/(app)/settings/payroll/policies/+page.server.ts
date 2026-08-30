@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as policies from "$lib/server/firm-profile/firm_payroll_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
 const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
@@ -21,6 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
 
     const f = new FormReader(await request.formData())
@@ -95,6 +97,7 @@ export const actions: Actions = {
 
   remove: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing policy."))

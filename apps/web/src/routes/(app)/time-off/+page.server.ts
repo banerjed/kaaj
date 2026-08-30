@@ -7,6 +7,12 @@ import * as policies from "$lib/server/hr/hr_time_off_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
 import { FormReader } from "$lib/server/forms"
+import {
+  can,
+  contextFrom,
+  managesEmployee,
+  requireCan,
+} from "$lib/server/auth/can"
 
 /**
  * /time-off — module-hr.md.
@@ -43,6 +49,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
   decide: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    // A manager may decide for their own reports without holding
+    // timeoff.approve outright, so the blanket check is deferred until the
+    // requester is known.
+    if (!can(ctx, "timeoff.approve") && !can(ctx, "employee.read.reports")) {
+      requireCan(ctx, "timeoff.approve")
+    }
     const tenantId = locals.tenantId
     const userId = locals.user?.id
     if (!userId) error(403, "No user")
@@ -65,6 +78,21 @@ export const actions: Actions = {
           SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
         `
         if (!me?.employee_id) throw new DecisionRefused("self_approval")
+
+        // Whose request is it? Needed before the reporting-line check, and
+        // `decide` refuses self-approval again inside the transaction.
+        const [subject] = await tx<{ employee_id: string }[]>`
+          SELECT employee_id FROM hr_time_off_requests WHERE id = ${id}
+        `
+        if (!subject) throw new DecisionRefused("not_pending")
+
+        if (
+          ctx &&
+          !can(ctx, "timeoff.approve") &&
+          !(await managesEmployee(tx, ctx, subject.employee_id))
+        ) {
+          throw new DecisionRefused("not_your_report")
+        }
         await requests.decide(
           tx,
           id,
@@ -79,7 +107,9 @@ export const actions: Actions = {
           message:
             e.reason === "self_approval"
               ? "You cannot decide your own leave request."
-              : "That request has already been decided.",
+              : e.reason === "not_your_report"
+                ? "You can only decide requests from people who report to you."
+                : "That request has already been decided.",
         })
       }
       throw e

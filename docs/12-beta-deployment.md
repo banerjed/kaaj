@@ -173,7 +173,7 @@ These are open items, and they change what kind of beta this can be.
 | Gap | Consequence for a beta |
 |---|---|
 | **PII encryption: partly closed** | `employees.ssn_tax_id` is now AES-256-GCM with per-employee keys ([13-pii-encryption.md](./13-pii-encryption.md)). **`PRIVATE_PII_KEK` must be set and backed up separately before the first write.** Seventeen columns — bank details, emergency contacts, counterparty identifiers — are still plaintext and tracked by `./check`; none may carry real data yet |
-| **Authorization is tenant-only** | Any authenticated member can edit any employee, including their own pay — 19 write actions, none gated. The model is now specified in [14-access-control.md](./14-access-control.md); steps 1-3 of its sequence must land before Phase 6 payroll. Fine for a friendly design-partner beta; not fine for one with untrusted users |
+| **Authorization: action-level done, row-level not** | All 23 write actions now authorize, and separation of duties is enforced in the database ([14-access-control.md](./14-access-control.md)). **RLS still filters by tenant only**, so a page that forgets to scope a query can still show one employee another's row — the application is the only thing preventing it. Acceptable for a design-partner beta; close step 5 before untrusted users |
 | **No signup → tenant flow** | Tenants are created by hand. Deliberate for a beta; a blocker for self-serve |
 | **No backups tested** | Supabase takes them. Restoring one has never been rehearsed. Rehearse before real data lands |
 | **Stripe is CMSaasStarter's** | Billing is the starter's scaffolding, not the product's. Keep it disabled |
