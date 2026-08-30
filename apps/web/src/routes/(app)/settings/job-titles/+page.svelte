@@ -46,7 +46,7 @@
     ]}
   />
 
-  {#if form?.saved || form?.archived || form?.removed}
+  {#if form?.saved || form?.archived}
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Saved.</span>
@@ -183,11 +183,11 @@
                               <span class="iconify lucide--pencil size-3.5"
                               ></span>
                             </button>
-                            <form method="POST" action="?/removeLevel">
+                            <form method="POST" action="?/archiveLevel">
                               <input type="hidden" name="id" value={level.id} />
                               <button
                                 class="btn btn-ghost btn-xs btn-square text-error"
-                                aria-label={`Delete ${level.level_name}`}
+                                aria-label={`Archive ${level.level_name}`}
                               >
                                 <span class="iconify lucide--trash-2 size-3.5"
                                 ></span>

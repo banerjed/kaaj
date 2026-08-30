@@ -87,6 +87,11 @@ export async function update(
   `
 }
 
-export async function remove(tx: Tx, id: string): Promise<void> {
-  await tx`DELETE FROM firm_payroll_policies WHERE id = ${id}`
+/**
+ * Archived, never deleted. Rows are retained so history stays answerable, and
+ * `app_user` no longer holds DELETE on this table — see
+ * supabase/migrations/20260830120000_append_only.sql.
+ */
+export async function archive(tx: Tx, id: string): Promise<void> {
+  await tx`UPDATE firm_payroll_policies SET is_active = FALSE, updated_at = now() WHERE id = ${id}`
 }

@@ -73,8 +73,10 @@ const DENIALS: Partial<Record<Permission, string>> = {
   "employee.archive": "Only HR can offboard someone.",
   "firm.settings.write":
     "Only HR or an administrator can change firm settings.",
+  // firm_admin holds this too — doc 14's matrix, and action-authz.test.ts
+  // asserts it. The message said owner-only until that test caught it.
   "tenant.settings.write":
-    "Only the account owner can change company settings.",
+    "Only an account owner or firm administrator can change company settings.",
   "tenant.members.manage": "Only the account owner can change who has access.",
   "pii.erase": "Only the account owner can erase someone's data.",
   "timeoff.approve": "You cannot decide this request.",

@@ -620,6 +620,7 @@ firm_benefit_items	12	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_benefit_items	13	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_benefit_items	14	created_by	uuid	f	
 firm_benefit_items	15	updated_by	uuid	f	
+firm_benefit_items	16	is_active	boolean	t	true
 firm_benefits_packages	1	id	uuid	t	gen_random_uuid()
 firm_benefits_packages	2	tenant_id	uuid	t	
 firm_benefits_packages	3	name	character varying(255)	t	
@@ -702,6 +703,7 @@ firm_holidays	14	created_by	uuid	f
 firm_holidays	15	updated_by	uuid	f	
 firm_holidays	16	holiday_id	text	f	
 firm_holidays	17	location_code	text	t	
+firm_holidays	18	is_active	boolean	t	true
 firm_job_levels	1	id	uuid	t	gen_random_uuid()
 firm_job_levels	2	tenant_id	uuid	t	
 firm_job_levels	3	job_title_id	uuid	t	
@@ -713,6 +715,7 @@ firm_job_levels	8	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_job_levels	9	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_job_levels	10	created_by	uuid	f	
 firm_job_levels	11	updated_by	uuid	f	
+firm_job_levels	12	is_active	boolean	t	true
 firm_job_titles	1	id	uuid	t	gen_random_uuid()
 firm_job_titles	2	tenant_id	uuid	t	
 firm_job_titles	3	title	character varying(255)	t	
@@ -763,6 +766,7 @@ firm_payroll_policies	8	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_payroll_policies	9	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_payroll_policies	10	created_by	uuid	f	
 firm_payroll_policies	11	updated_by	uuid	f	
+firm_payroll_policies	12	is_active	boolean	t	true
 hr_attendance	1	id	uuid	t	gen_random_uuid()
 hr_attendance	2	tenant_id	uuid	t	
 hr_attendance	3	attendance_id	text	f	

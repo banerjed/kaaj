@@ -37,6 +37,7 @@ export async function listByTitle(tx: Tx): Promise<FirmJobLevel[]> {
     SELECT id, job_title_id, level_name, level_name_i18n,
            salary_ranges, sort_order
       FROM firm_job_levels
+     WHERE is_active
      ORDER BY job_title_id, sort_order ASC, level_name ASC
   `
 }
@@ -85,11 +86,12 @@ export async function update(
 }
 
 /**
- * Levels carry no `is_active`, and nothing references them by natural key, so
- * this one really is a delete — the canonical `remove` from api-surface.
+ * Archived, never deleted. Rows are retained so history stays answerable, and
+ * `app_user` no longer holds DELETE on this table — see
+ * supabase/migrations/20260830120000_append_only.sql.
  */
-export async function remove(tx: Tx, id: string): Promise<void> {
-  await tx`DELETE FROM firm_job_levels WHERE id = ${id}`
+export async function archive(tx: Tx, id: string): Promise<void> {
+  await tx`UPDATE firm_job_levels SET is_active = FALSE, updated_at = now() WHERE id = ${id}`
 }
 
 /**

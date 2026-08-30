@@ -28,7 +28,8 @@ export async function list(tx: Tx, year?: number): Promise<FirmHoliday[]> {
            to_char(date, 'YYYY-MM-DD') AS date,
            is_paid, is_mandatory, is_recurring, recurrence_rule
       FROM firm_holidays
-     WHERE (${year ?? null}::int IS NULL
+     WHERE is_active
+       AND (${year ?? null}::int IS NULL
             OR extract(year FROM date) = ${year ?? null}::int)
      ORDER BY date ASC, location_code ASC
   `
@@ -38,7 +39,7 @@ export async function list(tx: Tx, year?: number): Promise<FirmHoliday[]> {
 export async function years(tx: Tx): Promise<number[]> {
   const rows = await tx<{ year: number }[]>`
     SELECT DISTINCT extract(year FROM date)::int AS year
-      FROM firm_holidays ORDER BY year
+      FROM firm_holidays WHERE is_active ORDER BY year
   `
   return rows.map((r) => r.year)
 }
@@ -97,9 +98,13 @@ export async function update(
   `
 }
 
-/** Holidays carry no is_active and nothing references them; a real delete. */
-export async function remove(tx: Tx, id: string): Promise<void> {
-  await tx`DELETE FROM firm_holidays WHERE id = ${id}`
+/**
+ * Archived, never deleted. Rows are retained so history stays answerable, and
+ * `app_user` no longer holds DELETE on this table — see
+ * supabase/migrations/20260830120000_append_only.sql.
+ */
+export async function archive(tx: Tx, id: string): Promise<void> {
+  await tx`UPDATE firm_holidays SET is_active = FALSE, updated_at = now() WHERE id = ${id}`
 }
 
 /**
@@ -118,7 +123,11 @@ export async function clashes(
 ): Promise<boolean> {
   const [row] = await tx<{ n: number }[]>`
     SELECT count(*)::int AS n FROM firm_holidays
-     WHERE location_code = ${locationCode}
+     WHERE is_active
+       -- Archived rows are retained but must not reserve the date: without
+       -- this an archived holiday blocks that day forever, and the only fix
+       -- would be the DELETE this codebase no longer allows.
+       AND location_code = ${locationCode}
        AND date = ${date}::date
        AND (${excludeId ?? null}::uuid IS NULL OR id <> ${excludeId ?? null}::uuid)
   `

@@ -55,6 +55,7 @@ export async function list(tx: Tx): Promise<BenefitItem[]> {
                  AS each_cost(cur, c)
            ) AS total_by_currency
       FROM firm_benefit_items
+     WHERE is_active
      ORDER BY benefit_type ASC, benefit_name ASC
   `
 }
@@ -106,8 +107,13 @@ export async function update(
   `
 }
 
-export async function remove(tx: Tx, id: string): Promise<void> {
-  await tx`DELETE FROM firm_benefit_items WHERE id = ${id}`
+/**
+ * Archived, never deleted. Rows are retained so history stays answerable, and
+ * `app_user` no longer holds DELETE on this table — see
+ * supabase/migrations/20260830120000_append_only.sql.
+ */
+export async function archive(tx: Tx, id: string): Promise<void> {
+  await tx`UPDATE firm_benefit_items SET is_active = FALSE, updated_at = now() WHERE id = ${id}`
 }
 
 /**

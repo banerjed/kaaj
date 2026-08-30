@@ -140,13 +140,13 @@ export const actions: Actions = {
     return { saved: true }
   },
 
-  removeLevel: async ({ request, locals }) => {
+  archiveLevel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "firm.settings.write")
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing level."))
-    await withTenant(locals.tenantId, (tx) => levels.remove(tx, id))
-    return { removed: true }
+    await withTenant(locals.tenantId, (tx) => levels.archive(tx, id))
+    return { archived: true }
   },
 }

@@ -437,6 +437,128 @@ SELECT 'pii/keys-are-wrapped', 'pii_keys.wrapped_dek',
        NOT EXISTS (SELECT 1 FROM pii_keys WHERE wrapped_dek !~ '^\{"v":1,'),
        'every stored data key must be an envelope, never raw material';
 
+-- -----------------------------------------------------------------------------
+-- Append-only: the application must not be able to destroy a record
+-- -----------------------------------------------------------------------------
+-- 20260830120000_append_only.sql revoked DELETE from app_user everywhere but a
+-- named allow-list. A privilege granted back by a later migration would be
+-- invisible — nothing in the app changes, and a DELETE simply starts working.
+
+CREATE TEMP TABLE _delete_allowed (tbl TEXT PRIMARY KEY, reason TEXT);
+INSERT INTO _delete_allowed VALUES
+  ('pii_keys', 'GDPR Art. 17 — destroying the key IS the erasure, and it reaches backups'),
+  ('jobs',     'a work queue; a completed job is not a business record');
+
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'deletion/app-cannot-delete', '(DELETE granted to app_user)',
+       NOT EXISTS (
+         SELECT 1 FROM information_schema.role_table_grants g
+          WHERE g.grantee = 'app_user' AND g.table_schema = 'public'
+            AND g.privilege_type = 'DELETE'
+            AND g.table_name NOT IN (SELECT tbl FROM _delete_allowed)),
+       coalesce('DELETE granted on: ' || (
+         SELECT string_agg(g.table_name, ', ' ORDER BY g.table_name)
+           FROM information_schema.role_table_grants g
+          WHERE g.grantee = 'app_user' AND g.table_schema = 'public'
+            AND g.privilege_type = 'DELETE'
+            AND g.table_name NOT IN (SELECT tbl FROM _delete_allowed)), 'ok');
+
+-- The reverse: an allow-list entry that no longer has the grant is stale, and
+-- a stale exemption is how a list stops describing reality.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'deletion/allowance-live', a.tbl,
+       EXISTS (SELECT 1 FROM information_schema.role_table_grants g
+                WHERE g.grantee='app_user' AND g.table_schema='public'
+                  AND g.privilege_type='DELETE' AND g.table_name = a.tbl),
+       'DELETE is intended here: ' || a.reason
+  FROM _delete_allowed a;
+
+-- Every archivable table needs somewhere to record that it was archived. A
+-- table with neither is_active nor a DELETE grant cannot be retired at all,
+-- which is how a hard delete gets argued back in.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'deletion/archivable', t.tbl,
+       EXISTS (SELECT 1 FROM information_schema.columns c
+                WHERE c.table_schema='public' AND c.table_name=t.tbl
+                  AND c.column_name IN ('is_active','deleted_at','archived_at','effective_to','status')),
+       'needs is_active (or an equivalent) so a row can be retired without deleting it'
+  FROM (VALUES ('firm_job_levels'), ('firm_holidays'),
+               ('firm_benefit_items'), ('firm_payroll_policies'),
+               ('firm_locations'), ('firm_departments'),
+               ('firm_job_titles'), ('firm_benefits_packages')) AS t(tbl);
+
+
+-- -----------------------------------------------------------------------------
+-- Role grants: separation of duties is a CHECK, and must stay one
+-- -----------------------------------------------------------------------------
+-- These constraints were each proved to refuse the combination they name. A
+-- later migration dropping one would silently permit a person to both set pay
+-- and approve the run that pays it. Asserting the constraint EXISTS is the only
+-- way that failure becomes visible.
+
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'authz/constraint-present', c.conname,
+       EXISTS (SELECT 1 FROM pg_constraint x
+                WHERE x.conrelid = 'tenant_users'::regclass
+                  AND x.contype = 'c' AND x.conname = c.conname),
+       c.why
+  FROM (VALUES
+    ('tenant_users_role_is_a_base_role',
+     'role must be one of owner/firm_admin/employee/contractor'),
+    ('tenant_users_functional_roles_are_known',
+     'an unknown functional role grants nothing and hides a typo'),
+    ('tenant_users_pay_setter_is_not_pay_approver',
+     'whoever sets pay must not approve the run that pays it'),
+    ('tenant_users_auditor_writes_nothing',
+     'an auditor who can change things is not an auditor')
+  ) AS c(conname, why);
+
+-- And that they actually REFUSE, not merely exist. A constraint can be present
+-- and wrong; only trying it proves otherwise. Each probe rolls back.
+DO $sod$
+DECLARE
+    p       RECORD;
+    victim  UUID;
+    refused BOOLEAN;
+BEGIN
+    SELECT id INTO victim FROM tenant_users LIMIT 1;
+    IF victim IS NULL THEN
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('authz/constraint-refuses', '(no tenant_users rows)', false,
+                'nothing to probe — the fixture must seed at least one member');
+        RETURN;
+    END IF;
+
+    FOR p IN SELECT * FROM (VALUES
+        ('hr_admin + payroll_admin', $$functional_roles = ARRAY['hr_admin','payroll_admin']::text[]$$),
+        ('auditor + a writing role', $$functional_roles = ARRAY['auditor','finance_admin']::text[]$$),
+        ('auditor on a writing base role', $$role = 'owner', functional_roles = ARRAY['auditor']::text[]$$),
+        ('a base role that does not exist', $$role = 'manager'$$),
+        ('an unknown functional role', $$functional_roles = ARRAY['cfo']::text[]$$)
+    ) AS v(label, assignment)
+    LOOP
+        refused := false;
+        BEGIN
+            EXECUTE format('UPDATE tenant_users SET %s WHERE id = %L', p.assignment, victim);
+            -- Reached only if the constraint did NOT fire.
+            RAISE EXCEPTION '__accepted__';
+        EXCEPTION
+            WHEN check_violation THEN refused := true;
+            WHEN OTHERS THEN refused := false;
+        END;
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('authz/constraint-refuses', p.label, refused,
+                CASE WHEN refused THEN 'refused, as it must be'
+                     ELSE 'ACCEPTED — the constraint is missing or wrong' END);
+    END LOOP;
+
+    -- No cleanup needed: each probe runs in its own subtransaction (the inner
+    -- BEGIN ... EXCEPTION block), and every path out of one raises, so the
+    -- UPDATE is always rolled back — including the case where the constraint
+    -- failed to fire and `__accepted__` is what undoes it.
+END $sod$;
+
+
 \echo '=================== SCHEMA INVARIANTS ==================='
 SELECT rule,
        count(*) AS checks,

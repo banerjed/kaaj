@@ -54,7 +54,7 @@
     ]}
   />
 
-  {#if form?.saved || form?.archived || form?.removed}
+  {#if form?.saved || form?.archived}
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Saved.</span>
@@ -201,7 +201,7 @@
                               <span class="iconify lucide--pencil size-3.5"
                               ></span>
                             </button>
-                            <form method="POST" action="?/removeItem">
+                            <form method="POST" action="?/archiveItem">
                               <input type="hidden" name="id" value={item.id} />
                               <button
                                 class="btn btn-ghost btn-xs btn-square text-error"
