@@ -76,7 +76,8 @@ take effect.
 | schema invariants | ADR design rules hold | 133 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 23 |
+| authorization | every form action authorizes; no DELETE in app code | 25 |
+| actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | security | authorization, PII and tenant isolation, both suites | 346 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 603 tests |
 
@@ -453,6 +454,11 @@ is a cosmetic problem, and the reverse is a financial one.
 **Custom fields must never feed payroll or accounting calculations.** They are
 untyped and untested. A customer needing a custom allowance on a payslip is a
 modelling gap to fix in the product, not a custom field.
+
+**Every `withTenant` takes `actorFrom(locals)`, never `locals.tenantId`.** Row
+visibility keys on the role and the person, so a bare tenant id returns zero
+rows — silently, as a wrong number rather than an error
+([L42](docs/10-lessons-learned.md)). `./check` enforces it.
 
 **A write that someone may later be asked to justify records an audit entry in
 the SAME transaction.** `$lib/server/audit` — approvals, pay changes, role

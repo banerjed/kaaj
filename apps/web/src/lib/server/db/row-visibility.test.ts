@@ -264,7 +264,7 @@ const TIER1: {
   },
   {
     table: "payroll_run_employees",
-    total: 12,
+    total: 13,
     own: 1,
     readsAll: ["hr_admin", "payroll_admin", "auditor"],
   },

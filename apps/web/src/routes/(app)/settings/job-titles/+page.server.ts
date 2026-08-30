@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
   const { jobTitles, jobLevels, locations } = await withTenant(
-    locals.tenantId,
+    actorFrom(locals),
     async (tx) => ({
       jobTitles: await titles.list(tx),
       jobLevels: await levels.listByTitle(tx),

@@ -442,6 +442,38 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L42 — A narrowing policy turns a missed call site into a wrong number
+
+Adding row-level RLS meant every `withTenant` had to carry the actor, not just
+the tenant. A scripted replace updated 17 route files by matching
+`withTenant(locals.tenantId` — and missed the one call written across two
+lines:
+
+```ts
+const { jobTitles } = await withTenant(
+  locals.tenantId,        // <- still a bare tenant id
+```
+
+Nothing failed. `./check` was green, 414 tests passed, the page rendered. It
+just said **"0 people"** under every job title while the directory listed those
+same people, because the headcount subquery joins `employees` and a claim with
+no role is denied by the policy. Found by taking a screenshot.
+
+**This is the shape of every RLS regression: not an error, a wrong number.** A
+policy that narrows converts a forgotten parameter into silently missing rows,
+and the smaller the number the less it looks wrong — 0 people under a job title
+nobody holds is indistinguishable from 0 people under one four people hold.
+
+Two things follow:
+
+- **Grep for the call, not for the argument.** A regex over
+  `withTenant(locals.tenantId` cannot see a line break. `scripts/verify-actor.mjs`
+  matches `withTenant\(\s*(locals\.tenantId|tenantId)\s*,` across newlines and
+  is a `./check` step, so the next one fails the build instead of the page.
+- **After adding a narrowing policy, look at the pages.** The tests asserted
+  that the right rows come back for a given claim; they could not assert that
+  the application sends the right claim.
+
 ### L41 — An invariant that cannot see a column is not guarding it
 
 `money/numeric-not-float` has guarded monetary columns since Phase 1, and it
