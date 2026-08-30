@@ -495,6 +495,34 @@ SELECT 'deletion/archivable', t.tbl,
                ('firm_job_titles'), ('firm_benefits_packages')) AS t(tbl);
 
 
+-- The audit log is stricter than append-only: it cannot be REWRITTEN either.
+-- DELETE is covered by the rule above; UPDATE is the hole that looks harmless,
+-- because an audit log whose entries can be edited answers "what happened?"
+-- with whatever the last writer preferred.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'deletion/audit-log-immutable', 'audit_log',
+       NOT EXISTS (
+         SELECT 1 FROM information_schema.role_table_grants
+          WHERE grantee = 'app_user' AND table_schema = 'public'
+            AND table_name = 'audit_log'
+            AND privilege_type IN ('UPDATE', 'DELETE')),
+       coalesce('audit_log is writable: ' || (
+         SELECT string_agg(privilege_type, ', ' ORDER BY privilege_type)
+           FROM information_schema.role_table_grants
+          WHERE grantee = 'app_user' AND table_schema = 'public'
+            AND table_name = 'audit_log'
+            AND privilege_type IN ('UPDATE', 'DELETE')),
+        'INSERT and SELECT only, as it must be');
+
+-- And it must still be writable, or the trail silently stops recording.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'deletion/audit-log-writable', 'audit_log',
+       EXISTS (SELECT 1 FROM information_schema.role_table_grants
+                WHERE grantee='app_user' AND table_schema='public'
+                  AND table_name='audit_log' AND privilege_type='INSERT'),
+       'app_user must retain INSERT — a trail nothing can write is not a trail';
+
+
 -- -----------------------------------------------------------------------------
 -- Role grants: separation of duties is a CHECK, and must stay one
 -- -----------------------------------------------------------------------------

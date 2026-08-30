@@ -442,6 +442,34 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L40 — "Append-only" that permits UPDATE is not append-only
+
+`20260830120000` revoked DELETE across the schema and the repository called
+itself append-only. `audit_log` still granted UPDATE, and for that table it is
+the same hole wearing a different name: an audit log whose entries can be
+edited answers "what happened?" with whatever the last writer preferred. The
+whole value of the record is that nobody could have changed it afterwards.
+
+It survived because DELETE is the word everyone checks. Nothing about the
+grant looked wrong, `deletion/app-cannot-delete` passed, and the table had the
+right indexes and the right shape.
+
+**For a table whose point is that it is evidence, enumerate the privileges it
+should have rather than the one it should not.** `audit_log` holds INSERT and
+SELECT. A correction is a new row — the same discipline as forward-only
+migrations, and as a ledger.
+
+Two more things fall out of the same reasoning:
+
+- **`occurred_at` must not be caller-supplied.** It is what an auditor sorts
+  and filters by, so a row claiming to have happened last year sits quietly in
+  the middle of the history. It now defaults to `now()`.
+- **The trail is written in the SAME TRANSACTION as the change it describes.**
+  Written afterwards, or best-effort with a swallowed error, it records what
+  the application *believed* happened — and the two diverge exactly when it
+  matters, because the interesting failures are the ones where the write
+  succeeded and something else did not.
+
 ### L39 — A promise the schema records but cannot keep
 
 `hr_feedback` stores `from_employee_id` and `is_anonymous` in the same row.

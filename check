@@ -103,7 +103,7 @@ if [ "$RUN_DB" = 1 ]; then
   echo "${B}Database${N}"
   step "tenant isolation (587)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
   step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
-  step "schema invariants (120)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
+  step "schema invariants (122)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
   step "structure snapshot"        packages/database/scripts/db-snapshot.sh --check
   step "enum fixture is current"   bash -c 'pnpm --filter @kaaj/enums build >/dev/null && git diff --quiet packages/enums/dist/expected-enums.sql'
   step "actions are authorized"    node scripts/verify-authz.mjs

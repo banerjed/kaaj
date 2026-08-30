@@ -6,6 +6,7 @@ import * as balances from "$lib/server/hr/hr_time_off_balances.repo"
 import * as policies from "$lib/server/hr/hr_time_off_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant } from "$lib/server/db/tenant"
+import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import {
   can,
@@ -81,8 +82,11 @@ export const actions: Actions = {
 
         // Whose request is it? Needed before the reporting-line check, and
         // `decide` refuses self-approval again inside the transaction.
-        const [subject] = await tx<{ employee_id: string }[]>`
-          SELECT employee_id FROM hr_time_off_requests WHERE id = ${id}
+        const [subject] = await tx<
+          { employee_id: string; total_hours: string }[]
+        >`
+          SELECT employee_id, total_hours::text AS total_hours
+            FROM hr_time_off_requests WHERE id = ${id}
         `
         if (!subject) throw new DecisionRefused("not_pending")
 
@@ -100,6 +104,24 @@ export const actions: Actions = {
           me.employee_id,
           denialReason,
         )
+
+        // Same transaction as the decision itself. An approval whose record
+        // was written afterwards, or best-effort, would diverge from what
+        // actually happened exactly when it matters — and approval state is
+        // the thing that must not be inferable from a query alone.
+        if (ctx) {
+          await audit.record(tx, ctx, {
+            action: decision,
+            entityType: "time_off_request",
+            entityId: id,
+            module: "hr",
+            changes: {
+              subject_employee_id: subject.employee_id,
+              hours: subject.total_hours,
+              denial_reason: denialReason,
+            },
+          })
+        }
       })
     } catch (e) {
       if (e instanceof DecisionRefused) {

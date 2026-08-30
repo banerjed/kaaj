@@ -125,6 +125,11 @@ export class FormReader {
     typeName: string,
     opts: Base & { fallback: string },
   ): string
+  enumValue(
+    name: string,
+    typeName: string,
+    opts: Base & { required: true },
+  ): string
   enumValue(name: string, typeName: string, opts?: Base): string | null
   enumValue(
     name: string,
@@ -135,6 +140,10 @@ export class FormReader {
     const value = this.read(name, opts.required ?? false, (raw) =>
       allowed.includes(raw) ? raw : undefined,
     )
+    // `required` yields "" rather than null so the overload is honest: the
+    // caller has already returned on `!f.ok` before it reads this.
+    if (value === null && opts.required && opts.fallback === undefined)
+      return ""
     return value ?? opts.fallback ?? null
   }
 
@@ -143,6 +152,11 @@ export class FormReader {
     name: string,
     allowed: readonly string[],
     opts: Base & { fallback: string },
+  ): string
+  choice(
+    name: string,
+    allowed: readonly string[],
+    opts: Base & { required: true },
   ): string
   choice(name: string, allowed: readonly string[], opts?: Base): string | null
   choice(
@@ -153,6 +167,10 @@ export class FormReader {
     const value = this.read(name, opts.required ?? false, (raw) =>
       allowed.includes(raw) ? raw : undefined,
     )
+    // `required` yields "" rather than null so the overload is honest: the
+    // caller has already returned on `!f.ok` before it reads this.
+    if (value === null && opts.required && opts.fallback === undefined)
+      return ""
     return value ?? opts.fallback ?? null
   }
 

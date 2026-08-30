@@ -1,7 +1,7 @@
 # table	grantee	privileges
 accounting_periods	app_user	INSERT,SELECT,UPDATE
 accounting_periods	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-audit_log	app_user	INSERT,SELECT,UPDATE
+audit_log	app_user	INSERT,SELECT
 audit_log	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 bank_accounts	app_user	INSERT,SELECT,UPDATE
 bank_accounts	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE

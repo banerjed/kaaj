@@ -200,3 +200,33 @@ describe("the reader as a whole", () => {
     expect(f.errorFields).toEqual(["name_i18n.en-US"])
   })
 })
+
+describe("a required choice or enum is a string, not string | null", () => {
+  it("returns the value when it is valid", () => {
+    const f = form({ decision: "approved" })
+    const d: string = f.choice("decision", ["approved", "denied"], {
+      required: true,
+    })
+    expect(d).toBe("approved")
+  })
+
+  it("returns '' and rejects when it is not, so the caller returns first", () => {
+    // The overload has to be honest: `required` means the caller checks
+    // `f.ok` and returns before reading the value, so `string` is accurate at
+    // every point the value is actually used.
+    const f = form({ decision: "maybe" })
+    expect(
+      f.choice("decision", ["approved", "denied"], { required: true }),
+    ).toBe("")
+    expect(f.ok).toBe(false)
+    expect(f.errorFields).toEqual(["decision"])
+  })
+
+  it("still prefers a fallback over rejecting", () => {
+    const f = form({})
+    expect(
+      f.enumValue("pay_frequency", "pay_frequency", { fallback: "monthly" }),
+    ).toBe("monthly")
+    expect(f.ok).toBe(true)
+  })
+})

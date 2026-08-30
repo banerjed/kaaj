@@ -73,7 +73,7 @@ take effect.
 |---|---|---|
 | tenant isolation | every RLS policy actually filters, per table | 587 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold | 120 |
+| schema invariants | ADR design rules hold | 122 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 23 |
@@ -447,6 +447,14 @@ is a cosmetic problem, and the reverse is a financial one.
 **Custom fields must never feed payroll or accounting calculations.** They are
 untyped and untested. A customer needing a custom allowance on a payslip is a
 modelling gap to fix in the product, not a custom field.
+
+**A write that someone may later be asked to justify records an audit entry in
+the SAME transaction.** `$lib/server/audit` — approvals, pay changes, role
+grants, erasures. Written afterwards or best-effort, the trail records what the
+application believed happened, and the two diverge exactly when it matters
+([L40](docs/10-lessons-learned.md)). `audit_log` holds INSERT and SELECT only;
+a correction is a new row. Pass the fields that changed, never a row dump: the
+table cannot be deleted from, so anything written there is written forever.
 
 **A flag that governs disclosure is enforced where the data is READ, and the
 governed value stays out of the returned type.** `is_anonymous`,
