@@ -4,7 +4,7 @@ import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
 import * as levels from "$lib/server/firm-profile/firm_job_levels.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import type { SalaryRanges } from "$lib/server/firm-profile/firm_job_levels.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { allEnumerations } from "@kaaj/enums"
@@ -84,7 +84,7 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await titles.update(tx, id, input)
       else await titles.create(tx, tenantId, input)
     })
@@ -97,7 +97,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing job title."))
-    await withTenant(locals.tenantId, (tx) => titles.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => titles.archive(tx, id))
     return { archived: true }
   },
 
@@ -133,7 +133,7 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await levels.update(tx, id, input)
       else await levels.create(tx, tenantId, input)
     })
@@ -146,7 +146,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing level."))
-    await withTenant(locals.tenantId, (tx) => levels.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => levels.archive(tx, id))
     return { archived: true }
   },
 }

@@ -1,7 +1,7 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as locations from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList, formString } from "$lib/server/forms"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
@@ -14,7 +14,7 @@ import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  const rows = await withTenant(locals.tenantId, (tx) => locations.list(tx))
+  const rows = await withTenant(actorFrom(locals), (tx) => locations.list(tx))
   return { locations: rows }
 }
 
@@ -86,7 +86,7 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       // Demote BEFORE writing. A partial unique index enforces one HQ per
       // tenant, so promoting this office while another still holds the flag
       // fails on the write itself — order matters, not just atomicity.
@@ -108,7 +108,7 @@ export const actions: Actions = {
     const code = f.text("location_code", { required: true, max: 50 })
     if (!f.ok) return fail(400, f.problem("Missing location."))
 
-    return withTenant(locals.tenantId, async (tx) => {
+    return withTenant(actorFrom(locals), async (tx) => {
       // Refuse rather than orphan: employees and holidays point at this office
       // by code, and deactivating under them leaves rows referencing something
       // the UI no longer shows.

@@ -1,6 +1,7 @@
 # Row-Level Visibility: where RLS by role belongs
 
-**Status:** specification. Nothing here is implemented
+**Status:** `employees` and `compensation_base` implemented
+(20260831090000). The other 13 Tier 1 tables are specified, not built
 **Created:** 2026-08-30
 
 Tenant isolation is already enforced by RLS on all 103 tables and proved by 587
@@ -72,14 +73,14 @@ strongest case, because the control already exists and has no second layer.
 |---|---|
 | `hr_reviews` | a manager's draft assessment is withheld from its subject — `redactFor` only |
 | `hr_feedback` | an anonymous note never returns its author — a SQL `CASE` only |
-| `employees` | everyone reads the directory; pay and identifiers are separate permissions |
+| `employees` | ✅ **done.** Everyone reads the directory; a contractor reads only themselves |
 | `hr_survey_responses` | pulse responses must not be attributable. **Currently safe by data, not by rule**: the anonymous survey's rows carry a NULL `respondent_id`. Nothing enforces that — a cross-table CHECK needs a trigger |
 
 ### Pay and its history (7)
 
-| Table |
-|---|
-| `compensation_base` |
+| Table | |
+|---|---|
+| `compensation_base` | ✅ **done** |
 | `compensation_allowances` |
 | `compensation_variable` |
 | `compensation_equity` |
@@ -196,10 +197,35 @@ policies are an afternoon; the tests are the project.
 
 ---
 
+## What the first slice actually cost
+
+`employees` turned out not to be a contained change: **twelve repositories join
+to it**, so a policy there reaches nearly every read path in the app. And
+`withTenant` only ever sent `tenant_id` — the database did not know WHO was
+asking, so with the policy in place a plain employee would have seen nothing
+anywhere.
+
+That is now fixed and is the load-bearing part of this work:
+**`withTenant` carries the whole actor** — tenant, person, role, functional
+roles — via `actorFrom(locals)`. A bare tenant id still isolates by tenant and
+is still accepted, but row-visibility policies deny it, which is fail-closed and
+deliberate. 17 route files and 9 test files were updated.
+
+Two harness corrections fell out:
+
+- **PHASE H of `verify-rls.sql` demanded `WITH CHECK` on every policy.** Postgres
+  *refuses* `WITH CHECK` on `FOR SELECT` — "WITH CHECK cannot be applied to
+  SELECT or DELETE" — so the rule was asking for something the database will not
+  accept, and made every read-only policy an exemption to remember. It now
+  filters on `cmd`, which is what its own prose already described.
+- **The isolation harness sends a tenant-only claim**, which the new policies
+  correctly deny — surfacing as "owner saw 0 of 12" and looking exactly like a
+  leak test failing. Its claim now carries `role: owner`, because that file asks
+  a *tenant* question; row visibility has its own tests.
+
 ## Suggested order
 
-1. `employees` + `compensation_base` — one vertical slice, measured before and
-   after, harness question settled
+1. ✅ `employees` + `compensation_base`
 2. The rest of pay (6)
 3. `hr_reviews`, `hr_feedback`, `hr_survey_responses` — the ones with an
    application-only rule today

@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as policies from "$lib/server/firm-profile/firm_payroll_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
@@ -12,7 +12,7 @@ const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     policies: await policies.list(tx),
     locations: await locationsRepo.list(tx),
     roundingOptions: ROUNDING,
@@ -88,7 +88,7 @@ export const actions: Actions = {
       require_time_tracking: f.bool("require_time_tracking"),
     }
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await policies.update(tx, id, input)
       else await policies.create(tx, tenantId, input)
     })
@@ -101,7 +101,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing policy."))
-    await withTenant(locals.tenantId, (tx) => policies.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => policies.archive(tx, id))
     return { archived: true }
   },
 }

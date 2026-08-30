@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as holidays from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const yearParam = url.searchParams.get("year")
   const year = yearParam ? Number(yearParam) : undefined
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     holidays: await holidays.list(tx, Number.isFinite(year) ? year : undefined),
     availableYears: await holidays.years(tx),
     locations: await locationsRepo.list(tx),
@@ -55,7 +55,7 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
-    return withTenant(tenantId, async (tx) => {
+    return withTenant(actorFrom(locals), async (tx) => {
       if (await holidays.clashes(tx, locationCode, date, id || undefined)) {
         return fail(400, {
           errorFields: ["date"],
@@ -75,7 +75,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing holiday."))
-    await withTenant(locals.tenantId, (tx) => holidays.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => holidays.archive(tx, id))
     return { archived: true }
   },
 }

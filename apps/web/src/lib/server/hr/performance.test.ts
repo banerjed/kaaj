@@ -9,6 +9,17 @@ import * as feedback from "./hr_feedback.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932" // reviewer on three
 const PRIYA = "bf17b1af-963b-53ef-9083-21506fb34e9c" // REV-E003, status draft
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757" // REV-E002, acknowledged
@@ -24,7 +35,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
     // The harm this prevents: reading an unfinished judgement of yourself, and
     // writing your self-assessment against it. Nothing in the database stops
     // it — both halves are one row and RLS filters by tenant.
-    const [review] = await withTenant(NORTHWIND, (tx) =>
+    const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(PRIYA), { employeeId: PRIYA }),
     )
     expect(review.status).toBe("draft")
@@ -37,7 +48,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
   })
 
   it("shows the same draft to the reviewer who is writing it", async () => {
-    const [review] = await withTenant(NORTHWIND, (tx) =>
+    const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(SARAH), { employeeId: PRIYA }),
     )
     expect(review.status).toBe("draft")
@@ -46,7 +57,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
   })
 
   it("shows it to HR, who runs the cycle", async () => {
-    const [review] = await withTenant(NORTHWIND, (tx) =>
+    const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(NADIA, true), { employeeId: PRIYA }),
     )
     expect(review.manager_assessment).not.toBeNull()
@@ -54,7 +65,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
 
   it("releases it to the subject once submitted", async () => {
     // REV-E002 is acknowledged, so Marcus sees his manager's half.
-    const [review] = await withTenant(NORTHWIND, (tx) =>
+    const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(MARCUS), { employeeId: MARCUS }),
     )
     expect(review.status).toBe("acknowledged")
@@ -64,7 +75,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
 
   it("redacts on the single-row path too, not only the list", async () => {
     // Two read paths, one rule. A detail page that forgot would be the leak.
-    const redacted = await withTenant(NORTHWIND, async (tx) => {
+    const redacted = await withTenant(AS_OWNER, async (tx) => {
       const [row] = await reviews.visibleTo(tx, reader(SARAH), {
         employeeId: PRIYA,
       })
@@ -79,14 +90,14 @@ describe("who sees which reviews at all", () => {
   it("shows a peer nothing", async () => {
     // Marcus is neither Priya's subject nor her reviewer. Asserted
     // independently by SEC-EMP-026 in the spec suite.
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(MARCUS), { employeeId: PRIYA }),
     )
     expect(rows).toEqual([])
   })
 
   it("shows a reviewer the reviews they are writing", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(SARAH)),
     )
     expect(rows.length).toBeGreaterThan(1)
@@ -96,7 +107,7 @@ describe("who sees which reviews at all", () => {
   })
 
   it("shows someone with no review and no grant nothing at all", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(NADIA)),
     )
     expect(rows).toEqual([])
@@ -105,14 +116,14 @@ describe("who sees which reviews at all", () => {
   it("does not raise for a reader who is not an employee", async () => {
     // A tenant member without an employee record. `null` must not become
     // ''::uuid — SQL does not short-circuit (L37).
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(null)),
     )
     expect(rows).toEqual([])
   })
 
   it("gives HR every review in the cycle", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(NADIA, true)),
     )
     expect(rows).toHaveLength(4)
@@ -123,7 +134,7 @@ describe("the cycle", () => {
   it("has deadlines in order, as dates rather than text", async () => {
     // They were TEXT and sorted correctly only because ISO strings sort
     // lexically — an accident that holds until someone types 15/06/2026.
-    const [cycle] = await withTenant(NORTHWIND, (tx) => reviews.cycles(tx))
+    const [cycle] = await withTenant(AS_OWNER, (tx) => reviews.cycles(tx))
     expect(cycle.start_date).toBe("2026-05-31")
     expect(cycle.self_assessment_due).toBe("2026-06-15")
     expect(cycle.manager_assessment_due).toBe("2026-06-25")
@@ -138,7 +149,7 @@ describe("the cycle", () => {
   })
 
   it("counts progress in SQL, so the total does not depend on the reader", async () => {
-    const progress = await withTenant(NORTHWIND, (tx) =>
+    const progress = await withTenant(AS_OWNER, (tx) =>
       reviews.cycleProgress(tx, "2026-H1"),
     )
     expect(progress.reduce((n, p) => n + p.n, 0)).toBe(4)
@@ -154,12 +165,12 @@ describe("goals", () => {
   it("stored progress agrees with the numbers it summarises", async () => {
     // 62% beside "31 of 100" is the number a manager quotes in a review, and
     // nothing recomputes it.
-    const bad = await withTenant(NORTHWIND, (tx) => goals.inconsistent(tx))
+    const bad = await withTenant(AS_OWNER, (tx) => goals.inconsistent(tx))
     expect(bad).toEqual([])
   })
 
   it("keeps every NUMERIC as a string", async () => {
-    const [goal] = await withTenant(NORTHWIND, (tx) =>
+    const [goal] = await withTenant(AS_OWNER, (tx) =>
       goals.forEmployee(tx, MARCUS),
     )
     for (const field of [
@@ -187,7 +198,7 @@ describe("goals", () => {
   })
 
   it("returns nothing rather than raising for an empty id list", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) => goals.forEmployees(tx, []))
+    const rows = await withTenant(AS_OWNER, (tx) => goals.forEmployees(tx, []))
     expect(rows).toEqual([])
   })
 })
@@ -256,7 +267,7 @@ describe("feedback anonymity", () => {
     // The column is populated and correct. That is the trap: a page that
     // joined to employees and rendered the author would break the promise
     // without erroring and without failing a type check.
-    const all = await withTenant(NORTHWIND, (tx) =>
+    const all = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA, true)),
     )
     const anon = all.find((f) => f.feedback_id === "FB-004")!
@@ -267,7 +278,7 @@ describe("feedback anonymity", () => {
   })
 
   it("still names the author of a signed note", async () => {
-    const all = await withTenant(NORTHWIND, (tx) =>
+    const all = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA, true)),
     )
     expect(all.find((f) => f.feedback_id === "FB-002")!.from_name).toBe(
@@ -278,7 +289,7 @@ describe("feedback anonymity", () => {
   it("keeps the author's id out of the query result entirely", async () => {
     // Not fetched-then-dropped: a repository that dropped it in TypeScript
     // would still have put it in a result set, a log line and a heap dump.
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA, true)),
     )
     const serialised = JSON.stringify(rows)
@@ -296,7 +307,7 @@ describe("who may read which feedback", () => {
   ) => ({ employeeId, readsAll, manages })
 
   it("shows a recipient their own private note", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(TOM)),
     )
     expect(rows.map((f) => f.feedback_id)).toContain("FB-003")
@@ -306,38 +317,38 @@ describe("who may read which feedback", () => {
     // FB-001 is about Marcus, written for whoever manages him. Showing it to
     // Marcus would turn every such note into a message to its subject, which
     // is not what the author chose.
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(MARCUS)),
     )
     expect(rows.map((f) => f.feedback_id)).not.toContain("FB-001")
     expect(
-      await withTenant(NORTHWIND, (tx) => feedback.receivedBy(tx, MARCUS)),
+      await withTenant(AS_OWNER, (tx) => feedback.receivedBy(tx, MARCUS)),
     ).toEqual([])
   })
 
   it("shows that same note to the manager it was written for", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(SARAH, false, [MARCUS])),
     )
     expect(rows.map((f) => f.feedback_id)).toContain("FB-001")
   })
 
   it("shows a public note to anyone", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA)),
     )
     expect(rows.map((f) => f.feedback_id)).toEqual(["FB-002"])
   })
 
   it("shows a peer nothing private", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(MARCUS)),
     )
     expect(rows.map((f) => f.feedback_id)).not.toContain("FB-003")
   })
 
   it("does not raise for a reader who is not an employee", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(null)),
     )
     expect(rows.map((f) => f.feedback_id)).toEqual(["FB-002"])
@@ -350,7 +361,7 @@ describe("writing a review", () => {
   ): Promise<T> => {
     const marker = new Error("__rollback__")
     try {
-      return await withTenant(NORTHWIND, async (tx) => {
+      return await withTenant(AS_OWNER, async (tx) => {
         const result = await fn(tx)
         throw Object.assign(marker, { result })
       })

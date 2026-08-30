@@ -4,7 +4,7 @@ import * as employees from "$lib/server/employee-profile/employees.repo"
 import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
   employeeEnums,
@@ -15,7 +15,7 @@ import {
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     employee: null,
     departments: await departments.list(tx),
     locations: await locationsRepo.list(tx),
@@ -42,7 +42,7 @@ export const actions: Actions = {
       })
     }
 
-    const created = await withTenant(tenantId, (tx) =>
+    const created = await withTenant(actorFrom(locals), (tx) =>
       employees.create(tx, tenantId, parsed.input, actorId),
     )
 

@@ -9,6 +9,7 @@ bills	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_
 chart_of_accounts	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 clients	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 compensation_allowances	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+compensation_base	compensation_visibility	SELECT	public	(( SELECT app.reads_all_compensation() AS reads_all_compensation) OR (employee_id = ( SELECT app.current_employee_id() AS current_employee_id)))	
 compensation_base	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 compensation_equity	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 compensation_premiums	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
@@ -24,6 +25,7 @@ employee_group_members	tenant_isolation	ALL	public	(tenant_id = app.current_tena
 employee_group_roles	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 employee_training_records	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 employee_user_groups	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+employees	employee_visibility	SELECT	public	(( SELECT app.reads_all_employees() AS reads_all_employees) OR (id = ( SELECT app.current_employee_id() AS current_employee_id)) OR (( SELECT ((NULLIF(current_setting('request.jwt.claims'::text, true), ''::text))::jsonb #>> '{app_metadata,role}'::text[])) = ANY (ARRAY['employee'::text, 'firm_admin'::text, 'owner'::text])))	
 employees	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 employment_terms	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 exchange_rates	exchange_rates_read	SELECT	public	true	

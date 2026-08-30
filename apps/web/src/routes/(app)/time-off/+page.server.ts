@@ -5,7 +5,7 @@ import { DecisionRefused } from "$lib/server/hr/hr_time_off_requests.repo"
 import * as balances from "$lib/server/hr/hr_time_off_balances.repo"
 import * as policies from "$lib/server/hr/hr_time_off_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import {
@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const status = url.searchParams.get("status") ?? ""
 
-  return withTenant(locals.tenantId, async (tx) => {
+  return withTenant(actorFrom(locals), async (tx) => {
     const [me] = await tx<{ employee_id: string | null }[]>`
       SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
     `
@@ -57,7 +57,6 @@ export const actions: Actions = {
     if (!can(ctx, "timeoff.approve") && !can(ctx, "employee.read.reports")) {
       requireCan(ctx, "timeoff.approve")
     }
-    const tenantId = locals.tenantId
     const userId = locals.user?.id
     if (!userId) error(403, "No user")
 
@@ -72,7 +71,7 @@ export const actions: Actions = {
     if (!f.ok) return fail(400, f.problem("Missing request."))
 
     try {
-      await withTenant(tenantId, async (tx) => {
+      await withTenant(actorFrom(locals), async (tx) => {
         // The approver is an EMPLOYEE, not an auth user. Resolving it here
         // keeps the repository free of auth concepts.
         const [me] = await tx<{ employee_id: string | null }[]>`

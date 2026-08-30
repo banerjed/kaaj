@@ -4,7 +4,7 @@ import * as packages from "$lib/server/firm-profile/firm_benefits_packages.repo"
 import * as items from "$lib/server/firm-profile/firm_benefit_items.repo"
 import type { CostsByCurrency } from "$lib/server/firm-profile/firm_benefit_items.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 
@@ -25,7 +25,7 @@ const BENEFIT_TYPES = [
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     packages: await packages.list(tx),
     items: await items.list(tx),
     locations: await locationsRepo.list(tx),
@@ -87,7 +87,7 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await packages.update(tx, id, input)
       else await packages.create(tx, tenantId, input)
     })
@@ -100,7 +100,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing package."))
-    await withTenant(locals.tenantId, (tx) => packages.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => packages.archive(tx, id))
     return { archived: true }
   },
 
@@ -138,7 +138,7 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await items.update(tx, id, input)
       else await items.create(tx, tenantId, input)
     })
@@ -151,7 +151,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing benefit."))
-    await withTenant(locals.tenantId, (tx) => items.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => items.archive(tx, id))
     return { archived: true }
   },
 }

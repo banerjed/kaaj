@@ -3,7 +3,7 @@ import type { PageServerLoad } from "./$types"
 import * as employees from "$lib/server/employee-profile/employees.repo"
 import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 
 const PAGE_SIZE = 25
 
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const includeInactive = url.searchParams.get("inactive") === "1"
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1)
 
-  const result = await withTenant(locals.tenantId, async (tx) => ({
+  const result = await withTenant(actorFrom(locals), async (tx) => ({
     directory: await employees.list(tx, {
       search,
       departmentCode,

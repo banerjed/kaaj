@@ -1,7 +1,7 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formString, formList } from "$lib/server/forms"
 import {
@@ -19,7 +19,7 @@ import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  const tenant = await withTenant(locals.tenantId, (tx) =>
+  const tenant = await withTenant(actorFrom(locals), (tx) =>
     tenants.getCurrent(tx),
   )
   if (!tenant) error(404, "Tenant not found")
@@ -44,7 +44,7 @@ export const actions: Actions = {
 
     // The record as stored, so validation can accept locales already on the
     // tenant that are not in the launch list (see localeOptions).
-    const existing = await withTenant(locals.tenantId, (tx) =>
+    const existing = await withTenant(actorFrom(locals), (tx) =>
       tenants.getCurrent(tx),
     )
 
@@ -110,7 +110,7 @@ export const actions: Actions = {
       })
     }
 
-    const saved = await withTenant(locals.tenantId, (tx) =>
+    const saved = await withTenant(actorFrom(locals), (tx) =>
       tenants.update(tx, {
         company_name: companyName,
         company_name_i18n: Object.keys(nameI18n).length ? nameI18n : null,

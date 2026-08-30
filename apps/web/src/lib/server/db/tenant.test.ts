@@ -17,6 +17,17 @@ import { withTenant } from "./tenant"
 
 // Seeded by mock-data.sql, whose own verification block asserts these counts.
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const NOBODY = "00000000-0000-4000-8000-000000000001"
 
 describe("withTenant", () => {
@@ -26,11 +37,22 @@ describe("withTenant", () => {
 
   it("sees the tenant's own rows", async () => {
     const [{ count }] = await withTenant(
-      NORTHWIND,
+      AS_OWNER,
       (tx) => tx`SELECT count(*)::int AS count FROM employees`,
     )
     // 0 here means the claim is not reaching app.current_tenant_id() (L1, L2).
     expect(count).toBe(12)
+  })
+
+  it("gives a tenant-only claim NOTHING from a row-scoped table", async () => {
+    // A bare tenant id still isolates by tenant, but row-visibility policies
+    // key on the role and the person (docs/15). A claim carrying neither is
+    // denied — fail closed, which is why every request now passes an actor.
+    const [{ count }] = await withTenant(
+      NORTHWIND,
+      (tx) => tx`SELECT count(*)::int AS count FROM employees`,
+    )
+    expect(count).toBe(0)
   })
 
   it("sees nothing for a tenant that owns nothing", async () => {
@@ -75,7 +97,7 @@ describe("withTenant", () => {
   it("rolls back when the callback throws", async () => {
     const boom = new Error("deliberate")
     await expect(
-      withTenant(NORTHWIND, async (tx) => {
+      withTenant(AS_OWNER, async (tx) => {
         await tx`
           INSERT INTO firm_departments (tenant_id, name, department_code)
           VALUES (${NORTHWIND}, 'Rollback Probe', 'ROLLBACK-PROBE')

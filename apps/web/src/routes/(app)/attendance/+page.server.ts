@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as attendance from "$lib/server/hr/hr_attendance.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { FormReader } from "$lib/server/forms"
 
 // No CHECK constraint on hr_attendance.status, so this list is the only guard.
@@ -32,7 +32,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const employeeId = f.uuid("employee")
 
   // One query, because that is all the page reads (doc 03).
-  return withTenant(locals.tenantId, async (tx) => {
+  return withTenant(actorFrom(locals), async (tx) => {
     return {
       days: await attendance.list(tx, {
         from: from ?? undefined,

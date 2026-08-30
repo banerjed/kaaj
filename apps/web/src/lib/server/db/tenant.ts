@@ -19,10 +19,26 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * Run `fn` inside a transaction scoped to `tenantId`. Commits on resolve,
  * rolls back on throw.
  */
+/**
+ * Who is asking. A bare tenant id is still accepted and still isolates by
+ * tenant — but row-visibility policies key on the ROLE and the PERSON
+ * (docs/15-row-level-visibility.md), and a claim carrying neither is denied by
+ * them. That is deliberate: fail closed. Pass the context wherever one exists.
+ */
+export type Actor =
+  | string
+  | {
+      tenantId: string
+      employeeId?: string | null
+      role?: string | null
+      functionalRoles?: string[] | null
+    }
+
 export async function withTenant<T>(
-  tenantId: string,
+  actor: Actor,
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
+  const tenantId = typeof actor === "string" ? actor : actor.tenantId
   // Should never fire — the claim comes from a verified JWT. It is here because
   // this value is the sole basis for isolation, so a malformed one must fail
   // loudly rather than degrade into "no tenant".
@@ -31,7 +47,20 @@ export async function withTenant<T>(
   }
 
   const sql: Sql = getConnection(tenantId)
-  const claims = JSON.stringify({ app_metadata: { tenant_id: tenantId } })
+  // The whole claim, not just the tenant. Row-visibility policies read
+  // app_metadata.role and app_metadata.employee_id, and an absent role means
+  // "no rows" rather than "every row".
+  const claims = JSON.stringify({
+    app_metadata:
+      typeof actor === "string"
+        ? { tenant_id: tenantId }
+        : {
+            tenant_id: tenantId,
+            employee_id: actor.employeeId ?? null,
+            role: actor.role ?? null,
+            functional_roles: actor.functionalRoles ?? [],
+          },
+  })
 
   return sql.begin(async (tx) => {
     await tx`SET LOCAL ROLE app_user`
@@ -39,4 +68,25 @@ export async function withTenant<T>(
 
     return fn(tx as Tx)
   }) as Promise<T>
+}
+
+/**
+ * The actor for a request, from `locals`.
+ *
+ * Every page and action uses this rather than `locals.tenantId` alone, so the
+ * database knows WHO is asking and not only which firm. A claim with a tenant
+ * and nothing else is denied by every row-visibility policy — fail closed.
+ */
+export function actorFrom(locals: App.Locals): Actor {
+  if (!locals.tenantId) {
+    throw new Error(
+      "actorFrom called without a tenant — check locals.tenantId first",
+    )
+  }
+  return {
+    tenantId: locals.tenantId,
+    employeeId: locals.employeeId ?? null,
+    role: locals.tenantRole ?? null,
+    functionalRoles: locals.functionalRoles ?? [],
+  }
 }

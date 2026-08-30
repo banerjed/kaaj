@@ -4,7 +4,7 @@ import * as employees from "$lib/server/employee-profile/employees.repo"
 import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
   employeeEnums,
@@ -14,7 +14,7 @@ import {
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  const result = await withTenant(locals.tenantId, async (tx) => {
+  const result = await withTenant(actorFrom(locals), async (tx) => {
     const employee = await employees.getById(tx, params.id)
     if (!employee) return null
     return {
@@ -37,7 +37,6 @@ export const actions: Actions = {
   default: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "employee.write")
-    const tenantId = locals.tenantId
 
     const data = await request.formData()
     const parsed = parseEmployeeForm(data)
@@ -48,7 +47,7 @@ export const actions: Actions = {
       })
     }
 
-    const cycle = await withTenant(tenantId, async (tx) => {
+    const cycle = await withTenant(actorFrom(locals), async (tx) => {
       if (
         await employees.wouldReportToSelf(
           tx,

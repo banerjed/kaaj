@@ -22,6 +22,17 @@ import { _resetKeyRing, _useKeyRingForTest, keyRing } from "./keys"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
 /** Deliberately holds no PII and no key: the "first use" and "nothing to
@@ -45,7 +56,7 @@ const taxField = (id: string) => ({
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
   try {
-    return await withTenant(NORTHWIND, async (tx) => {
+    return await withTenant(AS_OWNER, async (tx) => {
       const result = await fn(tx)
       throw Object.assign(marker, { result })
     })
@@ -158,7 +169,7 @@ describe("the stored fixture", () => {
   it("holds ciphertext, not tax identifiers", async () => {
     // The point of the whole exercise: a database dump is inert.
     const rows = await withTenant(
-      NORTHWIND,
+      AS_OWNER,
       (tx) => tx<{ ssn_tax_id_ct: string }[]>`
       SELECT ssn_tax_id_ct FROM employees WHERE ssn_tax_id_ct IS NOT NULL
     `,
@@ -196,7 +207,7 @@ describe("the stored fixture", () => {
   })
 
   it("opens with the key that is stored for that person", async () => {
-    const value = await withTenant(NORTHWIND, async (tx) => {
+    const value = await withTenant(AS_OWNER, async (tx) => {
       const [row] = await tx<{ ssn_tax_id_ct: string }[]>`
         SELECT ssn_tax_id_ct FROM employees WHERE id = ${SARAH}
       `

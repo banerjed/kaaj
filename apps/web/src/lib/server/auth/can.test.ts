@@ -10,6 +10,17 @@ import {
 } from "@kaaj/authz"
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932" // manages ENG
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757" // reports to Sarah
 const NADIA = "385f5ae5-e567-5fb6-98f8-b45007099ff8" // reports to nobody relevant
@@ -115,7 +126,7 @@ describe("owner and firm_admin", () => {
 
 describe("managers are derived, not granted", () => {
   it("recognises a direct report", async () => {
-    const yes = await withTenant(NORTHWIND, (tx) =>
+    const yes = await withTenant(AS_OWNER, (tx) =>
       managesEmployee(tx, ctx("employee", [], SARAH), MARCUS),
     )
     expect(yes).toBe(true)
@@ -123,21 +134,21 @@ describe("managers are derived, not granted", () => {
 
   it("does not make someone their own manager", async () => {
     // Otherwise the reporting-line check would let anyone approve their own.
-    const self = await withTenant(NORTHWIND, (tx) =>
+    const self = await withTenant(AS_OWNER, (tx) =>
       managesEmployee(tx, ctx("employee", [], SARAH), SARAH),
     )
     expect(self).toBe(false)
   })
 
   it("does not invent a chain that is not there", async () => {
-    const no = await withTenant(NORTHWIND, (tx) =>
+    const no = await withTenant(AS_OWNER, (tx) =>
       managesEmployee(tx, ctx("employee", [], MARCUS), SARAH),
     )
     expect(no).toBe(false)
   })
 
   it("a member with no employee record manages nobody", async () => {
-    const none = await withTenant(NORTHWIND, (tx) =>
+    const none = await withTenant(AS_OWNER, (tx) =>
       managesEmployee(tx, ctx("employee", [], null), MARCUS),
     )
     expect(none).toBe(false)
@@ -164,7 +175,7 @@ describe("managers are derived, not granted", () => {
   })
 
   it("everyone can read themselves", async () => {
-    const self = await withTenant(NORTHWIND, (tx) =>
+    const self = await withTenant(AS_OWNER, (tx) =>
       canReadEmployee(tx, ctx("contractor", [], MARCUS), MARCUS),
     )
     expect(self).toBe(true)

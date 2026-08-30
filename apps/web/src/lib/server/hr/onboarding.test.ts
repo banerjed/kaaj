@@ -7,6 +7,17 @@ import * as onboarding from "./hr_onboarding.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const OLIVER = "56bd1329-6740-572f-aa90-c44d1b27bedf" // the fixture's new hire
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
 
@@ -16,7 +27,7 @@ describe("choosing a template", () => {
     // names the department. Without a defined rule the winner would be
     // whichever row was read first — so a hire's plan would depend on physical
     // row order and change silently after a VACUUM.
-    const t = await withTenant(NORTHWIND, (tx) =>
+    const t = await withTenant(AS_OWNER, (tx) =>
       onboarding.templateFor(tx, {
         departmentCode: "ENG",
         locationCode: "US-NYC",
@@ -27,7 +38,7 @@ describe("choosing a template", () => {
   })
 
   it("falls back to the default for a department with no template", async () => {
-    const t = await withTenant(NORTHWIND, (tx) =>
+    const t = await withTenant(AS_OWNER, (tx) =>
       onboarding.templateFor(tx, {
         departmentCode: "SALES",
         locationCode: "UK-LON",
@@ -40,7 +51,7 @@ describe("choosing a template", () => {
 
   it("gives the same answer every time, whatever the row order", async () => {
     // The property the specificity rule exists for. Ten reads, one answer.
-    const answers = await withTenant(NORTHWIND, async (tx) => {
+    const answers = await withTenant(AS_OWNER, async (tx) => {
       const out: (string | undefined)[] = []
       for (let i = 0; i < 10; i++) {
         const t = await onboarding.templateFor(tx, {
@@ -56,7 +67,7 @@ describe("choosing a template", () => {
   })
 
   it("respects employment type as a filter", async () => {
-    const t = await withTenant(NORTHWIND, (tx) =>
+    const t = await withTenant(AS_OWNER, (tx) =>
       onboarding.templateFor(tx, {
         departmentCode: "ENG",
         locationCode: null,
@@ -71,7 +82,7 @@ describe("choosing a template", () => {
   it("reports nothing ambiguous today", async () => {
     // templateFor always answers, because a hire needs a plan. This says
     // whether the answer was a coin toss.
-    const tied = await withTenant(NORTHWIND, (tx) =>
+    const tied = await withTenant(AS_OWNER, (tx) =>
       onboarding.ambiguousFor(tx, {
         departmentCode: "ENG",
         locationCode: "US-NYC",
@@ -82,7 +93,7 @@ describe("choosing a template", () => {
   })
 
   it("ranks specificity: department beats default", async () => {
-    const all = await withTenant(NORTHWIND, (tx) => onboarding.templates(tx))
+    const all = await withTenant(AS_OWNER, (tx) => onboarding.templates(tx))
     const eng = all.find((t) => t.template_code === "ENGINEERING")!
     const std = all.find((t) => t.template_code === "STANDARD")!
     expect(eng.specificity).toBeGreaterThan(std.specificity)
@@ -94,7 +105,7 @@ describe("the plan a template produces", () => {
   it("dates every task from the start date, including the ones before it", async () => {
     // Offsets run from -7 (pre-boarding: kit ordered before the person
     // exists in the building) to +90.
-    const plan = await withTenant(NORTHWIND, async (tx) => {
+    const plan = await withTenant(AS_OWNER, async (tx) => {
       const t = await onboarding.templateFor(tx, {
         departmentCode: "SALES",
         locationCode: null,
@@ -115,7 +126,7 @@ describe("the plan a template produces", () => {
   })
 
   it("orders by when a task is due, not by how it was entered", async () => {
-    const plan = await withTenant(NORTHWIND, async (tx) => {
+    const plan = await withTenant(AS_OWNER, async (tx) => {
       const t = await onboarding.templateFor(tx, {
         departmentCode: "SALES",
         locationCode: null,
@@ -132,12 +143,12 @@ describe("a hire's actual tasks", () => {
   it("status and completion date agree on every row", async () => {
     // "completed" with no date leaves nothing to answer "when?" — the question
     // an auditor asks about a signed contract or a security training.
-    const bad = await withTenant(NORTHWIND, (tx) => onboarding.inconsistent(tx))
+    const bad = await withTenant(AS_OWNER, (tx) => onboarding.inconsistent(tx))
     expect(bad).toEqual([])
   })
 
   it("lists what one person still owes", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       onboarding.tasks(tx, { employeeId: OLIVER }),
     )
     expect(rows).toHaveLength(3)
@@ -147,7 +158,7 @@ describe("a hire's actual tasks", () => {
   it("lists what is assigned to someone else about that person", async () => {
     // The 90-day conversation is Oliver's task in the sense that it is about
     // him, and Sarah's in the sense that she has to do it.
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       onboarding.tasks(tx, { assignedTo: SARAH }),
     )
     expect(rows.map((t) => t.task_id)).toEqual(["OB-E011-003"])
@@ -156,7 +167,7 @@ describe("a hire's actual tasks", () => {
 
   it("does not raise on empty filters", async () => {
     // '' is not a uuid and SQL does not short-circuit (L37).
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       onboarding.tasks(tx, { employeeId: "", assignedTo: "" }),
     )
     expect(rows).toHaveLength(3)

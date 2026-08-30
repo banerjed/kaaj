@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as schedules from "$lib/server/payroll/payroll_pay_schedules.repo"
 import * as holidaysRepo from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { formString } from "$lib/server/forms"
 
@@ -13,7 +13,7 @@ const FREQUENCIES = ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     schedules: await schedules.list(tx),
     // Pay dates are flagged when they collide with a holiday, so the calendar
     // is needed to render the projection.
@@ -75,7 +75,7 @@ export const actions: Actions = {
       adjust_for_holidays: formString(data, "adjust_for_holidays") === "on",
     }
 
-    await withTenant(tenantId, async (tx) => {
+    await withTenant(actorFrom(locals), async (tx) => {
       if (id) await schedules.update(tx, id, input)
       else await schedules.create(tx, tenantId, input)
     })
@@ -87,7 +87,7 @@ export const actions: Actions = {
     requireCan(contextFrom(locals), "firm.settings.write")
     const id = formString(await request.formData(), "id")
     if (!id) return fail(400, { message: "Missing schedule." })
-    await withTenant(locals.tenantId, (tx) => schedules.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => schedules.archive(tx, id))
     return { archived: true }
   },
 }

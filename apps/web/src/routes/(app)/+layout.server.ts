@@ -1,6 +1,6 @@
 import { redirect } from "@sveltejs/kit"
 import type { LayoutServerLoad } from "./$types"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { toSafeAuthSession } from "$lib/server/auth_session"
 
 /**
@@ -20,7 +20,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   }
 
   // Loaded once in the layout, not per page: it is on every screen.
-  const tenant = await withTenant(locals.tenantId, async (tx) => {
+  const tenant = await withTenant(actorFrom(locals), async (tx) => {
     const [row] = await tx`
       SELECT id,
              company_name,

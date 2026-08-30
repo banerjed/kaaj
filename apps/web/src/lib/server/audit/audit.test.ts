@@ -8,6 +8,17 @@ import * as audit from "./audit.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
 
 const ctx: AuthContext = {
@@ -21,7 +32,7 @@ const ctx: AuthContext = {
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
   try {
-    return await withTenant(NORTHWIND, async (tx) => {
+    return await withTenant(AS_OWNER, async (tx) => {
       const result = await fn(tx)
       throw Object.assign(marker, { result })
     })
@@ -127,14 +138,14 @@ describe("the trail cannot be rewritten", () => {
 
 describe("reading the trail", () => {
   it("returns the fixture's history newest first", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) => audit.recent(tx))
+    const rows = await withTenant(AS_OWNER, (tx) => audit.recent(tx))
     expect(rows.length).toBeGreaterThan(0)
     const times = rows.map((r) => r.occurred_at.getTime())
     expect([...times].sort((a, b) => b - a)).toEqual(times)
   })
 
   it("filters by module", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       audit.recent(tx, { module: "accounting" }),
     )
     expect(rows.length).toBeGreaterThan(0)
@@ -142,7 +153,7 @@ describe("reading the trail", () => {
   })
 
   it("caps the limit so a page cannot ask for the whole history", async () => {
-    const rows = await withTenant(NORTHWIND, (tx) =>
+    const rows = await withTenant(AS_OWNER, (tx) =>
       audit.recent(tx, { limit: 100_000 }),
     )
     expect(rows.length).toBeLessThanOrEqual(200)

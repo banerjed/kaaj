@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locations from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 
@@ -16,7 +16,7 @@ import { FormReader, formList } from "$lib/server/forms"
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     departments: await departments.list(tx),
     locations: await locations.list(tx),
   }))
@@ -69,7 +69,7 @@ export const actions: Actions = {
     const id = f.uuid("id")
     const supportedLocales = formList(data, "supported_locales")
 
-    return withTenant(tenantId, async (tx) => {
+    return withTenant(actorFrom(locals), async (tx) => {
       const input = await readForm(tx, f, supportedLocales)
 
       if (!f.ok) {
@@ -98,7 +98,7 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing department."))
 
-    await withTenant(locals.tenantId, (tx) => departments.archive(tx, id))
+    await withTenant(actorFrom(locals), (tx) => departments.archive(tx, id))
     return { archived: true }
   },
 }

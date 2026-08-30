@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as onboarding from "$lib/server/hr/hr_onboarding.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 
 /**
@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   const readsAll = can(ctx, "employee.read.all")
   const me = ctx?.employeeId ?? null
 
-  return withTenant(locals.tenantId, async (tx) => ({
+  return withTenant(actorFrom(locals), async (tx) => ({
     // HR sees every hire's checklist; everyone else sees their own tasks and
     // the ones they have been asked to do.
     tasks: readsAll

@@ -10,11 +10,22 @@ import * as policies from "./hr_time_off_policies.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+/**
+ * Repositories are tested as an actor who reads everything, so a row-visibility
+ * policy does not silently narrow what a repository test sees. Visibility has
+ * its own tests in db/row-visibility.test.ts.
+ */
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [],
+  employeeId: null,
+}
 
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
   try {
-    return await withTenant(NORTHWIND, async (tx) => {
+    return await withTenant(AS_OWNER, async (tx) => {
       const result = await fn(tx)
       throw Object.assign(marker, { result })
     })
@@ -33,14 +44,14 @@ describe("time-off balances", () => {
     // current = opening + accrued + adjusted - used - pending - forfeited
     // No constraint enforces this, and accrual is a scheduled job, so drift
     // would be invisible until someone was refused leave they had earned.
-    const bad = await withTenant(NORTHWIND, (tx) => balances.inconsistent(tx))
+    const bad = await withTenant(AS_OWNER, (tx) => balances.inconsistent(tx))
     expect(bad).toEqual([])
   })
 
   it("carried_over is NOT a separate addend", async () => {
     // It is already inside opening_balance. Adding it again inflates the
     // fixture's balances by 5-12 days each — leave nobody has earned.
-    const rows = await withTenant(NORTHWIND, async (tx) => {
+    const rows = await withTenant(AS_OWNER, async (tx) => {
       return tx`
         SELECT count(*) FILTER (WHERE carried_over > 0)::int AS with_carryover,
                count(*) FILTER (
@@ -59,7 +70,7 @@ describe("time-off balances", () => {
   })
 
   it("pending is already deducted, so current_balance is what can be booked", async () => {
-    const rows = await withTenant(NORTHWIND, async (tx) => {
+    const rows = await withTenant(AS_OWNER, async (tx) => {
       return tx`
         SELECT opening_balance::text AS opening, accrued::text AS accrued,
                pending::text AS pending, current_balance::text AS current
@@ -82,7 +93,7 @@ describe("time-off policies", () => {
   it("are scoped per jurisdiction, not firm-wide", async () => {
     // Statutory leave is national: a single policy cannot be lawful in the US,
     // the UK and India at once.
-    const [us, uk, india] = await withTenant(NORTHWIND, async (tx) => [
+    const [us, uk, india] = await withTenant(AS_OWNER, async (tx) => [
       await policies.forLocation(tx, "US-NYC"),
       await policies.forLocation(tx, "UK-LON"),
       await policies.forLocation(tx, "IN-BLR"),

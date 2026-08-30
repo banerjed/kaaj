@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as reviews from "$lib/server/hr/hr_reviews.repo"
 import * as goals from "$lib/server/hr/hr_goals.repo"
 import * as feedback from "$lib/server/hr/hr_feedback.repo"
-import { withTenant } from "$lib/server/db/tenant"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     readsAll: can(ctx, "performance.read.all"),
   }
 
-  return withTenant(locals.tenantId, async (tx) => {
+  return withTenant(actorFrom(locals), async (tx) => {
     const visible = await reviews.visibleTo(tx, reader)
 
     // Who this person manages, for the `manager_only` feedback rule. Resolved
@@ -89,7 +89,7 @@ export const actions: Actions = {
     if (!f.ok) return fail(400, f.problem("Missing review."))
 
     try {
-      await withTenant(locals.tenantId, async (tx) => {
+      await withTenant(actorFrom(locals), async (tx) => {
         await reviews.submit(tx, id, { employeeId: ctx.employeeId })
         await audit.record(tx, ctx, {
           action: "submitted",
@@ -124,7 +124,7 @@ export const actions: Actions = {
     if (!f.ok) return fail(400, f.problem("Missing review."))
 
     try {
-      await withTenant(locals.tenantId, async (tx) => {
+      await withTenant(actorFrom(locals), async (tx) => {
         await reviews.acknowledge(tx, id, { employeeId: ctx.employeeId })
         await audit.record(tx, ctx, {
           action: "acknowledged",

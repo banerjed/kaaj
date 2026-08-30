@@ -96,6 +96,19 @@ CREATE TEMP TABLE _baseline (tbl TEXT PRIMARY KEY, n BIGINT);
 GRANT SELECT ON _baseline TO app_user;
 
 -- -----------------------------------------------------------------------------
+-- WHY THE CLAIM CARRIES role=owner
+--
+-- This file asks a TENANT question: can tenant A reach tenant B's rows. Some
+-- tables now also carry RESTRICTIVE row-visibility policies keyed to the
+-- acting person's role (docs/15-row-level-visibility.md), and a claim with a
+-- tenant and nothing else is correctly denied by those — which showed up here
+-- as "owner saw 0 of 12" and looked exactly like a leak test failing.
+--
+-- `owner` reads everything, so it neutralises the row layer and leaves the
+-- tenant layer as the only thing under test. Row visibility has its own tests
+-- in apps/web/src/lib/server/db/row-visibility.test.ts, which assert per role
+-- that the right rows DO come back — the half that a leak test cannot check.
+
 -- Exemption literals
 -- -----------------------------------------------------------------------------
 -- in_scope=false marks tables that are not part of the Kaaj schema at all, so
@@ -204,7 +217,7 @@ END $$;
 -- failures that would otherwise masquerade as "isolation working".
 BEGIN;
   SET LOCAL ROLE app_user;
-  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"}}';
+  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1","role":"owner","functional_roles":[]}}';
   DO $$
   DECLARE r RECORD; n BIGINT;
   BEGIN
@@ -223,7 +236,7 @@ COMMIT;
 -- The leak test proper.
 BEGIN;
   SET LOCAL ROLE app_user;
-  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}}';
+  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"owner","functional_roles":[]}}';
   DO $$
   DECLARE r RECORD; n BIGINT;
   BEGIN
@@ -264,7 +277,7 @@ COMMIT;
 -- ever evaluated, so the correct result is "0 rows affected", not an exception.
 BEGIN;
   SET LOCAL ROLE app_user;
-  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"}}';
+  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1","role":"owner","functional_roles":[]}}';
   DO $$
   DECLARE r RECORD; affected BIGINT; verdict BOOLEAN; note TEXT;
   BEGIN
@@ -312,7 +325,7 @@ COMMIT;
 -- tenant — a statutory tax rate, or a translation shown to all customers.
 BEGIN;
   SET LOCAL ROLE app_user;
-  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"}}';
+  SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1","role":"owner","functional_roles":[]}}';
   DO $$
   DECLARE ok BOOLEAN;
   BEGIN
@@ -383,8 +396,16 @@ COMMIT;
 -- PHASE H — every FOR ALL policy has a WITH CHECK
 -- =============================================================================
 -- A policy with USING but no WITH CHECK filters reads while leaving writes
--- unconstrained. Two policies legitimately lack one; both are read-oriented and
--- are named here so a third fails.
+-- unconstrained.
+--
+-- This applies to policies that GOVERN WRITES. Postgres refuses `WITH CHECK` on
+-- a FOR SELECT or FOR DELETE policy outright — "WITH CHECK cannot be applied to
+-- SELECT or DELETE" — so demanding one from those is demanding something the
+-- database will not accept, and it made every read-only policy an exemption to
+-- be remembered. Filtering on `cmd` is the rule the prose already described.
+--
+-- The two remaining named exemptions are FOR ALL policies that legitimately
+-- lack one.
 DO $$
 DECLARE missing TEXT[];
 BEGIN
@@ -393,13 +414,13 @@ BEGIN
       FROM pg_policies
      WHERE schemaname = 'public'
        AND with_check IS NULL
+       -- Only policies that can HAVE one: ALL, INSERT, UPDATE.
+       AND cmd IN ('ALL', 'INSERT', 'UPDATE')
        -- Starter tables are not ours; their policy shape is out of scope until
        -- they are removed (docs/07-app-provenance.md).
        AND tablename NOT IN (SELECT tbl FROM _exempt WHERE NOT in_scope)
        AND (tablename, policyname) NOT IN (
-             ('tenants',      'tenant_self'),                  -- USING doubles as WITH CHECK on write
-             ('exchange_rates','exchange_rates_read'),           -- FOR SELECT only
-             ('tenant_users', 'auth_admin_reads_memberships')    -- FOR SELECT, supabase_auth_admin only
+             ('tenants', 'tenant_self')  -- USING doubles as WITH CHECK on write
            );
     INSERT INTO _rls (phase, tbl, passed, detail)
     VALUES ('H/with-check', '(all policies)', missing IS NULL,
