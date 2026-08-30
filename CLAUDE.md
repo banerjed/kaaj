@@ -126,6 +126,8 @@ kaaj/
 │   ├── eslint-config/     shared flat config
 │   └── typescript-config/
 └── docs/                  prose only — no executable artifacts
+    └── user-guide/        written for CUSTOMERS, not contributors. No table
+                           names, no internals. See its README
 ```
 
 **Packages stay framework-agnostic.** Plain TS/JS, no Svelte imports, so a
