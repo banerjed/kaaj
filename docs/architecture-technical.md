@@ -1750,6 +1750,15 @@ WHERE ug.tenant_id = 'acme-uuid'
 
 ### Role-Based Access Control (RBAC)
 
+> **Stale — the specified model is [14-access-control.md](./14-access-control.md).**
+> The `roles`, `role_permissions` and `user_effective_permissions` objects
+> described in this section **do not exist in the built schema**; verified
+> against the running database. What is actually specified — four roles on
+> `tenant_users.role`, RLS owning row visibility, `can()` owning action
+> authorization — is in doc 14. Read the rest of this section as intent for
+> *customer-defined* roles, which doc 14 defers deliberately until the four
+> fixed roles are enforced.
+
 ```sql
 -- Roles table
 CREATE TABLE roles (
@@ -1840,6 +1849,7 @@ CREATE INDEX idx_group_roles_scope ON group_roles(scope_type, scope_department_i
 ```
 
 #### Permission Inheritance
+
 
 Users inherit permissions from three sources:
 1. **Direct role assignments** via `user_roles` table

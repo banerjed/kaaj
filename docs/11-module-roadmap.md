@@ -158,11 +158,15 @@ Smaller, and each depends on the employee record being complete.
 Unchanged from [09-build-plan.md](./09-build-plan.md), and worth re-reading
 before any of the above is called done:
 
-1. **Field-level PII encryption.** The employee spec requires it; the schema
-   stores `ssn_tax_id` in plaintext. **This should be resolved before payroll
-   (Phase 6)**, not after — payroll is where tax identifiers are actually used,
-   and retrofitting encryption under live payslip data is far worse than doing
-   it first.
+1. **Field-level PII encryption.** ✅ Closed for `employees.ssn_tax_id` and
+   `employee_bank_accounts.account_number_encrypted`
+   ([13-pii-encryption.md](./13-pii-encryption.md)). Seventeen columns remain
+   plaintext and are tracked by `./check`; the fan-out is still ahead.
+1b. **Authorization.** Nineteen write actions are gated on "has a tenant" —
+   any member can change anyone's pay. Specified in
+   [14-access-control.md](./14-access-control.md); **steps 1-3 must land before
+   Phase 6**, which is the phase that turns "can edit a number" into "can pay
+   themselves".
 2. **Per-user locale** (L24). A column, a migration, and one function to
    change.
 3. Command palette, AI assistant, org chart diagram, marketing module.
