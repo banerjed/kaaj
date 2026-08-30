@@ -594,6 +594,63 @@ BEGIN
 END $sod$;
 
 
+-- -----------------------------------------------------------------------------
+-- Money inside JSONB is text, everywhere
+-- -----------------------------------------------------------------------------
+-- `money/numeric-not-float` reads information_schema.columns, so a JSONB column
+-- is invisible to it BY CONSTRUCTION — which is how payroll came to hold every
+-- earning, tax and deduction as a JSON number. Postgres stores those exactly;
+-- every driver then hands them to JavaScript as a float64, so the loss happens
+-- on READ where nothing looks wrong.
+--
+-- Registered paths, not a pattern: a new JSONB money column is added here
+-- deliberately, the same as every other list in this file.
+CREATE TEMP TABLE _jsonb_money (tbl TEXT, col TEXT);
+INSERT INTO _jsonb_money VALUES
+  ('payroll_run_employees', 'earnings'),
+  ('payroll_run_employees', 'taxes'),
+  ('payroll_run_employees', 'employer_taxes'),
+  ('payroll_run_employees', 'pretax_deductions'),
+  ('payroll_run_employees', 'posttax_deductions'),
+  ('payroll_run_employees', 'taxable_wages'),
+  ('payroll_tax_deposits',  'tax_breakdown'),
+  ('payroll_india_salary_structure', 'other_allowances'),
+  ('firm_job_levels',       'salary_ranges'),
+  ('firm_benefit_items',    'costs_by_currency'),
+  ('firm_payroll_policies', 'overtime_rules');
+
+DO $money$
+DECLARE
+    m   RECORD;
+    bad BIGINT;
+BEGIN
+    FOR m IN SELECT * FROM _jsonb_money LOOP
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                        WHERE c.table_schema='public' AND c.table_name=m.tbl
+                          AND c.column_name=m.col) THEN
+            INSERT INTO _inv (rule, subject, passed, detail)
+            VALUES ('money/jsonb-is-text', m.tbl||'.'||m.col, false,
+                    'registered but the column does not exist — stale entry');
+            CONTINUE;
+        END IF;
+
+        -- Any JSON number anywhere in the document, at any depth.
+        EXECUTE format($q$
+            SELECT count(*) FROM %I t,
+                 LATERAL (SELECT jsonb_path_query_array(t.%I, '$.**') AS vals) x,
+                 LATERAL jsonb_array_elements(x.vals) AS v(val)
+             WHERE t.%I IS NOT NULL AND jsonb_typeof(v.val) = 'number'
+        $q$, m.tbl, m.col, m.col) INTO bad;
+
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('money/jsonb-is-text', m.tbl||'.'||m.col, bad = 0,
+                CASE WHEN bad = 0 THEN 'ok'
+                     ELSE bad || ' JSON number(s) — money in JSONB is a string '
+                          || '(CLAUDE.md § Money); a float64 round trip on read' END);
+    END LOOP;
+END $money$;
+
+
 \echo '=================== SCHEMA INVARIANTS ==================='
 SELECT rule,
        count(*) AS checks,

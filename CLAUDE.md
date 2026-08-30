@@ -73,7 +73,7 @@ take effect.
 |---|---|---|
 | tenant isolation | every RLS policy actually filters, per table | 587 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold | 122 |
+| schema invariants | ADR design rules hold | 133 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 23 |
@@ -376,6 +376,12 @@ to JavaScript as a float64 on the way back out, so the loss happens on read
 where nothing looks wrong. Store `"95000"`, not `95000`. Ordering checks go
 through `compareDecimal` in `$lib/decimal.ts`, which compares without parsing;
 `./check` cannot see inside a JSONB column, so this rule is the only guard.
+
+**A guard that reads `information_schema.columns` cannot see inside JSONB.**
+`money/numeric-not-float` never could, which is how payroll held every earning
+and tax as a JSON number ([L41](docs/10-lessons-learned.md)).
+`money/jsonb-is-text` walks a registered list of paths instead — add a new JSONB
+money column to it, deliberately, the way every other list here works.
 
 **Arithmetic happens in SQL, not in JavaScript.** Summing invoice lines,
 computing gross pay, prorating: all `NUMERIC` in Postgres, where it is exact.

@@ -442,6 +442,28 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L41 — An invariant that cannot see a column is not guarding it
+
+`money/numeric-not-float` has guarded monetary columns since Phase 1, and it
+reads `information_schema.columns`. A JSONB column is therefore invisible to it
+**by construction** — the rule cannot fail on data it never looks at.
+
+That is how payroll came to hold every earning, tax and deduction as a JSON
+number, on the largest money surface in the product, months after CLAUDE.md
+recorded that money inside JSONB is a string. `earnings.base` equalled
+`gross_pay` on every row: the same money in two places, one exact `numeric` and
+one that becomes a float64 the moment a driver reads it.
+
+**When a rule is written, say what it CANNOT see.** The fix is not a bigger
+regex — it is a second rule (`money/jsonb-is-text`) walking a registered list of
+JSONB paths, because a pattern match over document contents would either miss
+nested values or absorb the next mistake.
+
+And it found one immediately that the migration had missed:
+`payroll_tax_deposits.tax_breakdown`, whose fixture re-inserted numbers after
+the migration had converted them. Migrations run *before* the seed — a data
+migration alone never fixes a fixture.
+
 ### L40 — "Append-only" that permits UPDATE is not append-only
 
 `20260830120000` revoked DELETE across the schema and the repository called
