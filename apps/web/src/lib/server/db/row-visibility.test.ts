@@ -17,6 +17,9 @@ import { can, type AuthContext } from "../auth/can"
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
+const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
+const PRIYA = "bf17b1af-963b-53ef-9083-21506fb34e9c"
+const NADIA = "385f5ae5-e567-5fb6-98f8-b45007099ff8"
 
 const sql = postgres(
   process.env.APP_DATABASE_URL ??
@@ -202,5 +205,226 @@ describe("tenant isolation still holds underneath", () => {
     })
     expect(c.employees).toBe(0)
     expect(c.pay).toBe(0)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// The rest of Tier 1
+// -----------------------------------------------------------------------------
+
+/**
+ * What each role should see in each table, as row counts against the fixture.
+ *
+ * Table-driven because the interesting property is the SHAPE of the matrix —
+ * that payroll_admin reads every salary and no review, that it_admin reads
+ * neither, that everyone reads their own. Written out per table, those facts
+ * scroll past; side by side they are checkable.
+ *
+ * Every number is what the role CAN see. A RESTRICTIVE policy that is too
+ * tight blanks a page rather than erroring (L21), so "0" as a universal
+ * expectation would pass while the app was broken.
+ */
+const TIER1: {
+  table: string
+  total: number
+  /** What MARCUS, a plain employee, sees of his own. */
+  own: number
+  /** Grants that read the whole table. */
+  readsAll: string[]
+}[] = [
+  {
+    table: "compensation_allowances",
+    total: 5,
+    own: 2,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "compensation_variable",
+    total: 4,
+    own: 0,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "compensation_equity",
+    total: 3,
+    own: 0,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "employment_terms",
+    total: 12,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "hr_employment_history",
+    total: 8,
+    own: 2,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "payroll_run_employees",
+    total: 12,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "payroll_employee_deductions",
+    total: 8,
+    own: 2,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "employee_bank_accounts",
+    total: 7,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "hr_emergency_contacts",
+    total: 3,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "hr_employee_documents",
+    total: 2,
+    own: 0,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  // Performance is a NARROWER grant: payroll has no business in a review.
+  { table: "hr_reviews", total: 4, own: 1, readsAll: ["hr_admin", "auditor"] },
+  {
+    table: "hr_survey_responses",
+    total: 3,
+    own: 0,
+    readsAll: ["hr_admin", "auditor"],
+  },
+]
+
+const countOf = (who: Who, table: string) =>
+  asRole(who, async (tx) => {
+    const [r] = await tx<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM ${tx.unsafe(table)}
+    `
+    return r.n
+  })
+
+describe("Tier 1: every role sees what it should", () => {
+  for (const spec of TIER1) {
+    describe(spec.table, () => {
+      it("shows an owner everything", async () => {
+        expect(
+          await countOf({ employeeId: MARCUS, role: "owner" }, spec.table),
+        ).toBe(spec.total)
+      })
+
+      it("shows a plain employee only their own", async () => {
+        expect(
+          await countOf({ employeeId: MARCUS, role: "employee" }, spec.table),
+        ).toBe(spec.own)
+      })
+
+      it("shows it_admin only their own — IT administers systems, not people", async () => {
+        // The separation rule, in the database rather than only in can().
+        expect(
+          await countOf(
+            {
+              employeeId: MARCUS,
+              role: "employee",
+              functionalRoles: ["it_admin"],
+            },
+            spec.table,
+          ),
+        ).toBe(spec.own)
+      })
+
+      it("shows nothing without a claim", async () => {
+        expect(await countOf({ employeeId: null, role: "" }, spec.table)).toBe(
+          0,
+        )
+      })
+
+      it(`grants the whole table to exactly ${spec.readsAll.join(", ")}`, async () => {
+        // Both directions: the named grants see all of it, and every other
+        // functional role sees only their own. A policy that granted too widely
+        // would pass a "denies a stranger" test and fail this one.
+        for (const role of spec.readsAll) {
+          expect(
+            await countOf(
+              { employeeId: MARCUS, role: "employee", functionalRoles: [role] },
+              spec.table,
+            ),
+            `${role} should read all of ${spec.table}`,
+          ).toBe(spec.total)
+        }
+        const others = [
+          "finance_admin",
+          "sales_admin",
+          "marketing_admin",
+          "it_admin",
+          "legal_admin",
+          "project_manager",
+        ].filter((r) => !spec.readsAll.includes(r))
+        for (const role of others) {
+          expect(
+            await countOf(
+              { employeeId: MARCUS, role: "employee", functionalRoles: [role] },
+              spec.table,
+            ),
+            `${role} should NOT read all of ${spec.table}`,
+          ).toBe(spec.own)
+        }
+      })
+    })
+  }
+})
+
+describe("feedback visibility is its own shape", () => {
+  it("shows a public note to everyone, and private ones only to the two people", async () => {
+    // Not in the table above because `own` is not the right idea here: a note
+    // has an author AND a recipient, and public ones belong to the firm.
+    const asStranger = await countOf(
+      { employeeId: NADIA, role: "employee" },
+      "hr_feedback",
+    )
+    const asRecipient = await countOf(
+      { employeeId: MARCUS, role: "employee" },
+      "hr_feedback",
+    )
+    expect(asStranger).toBe(1) // the public one only
+    expect(asRecipient).toBeGreaterThan(asStranger)
+  })
+
+  it("lets an author see their own anonymous note", async () => {
+    // The one place the author of an anonymous note is legitimately known,
+    // because it is them. PRIYA wrote FB-004 anonymously.
+    const rows = await asRole(
+      { employeeId: PRIYA, role: "employee" },
+      (tx) =>
+        tx<{ feedback_id: string }[]>`SELECT feedback_id FROM hr_feedback`,
+    )
+    expect(rows.map((r) => r.feedback_id)).toContain("FB-004")
+  })
+
+  it("does not show that note to its recipient's colleagues", async () => {
+    const rows = await asRole(
+      { employeeId: NADIA, role: "employee" },
+      (tx) =>
+        tx<{ feedback_id: string }[]>`SELECT feedback_id FROM hr_feedback`,
+    )
+    expect(rows.map((r) => r.feedback_id)).not.toContain("FB-004")
+  })
+})
+
+describe("a reviewer reads the reviews they are writing", () => {
+  it("without holding a performance grant", async () => {
+    // Sarah reviews three people and holds no functional role beyond owner in
+    // the fixture; as a plain employee she must still reach her own drafts.
+    const n = await countOf(
+      { employeeId: SARAH, role: "employee" },
+      "hr_reviews",
+    )
+    expect(n).toBe(3) // the three she writes; she has no review of her own
   })
 })

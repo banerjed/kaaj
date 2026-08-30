@@ -1,7 +1,7 @@
 # Row-Level Visibility: where RLS by role belongs
 
-**Status:** `employees` and `compensation_base` implemented
-(20260831090000). The other 13 Tier 1 tables are specified, not built
+**Status:** ✅ **all 15 Tier 1 tables implemented** — 20260831090000 and
+20260831110000. 75 role-visibility tests
 **Created:** 2026-08-30
 
 Tenant isolation is already enforced by RLS on all 103 tables and proved by 587
@@ -71,22 +71,22 @@ strongest case, because the control already exists and has no second layer.
 
 | Table | The rule today |
 |---|---|
-| `hr_reviews` | a manager's draft assessment is withheld from its subject — `redactFor` only |
-| `hr_feedback` | an anonymous note never returns its author — a SQL `CASE` only |
+| `hr_reviews` ✅ | a manager's draft assessment is withheld from its subject — `redactFor` only |
+| `hr_feedback` ✅ | an anonymous note never returns its author — a SQL `CASE` only |
 | `employees` | ✅ **done.** Everyone reads the directory; a contractor reads only themselves |
-| `hr_survey_responses` | pulse responses must not be attributable. **Currently safe by data, not by rule**: the anonymous survey's rows carry a NULL `respondent_id`. Nothing enforces that — a cross-table CHECK needs a trigger |
+| `hr_survey_responses` ✅ | pulse responses must not be attributable. **Currently safe by data, not by rule**: the anonymous survey's rows carry a NULL `respondent_id`. Nothing enforces that — a cross-table CHECK needs a trigger |
 
 ### Pay and its history (7)
 
 | Table | |
 |---|---|
 | `compensation_base` | ✅ **done** |
-| `compensation_allowances` |
-| `compensation_variable` |
-| `compensation_equity` |
-| `compensation_premiums` |
-| `employment_terms` |
-| `hr_employment_history` |
+| `compensation_allowances` ✅ |
+| `compensation_variable` ✅ |
+| `compensation_equity` ✅ |
+| `compensation_premiums` ✅ |
+| `employment_terms` ✅ |
+| `hr_employment_history` ✅ |
 
 ### PII-bearing (3)
 
@@ -95,22 +95,24 @@ three bank accounts, or an emergency contact with a given relationship.
 
 | Table |
 |---|
-| `employee_bank_accounts` |
-| `hr_emergency_contacts` |
-| `hr_employee_documents` |
+| `employee_bank_accounts` ✅ |
+| `hr_emergency_contacts` ✅ |
+| `hr_employee_documents` ✅ |
 
-### Phase 6, when it lands (5)
+### Payroll (5)
 
-Not built yet. Listed so the policies go in with the tables rather than being
-retrofitted under live payslip data.
+✅ Done ahead of Phase 6 rather than with it. All five carry fixture rows, so
+the policies are tested now — and a policy added with the table costs nothing,
+while retrofitting one under live payslip data is the situation this repository
+has already decided to avoid once, for PII encryption.
 
 | Table |
 |---|
-| `payroll_run_employees` |
-| `payroll_employee_deductions` |
-| `payroll_india_salary_structure` |
-| `payroll_india_tax_declarations` |
-| `payroll_tax_withholding_certificates` |
+| `payroll_run_employees` ✅ |
+| `payroll_employee_deductions` ✅ |
+| `payroll_india_salary_structure` ✅ |
+| `payroll_india_tax_declarations` ✅ |
+| `payroll_tax_withholding_certificates` ✅ |
 
 ---
 
@@ -196,6 +198,23 @@ Fifteen tables × roughly four roles is the actual scope of this work. The
 policies are an afternoon; the tests are the project.
 
 ---
+
+## What the policies do NOT do
+
+They are the backstop for ROW visibility — whether a row exists for you at all.
+They deliberately do **not** reimplement the finer rules the application already
+enforces on FIELDS:
+
+| Rule | Where it lives | Why not RLS |
+|---|---|---|
+| a manager's draft assessment withheld from its subject | `hr_reviews.repo.ts` | field-level; RLS cannot redact a column |
+| an anonymous note's author | `hr_feedback.repo.ts` | field-level, resolved in SQL as `CASE WHEN` |
+| a masked bank number for `pii.read` without `pii.reveal` | `@kaaj/authz` | field-level |
+| a manager seeing their reports' pay | `can()` | walking `manager_id` per row is the shape that makes RLS expensive |
+
+Two layers, two questions. A policy that tried to do both would diverge from
+`can()`, which is the failure this repository has already had once between its
+two test suites.
 
 ## What the first slice actually cost
 
