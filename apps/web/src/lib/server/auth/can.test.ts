@@ -4,8 +4,10 @@ import { can, canReadEmployee, managesEmployee, type AuthContext } from "./can"
 import {
   FORBIDDEN_COMBINATIONS,
   PERMISSIONS,
+  maskIdentifier,
   permissionsFor,
-} from "./permissions"
+  revealOrMask,
+} from "@kaaj/authz"
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932" // manages ENG
@@ -211,5 +213,37 @@ describe("what separation of duties cannot do", () => {
     const payroll = ctx("employee", ["payroll_admin"])
     expect(can(hr, "payroll.approve")).toBe(false)
     expect(can(payroll, "compensation.write")).toBe(false)
+  })
+})
+
+describe("reading a sensitive value versus revealing it", () => {
+  it("hr_admin reveals; payroll_admin only sees the last four", () => {
+    // The rule the two test suites disagreed on, now expressed once in
+    // @kaaj/authz and asserted from both sides. A payroll admin verifies an
+    // account before paying it; recognising an account is not reading it.
+    const hr = permissionsFor("employee", ["hr_admin"])
+    const payroll = permissionsFor("employee", ["payroll_admin"])
+
+    expect(revealOrMask(hr, "12345678909012")).toEqual({
+      value: "12345678909012",
+      revealed: true,
+    })
+    expect(revealOrMask(payroll, "12345678909012")).toEqual({
+      value: "•••• 9012",
+      revealed: false,
+    })
+  })
+
+  it("shows nothing to someone with neither permission", () => {
+    expect(
+      revealOrMask(permissionsFor("employee", []), "12345678909012"),
+    ).toEqual({ value: "—", revealed: false })
+  })
+
+  it("does not half-mask a short value", () => {
+    // "•••• 6789" of a 6-digit number gives away most of it.
+    expect(maskIdentifier("1234")).toBe("••••")
+    expect(maskIdentifier("")).toBe("—")
+    expect(maskIdentifier(null)).toBe("—")
   })
 })

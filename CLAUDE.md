@@ -77,7 +77,7 @@ take effect.
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 23 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 21 tests |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 603 tests |
 
 These are complementary and none substitutes for another:
 
@@ -130,6 +130,15 @@ kaaj/
     └── user-guide/        written for CUSTOMERS, not contributors. No table
                            names, no internals. See its README
 ```
+
+**Two test suites assert authorization, and they must not drift apart.**
+`apps/web/src/**/*.test.ts` asserts the DEPLOYED enforcement — real `can()`,
+real actions, real database. `packages/spec-tests` asserts the SPEC-DERIVED
+requirement matrix, with traceability IDs. Both are worth having; for a while
+both were green while contradicting each other on whether a payroll admin sees
+a full bank number. **`@kaaj/authz` is the single vocabulary both evaluate
+against**, and `packages/spec-tests/tests/authz-conformance.spec.test.ts` is the
+join that fails when they disagree. Never add a second role→permission mapping.
 
 **Packages stay framework-agnostic.** Plain TS/JS, no Svelte imports, so a
 future mobile app can consume them whatever it is built with. `@kaaj/validation`

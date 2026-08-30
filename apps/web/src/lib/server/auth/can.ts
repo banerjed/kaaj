@@ -5,7 +5,7 @@ import {
   permissionsFor,
   type BaseRole,
   type Permission,
-} from "./permissions"
+} from "@kaaj/authz"
 
 /**
  * The authorization check every write action calls.

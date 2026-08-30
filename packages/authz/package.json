@@ -1,0 +1,25 @@
+{
+  "name": "@kaaj/authz",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The authorization vocabulary: roles, permissions, and which role bundles grant what",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier --check src package.json",
+    "format": "prettier --write src package.json"
+  },
+  "devDependencies": {
+    "@kaaj/eslint-config": "workspace:*",
+    "@kaaj/typescript-config": "workspace:*",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.0"
+  }
+}

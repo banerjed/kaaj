@@ -124,7 +124,10 @@ if [ "$RUN_APP" = 1 ]; then
   step "format"     pnpm turbo run format:check
   step "lint"       pnpm turbo run lint
   step "typecheck"  pnpm turbo run check-types
-  step "security"   pnpm test:security
+  # `turbo run test` already covers @kaaj/spec-tests, so a separate security
+  # step re-ran a subset of it and reported a second, differently-scoped pass.
+  # One number, one place. The security cases are identified by their spec IDs
+  # inside the suite, not by which command ran them.
   step "unit tests" pnpm turbo run test
   [ "$RUN_BUILD" = 1 ] && step "build" pnpm turbo run build
   echo ""

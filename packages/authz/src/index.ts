@@ -1,5 +1,15 @@
 /**
- * The permission vocabulary, and which role bundles grant what.
+ * The authorization vocabulary, and which role bundles grant what.
+ *
+ * A WORKSPACE PACKAGE, not application code, and deliberately so. Two suites
+ * assert authorization: `apps/web` tests the deployed enforcement, and
+ * `packages/spec-tests` tests the spec-derived requirement matrix. They were
+ * each carrying their OWN implementation and disagreed on live rules while
+ * both stayed green — a payroll admin could read a full bank number in one and
+ * a masked one in the other. Both now evaluate against this file, so a
+ * divergence is a type error rather than two passing suites.
+ *
+ * Framework-agnostic per CLAUDE.md: plain TS, no Svelte, no database.
  *
  * `resource.verb`, so a role is a BUNDLE rather than a column, and adding a
  * role does not mean adding a boolean to every table.
@@ -41,7 +51,12 @@ export const PERMISSIONS = [
   "it.integrations.write",
   "legal.documents.write",
   "projects.write",
+  // Two levels, because "may see that an account exists" and "may read the
+  // number" are different questions. `pii.read` returns the MASKED form —
+  // **** 9012 — which is what a person needs to recognise an account.
+  // `pii.reveal` returns the value itself.
   "pii.read",
+  "pii.reveal",
   "pii.erase",
   "tenant.settings.write",
   "tenant.members.manage",
@@ -111,7 +126,9 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "firm.settings.read",
     "firm.settings.write",
     "legal.documents.write",
+    // Reveals, because HR is who corrects a mistyped account at onboarding.
     "pii.read",
+    "pii.reveal",
     // Deliberately NOT payroll.approve — see the separation rule below.
   ],
   payroll_admin: [
@@ -122,8 +139,10 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "attendance.read.all",
     "attendance.approve",
     "firm.settings.read",
+    // MASKED only. The payment run uses the full number; no screen shows it to
+    // a person. Verifying an account is recognising it, not reading it.
     "pii.read",
-    // Deliberately NOT compensation.write.
+    // Deliberately NOT compensation.write, and NOT pii.reveal.
   ],
   finance_admin: ["accounting.read", "accounting.write", "firm.settings.read"],
   sales_admin: ["crm.read", "crm.write"],
@@ -180,3 +199,33 @@ export function permissionsFor(
 
 export const isBaseRole = (v: string): v is BaseRole =>
   (BASE_ROLES as readonly string[]).includes(v)
+
+/**
+ * The masked form of an account number or identifier: last four, nothing else.
+ *
+ * What `pii.read` returns. Enough to recognise an account, useless to anyone
+ * who steals a session. Lives here rather than in a formatter because it is an
+ * authorization outcome, not a presentation choice — a caller that formats the
+ * full value itself has bypassed the permission.
+ */
+export function maskIdentifier(value: string | null | undefined): string {
+  if (!value) return "—"
+  const trimmed = value.replace(/\s+/g, "")
+  // Fewer than five characters cannot be masked without revealing most of it.
+  if (trimmed.length < 5) return "••••"
+  return `•••• ${trimmed.slice(-4)}`
+}
+
+/** What a holder of `permission` should see for a sensitive value. */
+export function revealOrMask(
+  permissions: Set<Permission>,
+  value: string | null | undefined,
+): { value: string; revealed: boolean } {
+  if (permissions.has("pii.reveal") && value) {
+    return { value, revealed: true }
+  }
+  if (permissions.has("pii.read")) {
+    return { value: maskIdentifier(value), revealed: false }
+  }
+  return { value: "—", revealed: false }
+}

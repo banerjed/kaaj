@@ -340,6 +340,41 @@ belongs in the same migration as its verification.
 
 ---
 
+## Where authorization is asserted
+
+Two suites, deliberately, answering different questions:
+
+| | Asserts | Runs |
+|---|---|---|
+| `apps/web/src/lib/server/auth/can.test.ts` | role → permission | 24 cases |
+| `apps/web/src/lib/server/auth/action-authz.test.ts` | every action × every role, by invoking the action | 100 cases |
+| `apps/web/src/lib/server/pii/pii.test.ts` | encryption, erasure, rotation | 31 cases |
+| `apps/web/src/lib/server/db/tenant.test.ts` | tenant isolation | 6 cases |
+| `packages/spec-tests/tests/security-*.spec.test.ts` | the spec-derived requirement matrix, with traceability IDs | 179 cases |
+
+They were built independently and **disagreed while both were green** — this
+model asserted a payroll admin sees a masked bank number while the application
+granted a full reveal, and nothing failed because neither suite could see the
+other. Three things fixed that:
+
+1. **`@kaaj/authz`** is the one vocabulary. A workspace package, framework-
+   agnostic, imported by both. There is no second role→permission mapping.
+2. **`pii.read` and `pii.reveal` are separate permissions.** `pii.read` returns
+   `•••• 9012`; only `pii.reveal` returns the number. `hr_admin` reveals,
+   because it corrects a mistyped account at onboarding; `payroll_admin` does
+   not, because verifying an account is not reading one.
+3. **`authz-conformance.spec.test.ts`** asserts the two models give the same
+   answer on every rule both express. A future divergence fails there.
+
+### One control that is specified and NOT enforced
+
+`security-invariants.spec.test.ts` asserts MFA is required for high-sensitivity
+reads. `hooks.server.ts` resolves `locals.amr`, and **nothing gates on it** — so
+those cases pass against a simulation of a check the product does not perform.
+That is recorded as an explicit `it.todo` (`SEC-MFA-001`) rather than left
+looking covered, because a green test claiming a control you do not have is
+worse than a visible gap.
+
 ## The drift guard
 
 A matrix nobody can enforce is decoration. The analogue of the `pii/*` rules:
