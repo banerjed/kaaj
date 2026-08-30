@@ -59,6 +59,17 @@
     "format:check": {},
     "format": {
       "cache": false
+    },
+    "test:security": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "PUBLIC_*",
+        "PRIVATE_*",
+        "ORIGIN",
+        "NODE_ENV"
+      ]
     }
   }
 }

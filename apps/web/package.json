@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write --plugin prettier-plugin-svelte ./",
-    "format:check": "prettier --check --plugin prettier-plugin-svelte ./"
+    "format:check": "prettier --check --plugin prettier-plugin-svelte ./",
+    "test:security": "vitest run src/lib/server/auth src/lib/server/pii src/lib/server/db/tenant.test.ts"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.126",

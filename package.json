@@ -14,7 +14,7 @@
     "check-types": "turbo run check-types",
     "check-types:spec": "pnpm --filter @kaaj/spec-tests check-types",
     "test": "turbo run test",
-    "test:security": "pnpm --filter @kaaj/spec-tests test:security",
+    "test:security": "turbo run test:security",
     "test:spec": "pnpm --filter @kaaj/spec-tests test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",

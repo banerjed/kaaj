@@ -352,19 +352,41 @@ Two suites, deliberately, answering different questions:
 | `apps/web/src/lib/server/db/tenant.test.ts` | tenant isolation | 6 cases |
 | `packages/spec-tests/tests/security-*.spec.test.ts` | the spec-derived requirement matrix, with traceability IDs | 179 cases |
 
-They were built independently and **disagreed while both were green** — this
-model asserted a payroll admin sees a masked bank number while the application
-granted a full reveal, and nothing failed because neither suite could see the
-other. Three things fixed that:
+### They stay independent, on purpose
 
-1. **`@kaaj/authz`** is the one vocabulary. A workspace package, framework-
-   agnostic, imported by both. There is no second role→permission mapping.
-2. **`pii.read` and `pii.reveal` are separate permissions.** `pii.read` returns
-   `•••• 9012`; only `pii.reveal` returns the number. `hr_admin` reveals,
-   because it corrects a mistyped account at onboarding; `payroll_admin` does
-   not, because verifying an account is not reading one.
-3. **`authz-conformance.spec.test.ts`** asserts the two models give the same
-   answer on every rule both express. A future divergence fails there.
+The two suites are **separate implementations and remain so.** `spec-tests`
+decides through its own `authorizeSensitiveRead` and its own role vocabulary;
+`apps/web` decides through `permissionsFor()`. Neither imports the other's
+logic. That is the point: two implementations catch each other's errors, which
+one cannot.
+
+But independence only pays off **if something compares them.** They were fully
+independent and they *did* disagree — this model asserted a payroll admin sees
+a masked bank number while the application granted a full reveal — and both
+stayed green for as long as both existed. The disagreement was found by reading
+both by hand. Nothing in CI would ever have surfaced it.
+
+So the fix was a comparison, not a merge:
+
+1. **`authz-conformance.spec.test.ts`** asserts the two models give the same
+   answer on every rule both express. It compares **outcomes**, never internals:
+   it does not care how either side decides, only that a payroll admin ends up
+   with a masked number in both. A failure means *"these disagree, decide which
+   is right"* — a product decision, not something to auto-fix in either
+   direction.
+2. **`pii.read` and `pii.reveal` became separate permissions**, which is how the
+   bank divergence was resolved — toward the narrower rule, deliberately, rather
+   than toward whichever side was easier to edit.
+3. **`@kaaj/authz`** holds the product's vocabulary and bundles so `apps/web`
+   and the bridge can share a dictionary. **`spec-tests`' engine does not import
+   it**; the bridge maps between the two vocabularies in `ROLE_MAP`.
+
+**Do not "simplify" this by making one suite call the other's authorizer.** That
+would leave one implementation wearing two hats, and delete the independent
+verification the bridge exists to exploit.
+
+*(An earlier commit message for 6a8d14a said "both suites now evaluate against
+@kaaj/authz". That was wrong — only `apps/web` and the bridge do.)*
 
 ### One control that is specified and NOT enforced
 

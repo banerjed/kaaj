@@ -26,5 +26,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Security — authorization, PII, tenant isolation
+        run: pnpm test:security
+
       - name: Tests
         run: pnpm turbo run test
