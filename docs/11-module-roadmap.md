@@ -103,12 +103,19 @@ Build in three slices, each shippable:
    by tenant, so the repository is the only control — which is why the
    redaction is there and not in the page.
 
-   **Still ahead:** writing and acknowledging a review (needs an audit trail,
-   same as time-off approval), `hr_feedback` — which stores both
-   `from_employee_id` and `is_anonymous`, so rendering the wrong column breaks
-   an anonymity promise silently, and the fixture has no anonymous row to test
-   it with — and onboarding (`hr_onboarding_templates`, `_tasks`).
-   `hr_surveys`/`hr_survey_responses` are not in this slice and are not
+   ✅ **Feedback** — `hr_feedback`. The author of an anonymous note is never
+   returned, resolved in SQL so the id never leaves the database (L39).
+   `visibility` and `is_anonymous` are separate questions, both constrained.
+
+   ✅ **Onboarding** — `hr_onboarding_templates`, `_template_tasks`, `_tasks`.
+   Template selection is most-specific-wins and deterministic; without that,
+   which plan a hire got would depend on physical row order.
+
+   **Still ahead:** writing and acknowledging a review, and generating a plan
+   for a hire — both are writes needing an audit trail, the same requirement
+   the roadmap already names for approvals. A generated plan should also record
+   WHICH template was chosen, or nobody can explain later why a hire missed a
+   step. `hr_surveys`/`hr_survey_responses` are not in this slice and are not
    started.
 
 **Watch for:** accrual arithmetic in a leap year; a request spanning a holiday
