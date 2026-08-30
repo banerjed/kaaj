@@ -103,6 +103,12 @@ Run it with:
 pnpm test:spec
 ```
 
+Run the high-signal role-security and operational-security gate with:
+
+```sh
+pnpm test:security
+```
+
 As production code matures, each pure resolver in `packages/spec-tests/src`
 should be replaced or paired with a thin adapter that calls the real domain
 service. The requirement cases and golden fixtures should remain stable unless

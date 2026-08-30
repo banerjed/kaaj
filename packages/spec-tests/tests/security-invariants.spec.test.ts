@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  authorizeResourceAction,
   authorizeSensitiveRead,
   filterTenantRecords,
   maskBankAccount,
 } from "../src/security.js"
+import { securityAccessCases } from "../fixtures/security-access-matrix.js"
 import {
   bankAccountResource,
   crossTenantPayrollAdminActor,
@@ -30,6 +32,127 @@ describe("INV-SEC-001 tenant isolation holds for every data path", () => {
       responseValue: null,
       auditEvents: [],
     })
+  })
+})
+
+describe("role-based access matrix", () => {
+  it("contains a broad set of explicit CI cases", () => {
+    expect(securityAccessCases.length).toBeGreaterThanOrEqual(110)
+    expect(
+      new Set(securityAccessCases.map((testCase) => testCase.id)).size,
+    ).toBe(securityAccessCases.length)
+  })
+
+  it("covers every critical actor role", () => {
+    expect(
+      new Set(securityAccessCases.map((testCase) => testCase.actor.role)),
+    ).toEqual(
+      new Set([
+        "accountant",
+        "ai_assistant",
+        "auditor",
+        "compliance_officer",
+        "employee",
+        "external_client",
+        "finance_admin",
+        "hr_admin",
+        "hr_director",
+        "it_admin",
+        "manager",
+        "marketing_admin",
+        "payroll_admin",
+        "project_manager",
+        "sales_manager",
+        "system_job",
+      ]),
+    )
+  })
+
+  it("covers every high-risk resource family", () => {
+    const resourceTypes = new Set(
+      securityAccessCases.map((testCase) => testCase.resource.resourceType),
+    )
+
+    for (const resourceType of [
+      "employee_profile",
+      "employee_sensitive_field",
+      "employee_document",
+      "direct_deposit",
+      "payroll_run",
+      "pay_stub",
+      "tax_form",
+      "compensation_record",
+      "compensation_worksheet",
+      "time_off_request",
+      "timesheet",
+      "change_request",
+      "benefit_election",
+      "accounting_record",
+      "audit_log",
+      "data_export",
+      "marketing_contact",
+      "marketing_campaign",
+      "consent_record",
+      "crm_record",
+      "ticket",
+      "client_portal_record",
+      "ai_knowledge",
+      "user_role",
+      "firm_settings",
+      "system_job_batch",
+    ]) {
+      expect(resourceTypes).toContain(resourceType)
+    }
+  })
+
+  it.each(securityAccessCases)(
+    "$id authorizes $actor.role $action on $resource.resourceType",
+    (testCase) => {
+      const decision = authorizeResourceAction(
+        testCase.actor,
+        testCase.resource,
+        testCase.action,
+        testCase.context,
+      )
+
+      expect(decision.allowed).toBe(testCase.expected.allowed)
+
+      if (testCase.expected.responseValue !== undefined) {
+        expect(decision.responseValue).toBe(testCase.expected.responseValue)
+      }
+
+      if (!testCase.expected.allowed) {
+        expect(decision.responseValue).toBeNull()
+        expect(decision.auditEvents).toEqual([])
+      }
+
+      if (testCase.expected.allowed && decision.responseValue !== null) {
+        expect(decision.responseValue).not.toMatch(/123-45-6789.*123456789012/)
+      }
+    },
+  )
+
+  it("audits every allowed high-sensitivity read, export, or AI retrieval", () => {
+    const sensitiveReads = securityAccessCases.filter(
+      (testCase) =>
+        testCase.expected.allowed &&
+        testCase.resource.sensitivity !== "normal" &&
+        testCase.resource.sensitivity !== "marketing" &&
+        ["read", "export", "ai_retrieve"].includes(testCase.action),
+    )
+
+    expect(sensitiveReads.length).toBeGreaterThan(20)
+
+    for (const testCase of sensitiveReads) {
+      const decision = authorizeResourceAction(
+        testCase.actor,
+        testCase.resource,
+        testCase.action,
+        testCase.context,
+      )
+
+      expect(decision.auditEvents.length).toBeGreaterThan(0)
+    }
   })
 })
 

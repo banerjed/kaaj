@@ -35,13 +35,16 @@ The central rule is simple:
 4. [testplan-high-risk-invariants.md](./testplan-high-risk-invariants.md)
    - Catastrophic-risk areas: payroll, accounting, tenancy, PII, permissions,
      documents, workflows, and integrations.
-5. [testplan-us-state-employment.md](./testplan-us-state-employment.md)
+5. [testplan-role-security.md](./testplan-role-security.md)
+   - Exhaustive RBAC, ABAC, field-level, document, export, AI, tenant, audit,
+     and CI authorization checks.
+6. [testplan-us-state-employment.md](./testplan-us-state-employment.md)
    - Dedicated US employment-record and statutory-document coverage for all 50
      states plus DC, with deep dives for NJ, NY, MA, CA, WA, and PA.
-6. [testplan-fixtures.md](./testplan-fixtures.md)
+7. [testplan-fixtures.md](./testplan-fixtures.md)
    - Golden tenants, golden employees, jurisdiction scenarios, and expected
      outputs needed for repeatable spec tests.
-7. [testplan-execution-governance.md](./testplan-execution-governance.md)
+8. [testplan-execution-governance.md](./testplan-execution-governance.md)
    - How tests are reviewed, versioned, updated for law changes, and promoted
      from spec plan to automated test suites.
 
@@ -75,12 +78,12 @@ The central rule is simple:
 
 Every requirement receives a risk class before test design:
 
-| Risk | Meaning | Required Evidence |
-|---|---|---|
+| Risk | Meaning                                                                   | Required Evidence                                                                                                    |
+| ---- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `R0` | Catastrophic compliance, payroll, accounting, tenancy, or privacy failure | Golden fixtures, invariant tests, negative tests, audit tests, source-versioned regulatory references, manual review |
-| `R1` | High user or financial impact | Workflow tests, permission tests, negative tests, audit tests |
-| `R2` | Normal product workflow | Positive and negative tests, role coverage |
-| `R3` | Low-risk display or convenience behavior | Smoke tests and accessibility checks |
+| `R1` | High user or financial impact                                             | Workflow tests, permission tests, negative tests, audit tests                                                        |
+| `R2` | Normal product workflow                                                   | Positive and negative tests, role coverage                                                                           |
+| `R3` | Low-risk display or convenience behavior                                  | Smoke tests and accessibility checks                                                                                 |
 
 No `R0` requirement can be marked complete by UI tests alone.
 
