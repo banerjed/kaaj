@@ -51,6 +51,10 @@ export const PERMISSIONS = [
   "it.integrations.write",
   "legal.documents.write",
   "projects.write",
+  "performance.read.self",
+  "performance.read.reports",
+  "performance.read.all",
+  "performance.write",
   // Two levels, because "may see that an account exists" and "may read the
   // number" are different questions. `pii.read` returns the MASKED form —
   // **** 9012 — which is what a person needs to recognise an account.
@@ -93,6 +97,7 @@ const EVERYONE: Permission[] = [
   "compensation.read.self",
   "attendance.read.self",
   "timeoff.request",
+  "performance.read.self",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {
@@ -121,6 +126,8 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "compensation.write",
     "timeoff.approve",
     "timeoff.read.all",
+    "performance.read.all",
+    "performance.write",
     "attendance.read.all",
     "attendance.approve",
     "firm.settings.read",

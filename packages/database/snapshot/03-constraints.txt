@@ -192,6 +192,7 @@ hr_onboarding_template_tasks	hr_onboarding_template_tasks_tenant_id_fkey	f	FOREI
 hr_onboarding_templates	hr_onboarding_templates_pkey	p	PRIMARY KEY (id)
 hr_onboarding_templates	hr_onboarding_templates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 hr_onboarding_templates	hr_onboarding_templates_tenant_id_template_code_key	u	UNIQUE (tenant_id, template_code)
+hr_review_cycles	hr_review_cycles_deadlines_are_ordered	c	CHECK ((((self_assessment_due IS NULL) OR (self_assessment_due >= start_date)) AND ((manager_assessment_due IS NULL) OR (self_assessment_due IS NULL) OR (manager_assessment_due >= self_assessment_due)) AND ((review_meetings_due IS NULL) OR (manager_assessment_due IS NULL) OR (review_meetings_due >= manager_assessment_due)) AND ((cycle_close_date IS NULL) OR (review_meetings_due IS NULL) OR (cycle_close_date >= review_meetings_due)) AND ((cycle_close_date IS NULL) OR (cycle_close_date >= start_date))))
 hr_review_cycles	hr_review_cycles_pkey	p	PRIMARY KEY (id)
 hr_review_cycles	hr_review_cycles_tenant_id_cycle_code_key	u	UNIQUE (tenant_id, cycle_code)
 hr_review_cycles	hr_review_cycles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE

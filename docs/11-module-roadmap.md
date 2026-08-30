@@ -94,8 +94,22 @@ Build in three slices, each shippable:
    computed: `firm_payroll_policies` has no rows, so deriving OT from the
    policy Phase 1 built has nothing behind it yet. The holiday tie-in — flagging
    attendance on a day the office observes as a holiday — is also not built.
-3. **Performance and onboarding** — `hr_reviews`, `hr_review_cycles`,
-   `hr_goals`, `hr_feedback`, `hr_onboarding_templates`, `_tasks`.
+3. **Performance** — ✅ *read side done:* `/performance` shows the cycle, your
+   own review, your goals, and — for a reviewer or HR — the reviews they may
+   see. `hr_reviews`, `hr_review_cycles`, `hr_goals`.
+
+   **The rule that matters here: a manager's assessment is withheld from its
+   subject until it is submitted.** Both halves live in one row and RLS filters
+   by tenant, so the repository is the only control — which is why the
+   redaction is there and not in the page.
+
+   **Still ahead:** writing and acknowledging a review (needs an audit trail,
+   same as time-off approval), `hr_feedback` — which stores both
+   `from_employee_id` and `is_anonymous`, so rendering the wrong column breaks
+   an anonymity promise silently, and the fixture has no anonymous row to test
+   it with — and onboarding (`hr_onboarding_templates`, `_tasks`).
+   `hr_surveys`/`hr_survey_responses` are not in this slice and are not
+   started.
 
 **Watch for:** accrual arithmetic in a leap year; a request spanning a holiday
 in one office and not another; and approval state that must not be inferable

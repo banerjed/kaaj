@@ -998,7 +998,11 @@ SELECT
     END,
     TRUE, TRUE, '2026-01-01T09:00:00Z'
 FROM employees e
-WHERE e.employee_id IN ('E001','E002','E004','E005','E010');
+-- E003 (Priya) is here for a specific reason: she is the subject of the one
+-- review still in `draft`, so she is the only login that exercises the rule
+-- that a manager's unfinished assessment is withheld from the person it is
+-- about. Without her that path is testable only in unit tests.
+WHERE e.employee_id IN ('E001','E002','E003','E004','E005','E010');
 
 
 -- =============================================================================

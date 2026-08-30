@@ -51,7 +51,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     children: [
       { id: "hr-time-off", label: "Time Off", url: "/time-off" },
       { id: "hr-attendance", label: "Attendance", url: "/attendance" },
-      { id: "hr-reviews", label: "Performance", ...soon },
+      { id: "hr-reviews", label: "Performance", url: "/performance" },
       { id: "hr-onboarding", label: "Onboarding", ...soon },
     ],
   },
