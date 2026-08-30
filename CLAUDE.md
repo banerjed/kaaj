@@ -246,6 +246,27 @@ Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
 
+**A protected column NEVER falls back to an unprotected one.** RLS hides the
+row; a `COALESCE` puts the value back. `compensation_base` is policy-protected
+and `employees.base_amount` is an unprotected cache of the same figure, so
+`COALESCE(cp.amount, e.base_amount)` disclosed every salary in the firm to
+every employee — correct-looking number, no error, no failing test
+([L47](docs/10-lessons-learned.md)). Read the protected column alone and let it
+be NULL: a blank figure is the right answer for someone who may not see it.
+`./check` fails on this shape.
+
+**A test for an access rule runs as the actor who is meant to be REFUSED.**
+Repository suites deliberately run as an owner, so a policy cannot silently
+narrow what they see — which means the restricted branch of every query is
+unreachable from them. Assert both halves: the refused actor gets NULL, *and*
+the permitted one still gets the figure. A policy that blanks everything reads
+as a broken page, not as a rule.
+
+**Never compare a database value to `Date.now()`.** The app and Postgres are on
+different machines, and a Docker VM's clock drifts across a host sleep. Compare
+against `clock_timestamp()` in the same query, or assert `col = now()` to prove
+a column default was used ([L43](docs/10-lessons-learned.md)).
+
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern

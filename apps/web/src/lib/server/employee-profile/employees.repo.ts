@@ -86,9 +86,14 @@ export async function list(
            e.is_active, e.location_code, e.timezone, e.department_code,
            d.name AS department_name,
            m.first_name || ' ' || m.last_name AS manager_name,
-           COALESCE(cp.amount, e.base_amount)::text AS base_amount,
-           COALESCE(cp.currency, e.currency) AS currency,
-           COALESCE(cp.pay_frequency::text, e.pay_frequency::text) AS pay_frequency,
+           -- NO COALESCE ONTO e.base_amount. compensation_base carries the
+           -- row-visibility policy; employees.base_amount is an unprotected
+           -- cache of the same figure, so falling back to it handed every
+           -- employee every colleague's salary — RLS hid the source and the
+           -- query silently substituted the copy (L47).
+           cp.amount::text AS base_amount,
+           cp.currency AS currency,
+           cp.pay_frequency::text AS pay_frequency,
            count(*) OVER ()::text AS total
       FROM employees e
       LEFT JOIN firm_departments d ON d.department_code = e.department_code
@@ -152,9 +157,14 @@ export async function getById(
            e.compensation_type, e.fte::text AS fte,
            d.name AS department_name,
            m.first_name || ' ' || m.last_name AS manager_name,
-           COALESCE(cp.amount, e.base_amount)::text AS base_amount,
-           COALESCE(cp.currency, e.currency) AS currency,
-           COALESCE(cp.pay_frequency::text, e.pay_frequency::text) AS pay_frequency
+           -- NO COALESCE ONTO e.base_amount. compensation_base carries the
+           -- row-visibility policy; employees.base_amount is an unprotected
+           -- cache of the same figure, so falling back to it handed every
+           -- employee every colleague's salary — RLS hid the source and the
+           -- query silently substituted the copy (L47).
+           cp.amount::text AS base_amount,
+           cp.currency AS currency,
+           cp.pay_frequency::text AS pay_frequency
       FROM employees e
       LEFT JOIN firm_departments d ON d.department_code = e.department_code
       LEFT JOIN employees m ON m.id = e.manager_id

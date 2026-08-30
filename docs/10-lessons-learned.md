@@ -442,6 +442,144 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L47 — RLS hides the row; a COALESCE puts the value back
+
+`compensation_base` carries a row-visibility policy: as a plain employee you
+see your own pay and nobody else's, and the database enforces it. The directory
+query then read:
+
+```sql
+COALESCE(cp.amount, e.base_amount)::text AS base_amount
+```
+
+`employees.base_amount` is a denormalised **cache** of that same figure,
+maintained by `syncCache`, on a table with no such policy. So the policy did
+its job, `cp.amount` came back NULL for every colleague — and the query
+substituted the unprotected copy. **Every employee could read every
+colleague's salary from the directory page.** No error, no empty state, no
+failing test: just the right-looking number in the right-looking column.
+
+Three things made it survive:
+
+- **It reads correctly to its author.** Whoever writes the query is usually
+  privileged, and a privileged actor never reaches the fallback branch.
+- **The repository suites run as an owner.** `time_off.test.ts` says so out
+  loud, for a good reason — an owner actor stops a policy silently narrowing
+  what a repository test sees. The cost is that the fallback branch of *every*
+  `COALESCE` in the codebase is unreachable from those tests.
+- **The row-visibility suite proved the wrong thing.** It proved the *table*
+  was protected, which it was. Nothing proved the *figure* was unreachable, and
+  the leak was in the projection, not the table.
+
+The rule: **a protected column may not fall back to an unprotected one.** Read
+the protected column alone and let it be NULL — a blank figure is the correct
+answer for someone who may not see it. `./check` runs
+`scripts/verify-no-unprotected-fallback.mjs`, which fails on exactly this
+shape, with the usual committed-literal exemption list.
+
+And the wider one: **a regression test for an access rule has to run as the
+actor who is meant to be refused.** `employees.test.ts` is that test; it fails
+on the old query and passes on the new one, and it asserts both halves — a
+colleague's pay is NULL *and* your own still is not, because a policy that
+blanks everything reads as a broken page rather than as a rule (L21).
+
+### L46 — A subtotal whose children do not add up
+
+The payslip listed taxes and deductions under one **Taxes** heading. The
+subtotal was ₹37,333.38; the rows beneath it were Social 11,200.01, Income Tax
+26,133.37 — and Pension 13,333.35, which is a *deduction*. The first two sum to
+the subtotal exactly. The third does not belong to it.
+
+So the page showed a heading, a figure, and a list of children that visibly
+failed to equal it, on the one document a person checks arithmetic on. Net pay
+was right; the explanation of it was not, which on a payslip is the same
+severity — an employee who cannot reconcile their own slip has to ask, and the
+answer is that the page grouped it wrongly.
+
+Every subtotal owns its children. Taxes and deductions each get their own
+heading and their own total, and the column then reconciles down to net.
+
+The total is summed in **SQL**, not by adding the two strings in JavaScript:
+that is the float64 round trip, and once the fields are correctly typed as
+strings it becomes silent concatenation with no type error.
+
+### L45 — A cast can promise columns the query does not select
+
+`forEmployee` joined `payroll_runs` and declared its return type as the line
+type widened with `pay_date`, `currency` and `run_id`. The select list — a
+shared `LINE_SELECT` constant — names only `pe.*`. The three columns were never
+selected, and `as never` silenced the compiler.
+
+What the page rendered was `undefined 216000.27` as a take-home figure, next to
+a date of `—`.
+
+Two multipliers:
+
+- **`money()` printed it.** Its fallback for a currency `Intl` rejects is
+  `` `${currency} ${value}` `` — deliberate, so an unknown three-letter code
+  stays visible rather than being shown as dollars. But a *missing* currency is
+  a caller bug, not an unknown currency, and sharing that path turned it into
+  the word "undefined" beside real money. It now throws in development and
+  keeps the verbatim-code fallback only for well-formed codes.
+- **The ordering test passed vacuously.** It asserted
+  `[...dates].sort().reverse()` equalled `dates` — over a column of
+  `undefined`, which is trivially true. A test that reads a field must first
+  assert the field is *there*.
+
+Widen a return type only where the query widens too, and never with a cast that
+cannot fail.
+
+### L44 — A hidden link is not a permission
+
+Every entry in the sidebar was shown to everyone, so a plain employee was
+offered **Pay Runs** — the firm's whole payroll — and got an error page. The
+`load` refused them correctly; the navigation had simply never been told.
+
+The fix is that a menu entry may carry a `permission`, and one the viewer lacks
+is removed. Two things about it that are easy to get backwards:
+
+- **It is not access control.** It stops the app offering a route that answers
+  403. Every load and every action still checks for itself, and must keep doing
+  so — treating a hidden link as the guard is how an unguarded route ships.
+- **The permission list is sent to the browser.** It is the viewer's own
+  capability list, which is not a secret; the data behind those routes is what
+  is protected, server-side.
+
+The related product point: refusing a page is not the same as having nothing to
+offer. An employee has no business reading the firm's pay runs and every
+business reading their own payslips, so **My Payslips** is the entry they get.
+
+### L43 — A test that compares two machines' clocks tests neither
+
+`audit.test.ts` proved `occurred_at` is stamped by the database and not by the
+caller — by asserting `Date.now() - occurred_at < 60s`. It passed for weeks and
+then failed once, in a `./check` run that passed again nineteen seconds later.
+
+Nothing about auditing had changed. The host had been asleep for two days; on
+wake, macOS corrects its clock immediately and the Docker VM Postgres runs in
+catches up a moment later. For that moment the two disagreed by more than a
+minute, and the assertion — which spans both machines — reported it as an audit
+defect.
+
+A wall-clock comparison is only meaningful against **the clock that produced the
+value**. The column defaults to `now()`, so the honest test compares it to
+`clock_timestamp()` in the same query, and states the real claim separately:
+
+```sql
+SELECT abs(extract(epoch FROM clock_timestamp() - occurred_at)) AS drift,
+       occurred_at = now() AS is_default        -- nobody supplied it
+```
+
+`occurred_at = now()` is the stronger assertion and the one actually worth
+making: `now()` is transaction start, so only the column default can equal it
+exactly. It cannot drift, because both sides come from the same clock.
+
+The general rule: **in a test that spans the app and the database, any
+comparison whose two sides come from different machines is measuring the
+infrastructure.** It will be flaky, the flake will look like a product bug, and
+— worst — a second run will "fix" it, which is how a real intermittent failure
+gets waved through.
+
 ### L42 — A narrowing policy turns a missed call site into a wrong number
 
 Adding row-level RLS meant every `withTenant` had to carry the actor, not just
