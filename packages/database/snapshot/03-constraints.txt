@@ -198,7 +198,9 @@ hr_review_cycles	hr_review_cycles_deadlines_are_ordered	c	CHECK ((((self_assessm
 hr_review_cycles	hr_review_cycles_pkey	p	PRIMARY KEY (id)
 hr_review_cycles	hr_review_cycles_tenant_id_cycle_code_key	u	UNIQUE (tenant_id, cycle_code)
 hr_review_cycles	hr_review_cycles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_reviews	hr_reviews_acknowledged_has_an_assessment	c	CHECK (((status <> 'acknowledged'::text) OR (manager_assessment IS NOT NULL)))
 hr_reviews	hr_reviews_pkey	p	PRIMARY KEY (id)
+hr_reviews	hr_reviews_status_is_known	c	CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'acknowledged'::text])))
 hr_reviews	hr_reviews_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 hr_reviews	hr_reviews_tenant_id_review_id_key	u	UNIQUE (tenant_id, review_id)
 hr_survey_responses	fk_hr_survey_responses_survey_id	f	FOREIGN KEY (survey_id) REFERENCES hr_surveys(id)

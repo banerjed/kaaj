@@ -111,12 +111,16 @@ Build in three slices, each shippable:
    Template selection is most-specific-wins and deterministic; without that,
    which plan a hire got would depend on physical row order.
 
-   **Still ahead:** writing and acknowledging a review, and generating a plan
-   for a hire — both are writes needing an audit trail, the same requirement
-   the roadmap already names for approvals. A generated plan should also record
-   WHICH template was chosen, or nobody can explain later why a hire missed a
-   step. `hr_surveys`/`hr_survey_responses` are not in this slice and are not
-   started.
+   ✅ **Writing a review** — draft → submitted → acknowledged, one way only.
+   Each author writes their own half, and only while it is a draft; submitting
+   is what releases the manager's assessment to its subject; acknowledgement is
+   the subject's alone, because it is the only evidence they read it. Both
+   transitions write an audit entry in the same transaction.
+
+   **Still ahead:** generating an onboarding plan for a hire — a write, and one
+   that should record WHICH template was chosen, or nobody can explain later
+   why a hire missed a step. `hr_surveys`/`hr_survey_responses` are not in this
+   slice and are not started.
 
 **Watch for:** accrual arithmetic in a leap year; a request spanning a holiday
 in one office and not another; and approval state that must not be inferable

@@ -343,3 +343,150 @@ describe("who may read which feedback", () => {
     expect(rows.map((f) => f.feedback_id)).toEqual(["FB-002"])
   })
 })
+
+describe("writing a review", () => {
+  const inRollback = async <T>(
+    fn: (tx: Parameters<typeof reviews.submit>[0]) => Promise<T>,
+  ): Promise<T> => {
+    const marker = new Error("__rollback__")
+    try {
+      return await withTenant(NORTHWIND, async (tx) => {
+        const result = await fn(tx)
+        throw Object.assign(marker, { result })
+      })
+    } catch (e) {
+      if (e === marker) return (e as { result: T }).result
+      throw e
+    }
+  }
+
+  /** REV-E003: Priya's, drafted by Sarah. */
+  const draftId = async (tx: Parameters<typeof reviews.submit>[0]) => {
+    const [r] = await reviews.visibleTo(tx, reader(SARAH), {
+      employeeId: PRIYA,
+    })
+    return r.id
+  }
+
+  it("lets each author write their own half, and only theirs", async () => {
+    await inRollback(async (tx) => {
+      const id = await draftId(tx)
+      await reviews.saveAssessment(tx, id, { employeeId: SARAH }, "manager", {
+        strengths: "Rewritten",
+      })
+      const after = await reviews.byId(tx, reader(SARAH), id)
+      expect(after?.manager_assessment).toEqual({ strengths: "Rewritten" })
+    })
+  })
+
+  it("refuses a reviewer editing someone's self-assessment", async () => {
+    // Putting words in someone's mouth in a document they later acknowledge.
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.saveAssessment(tx, id, { employeeId: SARAH }, "self", {
+          strengths: "Not mine to write",
+        })
+      }),
+    ).rejects.toThrow(/not_yours/)
+  })
+
+  it("refuses a subject editing the manager's half", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.saveAssessment(tx, id, { employeeId: PRIYA }, "manager", {
+          strengths: "Flattering",
+        })
+      }),
+    ).rejects.toThrow(/not_yours/)
+  })
+
+  it("refuses any edit once submitted — it is the record by then", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.submit(tx, id, { employeeId: SARAH })
+        await reviews.saveAssessment(tx, id, { employeeId: SARAH }, "manager", {
+          strengths: "Second thoughts",
+        })
+      }),
+    ).rejects.toThrow(/wrong_status/)
+  })
+
+  it("releases the manager's half to its subject on submit", async () => {
+    // The one transition a subject can observe without being told.
+    const [before, after] = await inRollback(async (tx) => {
+      const id = await draftId(tx)
+      const b = await reviews.byId(tx, reader(PRIYA), id)
+      await reviews.submit(tx, id, { employeeId: SARAH })
+      const a = await reviews.byId(tx, reader(PRIYA), id)
+      return [b, a]
+    })
+    expect(before?.manager_assessment_withheld).toBe(true)
+    expect(after?.manager_assessment_withheld).toBe(false)
+    expect(after?.manager_assessment).not.toBeNull()
+  })
+
+  it("refuses to submit a review with nothing in it", async () => {
+    // Otherwise the subject is told their review is ready and finds it empty.
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await tx`UPDATE hr_reviews SET manager_assessment = NULL WHERE id = ${id}`
+        await reviews.submit(tx, id, { employeeId: SARAH })
+      }),
+    ).rejects.toThrow(/nothing_to_submit/)
+  })
+
+  it("refuses a submit by anyone but the reviewer", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.submit(tx, id, { employeeId: PRIYA })
+      }),
+    ).rejects.toThrow(/not_yours/)
+  })
+
+  it("lets only the subject acknowledge, and only once", async () => {
+    // An acknowledgement entered by anyone else records that a person saw
+    // something when nobody knows whether they did.
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.submit(tx, id, { employeeId: SARAH })
+        await reviews.acknowledge(tx, id, { employeeId: SARAH })
+      }),
+    ).rejects.toThrow(/not_yours/)
+
+    await inRollback(async (tx) => {
+      const id = await draftId(tx)
+      await reviews.submit(tx, id, { employeeId: SARAH })
+      await reviews.acknowledge(tx, id, { employeeId: PRIYA })
+      const after = await reviews.byId(tx, reader(PRIYA), id)
+      expect(after?.status).toBe("acknowledged")
+    })
+  })
+
+  it("refuses acknowledging a draft — there is nothing released to read", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        const id = await draftId(tx)
+        await reviews.acknowledge(tx, id, { employeeId: PRIYA })
+      }),
+    ).rejects.toThrow(/backwards|wrong_status/)
+  })
+
+  it("refuses moving backwards from acknowledged", async () => {
+    // Un-acknowledging erases the only evidence that the person read it.
+    await expect(
+      inRollback(async (tx) => {
+        const [ack] = await reviews.visibleTo(tx, reader(MARCUS), {
+          employeeId: MARCUS,
+        })
+        expect(ack.status).toBe("acknowledged")
+        await reviews.submit(tx, ack.id, { employeeId: SARAH })
+      }),
+    ).rejects.toThrow(/backwards/)
+  })
+})

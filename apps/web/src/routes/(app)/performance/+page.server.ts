@@ -1,18 +1,22 @@
-import { error } from "@sveltejs/kit"
-import type { PageServerLoad } from "./$types"
+import { error, fail } from "@sveltejs/kit"
+import type { Actions, PageServerLoad } from "./$types"
 import * as reviews from "$lib/server/hr/hr_reviews.repo"
 import * as goals from "$lib/server/hr/hr_goals.repo"
 import * as feedback from "$lib/server/hr/hr_feedback.repo"
 import { withTenant } from "$lib/server/db/tenant"
-import { can, contextFrom } from "$lib/server/auth/can"
+import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+import * as audit from "$lib/server/audit/audit.repo"
+import { FormReader } from "$lib/server/forms"
+import { ReviewRefused } from "$lib/server/hr/hr_reviews.repo"
 
 /**
  * /performance — module-hr.md § Performance Management.
  *
- * Read-only for this slice. Writing a review, acknowledging one, and moving a
- * cycle between stages all need an audit trail — the roadmap's note that
- * approval state must not be inferable from a query alone applies here as much
- * as to time off.
+ * Submitting and acknowledging a review both write an audit entry in the same
+ * transaction as the change. Acknowledgement in particular is the ONLY evidence
+ * that a person read their review, which is the fact that matters in a dispute
+ * about a performance process — inferring it from a status column alone would
+ * leave nobody able to say when, or who recorded it.
  *
  * The repository, not this page, decides what a reader may see. A manager's
  * draft assessment is withheld from its subject there, so a second read path
@@ -63,4 +67,81 @@ export const load: PageServerLoad = async ({ locals }) => {
       readsAll: reader.readsAll,
     }
   })
+}
+
+/** Messages a person can act on, not the refusal reason. */
+const REFUSALS: Record<string, string> = {
+  not_found: "That review no longer exists.",
+  not_yours: "This is not your review to change.",
+  wrong_status: "This review has already moved on.",
+  backwards: "A review cannot go back a step.",
+  nothing_to_submit: "Write your assessment before submitting it.",
+}
+
+export const actions: Actions = {
+  submit: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "performance.write")
+
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing review."))
+
+    try {
+      await withTenant(locals.tenantId, async (tx) => {
+        await reviews.submit(tx, id, { employeeId: ctx.employeeId })
+        await audit.record(tx, ctx, {
+          action: "submitted",
+          entityType: "review",
+          entityId: id,
+          module: "hr",
+          // Never the assessment itself — audit.repo redacts it anyway, and
+          // this table cannot be deleted from.
+          changes: { status: { from: "draft", to: "submitted" } },
+        })
+      })
+    } catch (e) {
+      if (e instanceof ReviewRefused) {
+        return fail(400, {
+          message: REFUSALS[e.reason] ?? "That is not allowed.",
+        })
+      }
+      throw e
+    }
+    return { submitted: true }
+  },
+
+  acknowledge: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    // Everyone acknowledges their OWN review, so this is the floor rather than
+    // performance.write — the repository refuses anyone else's.
+    requireCan(ctx, "performance.read.self")
+
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing review."))
+
+    try {
+      await withTenant(locals.tenantId, async (tx) => {
+        await reviews.acknowledge(tx, id, { employeeId: ctx.employeeId })
+        await audit.record(tx, ctx, {
+          action: "acknowledged",
+          entityType: "review",
+          entityId: id,
+          module: "hr",
+          changes: { status: { from: "submitted", to: "acknowledged" } },
+        })
+      })
+    } catch (e) {
+      if (e instanceof ReviewRefused) {
+        return fail(400, {
+          message: REFUSALS[e.reason] ?? "That is not allowed.",
+        })
+      }
+      throw e
+    }
+    return { acknowledged: true }
+  },
 }

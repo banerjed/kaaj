@@ -2,7 +2,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, number } from "$lib/format"
 
-  let { data } = $props()
+  let { data, form } = $props()
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
 
@@ -34,6 +34,22 @@
       { label: "Performance", active: true },
     ]}
   />
+
+  {#if form?.submitted || form?.acknowledged}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>
+        {form.submitted
+          ? "Review submitted. They can see it now."
+          : "Acknowledged."}
+      </span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
 
   {#if cycle}
     <div class="card bg-base-100 mt-4 shadow">
@@ -125,6 +141,16 @@
                 {/each}
               </dl>
             </div>
+          {/if}
+
+          {#if r.status === "submitted"}
+            <form method="POST" action="?/acknowledge" class="mt-1">
+              <input type="hidden" name="id" value={r.id} />
+              <button class="btn btn-primary btn-sm"> I have read this </button>
+              <span class="text-base-content/70 ms-2 text-xs">
+                Recorded with the date — it is the only evidence you saw it.
+              </span>
+            </form>
           {/if}
 
           {#if r.overall_rating && !r.manager_assessment_withheld}
@@ -236,6 +262,7 @@
               <th>Reviewer</th>
               <th class="text-right">Rating</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -255,6 +282,14 @@
                   >
                     {r.status}
                   </span>
+                </td>
+                <td>
+                  {#if r.status === "draft" && r.reviewer_id === data.me}
+                    <form method="POST" action="?/submit">
+                      <input type="hidden" name="id" value={r.id} />
+                      <button class="btn btn-sm">Submit</button>
+                    </form>
+                  {/if}
                 </td>
               </tr>
             {/each}

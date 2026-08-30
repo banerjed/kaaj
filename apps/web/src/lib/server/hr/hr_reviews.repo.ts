@@ -185,3 +185,146 @@ export async function cycleProgress(
      GROUP BY status ORDER BY status
   `
 }
+
+// -----------------------------------------------------------------------------
+// Writing
+// -----------------------------------------------------------------------------
+
+/**
+ * The status sequence, and it only runs one way.
+ *
+ * draft -> submitted -> acknowledged
+ *
+ * Backwards is refused rather than allowed-and-audited. Un-submitting a review
+ * would retract something the subject has already read, and un-acknowledging
+ * one would erase the only evidence that they read it — which is the fact that
+ * matters in a dispute about a performance process. A CHECK constraint cannot
+ * express this, because it cannot see the row's previous value.
+ */
+const NEXT: Record<string, string[]> = {
+  draft: ["submitted"],
+  submitted: ["acknowledged"],
+  acknowledged: [],
+}
+
+export class ReviewRefused extends Error {
+  constructor(
+    readonly reason:
+      | "not_found"
+      | "not_yours"
+      | "wrong_status"
+      | "backwards"
+      | "nothing_to_submit",
+  ) {
+    super(reason)
+    this.name = "ReviewRefused"
+  }
+}
+
+type Current = {
+  employee_id: string
+  reviewer_id: string | null
+  status: string
+  manager_assessment: unknown
+}
+
+async function current(tx: Tx, id: string): Promise<Current> {
+  const [row] = await tx<Current[]>`
+    SELECT employee_id, reviewer_id, status, manager_assessment
+      FROM hr_reviews WHERE id = ${id}
+  `
+  if (!row) throw new ReviewRefused("not_found")
+  return row
+}
+
+/**
+ * Write one half of a review.
+ *
+ * Only while the review is a draft: once submitted it is the record, and the
+ * subject has already read it. Each author writes their own half — a reviewer
+ * cannot edit a self-assessment, which would put words in someone's mouth in a
+ * document they later acknowledge.
+ */
+export async function saveAssessment(
+  tx: Tx,
+  id: string,
+  author: { employeeId: string | null },
+  half: "self" | "manager",
+  assessment: ReviewAssessment,
+): Promise<void> {
+  const row = await current(tx, id)
+  if (row.status !== "draft") throw new ReviewRefused("wrong_status")
+
+  const permitted =
+    half === "self"
+      ? author.employeeId === row.employee_id
+      : author.employeeId === row.reviewer_id
+  if (!permitted) throw new ReviewRefused("not_yours")
+
+  if (half === "self") {
+    await tx`
+      UPDATE hr_reviews
+         SET self_assessment = ${tx.json(assessment as never)}, updated_at = now()
+       WHERE id = ${id}
+    `
+  } else {
+    await tx`
+      UPDATE hr_reviews
+         SET manager_assessment = ${tx.json(assessment as never)}, updated_at = now()
+       WHERE id = ${id}
+    `
+  }
+}
+
+/**
+ * Submit — the reviewer is finished, and the subject may now read their half.
+ *
+ * This is the moment the redaction in `redactFor` stops applying, so it is the
+ * one transition a subject can observe without being told.
+ */
+export async function submit(
+  tx: Tx,
+  id: string,
+  actor: { employeeId: string | null },
+): Promise<void> {
+  const row = await current(tx, id)
+  if (actor.employeeId !== row.reviewer_id) throw new ReviewRefused("not_yours")
+  if (!NEXT[row.status]?.includes("submitted")) {
+    throw new ReviewRefused(
+      row.status === "draft" ? "wrong_status" : "backwards",
+    )
+  }
+  // Submitting an empty review would release nothing and still tell the subject
+  // their review is ready.
+  if (row.manager_assessment === null) {
+    throw new ReviewRefused("nothing_to_submit")
+  }
+  await tx`
+    UPDATE hr_reviews SET status = 'submitted', updated_at = now()
+     WHERE id = ${id}
+  `
+}
+
+/**
+ * Acknowledge — the subject confirms they have read it. Terminal.
+ *
+ * Only the subject, and only they: an acknowledgement entered by anyone else
+ * is a record that a person saw something when nobody knows whether they did.
+ */
+export async function acknowledge(
+  tx: Tx,
+  id: string,
+  actor: { employeeId: string | null },
+): Promise<void> {
+  const row = await current(tx, id)
+  if (actor.employeeId !== row.employee_id) throw new ReviewRefused("not_yours")
+  if (!NEXT[row.status]?.includes("acknowledged")) {
+    throw new ReviewRefused(
+      row.status === "acknowledged" ? "wrong_status" : "backwards",
+    )
+  }
+  await tx`
+    UPDATE hr_reviews SET status = 'acknowledged', updated_at = now()
+     WHERE id = ${id}
+  `
+}

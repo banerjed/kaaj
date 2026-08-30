@@ -235,6 +235,40 @@ const MATRIX: {
     ],
   },
   {
+    module: "performance",
+    load: async () =>
+      (await import("../../../routes/(app)/performance/+page.server")).actions,
+    actions: ["submit"],
+    // performance.write — a reviewer writes and submits. The repository then
+    // refuses anyone who is not THIS review's reviewer, which is a different
+    // question from holding the permission at all.
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+      ["employee", ["it_admin"]],
+    ],
+    allowed: [
+      ["employee", ["hr_admin"]],
+      ["firm_admin", []],
+      ["owner", []],
+    ],
+  },
+  {
+    module: "performance — acknowledge",
+    load: async () =>
+      (await import("../../../routes/(app)/performance/+page.server")).actions,
+    actions: ["acknowledge"],
+    // Everyone acknowledges their OWN review, so the gate is the floor and
+    // the repository refuses anyone else's. Nobody is denied at this layer —
+    // which is the honest answer, not an omission.
+    denied: [],
+    allowed: [
+      ["employee", []],
+      ["contractor", []],
+      ["owner", []],
+    ],
+  },
+  {
     module: "settings/payroll/schedules",
     load: async () =>
       (
@@ -288,6 +322,6 @@ describe("the matrix covers every action that exists", () => {
     // call is present.
     const named = MATRIX.reduce((n, m) => n + m.actions.length, 0)
     const timeOff = 1 // decide — covered in time_off.test.ts, needs a real request
-    expect(named + timeOff).toBe(23)
+    expect(named + timeOff).toBe(25)
   })
 })
