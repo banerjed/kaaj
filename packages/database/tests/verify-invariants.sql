@@ -174,7 +174,14 @@ INSERT INTO _must_not_be_enum VALUES
   ('currency',        'ISO 4217 grows without our involvement'),
   ('locale',          'IETF language tags grow'),
   ('timezone',        'IANA tzdb changes several times a year'),
-  ('country',         'ISO 3166 changes');
+  ('country',         'ISO 3166 changes'),
+  -- Roles are Tier 1 customization: a customer will eventually add "Office
+  -- Manager". ALTER TYPE has no DROP VALUE, so promoting these would make a
+  -- customer's typo permanent. They live in enumerations.json as the shipped
+  -- DEFAULTS and belong in a reference table when customers can edit them.
+  ('base_role',       'tenant-customizable — docs/14-access-control.md'),
+  ('functional_role', 'tenant-customizable — docs/14-access-control.md'),
+  ('user_role',       'superseded by base_role + functional_role');
 
 INSERT INTO _inv (rule, subject, passed, detail)
 SELECT 'enum/classification', '(wrongly promoted to enum)',

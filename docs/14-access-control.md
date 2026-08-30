@@ -51,38 +51,128 @@ nothing, reading the table costs a query per request.
 
 ## The model
 
-### Roles
+### Five vocabularies, none of which agreed
 
-Four tenant-wide roles, the values `tenant_users.role` already carries:
+Found while answering "what roles are granted today". The repository carried
+five different role lists:
 
-| Role | Who | Intent |
+| Source | Values | Status |
 |---|---|---|
-| `owner` | founder, admin | everything, including billing and tenant settings |
-| `hr_admin` | HR / people ops | all employee data, compensation, payroll setup |
-| `manager` | anyone with reports | their reporting chain, approvals for it |
-| `member` | everyone | themselves, and public directory information |
+| `tenant_users.role` — the live data | `owner, hr_admin, manager, member` | 5 rows, plain `text`, no constraint |
+| `enumerations.json` `system.userRole` | `super_admin, firm_admin, hr_admin, finance_admin, payroll_admin, manager, employee, contractor, read_only` | declared, **never made a Postgres type, zero consumers** |
+| The first draft of this document | `owner, hr_admin, manager, member` | written without checking the enum file — [L1](./10-lessons-learned.md)'s failure mode, one day after it was cited |
+| `employee_group_roles.role_name` | `project_member, payroll_approver` | 2 fixture rows |
+| `employee_group_members.role` | `owner, admin, moderator, member` | a **different axis** — position within a group, not access. No consumer treats it as a permission |
 
-`manager` is **not** a granted role in practice — it is a shape. Someone is a
-manager of the people whose `employees.manager_id` chain reaches them, and
-`wouldReportToSelf` in `employees.repo.ts` already walks that chain. A `manager`
-role value without reports grants nothing extra.
+Only `hr_admin` and `manager` appeared in more than one. `owner`/`firm_admin`
+and `member`/`employee` were the same idea spelled twice. This section is the
+reconciliation.
 
-### Scope, designed in and not yet used
+### A base role, plus functional roles
 
-`employee_group_roles` already carries `role_name` with optional
-`department_code`, `location_code` and `expires_at` — scoped, time-bounded
-grants — and the fixture holds `payroll_approver` scoped to `US-NYC`.
+**The mistake to avoid is one role per department.** Department is org
+structure — `employees.department_code`, already hierarchical. A role is a
+permission bundle. Someone in Finance may be a read-only auditor; the office
+manager in G&A is routinely the HR admin *and* the IT admin. Weld the two
+together and every reorganisation becomes a permissions migration.
 
-**Flat roles ship first.** But `can()` takes an optional scope from the outset:
+In a small firm people wear several hats, so:
 
-```ts
-can(ctx, "compensation.write")                       // tenant-wide
-can(ctx, "payroll.approve", { location: "US-NYC" })  // later, no call-site change
-```
+**One base role**, which sets the floor:
 
-so adopting scoped grants is additive rather than a rewrite of every check. A
-firm operating in three countries will need "HR admin for the India entity
-only"; it does not need it before payroll exists.
+| Base role | Who |
+|---|---|
+| `owner` | Holds billing and can transfer ownership. Usually one or two people |
+| `firm_admin` | Everything except billing and ownership |
+| `employee` | Everyone on payroll. Sees themselves and the directory |
+| `contractor` | Engaged, not employed. Narrower than `employee` — no directory, no colleague profiles |
+
+**Zero or more functional roles** on top:
+
+| Functional role | Grants | Usually sits in |
+|---|---|---|
+| `hr_admin` | employee records, HR modules, PII, erasure requests | HR / People |
+| `payroll_admin` | run payroll, payslips, tax filings. Reads compensation, **cannot change it** | Finance or HR |
+| `finance_admin` | invoices, bills, ledger, banking, expenses, chart of accounts | Finance / Accounts |
+| `sales_admin` | CRM, clients, proposals, pipeline | Sales |
+| `marketing_admin` | campaigns, marketing hub, analytics | Marketing |
+| `it_admin` | assets, user groups, integrations, ticketing configuration. **No employee PII** | IT |
+| `legal_admin` | documents, contracts, change requests, compliance and audit read | Legal / Compliance |
+| `project_manager` | projects, tasks, and timesheet approval for their own projects | any |
+| `auditor` | read-only across the tenant. No writes, ever | external, or Finance/Legal |
+
+`manager` is **not granted**. Someone manages the people whose
+`employees.manager_id` chain reaches them; `wouldReportToSelf` already walks it.
+A `manager` value on a person with no reports would grant nothing, which is why
+it is derived rather than assigned.
+
+`super_admin` is **deliberately absent.** Kaaj staff are not a tenant role, and
+putting them in the same list invites a tenant granting it.
+
+### Two separation-of-duties rules
+
+These are the reason the catalogue is not decorative:
+
+**1. Whoever sets pay must not approve the run that pays it.** `payroll_admin`
+gets `compensation.read.all` and `payroll.approve` but **never**
+`compensation.write`. `hr_admin` is the reverse. Holding both is refused at
+grant time, not at use time — the same shape as "never your own approval",
+generalised. This is what `payroll_approver` in the fixture is reaching for.
+
+**2. `it_admin` never reaches employee PII.** IT needs assets, groups,
+integrations and ticket configuration. It does not need tax identifiers, and
+"admin" reading as "all" is how that mapping is usually got wrong. Checkable
+directly against the `pii.read` permission.
+
+### Suggested by department, never derived from it
+
+The intuitive part, without welding access to the org chart. When someone is
+added to a department, the onboarding flow **suggests** a functional role and
+the administrator confirms or overrides it:
+
+| Department | Suggested |
+|---|---|
+| HR / People Ops | `hr_admin` |
+| Finance / Accounts | `finance_admin` |
+| Payroll | `payroll_admin` |
+| Legal / Compliance | `legal_admin` |
+| IT | `it_admin` |
+| Marketing | `marketing_admin` |
+| Sales | `sales_admin` |
+| Engineering / Delivery / Consulting | `project_manager` for a lead, otherwise none |
+| Executive / G&A | `firm_admin` |
+| anything else | none — `employee` is the floor |
+
+A suggestion, never a derivation. Moving departments does not change what
+someone can do until an administrator says so.
+
+### Roles are data, and must never become a Postgres enum
+
+Roles are Tier 1 customization ([06-customization-model.md](./06-customization-model.md)):
+a customer will eventually want "Office Manager". `ALTER TYPE` has no
+`DROP VALUE`, so promoting these would make a customer's typo permanent.
+
+They live in `enumerations.json` as `system.baseRole` and
+`system.functionalRole` — the shipped **defaults** — and move to a reference
+table when customers can edit them. `./check` enforces this: `base_role`,
+`functional_role` and the superseded `user_role` are on the
+`_must_not_be_enum` list, and creating any of them as a type fails
+`enum/classification`. Proved by creating one and watching it fail.
+
+### Migrating the five live rows
+
+`tenant_users.role` holds one value today; it needs a second column for the
+functional set:
+
+| Today | Becomes |
+|---|---|
+| `owner` (Sarah Johnson, ENG) | base `owner` |
+| `hr_admin` (Rachel Adeyemi, G&A) | base `employee` + functional `hr_admin` |
+| `manager` (Aisha Okafor, CONSULT) | base `employee` — manager is derived from her reports |
+| `member` ×2 (Marcus Chen, Tom Whitfield) | base `employee` |
+
+`member` → `employee` and a `functional_roles TEXT[]` column are one migration.
+It is step 0 of the sequence below.
 
 ### Permissions
 
@@ -130,30 +220,45 @@ database steps do not substitute for each other.
 
 ## The matrix
 
-`self` = the row belongs to the acting employee. `reports` = the acting
-employee is somewhere up the `manager_id` chain.
+Columns are the **base** role plus the **functional** role that grants the row.
+`self` = the row is the acting employee's. `reports` = the acting employee is up
+the `manager_id` chain.
 
-| Action | member | manager | hr_admin | owner |
-|---|---|---|---|---|
-| **See** own profile, pay, time off, attendance | ✅ | ✅ | ✅ | ✅ |
-| See a colleague's directory entry (name, title, dept, office) | ✅ | ✅ | ✅ | ✅ |
-| See a colleague's pay | ❌ | reports | ✅ | ✅ |
-| See a colleague's tax ID / bank details | ❌ | ❌ | ✅ | ✅ |
-| **Create / edit** an employee record | ❌ | ❌ | ✅ | ✅ |
-| Edit own profile (address, phone, emergency contacts) | ✅ | ✅ | ✅ | ✅ |
-| Archive an employee | ❌ | ❌ | ✅ | ✅ |
-| **Change pay** (`addRaise`) | ❌ | ❌ | ✅ | ✅ |
-| Approve time off | ❌ | reports, **never own** | ✅, **never own** | ✅, **never own** |
-| Approve a timesheet | ❌ | reports | ✅ | ✅ |
-| **Firm settings** (locations, departments, job titles, holidays, benefits, payroll policies, pay schedules) | ❌ | ❌ | ✅ | ✅ |
-| Company profile, locales, currencies | ❌ | ❌ | ❌ | ✅ |
-| Manage members and roles | ❌ | ❌ | ❌ | ✅ |
-| Erase a data subject (GDPR Art. 17) | ❌ | ❌ | ❌ | ✅ |
+| Action | employee | contractor | +manager (derived) | +hr_admin | +payroll_admin | +finance_admin | +it_admin | +legal_admin | +auditor | firm_admin | owner |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| See own profile, pay, time off, attendance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| See the staff directory | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| See a colleague's pay | ❌ | ❌ | reports | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| See a colleague's tax ID / bank details | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | **❌** | ❌ | ❌ | ✅ | ✅ |
+| Create / edit an employee record | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Edit own profile, emergency contacts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Change pay** (`addRaise`) | ❌ | ❌ | ❌ | ✅ | **❌** | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Approve a payroll run** | ❌ | ❌ | ❌ | **❌** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Approve time off | ❌ | ❌ | reports | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Approve a timesheet | ❌ | ❌ | reports | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Firm settings — locations, departments, job titles, holidays, benefits, payroll policies, pay schedules | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Invoices, bills, ledger, banking, expenses | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| CRM, clients, proposals | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Assets, user groups, integrations, ticket config | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Documents, contracts, change requests | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Read anything, write nothing | — | — | — | — | — | — | — | — | ✅ | — | — |
+| Company profile, locales, currencies | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Manage members and role grants | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Erase a data subject (GDPR Art. 17) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Billing, ownership transfer | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
-**Never own** is absolute and applies to every role including `owner`. It is not
-a permission that can be granted — it is the rule that stands between a manager
-and unlimited self-granted holiday, and it is the one authorization check the
-product already performs.
+The four **bold** cells are the separation-of-duties rules, and they are the
+reason this table is worth having. `hr_admin` sets pay and cannot approve the
+run; `payroll_admin` approves the run and cannot set pay; `it_admin` administers
+the systems and cannot read a tax identifier.
+
+**Never your own approval** is absolute and applies to every column including
+`owner`. It is not a grantable permission — it is the rule standing between a
+manager and unlimited self-granted holiday, and it is the one authorization
+check the product already performs.
+
+`auditor` is read-only *everywhere* and writes *nowhere*: holding it alongside a
+writing role is refused at grant time, or it is not an audit.
 
 ### Self-access to sensitive fields
 
@@ -259,6 +364,8 @@ surfaces as a field error.
 
 ## Sequence
 
+0. Migrate `tenant_users`: `member` → `employee`, and add `functional_roles TEXT[]`.
+   Five rows ([Migrating the five live rows](#migrating-the-five-live-rows))
 1. `can.ts`, the `AuthContext`, and the permission vocabulary — no behaviour change
 2. Gate all 19 actions; each denial gets a test asserting `403`
 3. The `authz/actions-are-guarded` guard, proved to fail on an unguarded action
@@ -267,8 +374,10 @@ surfaces as a field error.
 6. Subject-access export (GDPR Art. 15)
 7. Scoped grants via `employee_group_roles`, when payroll needs them
 
-Steps 1–3 close the pay-editing hole and are the ones that must land before
-Phase 6.
+Steps 0–3 close the pay-editing hole and are the ones that must land before
+Phase 6. Step 2 includes the two separation-of-duties refusals at grant time —
+`hr_admin` + `payroll_admin` on one person, and `auditor` alongside anything
+that writes.
 
 ---
 

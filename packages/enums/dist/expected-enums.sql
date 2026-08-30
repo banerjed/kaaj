@@ -113,6 +113,11 @@ INSERT INTO _expected_enum (typname, label) VALUES
   ('bank_transaction_status', 'review_needed'),
   ('bank_transaction_status', 'unmatched');
 INSERT INTO _expected_enum (typname, label) VALUES
+  ('base_role', 'contractor'),
+  ('base_role', 'employee'),
+  ('base_role', 'firm_admin'),
+  ('base_role', 'owner');
+INSERT INTO _expected_enum (typname, label) VALUES
   ('benefit_type', 'accident_insurance'),
   ('benefit_type', 'commuter_benefits'),
   ('benefit_type', 'critical_illness'),
@@ -497,6 +502,16 @@ INSERT INTO _expected_enum (typname, label) VALUES
 INSERT INTO _expected_enum (typname, label) VALUES
   ('flsa_classification', 'exempt'),
   ('flsa_classification', 'non_exempt');
+INSERT INTO _expected_enum (typname, label) VALUES
+  ('functional_role', 'auditor'),
+  ('functional_role', 'finance_admin'),
+  ('functional_role', 'hr_admin'),
+  ('functional_role', 'it_admin'),
+  ('functional_role', 'legal_admin'),
+  ('functional_role', 'marketing_admin'),
+  ('functional_role', 'payroll_admin'),
+  ('functional_role', 'project_manager'),
+  ('functional_role', 'sales_admin');
 INSERT INTO _expected_enum (typname, label) VALUES
   ('gender', 'female'),
   ('gender', 'male'),
