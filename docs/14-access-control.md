@@ -27,7 +27,7 @@ Measured against the running system, not assumed:
 | Role claim | **Correct but decorative.** `custom_access_token_hook` reads `tenant_users.role` and stamps `app_metadata.role`; `hooks.server.ts` resolves it into `locals.tenantRole` |
 | Role enforcement | **Application layer done.** `can()` / `requireCan()` in `$lib/server/auth/`, with the base + functional bundles |
 | Write paths gated by role | **23 of 23**, enforced by `authz/actions-are-guarded` in `./check` |
-| Row visibility by role | **Not yet.** RLS still filters by tenant only — step 5 |
+| Row visibility by role | **Not yet.** RLS still filters by tenant only. Scoped to 15 tables in [15-row-level-visibility.md](./15-row-level-visibility.md), with the measured cost and the InitPlan pattern that makes it affordable |
 
 **The consequence, stated plainly: any authenticated member of a tenant can
 change anyone's pay.** `addRaise` authorizes on "has a tenant". So can

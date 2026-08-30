@@ -187,6 +187,11 @@ before any of the above is called done:
    `employee_bank_accounts.account_number_encrypted`
    ([13-pii-encryption.md](./13-pii-encryption.md)). Seventeen columns remain
    plaintext and are tracked by `./check`; the fan-out is still ahead.
+1c. **Row-level visibility.** Specified in
+   [15-row-level-visibility.md](./15-row-level-visibility.md): 15 tables, not
+   all 103. Measured — 0.07ms at SMB scale with the InitPlan pattern, 38× worse
+   without it. Not started; the tests are the project, not the policies.
+
 1b. **Authorization.** ✅ The pay-editing hole is closed: 23 of 23 write actions
    authorize before writing, separation of duties is enforced by `CHECK`
    constraints, and `./check` fails an ungated action
