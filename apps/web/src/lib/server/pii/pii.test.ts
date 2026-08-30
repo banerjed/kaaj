@@ -524,3 +524,56 @@ describe("the published development key", () => {
     expect(keyRing().byVersion.get(1)!.toString("base64")).toBe(declared)
   })
 })
+
+describe("two kinds of subject", () => {
+  it("erasing an employee does not touch the firm's own data", async () => {
+    // bank_accounts.* and clients.tax_id belong to the FIRM, not to any
+    // employee. Keying them to a person would mean one leaver's erasure
+    // request destroyed the company's banking details — silently, and
+    // unrecoverably, since destroying a key reaches backups too.
+    const result = await inRollback(async (tx) => {
+      const [firm] = await tx<{ id: string; account_number_ct: string }[]>`
+        SELECT id, account_number_ct FROM bank_accounts
+         WHERE account_number_ct IS NOT NULL LIMIT 1
+      `
+      await pii.eraseSubject(tx, subject(SARAH), {
+        reason: "Data subject request",
+        requestedBy: null,
+        subjectLabel: "E001",
+      })
+      const [after] = await tx<{ account_number_ct: string }[]>`
+        SELECT account_number_ct FROM bank_accounts WHERE id = ${firm.id}
+      `
+      const opened = await pii.openField(
+        tx,
+        { tenantId: NORTHWIND, subjectType: "tenant", subjectId: NORTHWIND },
+        { table: "bank_accounts", column: "account_number_ct", rowId: firm.id },
+        after.account_number_ct,
+      )
+      return {
+        before: firm.account_number_ct,
+        after: after.account_number_ct,
+        opened,
+      }
+    })
+
+    expect(result.before).toBeTruthy()
+    expect(result.after).toBe(result.before)
+    // Still readable: the tenant's key was not the one destroyed.
+    expect(result.opened?.erased).toBe(false)
+    expect(result.opened?.value).toBeTruthy()
+  })
+
+  it("refuses a subject type nobody defined", async () => {
+    // An unrecognised subject_type would mint a key nothing could ever find
+    // again, so the ciphertext under it would be unopenable.
+    await expect(
+      inRollback(
+        (tx) => tx`
+          INSERT INTO pii_keys (tenant_id, subject_type, subject_id, kek_version, wrapped_dek)
+          VALUES (${NORTHWIND}, 'department', ${SARAH}, 1, '{"v":1}')
+        `,
+      ),
+    ).rejects.toThrow(/pii_keys_subject_type_is_known/)
+  })
+})

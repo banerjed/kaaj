@@ -26,13 +26,8 @@ audit_log	12	occurred_at	timestamp with time zone	t	now()
 bank_accounts	1	id	uuid	t	gen_random_uuid()
 bank_accounts	2	tenant_id	uuid	t	
 bank_accounts	3	account_name	character varying(255)	t	
-bank_accounts	4	account_number	character varying(255)	f	
-bank_accounts	5	account_number_encrypted	character varying(500)	f	
 bank_accounts	6	bank_name	character varying(255)	t	
 bank_accounts	7	bank_branch	character varying(255)	f	
-bank_accounts	8	routing_number	character varying(255)	f	
-bank_accounts	9	swift_code	character varying(20)	f	
-bank_accounts	10	iban	character varying(50)	f	
 bank_accounts	11	currency	character varying(3)	t	
 bank_accounts	12	current_balance	numeric(15,2)	f	0
 bank_accounts	13	available_balance	numeric(15,2)	f	0
@@ -47,6 +42,10 @@ bank_accounts	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 bank_accounts	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 bank_accounts	23	created_by	uuid	f	
 bank_accounts	24	updated_by	uuid	f	
+bank_accounts	25	account_number_ct	text	f	
+bank_accounts	26	iban_ct	text	f	
+bank_accounts	27	routing_number_ct	text	f	
+bank_accounts	28	swift_code_ct	text	f	
 bank_reconciliation_rules	1	id	uuid	t	gen_random_uuid()
 bank_reconciliation_rules	2	tenant_id	uuid	t	
 bank_reconciliation_rules	3	bank_account_id	uuid	f	
@@ -191,7 +190,6 @@ clients	24	company_size	text	f
 clients	25	currency	text	f	'USD'::text
 clients	26	payment_terms	text	f	'net_30'::text
 clients	27	default_hourly_rate	numeric(18,4)	f	
-clients	28	tax_id	text	f	
 clients	29	portal_access_enabled	boolean	f	false
 clients	30	account_manager_id	uuid	f	
 clients	31	acquisition_date	date	f	
@@ -202,6 +200,7 @@ clients	35	created_at	timestamp with time zone	t	now()
 clients	36	updated_at	timestamp with time zone	t	now()
 clients	37	created_by	text	t	
 clients	38	version	integer	f	1
+clients	39	tax_id_ct	text	f	
 compensation_allowances	1	id	uuid	t	gen_random_uuid()
 compensation_allowances	2	tenant_id	uuid	t	
 compensation_allowances	3	employee_id	uuid	t	
@@ -411,11 +410,6 @@ employee_bank_accounts	8	currency	character varying(3)	t
 employee_bank_accounts	9	account_type	text	t	'checking'::text
 employee_bank_accounts	10	account_number_encrypted	text	t	
 employee_bank_accounts	11	account_number_last4	character varying(4)	f	
-employee_bank_accounts	12	routing_number	text	f	
-employee_bank_accounts	13	ifsc_code	text	f	
-employee_bank_accounts	14	sort_code	text	f	
-employee_bank_accounts	15	iban	text	f	
-employee_bank_accounts	16	bic_swift	text	f	
 employee_bank_accounts	17	is_primary	boolean	t	false
 employee_bank_accounts	18	allocation_type	text	t	'remainder'::text
 employee_bank_accounts	19	allocation_value	numeric(12,2)	f	
@@ -429,13 +423,17 @@ employee_bank_accounts	26	effective_to	date	f
 employee_bank_accounts	27	created_at	timestamp with time zone	t	now()
 employee_bank_accounts	28	updated_at	timestamp with time zone	t	now()
 employee_bank_accounts	29	created_by	uuid	f	
+employee_bank_accounts	30	routing_number_ct	text	f	
+employee_bank_accounts	31	ifsc_code_ct	text	f	
+employee_bank_accounts	32	sort_code_ct	text	f	
+employee_bank_accounts	33	iban_ct	text	f	
+employee_bank_accounts	34	bic_swift_ct	text	f	
 employee_certifications	1	id	uuid	t	gen_random_uuid()
 employee_certifications	2	tenant_id	uuid	t	
 employee_certifications	3	certification_id	text	f	
 employee_certifications	4	employee_id	uuid	t	
 employee_certifications	5	certification_name	text	t	
 employee_certifications	6	issuing_organization	text	t	
-employee_certifications	7	certification_number	text	f	
 employee_certifications	8	issue_date	date	t	
 employee_certifications	9	expiration_date	date	f	
 employee_certifications	10	status	text	t	'active'::text
@@ -443,6 +441,7 @@ employee_certifications	11	verification_url	text	f
 employee_certifications	12	notes	text	f	
 employee_certifications	13	created_at	timestamp with time zone	t	now()
 employee_certifications	14	updated_at	timestamp with time zone	t	now()
+employee_certifications	15	certification_number_ct	text	f	
 employee_group_members	1	id	uuid	t	gen_random_uuid()
 employee_group_members	2	tenant_id	uuid	t	
 employee_group_members	3	group_name	text	t	
@@ -851,14 +850,14 @@ hr_emergency_contacts	3	contact_id	text	f
 hr_emergency_contacts	4	employee_id	uuid	t	
 hr_emergency_contacts	5	contact_name	text	t	
 hr_emergency_contacts	6	relationship	text	t	
-hr_emergency_contacts	7	phone_primary	text	t	
-hr_emergency_contacts	8	phone_secondary	text	f	
-hr_emergency_contacts	9	email	text	f	
-hr_emergency_contacts	10	address	text	f	
 hr_emergency_contacts	11	is_primary	boolean	f	false
 hr_emergency_contacts	12	notes	text	f	
 hr_emergency_contacts	13	created_at	timestamp with time zone	t	now()
 hr_emergency_contacts	14	updated_at	timestamp with time zone	t	now()
+hr_emergency_contacts	15	phone_primary_ct	text	f	
+hr_emergency_contacts	16	phone_secondary_ct	text	f	
+hr_emergency_contacts	17	email_ct	text	f	
+hr_emergency_contacts	18	address_ct	text	f	
 hr_employee_documents	1	id	uuid	t	gen_random_uuid()
 hr_employee_documents	2	tenant_id	uuid	t	
 hr_employee_documents	3	document_id	text	f	
@@ -2151,8 +2150,6 @@ vendors	11	payment_terms	character varying(50)	f	'Net 30'::character varying
 vendors	12	tax_number	character varying(100)	f	
 vendors	13	is_1099_vendor	boolean	f	false
 vendors	14	ap_account_id	uuid	f	
-vendors	15	bank_account_number	character varying(255)	f	
-vendors	16	bank_routing_number	character varying(255)	f	
 vendors	17	bank_name	character varying(255)	f	
 vendors	18	is_active	boolean	f	true
 vendors	19	notes	text	f	
@@ -2161,3 +2158,5 @@ vendors	21	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 vendors	22	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 vendors	23	created_by	uuid	f	
 vendors	24	updated_by	uuid	f	
+vendors	25	bank_account_number_ct	text	f	
+vendors	26	bank_routing_number_ct	text	f	

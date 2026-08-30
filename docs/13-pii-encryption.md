@@ -1,8 +1,7 @@
 # PII Encryption
 
-**Status:** implemented for `employees.ssn_tax_id` and
-`employee_bank_accounts.account_number_encrypted`; the remaining fields are
-named and tracked below
+**Status:** complete. All 19 PII columns are encrypted; `_pii_pending` in
+`verify-invariants.sql` is empty
 **Created:** 2026-08-29
 
 **This document describes engineering, not legal advice.** It implements the
@@ -145,13 +144,23 @@ answer.
 These remain in scope for RLS, access control and the audit trail. Encryption is
 one control among several, not the only one.
 
-### Still plaintext, and tracked
+### Two kinds of subject
 
-Seventeen columns hold PII and are not yet encrypted — bank details, emergency
-contacts, certification numbers, counterparty tax and bank identifiers. They are
-named in `verify-invariants.sql` under `_pii_pending`, so `./check` fails if one
-disappears without the list being updated. **None may carry real data in
-production until it is encrypted.**
+Not everything belongs to a person:
+
+| Subject | Columns | Erasure |
+|---|---|---|
+| `employee` | `employees.ssn_tax_id`, `employee_bank_accounts.*` (6), `hr_emergency_contacts.*` (4), `employee_certifications.certification_number` | destroyed when that person is erased |
+| `tenant` | `clients.tax_id`, `vendors.*` (2), `bank_accounts.*` (4) | **not** touched by an employee's erasure |
+
+The split is load-bearing. Keying the firm's own banking to a person would mean
+one leaver's Article 17 request destroyed the company's account details and
+every client's tax identifier — silently, unrecoverably, and reaching backups.
+A `CHECK` constraint restricts `subject_type` to those two, so a typo is a
+failed write rather than a key nothing can ever find again.
+
+`_pii_pending` is now empty. It remains so a new PII column has an obvious
+place to be declared while its encryption is written.
 
 ---
 

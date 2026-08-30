@@ -172,7 +172,7 @@ These are open items, and they change what kind of beta this can be.
 
 | Gap | Consequence for a beta |
 |---|---|
-| **PII encryption: partly closed** | `employees.ssn_tax_id` is now AES-256-GCM with per-employee keys ([13-pii-encryption.md](./13-pii-encryption.md)). **`PRIVATE_PII_KEK` must be set and backed up separately before the first write.** Seventeen columns — bank details, emergency contacts, counterparty identifiers — are still plaintext and tracked by `./check`; none may carry real data yet |
+| **PII encryption** | ✅ Closed. All 19 PII columns are AES-256-GCM with per-subject keys ([13-pii-encryption.md](./13-pii-encryption.md)). **`PRIVATE_PII_KEK` must be set and backed up separately before the first write** — losing it destroys every encrypted field |
 | **Authorization: action-level done, row-level not** | All 23 write actions now authorize, and separation of duties is enforced in the database ([14-access-control.md](./14-access-control.md)). **RLS still filters by tenant only**, so a page that forgets to scope a query can still show one employee another's row — the application is the only thing preventing it. Acceptable for a design-partner beta; close step 5 before untrusted users |
 | **No signup → tenant flow** | Tenants are created by hand. Deliberate for a beta; a blocker for self-serve |
 | **No backups tested** | Supabase takes them. Restoring one has never been rehearsed. Rehearse before real data lands |

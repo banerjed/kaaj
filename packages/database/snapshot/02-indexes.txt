@@ -48,7 +48,6 @@ clients	idx_clients_account_manager_id	CREATE INDEX idx_clients_account_manager_
 clients	idx_clients_created	CREATE INDEX idx_clients_created ON public.clients USING btree (tenant_id, created_at DESC)
 clients	idx_clients_is_active	CREATE INDEX idx_clients_is_active ON public.clients USING btree (tenant_id, is_active)
 clients	idx_clients_status	CREATE INDEX idx_clients_status ON public.clients USING btree (tenant_id, status)
-clients	idx_clients_tax_id	CREATE INDEX idx_clients_tax_id ON public.clients USING btree (tenant_id, tax_id)
 compensation_allowances	compensation_allowances_pkey	CREATE UNIQUE INDEX compensation_allowances_pkey ON public.compensation_allowances USING btree (id)
 compensation_allowances	compensation_allowances_tenant_id_allowance_id_key	CREATE UNIQUE INDEX compensation_allowances_tenant_id_allowance_id_key ON public.compensation_allowances USING btree (tenant_id, allowance_id)
 compensation_allowances	idx_compensation_allowances_allowance_id	CREATE INDEX idx_compensation_allowances_allowance_id ON public.compensation_allowances USING btree (tenant_id, allowance_id)

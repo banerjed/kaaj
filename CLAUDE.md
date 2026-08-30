@@ -73,7 +73,7 @@ take effect.
 |---|---|---|
 | tenant isolation | every RLS policy actually filters, per table | 587 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold | 86 |
+| schema invariants | ADR design rules hold | 120 |
 | structure snapshot | the schema is exactly what was committed | 4,152 facts |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 23 |

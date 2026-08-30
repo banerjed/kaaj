@@ -20,9 +20,17 @@ import {
  * a call site that assembles it by hand will eventually get it wrong.
  */
 
+/**
+ * Whose data this is.
+ *
+ * `employee` — their own record. Erasing the person destroys it.
+ * `tenant`   — the FIRM's own data, and its counterparties'. Keyed to the firm
+ *              so one leaver's erasure request cannot take the company's
+ *              banking details or every client's tax identifier with it.
+ */
 export type Subject = {
   tenantId: string
-  subjectType: "employee"
+  subjectType: "employee" | "tenant"
   subjectId: string
 }
 

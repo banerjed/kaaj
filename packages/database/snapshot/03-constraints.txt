@@ -295,6 +295,7 @@ pii_erasures	pii_erasures_pkey	p	PRIMARY KEY (id)
 pii_erasures	pii_erasures_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 pii_keys	pii_keys_one_per_subject	u	UNIQUE (tenant_id, subject_type, subject_id)
 pii_keys	pii_keys_pkey	p	PRIMARY KEY (id)
+pii_keys	pii_keys_subject_type_is_known	c	CHECK ((subject_type = ANY (ARRAY['employee'::text, 'tenant'::text])))
 pii_keys	pii_keys_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 pm_automation_executions	fk_pm_automation_executions_automation_id	f	FOREIGN KEY (automation_id) REFERENCES pm_automations(id)
 pm_automation_executions	pm_automation_executions_pkey	p	PRIMARY KEY (id)

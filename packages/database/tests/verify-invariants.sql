@@ -297,31 +297,37 @@ INSERT INTO _pii_encrypted VALUES
   ('employees', 'ssn_tax_id', 'ssn_tax_id_ct'),
   -- The plaintext half never existed here: the column was created as
   -- `account_number_encrypted` and shipped holding `enc:<uuid>` placeholders.
-  ('employee_bank_accounts', 'account_number', 'account_number_encrypted');
+  ('employee_bank_accounts', 'account_number', 'account_number_encrypted'),
+  -- Employee-subject: erasing the person destroys these.
+  ('employee_bank_accounts',  'routing_number',       'routing_number_ct'),
+  ('employee_bank_accounts',  'ifsc_code',            'ifsc_code_ct'),
+  ('employee_bank_accounts',  'sort_code',            'sort_code_ct'),
+  ('employee_bank_accounts',  'iban',                 'iban_ct'),
+  ('employee_bank_accounts',  'bic_swift',            'bic_swift_ct'),
+  ('hr_emergency_contacts',   'phone_primary',        'phone_primary_ct'),
+  ('hr_emergency_contacts',   'phone_secondary',      'phone_secondary_ct'),
+  ('hr_emergency_contacts',   'email',                'email_ct'),
+  ('hr_emergency_contacts',   'address',              'address_ct'),
+  ('employee_certifications', 'certification_number', 'certification_number_ct'),
+  -- Tenant-subject: the firm's own banking and its counterparties'. These must
+  -- NOT be destroyed when an employee is erased.
+  ('clients',       'tax_id',              'tax_id_ct'),
+  ('vendors',       'bank_account_number', 'bank_account_number_ct'),
+  ('vendors',       'bank_routing_number', 'bank_routing_number_ct'),
+  ('bank_accounts', 'account_number',      'account_number_ct'),
+  ('bank_accounts', 'iban',                'iban_ct'),
+  ('bank_accounts', 'routing_number',      'routing_number_ct'),
+  ('bank_accounts', 'swift_code',          'swift_code_ct');
 
 -- Columns that hold PII and are NOT yet encrypted. Named so they are tracked
 -- rather than forgotten: when one is encrypted it moves to the list above, and
 -- this rule fails until the list is edited. Nothing here may reach production
 -- holding real data — see docs/13-pii-encryption.md § What is not encrypted yet.
 CREATE TEMP TABLE _pii_pending (tbl TEXT, col TEXT, reason TEXT);
-INSERT INTO _pii_pending VALUES
-  ('employee_bank_accounts', 'routing_number', 'bank detail; no consumer yet'),
-  ('employee_bank_accounts', 'ifsc_code',      'bank detail; no consumer yet'),
-  ('employee_bank_accounts', 'sort_code',      'bank detail; no consumer yet'),
-  ('employee_bank_accounts', 'iban',           'bank detail; no consumer yet'),
-  ('employee_bank_accounts', 'bic_swift',      'bank detail; no consumer yet'),
-  ('hr_emergency_contacts',  'phone_primary',  'third-party contact data'),
-  ('hr_emergency_contacts',  'phone_secondary','third-party contact data'),
-  ('hr_emergency_contacts',  'email',          'third-party contact data'),
-  ('hr_emergency_contacts',  'address',        'third-party contact data'),
-  ('employee_certifications','certification_number', 'licence identifier'),
-  ('clients',                'tax_id',         'counterparty tax identifier'),
-  ('vendors',                'bank_account_number',  'counterparty bank detail'),
-  ('vendors',                'bank_routing_number',  'counterparty bank detail'),
-  ('bank_accounts',          'account_number', 'own bank detail'),
-  ('bank_accounts',          'iban',           'own bank detail'),
-  ('bank_accounts',          'routing_number', 'own bank detail'),
-  ('bank_accounts',          'swift_code',     'own bank detail');
+-- Empty. Every column that held PII is now encrypted. The table stays so the
+-- rule below keeps working the moment a new one is added rather than needing
+-- to be reinvented — and so a new PII column has an obvious place to be
+-- declared while its encryption is written.
 
 -- 1. An encrypted field's plaintext column must not exist, and its ciphertext
 --    column must.
@@ -384,9 +390,10 @@ END $rule2$;
 -- the accounting module's own bank details; the subject is the firm, not an
 -- employee, so they wait for that module to define its subject type.
 CREATE TEMP TABLE _pii_name_exempt (col TEXT PRIMARY KEY, reason TEXT);
-INSERT INTO _pii_name_exempt VALUES
-  ('bank_accounts.account_number_encrypted',
-   'company bank details; subject is the firm, pending the accounting module');
+-- Empty: bank_accounts.account_number_encrypted is now genuinely sealed under
+-- a tenant-subject key, so its name no longer lies.
+INSERT INTO _pii_name_exempt
+  SELECT NULL::text, NULL::text WHERE false;
 
 -- 2b. A column NAMED as though it were encrypted must actually be encrypted.
 --     `employee_bank_accounts.account_number_encrypted` held `enc:<uuid>` — a

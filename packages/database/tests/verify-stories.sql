@@ -327,10 +327,14 @@ SELECT _check('FR-PAY-005-primary','SCHEMA','payroll',
   'Exactly one primary account per employee is enforced',
   $$SELECT bool_and(n<=1) FROM (SELECT count(*) n FROM employee_bank_accounts
       WHERE is_primary AND is_active GROUP BY employee_id) x$$);
+-- The rails are still asked about; the identifiers are now ciphertext
+-- (20260830140000_pii_fanout.sql), so presence is what is checkable and
+-- presence is what the requirement needs.
 SELECT _check('FR-PAY-005-intl','DATA','payroll',
   'Non-US payment rails represented (IFSC / IBAN / sort code)',
   $$SELECT count(*)>0 FROM employee_bank_accounts
-     WHERE ifsc_code IS NOT NULL OR iban IS NOT NULL OR sort_code IS NOT NULL$$);
+     WHERE ifsc_code_ct IS NOT NULL OR iban_ct IS NOT NULL
+        OR sort_code_ct IS NOT NULL$$);
 SELECT _check('PAY-run','DATA','payroll',
   'Payroll runs exist for more than one country',
   $$SELECT count(DISTINCT country)>1 FROM payroll_runs$$);
