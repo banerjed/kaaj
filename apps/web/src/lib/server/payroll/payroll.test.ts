@@ -137,6 +137,10 @@ describe("a person's payslip history", () => {
     const [slip] = await withTenant(AS_OWNER, (tx) =>
       runs.forEmployee(tx, MARCUS),
     )
+    // These seven, and only these. `forEmployee` wraps LINE_SELECT in a
+    // subquery and asserts the row type over it, so anything added to
+    // PayslipLine later is unguarded again — the same shape as L45, one layer
+    // out. Add the field here when you add it there.
     for (const field of [
       "pay_date",
       "currency",
