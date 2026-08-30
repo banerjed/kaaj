@@ -5,11 +5,29 @@
 
   let { data } = $props()
 
+  /**
+   * Where to go after signing in.
+   *
+   * `/account` is CMSaasStarter's billing area, not this product — landing
+   * there after login left people looking at a demo dashboard with no way into
+   * Kaaj. The app's layout bounces an unauthenticated visitor to
+   * `/login?redirect=<path>`, so honour that first and fall back to the
+   * directory, which is the app's home until a dashboard exists.
+   */
+  const destination = () => {
+    const wanted = page.url.searchParams.get("redirect")
+    // Same-origin paths only: an open redirect here would send someone who
+    // just typed their password to whatever a link told it to.
+    return wanted && wanted.startsWith("/") && !wanted.startsWith("//")
+      ? wanted
+      : "/employees"
+  }
+
   const onSignedIn = () => {
     // Delay needed because callback order is not guaranteed; let layout auth
-    // invalidation settle before /account loads.
+    // invalidation settle before the destination loads.
     setTimeout(() => {
-      goto("/account")
+      goto(destination())
     }, 1)
   }
 </script>
