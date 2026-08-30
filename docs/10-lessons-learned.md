@@ -442,6 +442,30 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L39 — A promise the schema records but cannot keep
+
+`hr_feedback` stores `from_employee_id` and `is_anonymous` in the same row.
+Both are correct. The anonymity promise still breaks the moment any page joins
+to `employees` and renders the author — no error, no type failure, no test
+failure, and nobody finds out until the person who wrote the note does.
+
+The same shape appears wherever a flag says "do not show this" while the value
+sits beside it: `hr_reviews.manager_assessment` before it is submitted,
+`employees.ssn_tax_id_ct` for a role holding `pii.read` but not `pii.reveal`.
+
+**A flag that governs disclosure has to be enforced where the data is read,
+once, and the governed value must not be in the returned type at all.** In
+`hr_feedback.repo.ts` the author's name is resolved in SQL with
+`CASE WHEN is_anonymous THEN NULL`, so the id never leaves the database — a
+repository that fetched it and dropped it in TypeScript would still have put it
+in a result set, a log line and a heap dump. A test asserts the id does not
+appear anywhere in the serialised rows.
+
+And the fixture had no anonymous row, so none of this was exercised. **A rule
+with no fixture row that triggers it is a rule nobody is testing** — the same
+lesson `verify-rls.sql` already encodes by failing when a table has no fixture
+rather than passing vacuously.
+
 ### L38 — A key derived from an identifier is not a key
 
 `module-employee-profile.md` specifies

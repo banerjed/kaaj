@@ -726,10 +726,16 @@ INSERT INTO hr_benefits_enrollments (id, tenant_id, employee_id, plan_year, bene
     ('caf6cb8e-d651-5049-be4f-1bf90d4d4528', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 2026, 'dental', 'Delta Dental', 'employee_spouse', '2025-12-12', '2026-01-01', '[{"name": "Chidi Okafor", "relationship": "spouse", "date_of_birth": "1990-02-18"}]'::jsonb, '[]'::jsonb, '{"employee_contribution": 40, "employer_contribution": 110, "currency": "USD"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Continuous feedback (FR-HR-010)
-INSERT INTO hr_feedback (id, tenant_id, feedback_id, from_employee_id, to_employee_id, feedback_type, content, visibility, tags, created_at, updated_at) VALUES
-    ('51421c2a-17e8-573a-ad83-c60d4f036728', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-001', '6d466aa9-e51a-5d52-9015-152600855932', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'praise', 'Excellent work untangling the Acme data model.', 'manager_only', '["technical"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('a88349a8-db1c-5492-a864-2adeca2ba609', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'praise', 'Client specifically called out your responsiveness.', 'public', '["client", "communication"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    ('17fc284f-0a5d-530b-9123-a65483de7f5b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-003', '6d466aa9-e51a-5d52-9015-152600855932', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'constructive', 'Consider bringing the team in earlier on design decisions.', 'private', '["collaboration"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
+INSERT INTO hr_feedback (id, tenant_id, feedback_id, from_employee_id, to_employee_id, feedback_type, content, is_anonymous, visibility, tags, created_at, updated_at) VALUES
+    ('51421c2a-17e8-573a-ad83-c60d4f036728', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-001', '6d466aa9-e51a-5d52-9015-152600855932', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'praise', 'Excellent work untangling the Acme data model.', FALSE, 'manager_only', '["technical"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('a88349a8-db1c-5492-a864-2adeca2ba609', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'praise', 'Client specifically called out your responsiveness.', FALSE, 'public', '["client", "communication"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    ('17fc284f-0a5d-530b-9123-a65483de7f5b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-003', '6d466aa9-e51a-5d52-9015-152600855932', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'constructive', 'Consider bringing the team in earlier on design decisions.', FALSE, 'private', '["collaboration"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
+    -- The anonymous case. Without it the promise "we will not show who wrote
+    -- this" is untestable, and a page that rendered from_employee_id would
+    -- pass every check while breaking it for real. Marked anonymous but WITH a
+    -- source recorded, which is exactly the shape that goes wrong: the column
+    -- is populated and correct, and must never be returned.
+    ('c4a2f3e1-8b6d-5a47-9e02-1f5c8d3b7a90', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-004', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '6d466aa9-e51a-5d52-9015-152600855932', 'constructive', 'Sprint planning often runs long; a tighter agenda would help.', TRUE, 'private', '["process"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Pulse surveys with questions as JSONB
 INSERT INTO hr_surveys (id, tenant_id, survey_id, survey_name, survey_type, questions, start_date, end_date, is_anonymous, status, response_count, created_at, updated_at, created_by) VALUES

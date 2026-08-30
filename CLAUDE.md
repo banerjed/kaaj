@@ -448,6 +448,15 @@ is a cosmetic problem, and the reverse is a financial one.
 untyped and untested. A customer needing a custom allowance on a payslip is a
 modelling gap to fix in the product, not a custom field.
 
+**A flag that governs disclosure is enforced where the data is READ, and the
+governed value stays out of the returned type.** `is_anonymous`,
+a review's `status`, `pii.reveal` — in every case the value sits in the row
+next to the flag, so a page that renders it breaks the promise silently
+([L39](docs/10-lessons-learned.md)). Resolve it in SQL (`CASE WHEN ... THEN
+NULL`), not after the query: a repository that fetches and drops has still put
+it in a result set, a log line and a heap dump. And add the fixture row that
+triggers the rule, or nobody is testing it.
+
 **PII is encrypted in the application, never in SQL, and always through
 `$lib/server/pii`.** `sealField`/`openField` are the only write and read paths.
 They bind every ciphertext to `tenant | table | column | row`, so a value cannot

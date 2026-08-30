@@ -178,6 +178,49 @@
     </div>
   {/if}
 
+  <!-- Feedback ----------------------------------------------------------- -->
+  {#if data.feedback.length > 0}
+    <h2 class="mt-6 text-base font-medium">Feedback</h2>
+    <div class="card bg-base-100 mt-2 shadow">
+      <ul class="list">
+        {#each data.feedback as f (f.id)}
+          <li class="list-row">
+            <div class="list-col-grow">
+              <p class="text-sm">{f.content}</p>
+              <p class="text-base-content/70 mt-1 text-xs">
+                For {f.to_name} ·
+                {#if f.is_anonymous}
+                  <!-- Never the author. The repository does not return it, so
+                       there is nothing here to render by mistake. -->
+                  <span class="italic">anonymous</span>
+                {:else}
+                  {f.from_name ?? "—"}
+                {/if}
+                {#if f.feedback_date}
+                  · {calendarDate(f.feedback_date, locale)}
+                {/if}
+              </p>
+            </div>
+            <div class="flex items-center gap-1">
+              {#if f.feedback_type}
+                <span
+                  class={`badge badge-sm capitalize ${f.feedback_type === "praise" ? "badge-success" : "badge-ghost"}`}
+                >
+                  {f.feedback_type}
+                </span>
+              {/if}
+              {#if f.visibility !== "public"}
+                <span class="badge badge-ghost badge-sm">
+                  {f.visibility.replace(/_/g, " ")}
+                </span>
+              {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+
   <!-- Reviews you are writing, or all of them if you run the cycle -------- -->
   {#if others.length > 0}
     <h2 class="mt-6 text-base font-medium">

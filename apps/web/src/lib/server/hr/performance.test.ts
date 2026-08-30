@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { withTenant } from "../db/tenant"
 import * as reviews from "./hr_reviews.repo"
 import * as goals from "./hr_goals.repo"
+import * as feedback from "./hr_feedback.repo"
 
 /**
  * Performance reviews, against the real database. Read-only.
@@ -241,5 +242,104 @@ describe("the page's own load, not just the repository", () => {
     expect(data.readsAll).toBe(false)
     const priyas = data.reviews.find((r) => r.employee_id === PRIYA)!
     expect(priyas.manager_assessment).not.toBeNull()
+  })
+})
+
+describe("feedback anonymity", () => {
+  const fbReader = (
+    employeeId: string | null,
+    readsAll = false,
+    manages: string[] = [],
+  ) => ({ employeeId, readsAll, manages })
+
+  it("never returns the author of an anonymous note — not even to HR", async () => {
+    // The column is populated and correct. That is the trap: a page that
+    // joined to employees and rendered the author would break the promise
+    // without erroring and without failing a type check.
+    const all = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(NADIA, true)),
+    )
+    const anon = all.find((f) => f.feedback_id === "FB-004")!
+    expect(anon.is_anonymous).toBe(true)
+    expect(anon.from_name).toBeNull()
+    // And no field carries the id, so it cannot be rendered by mistake.
+    expect(Object.keys(anon)).not.toContain("from_employee_id")
+  })
+
+  it("still names the author of a signed note", async () => {
+    const all = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(NADIA, true)),
+    )
+    expect(all.find((f) => f.feedback_id === "FB-002")!.from_name).toBe(
+      "Aisha Okafor",
+    )
+  })
+
+  it("keeps the author's id out of the query result entirely", async () => {
+    // Not fetched-then-dropped: a repository that dropped it in TypeScript
+    // would still have put it in a result set, a log line and a heap dump.
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(NADIA, true)),
+    )
+    const serialised = JSON.stringify(rows)
+    expect(serialised).not.toContain(PRIYA) // the anonymous author
+  })
+})
+
+describe("who may read which feedback", () => {
+  const TOM = "b9b84064-a67a-5048-8282-8fc048b4dbfb"
+
+  const fbReader = (
+    employeeId: string | null,
+    readsAll = false,
+    manages: string[] = [],
+  ) => ({ employeeId, readsAll, manages })
+
+  it("shows a recipient their own private note", async () => {
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(TOM)),
+    )
+    expect(rows.map((f) => f.feedback_id)).toContain("FB-003")
+  })
+
+  it("withholds a manager_only note from its own subject", async () => {
+    // FB-001 is about Marcus, written for whoever manages him. Showing it to
+    // Marcus would turn every such note into a message to its subject, which
+    // is not what the author chose.
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(MARCUS)),
+    )
+    expect(rows.map((f) => f.feedback_id)).not.toContain("FB-001")
+    expect(
+      await withTenant(NORTHWIND, (tx) => feedback.receivedBy(tx, MARCUS)),
+    ).toEqual([])
+  })
+
+  it("shows that same note to the manager it was written for", async () => {
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(SARAH, false, [MARCUS])),
+    )
+    expect(rows.map((f) => f.feedback_id)).toContain("FB-001")
+  })
+
+  it("shows a public note to anyone", async () => {
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(NADIA)),
+    )
+    expect(rows.map((f) => f.feedback_id)).toEqual(["FB-002"])
+  })
+
+  it("shows a peer nothing private", async () => {
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(MARCUS)),
+    )
+    expect(rows.map((f) => f.feedback_id)).not.toContain("FB-003")
+  })
+
+  it("does not raise for a reader who is not an employee", async () => {
+    const rows = await withTenant(NORTHWIND, (tx) =>
+      feedback.visibleTo(tx, fbReader(null)),
+    )
+    expect(rows.map((f) => f.feedback_id)).toEqual(["FB-002"])
   })
 })

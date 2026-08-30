@@ -173,9 +173,11 @@ hr_employment_history	hr_employment_history_change_type_check	c	CHECK ((change_t
 hr_employment_history	hr_employment_history_pkey	p	PRIMARY KEY (id)
 hr_employment_history	hr_employment_history_reason_check	c	CHECK ((reason = ANY (ARRAY['new_hire'::text, 'promotion'::text, 'cost_of_living'::text, 'market_adjustment'::text, 'merit_increase'::text, 'reorganization'::text, 'employee_request'::text, 'performance'::text, 'role_change'::text, 'relocation'::text, 'other'::text])))
 hr_employment_history	hr_employment_history_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_feedback	hr_feedback_anonymous_is_not_manager_only	c	CHECK ((NOT (is_anonymous AND (visibility = 'manager_only'::text))))
 hr_feedback	hr_feedback_pkey	p	PRIMARY KEY (id)
 hr_feedback	hr_feedback_tenant_id_feedback_id_key	u	UNIQUE (tenant_id, feedback_id)
 hr_feedback	hr_feedback_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+hr_feedback	hr_feedback_visibility_is_known	c	CHECK ((visibility = ANY (ARRAY['private'::text, 'manager_only'::text, 'public'::text])))
 hr_goals	hr_goals_measurement_type_check	c	CHECK ((measurement_type = ANY (ARRAY['percentage'::text, 'numeric'::text, 'boolean'::text, 'milestone'::text])))
 hr_goals	hr_goals_pkey	p	PRIMARY KEY (id)
 hr_goals	hr_goals_status_check	c	CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'achieved'::text, 'missed'::text, 'cancelled'::text])))
