@@ -240,13 +240,22 @@ const TIER1: {
   },
   {
     table: "compensation_variable",
-    total: 4,
+    total: 5,
+    own: 0,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    // Absent from this list until the fixture gained rows: with zero rows the
+    // suite had nothing to assert, so a policy that was never exercised looked
+    // indistinguishable from one that passed.
+    table: "compensation_premiums",
+    total: 2,
     own: 0,
     readsAll: ["hr_admin", "payroll_admin", "auditor"],
   },
   {
     table: "compensation_equity",
-    total: 3,
+    total: 4,
     own: 0,
     readsAll: ["hr_admin", "payroll_admin", "auditor"],
   },

@@ -109,6 +109,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "actions are authorized"    node scripts/verify-authz.mjs
   step "queries carry the actor"   node scripts/verify-actor.mjs
   step "no unprotected fallback"   node scripts/verify-no-unprotected-fallback.mjs
+  step "sensitive cols classified" node scripts/verify-matrix-complete.mjs
   echo ""
 fi
 

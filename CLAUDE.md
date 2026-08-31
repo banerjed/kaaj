@@ -246,6 +246,20 @@ Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
 
+**Every sensitive column is classified before it ships.**
+`apps/web/src/lib/server/security/matrix.ts` records, per value, who may read
+it and **which mechanism holds it** — `rls`, `encrypted`, `projection` or
+`open`. `./check` fails on any column that is neither classified nor on the
+committed not-sensitive list, because every disclosure bug here so far was an
+*unclassified* column rather than a mis-classified one
+([L48](docs/10-lessons-learned.md)).
+
+Two rules for using it: **`defense` is the spine, not audience** — on a
+broadly-visible row RLS cannot hide a column, so a NULL in the fixture is not
+evidence of anything. And **declare per column only where the row is broadly
+visible**; where a row policy scopes the whole row, one table-level
+declaration covers every column on it.
+
 **A protected column NEVER falls back to an unprotected one.** RLS hides the
 row; a `COALESCE` puts the value back. `compensation_base` is policy-protected
 and `employees.base_amount` is an unprotected cache of the same figure, so

@@ -34,8 +34,37 @@ import { join, relative } from "node:path"
 const ROOT = new URL("..", import.meta.url).pathname
 const DIRS = ["apps/web/src/routes", "apps/web/src/lib/server"]
 
-/** Unprotected caches of a value that lives behind a policy elsewhere. */
-const CACHE_COLUMNS = ["base_amount", "currency", "pay_frequency"]
+/**
+ * The disclosure matrix NAMES these columns in order to declare them
+ * protected. It issues no queries, so scanning it reports the register itself
+ * as nine violations — the guard tripping on its own rulebook.
+ */
+const NOT_QUERY_CODE = ["apps/web/src/lib/server/security/matrix.ts"]
+
+/**
+ * Columns on a BROADLY-VISIBLE row that must never reach a projection.
+ *
+ * `employees` is a staff directory: every colleague can read the row, so RLS
+ * cannot hide any column on it and this list is the only thing standing
+ * between these values and everyone in the firm.
+ *
+ * Kept in step with `defense: "projection"` in
+ * `apps/web/src/lib/server/security/matrix.ts` — `disclosure.test.ts` fails if
+ * the two diverge, so a field declared protected there but absent here is
+ * caught rather than silently unheld.
+ */
+const CACHE_COLUMNS = [
+  "base_amount",
+  "currency",
+  "pay_frequency",
+  "salary_structure",
+  "variable_compensation",
+  "compensation_band",
+  "default_hourly_rate",
+  "default_billable_rate",
+  "tax_withholding",
+  "benefits_elections",
+]
 /** Aliases that mean the `employees` table in these queries. */
 const EMPLOYEE_ALIASES = ["e", "employees", "m"]
 
@@ -99,9 +128,10 @@ const lineOf = (src, index) => src.slice(0, index).split("\n").length
 
 for (const d of DIRS) {
   for (const file of tsFiles(join(ROOT, d))) {
+    const rel = relative(ROOT, file)
+    if (NOT_QUERY_CODE.includes(rel)) continue
     const raw = readFileSync(file, "utf8")
     const src = stripComments(raw)
-    const rel = relative(ROOT, file)
 
     const report = (index, why) => {
       const at = `${rel}:${lineOf(src, index)}`

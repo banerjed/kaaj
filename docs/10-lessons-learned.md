@@ -442,6 +442,65 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L48 — Protection is applied per mechanism; disclosure happens per value
+
+After L47 the question was not "what else is broken" but "why did nothing
+catch it". The answer is that every guard in this codebase inspects a
+different unit than the one that leaks:
+
+| Guard | Unit it inspects | Why L47 was invisible to it |
+|---|---|---|
+| tenant isolation (587) | tenant A vs tenant B | the leak was *within* a tenant |
+| row visibility (75) | what a TABLE returns for a claim | the leak was in a *projection* |
+| schema invariants (133) | `information_schema` | cannot see a query, or inside JSONB |
+| repository tests | a repo's output, as an OWNER | the restricted branch is unreachable |
+
+Each had a principled reason not to see it. That is a gap with a shape, not
+bad luck — and every `./check` step is a tombstone for a specific incident,
+which means the set of things it catches is exactly the set of things that
+have already happened once.
+
+The missing question is **value-centric**: for this *value*, what are all the
+read paths, and what holds each one. `apps/web/src/lib/server/security/matrix.ts`
+asks it. Three things about its design earned themselves:
+
+**`defense` is the spine, not `audience`.** On a broadly-visible row RLS
+*cannot* hide a column, so "the test saw NULL" proves nothing — the five JSONB
+compensation columns on `employees` are empty in the fixture and would have
+passed any visibility assertion while protected by nothing at all. Each field
+names the mechanism that holds it, and the test asserts that mechanism is in
+force.
+
+**Per-column declarations are only needed where the row is broadly visible.**
+`employees` is a staff directory, so every colleague reads the row and each
+value must name its own defense. On `compensation_*` the row policy scopes the
+whole row, so one declaration covers thirty columns — and thirty per-column
+entries would be thirty restatements of one fact, and thirty places to be
+wrong.
+
+**Exhaustiveness is a build step, not a test.** `verify-matrix-complete.mjs`
+enumerates the schema and fails on any column that is neither classified nor
+on a committed not-sensitive list. This is the only part that catches the
+CLASS rather than the instances: `employees.base_amount` was not
+mis-classified, it was *unclassified*, and so were the five JSONB columns
+beside it. Deliberately not a regex over column names — the name-based sweep
+that found L47's neighbours would miss a renamed column, anything inside a
+JSONB document, and PII with an innocuous name. Both were verified by probe:
+adding `employees.bonus_target` and `employees.notes_internal` each fail the
+build.
+
+Two things fell out of building it that are lessons in themselves:
+
+- **`compensation_premiums` held zero rows**, so every "a colleague cannot see
+  this" assertion against it passed with nothing to hide, and the table was
+  missing from the row-visibility suite entirely. A policy with no fixture row
+  has never been tested. The matrix now asserts a fixture row exists for its
+  subject before trusting any negative case.
+- **`supabase db reset` drops the `app_user` password**, and every visibility
+  test then fails with `password authentication failed` — which reads as a
+  security regression and is a setup artifact. `./setup` restores it; running
+  `db reset` alone does not.
+
 ### L47 — RLS hides the row; a COALESCE puts the value back
 
 `compensation_base` carries a row-visibility policy: as a plain employee you
