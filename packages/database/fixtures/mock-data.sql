@@ -2171,3 +2171,29 @@ SELECT '7c3e9f21-6b48-5d0a-9e37-1f582a4b60d9',
   FROM pm_objectives o ORDER BY o.id LIMIT 1
 ON CONFLICT (id) DO NOTHING;
 
+-- ---------------------------------------------------------------------------
+-- Bank balances, and the three states a reconciliation screen has to show.
+--
+-- `current_balance` is what the BANK says; the running `balance` on the last
+-- imported transaction is what the FEED says. They are different facts and can
+-- legitimately disagree — a charge that has not been imported yet is the
+-- ordinary reason. The fixture shipped them disagreeing with no story: the USD
+-- account stated 248,500.00 while its transactions ran to 248,201.00, which is
+-- exactly the JetBrains debit, so the stated figure was simply stale.
+--
+-- Now all three states exist, deliberately:
+--   Operating USD  — agrees with the feed
+--   Operating GBP  — a 35.00 bank charge not yet imported, so it differs
+--   Payroll        — no transactions imported at all
+-- ---------------------------------------------------------------------------
+UPDATE bank_accounts a SET current_balance = t.balance, available_balance = t.balance
+  FROM (SELECT DISTINCT ON (bank_account_id) bank_account_id, balance
+          FROM bank_transactions
+         ORDER BY bank_account_id, transaction_date DESC, created_at DESC) t
+ WHERE t.bank_account_id = a.id;
+
+UPDATE bank_accounts SET
+    current_balance   = current_balance - 35.00,
+    available_balance = current_balance - 35.00
+ WHERE account_name = 'Operating Account GBP';
+

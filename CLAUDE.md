@@ -296,6 +296,13 @@ unreachable from them. Assert both halves: the refused actor gets NULL, *and*
 the permitted one still gets the figure. A policy that blanks everything reads
 as a broken page, not as a rule.
 
+**Type every `tx` query that crosses into a page.** An untyped row is `any`
+downstream, and `any` satisfies every parameter — so a wrong-shaped argument is
+not merely allowed, it is unexaminable. `data.tenant` was untyped and a
+`FormatContext` argument received a bare string, rendering a timestamp with no
+date and passing `svelte-check`
+([L53](docs/10-lessons-learned.md)).
+
 **Never compare a database value to `Date.now()`.** The app and Postgres are on
 different machines, and a Docker VM's clock drifts across a host sleep. Compare
 against `clock_timestamp()` in the same query, or assert `col = now()` to prove

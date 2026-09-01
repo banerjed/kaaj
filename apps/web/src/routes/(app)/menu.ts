@@ -167,14 +167,24 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/accounting/invoices",
         permission: "accounting.read",
       },
-      { id: "accounting-bills", label: "Bills", ...soon },
+      {
+        id: "accounting-bills",
+        label: "Bills",
+        url: "/accounting/bills",
+        permission: "accounting.read",
+      },
       {
         id: "accounting-ledger",
         label: "General Ledger",
         url: "/accounting/ledger",
         permission: "accounting.read",
       },
-      { id: "accounting-banking", label: "Banking", ...soon },
+      {
+        id: "accounting-banking",
+        label: "Banking",
+        url: "/accounting/banking",
+        permission: "accounting.read",
+      },
     ],
   },
   {

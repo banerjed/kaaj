@@ -442,6 +442,43 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L53 — An untyped row makes every value downstream `any`
+
+The banking page rendered a sync time as `4:00 AM` — no date. The call was
+
+```ts
+instant(a.last_synced_at, tenantZone, tenantLocale)
+```
+
+and `instant` takes a **FormatContext object** second, with an optional
+`"time" | "datetime"` third. So `ctx` was a string (its `.locale` and
+`.timezone` both `undefined`), and `parts` was `"en-US"`, which is not
+`"datetime"` — so `dateStyle` was never applied and only the time rendered.
+
+`svelte-check` passed. The cause is one line in the layout:
+
+```ts
+const [row] = await tx`SELECT id, company_name, default_timezone, ... FROM tenants`
+return row
+```
+
+An untyped `tx` query returns a loose row, so `data.tenant?.default_timezone`
+is effectively `any` — and **`any` satisfies every parameter**, including one
+expecting an object. The wrong-shaped argument was not merely allowed, it was
+unexaminable. Typing the query (`tx<TenantSettings[]>`) makes the same call
+fail with *Argument of type 'string' is not assignable to parameter of type
+'FormatContext'*, which was verified by reintroducing it.
+
+This is L45's neighbour and its inverse. There, a cast PROMISED columns the
+query did not select; here, the absence of a type promised nothing and
+therefore forbade nothing. Both end the same way — a value rendering as
+`undefined`, or a date silently missing — because the type system was told
+something untrue in one case and nothing at all in the other.
+
+`data.tenant` is read by almost every page in the product for locale, currency
+and timezone. It was the single loosest value in the codebase, and every
+formatting call site that touched it lost its type checking.
+
 ### L52 — A soft-delete marker is state, and filling it deletes everything
 
 L51 named the category — a column where NULL means something — from one

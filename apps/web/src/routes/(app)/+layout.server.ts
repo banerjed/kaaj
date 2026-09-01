@@ -10,6 +10,19 @@ import { permissionsFor } from "@kaaj/authz"
  * means not signed in; a session with no tenantId means a valid user with no
  * active membership, which would otherwise render every page blank (L21).
  */
+/** The tenant settings every screen formats against. */
+export type TenantSettings = {
+  id: string
+  company_name: string
+  default_locale: string
+  default_currency: string
+  default_timezone: string
+  date_format: string | null
+  time_format: string | null
+  supported_locales: string[] | null
+  supported_currencies: string[] | null
+}
+
 export const load: LayoutServerLoad = async ({ locals, url }) => {
   const { session, user } = locals
 
@@ -22,8 +35,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   }
 
   // Loaded once in the layout, not per page: it is on every screen.
+  //
+  // TYPED, deliberately. An untyped `tx` query returns a loose row, so every
+  // `data.tenant?.x` downstream is effectively `any` — and `any` satisfies any
+  // parameter. That is how `instant(value, tenantZone, tenantLocale)` reached
+  // a page: the function takes a FormatContext OBJECT second, the string went
+  // in unchallenged, and the sync time rendered with no date at all (L53).
   const tenant = await withTenant(actorFrom(locals), async (tx) => {
-    const [row] = await tx`
+    const [row] = await tx<TenantSettings[]>`
       SELECT id,
              company_name,
              default_locale,
