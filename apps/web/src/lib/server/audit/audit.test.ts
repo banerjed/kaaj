@@ -46,22 +46,24 @@ describe("writing to the trail", () => {
   it("records who did what to which thing", async () => {
     const rows = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
-        action: "approved",
-        entityType: "time_off_request",
+        action: "approve",
+        entityType: "hr_time_off_requests",
         entityId: "11111111-1111-1111-1111-111111111111",
         module: "hr",
-        changes: { hours: "16.0000" },
+        changes: { status: { from: "pending", to: "approved" } },
       })
       return audit.forEntity(
         tx,
-        "time_off_request",
+        "hr_time_off_requests",
         "11111111-1111-1111-1111-111111111111",
       )
     })
     expect(rows).toHaveLength(1)
-    expect(rows[0].action).toBe("approved")
+    expect(rows[0].action).toBe("approve")
     expect(rows[0].actor_name).toBe("Sarah Johnson")
-    expect(rows[0].changes).toEqual({ hours: "16.0000" })
+    expect(rows[0].changes).toEqual({
+      status: { from: "pending", to: "approved" },
+    })
   })
 
   it("stamps the time itself rather than trusting the caller", async () => {
@@ -75,7 +77,7 @@ describe("writing to the trail", () => {
     // Date.now() made this fail for a reason that had nothing to do with
     // auditing (L43).
     const row = await inRollback(async (tx) => {
-      await audit.record(tx, ctx, { action: "x", entityType: "test" })
+      await audit.record(tx, ctx, { action: "update", entityType: "test" })
       const [r] = await tx<{ drift_seconds: string; is_default: boolean }[]>`
         SELECT abs(extract(epoch FROM clock_timestamp() - occurred_at))::text
                  AS drift_seconds,
@@ -100,35 +102,47 @@ describe("writing to the trail", () => {
         entityType: "employee",
         entityId: SARAH,
         changes: {
-          job_title: "Engineering Director",
-          ssn_tax_id_ct: "the-actual-ciphertext",
-          account_number_ct: "another-one",
+          job_title: {
+            from: "Engineering Manager",
+            to: "Engineering Director",
+          },
+          ssn_tax_id_ct: {
+            from: "old-ciphertext",
+            to: "the-actual-ciphertext",
+          },
+          account_number_ct: { from: null, to: "another-one" },
         },
       })
       const [r] = await audit.forEntity(tx, "employee", SARAH)
       return r
     })
     expect(row.changes).toEqual({
-      job_title: "Engineering Director",
-      ssn_tax_id_ct: "[redacted]",
-      account_number_ct: "[redacted]",
+      job_title: { from: "Engineering Manager", to: "Engineering Director" },
+      // BOTH sides replaced. Redacting only the new value would leave the old
+      // one — which for a rotated account number is the number that was
+      // actually in use.
+      ssn_tax_id_ct: { from: "[redacted]", to: "[redacted]" },
+      account_number_ct: { from: "[redacted]", to: "[redacted]" },
     })
   })
 
   it("redacts a review's assessments — they are not a diff", async () => {
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
-        action: "submitted",
-        entityType: "review",
+        action: "submit",
+        entityType: "hr_reviews",
         entityId: SARAH,
-        changes: { status: "submitted", manager_assessment: { s: "text" } },
+        changes: {
+          status: { from: "draft", to: "submitted" },
+          manager_assessment: { from: null, to: "the actual assessment text" },
+        },
       })
-      const [r] = await audit.forEntity(tx, "review", SARAH)
+      const [r] = await audit.forEntity(tx, "hr_reviews", SARAH)
       return r
     })
     expect(row.changes).toEqual({
-      status: "submitted",
-      manager_assessment: "[redacted]",
+      status: { from: "draft", to: "submitted" },
+      manager_assessment: { from: "[redacted]", to: "[redacted]" },
     })
   })
 })
@@ -170,5 +184,106 @@ describe("reading the trail", () => {
       audit.recent(tx, { limit: 100_000 }),
     )
     expect(rows.length).toBeLessThanOrEqual(200)
+  })
+})
+
+describe("the change record's shape", () => {
+  it("keeps the OLD value, not only the new one", async () => {
+    // The half an auditor actually asks about. A flat {amount: "148000"}
+    // records what a value became and loses what it was.
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "pay_change",
+        entityType: "compensation_base",
+        entityId: SARAH,
+        changes: { amount: { from: "139000.00", to: "148000.00" } },
+      })
+      const [r] = await audit.forEntity(tx, "compensation_base", SARAH)
+      return r
+    })
+    expect(row.changes).toEqual({
+      amount: { from: "139000.00", to: "148000.00" },
+    })
+  })
+
+  it("stores money as a STRING, so no digit is lost", async () => {
+    // A JSON number in JSONB comes back to JavaScript as a float64. Everywhere
+    // else that is a bug to fix; here it cannot be fixed, because the table
+    // holds INSERT and SELECT only (L41).
+    const value = "9007199254740993.00" // > 2^53: a float64 cannot hold it
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "pay_change",
+        entityType: "compensation_base",
+        entityId: SARAH,
+        changes: { amount: { from: null, to: value } },
+      })
+      const [r] = await audit.forEntity(tx, "compensation_base", SARAH)
+      return r
+    })
+    expect(row.changes!.amount.to).toBe(value)
+    // The proof it matters: through a float it would not survive.
+    expect(String(Number(value))).not.toBe(value)
+  })
+
+  it("reads null as 'the field had no value before'", async () => {
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "create",
+        entityType: "employees",
+        entityId: SARAH,
+        changes: { middle_name: { from: null, to: "Anne" } },
+      })
+      const [r] = await audit.forEntity(tx, "employees", SARAH)
+      return r
+    })
+    expect(row.changes!.middle_name).toEqual({ from: null, to: "Anne" })
+  })
+
+  it("keeps the reason, and keeps it out of the values", async () => {
+    // Prose has a home, but never mixed with values: the redaction set matches
+    // field NAMES, so a sentence carrying an account number would go straight
+    // past it into a table that cannot be deleted from.
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "pay_change",
+        entityType: "compensation_base",
+        entityId: SARAH,
+        changes: { amount: { from: "1", to: "2" } },
+        reason: "backdated per the offer letter",
+      })
+      const [r] = await audit.forEntity(tx, "compensation_base", SARAH)
+      return r
+    })
+    const changes = row.changes as unknown as Record<string, unknown>
+    expect(changes._reason).toBe("backdated per the offer letter")
+    // Still a well-formed change beside it.
+    expect(changes.amount).toEqual({ from: "1", to: "2" })
+  })
+
+  it("redacts BOTH sides of a protected field", async () => {
+    // Replacing only the new value would leave the old one — which for a
+    // rotated account number is the number that was actually in use.
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "update",
+        entityType: "employee_bank_accounts",
+        entityId: SARAH,
+        changes: {
+          iban_ct: {
+            from: "GB29NWBK60161331926819",
+            to: "GB94BARC10201530093459",
+          },
+        },
+      })
+      const [r] = await audit.forEntity(tx, "employee_bank_accounts", SARAH)
+      return r
+    })
+    expect(row.changes).toEqual({
+      iban_ct: { from: "[redacted]", to: "[redacted]" },
+    })
+    // And neither value survives anywhere in the row.
+    expect(JSON.stringify(row)).not.toContain("NWBK")
+    expect(JSON.stringify(row)).not.toContain("BARC")
   })
 })

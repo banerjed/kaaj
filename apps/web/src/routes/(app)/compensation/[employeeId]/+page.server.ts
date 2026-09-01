@@ -95,6 +95,13 @@ export const actions: Actions = {
 
     try {
       await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE changing it. Without this the trail records
+        // only what a value became, which is the half nobody asks about — the
+        // question is always "what was it before, and who changed it".
+        const previous = (
+          await base.listForEmployee(tx, params.employeeId)
+        ).find((r) => r.effective_to === null)
+
         await base.addRaise(
           tx,
           locals.tenantId!,
@@ -115,19 +122,32 @@ export const actions: Actions = {
         // SAME TRANSACTION as the change itself. The fields that changed, not
         // a row dump: audit_log holds INSERT and SELECT only, so anything
         // written here is written forever.
+        // SAME TRANSACTION as the change itself, with the OLD and NEW value
+        // of every field that moved. Values are strings: a JSON number inside
+        // JSONB returns to JavaScript as a float64, and this table cannot be
+        // corrected (L41).
         await audit.record(tx, ctx!, {
           action: "pay_change",
           entityType: "compensation_base",
           entityId: params.employeeId,
           module: "compensation",
           changes: {
-            effective_from: effectiveFrom,
-            amount,
-            currency,
-            pay_frequency: payFrequency,
-            compensation_type: compensationType,
-            change_reason: changeReason,
+            amount: { from: previous?.amount ?? null, to: amount },
+            currency: { from: previous?.currency ?? null, to: currency },
+            pay_frequency: {
+              from: previous?.pay_frequency ?? null,
+              to: payFrequency,
+            },
+            compensation_type: {
+              from: previous?.compensation_type ?? null,
+              to: compensationType,
+            },
+            effective_from: {
+              from: previous?.effective_from ?? null,
+              to: effectiveFrom,
+            },
           },
+          reason: changeReason,
         })
       })
     } catch (e) {

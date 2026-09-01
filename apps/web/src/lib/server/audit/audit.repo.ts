@@ -37,18 +37,75 @@ const NEVER_LOGGED = new Set([
   "manager_assessment",
 ])
 
+/**
+ * One field that changed, as STRINGS.
+ *
+ * Strings, not the value's own type, for a reason this table makes permanent:
+ * a JSON *number* inside JSONB is stored exactly by Postgres and handed back to
+ * JavaScript as a float64, so a pay change of 148000 comes back as a float and
+ * a larger one loses digits (L41). Everywhere else that is a bug to fix; here
+ * it is a bug that cannot be fixed, because `audit_log` holds INSERT and SELECT
+ * only and a correction is a new row rather than an edit.
+ *
+ * `null` means the field had no value — a field being SET for the first time is
+ * `{ from: null, to: "..." }`, and being cleared is the reverse.
+ */
+export type FieldChange = {
+  from: string | null
+  to: string | null
+}
+
+/**
+ * What was done. A closed set rather than free text, so the trail can be
+ * filtered and counted; an action nobody listed is a decision nobody made.
+ */
+export const AUDIT_ACTIONS = [
+  "create",
+  "update",
+  "archive",
+  "restore",
+  "approve",
+  "deny",
+  "submit",
+  "acknowledge",
+  "pay_change",
+  "send",
+  "record_payment",
+  "close_period",
+  "role_grant",
+  "role_revoke",
+  "erase",
+  "export",
+] as const
+export type AuditAction = (typeof AUDIT_ACTIONS)[number]
+
 export type AuditEntry = {
-  /** What was done: approve, deny, create, update, archive, generate_plan. */
-  action: string
-  /** What it was done to: time_off_request, review, employee. */
+  /** What was done. */
+  action: AuditAction
+  /** Which table it was done to: `employees`, `compensation_base`. */
   entityType: string
   entityId?: string | null
   module?: string
   /**
-   * The specific facts worth keeping. Not a row dump — see the note above.
-   * `{ from, to }` pairs read best when a value changed.
+   * The fields that changed, each with its OLD and NEW value.
+   *
+   * Typed as `FieldChange` rather than `unknown` on purpose: a flat
+   * `{ amount: "148000" }` records what a value became and loses what it was,
+   * which is the half an auditor actually asks about. The type now refuses it.
+   *
+   * Not a row dump — see the note at the top of this file.
    */
-  changes?: Record<string, unknown> | null
+  changes?: Record<string, FieldChange> | null
+  /**
+   * WHY, in prose, when there is a why worth keeping: "corrected a typo",
+   * "backdated per the offer letter".
+   *
+   * Deliberately separate from `changes`. Values never go in here — the
+   * redaction set matches field NAMES, so a sentence containing an account
+   * number would carry it straight past `NEVER_LOGGED` into a table that
+   * cannot be deleted from.
+   */
+  reason?: string | null
 }
 
 /**
@@ -56,11 +113,13 @@ export type AuditEntry = {
  * still records THAT the field was touched. "Someone changed the bank details"
  * is the fact an auditor needs; the number is not.
  */
-function redact(changes: Record<string, unknown> | null | undefined) {
+function redact(changes: Record<string, FieldChange> | null | undefined) {
   if (!changes) return null
-  const out: Record<string, unknown> = {}
+  const out: Record<string, FieldChange> = {}
   for (const [key, value] of Object.entries(changes)) {
-    out[key] = NEVER_LOGGED.has(key) ? "[redacted]" : value
+    out[key] = NEVER_LOGGED.has(key)
+      ? { from: "[redacted]", to: "[redacted]" }
+      : value
   }
   return out
 }
@@ -82,7 +141,16 @@ export async function record(
       ${ctx.tenantId}, ${ctx.userId}, ${ctx.employeeId},
       ${entry.action}, ${entry.entityType}, ${entry.entityId ?? null},
       ${entry.module ?? null},
-      ${tx.json(redact(entry.changes) as never)}
+      -- The reason rides inside the changes document under a reserved key
+      -- rather than in a new column: audit_log is append-only and adding a
+      -- column to it is a migration against a table nobody may rewrite. The
+      -- key is namespaced with an underscore so it cannot collide with a
+      -- field name. (No backticks in here: this is a JS template literal, and
+      -- a backtick would end the string — L52, hit twice now.)
+      ${tx.json({
+        ...(redact(entry.changes) ?? {}),
+        ...(entry.reason ? { _reason: entry.reason } : {}),
+      } as never)}
     )
   `
 }
@@ -94,7 +162,7 @@ export type AuditRow = {
   entity_id: string | null
   module: string | null
   actor_name: string | null
-  changes: Record<string, unknown> | null
+  changes: Record<string, FieldChange> | null
   occurred_at: Date
 }
 

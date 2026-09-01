@@ -92,7 +92,7 @@ export const actions: Actions = {
       await withTenant(actorFrom(locals), async (tx) => {
         await reviews.submit(tx, id, { employeeId: ctx.employeeId })
         await audit.record(tx, ctx, {
-          action: "submitted",
+          action: "submit",
           entityType: "review",
           entityId: id,
           module: "hr",
@@ -127,7 +127,7 @@ export const actions: Actions = {
       await withTenant(actorFrom(locals), async (tx) => {
         await reviews.acknowledge(tx, id, { employeeId: ctx.employeeId })
         await audit.record(tx, ctx, {
-          action: "acknowledged",
+          action: "acknowledge",
           entityType: "review",
           entityId: id,
           module: "hr",

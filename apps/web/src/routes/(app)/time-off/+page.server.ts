@@ -110,15 +110,19 @@ export const actions: Actions = {
         // the thing that must not be inferable from a query alone.
         if (ctx) {
           await audit.record(tx, ctx, {
-            action: decision,
-            entityType: "time_off_request",
+            // `decision` is "approved" | "denied"; the trail's vocabulary is
+            // the verb, so every entry reads the same way whatever wrote it.
+            action: decision === "approved" ? "approve" : "deny",
+            entityType: "hr_time_off_requests",
             entityId: id,
             module: "hr",
             changes: {
-              subject_employee_id: subject.employee_id,
-              hours: subject.total_hours,
-              denial_reason: denialReason,
+              // What actually MOVED. The subject and the hours did not change
+              // — they are context, and context that never varies belongs in
+              // the entity the entry already points at.
+              status: { from: "pending", to: decision },
             },
+            reason: denialReason,
           })
         }
       })

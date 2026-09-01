@@ -604,13 +604,19 @@ INSERT INTO cross_module_links (id, tenant_id, source_module, source_entity_type
     ('5af988bd-ab71-596d-b613-914f764fddec', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'hr', 'goal', 'ebd4d4ec-1e50-5901-9d53-110cf0314dda', 'project_management', 'objective', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'aligned_to');
 
 -- Audit trail examples
+-- The audit trail.
+--
+-- `entity_type` names the TABLE, so an entry can be joined back to the row it
+-- describes. `changes` is {field: {from, to}} and every value is a STRING —
+-- a JSON number inside JSONB returns to JavaScript as a float64, and this is
+-- the one table where that cannot be corrected afterwards (L41).
 INSERT INTO audit_log (tenant_id, actor_user_id, actor_employee_id, action, entity_type, entity_id, module, changes) VALUES
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'update', 'employee', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'hr', '{"base_amount": {"from": 139000, "to": 148000}}'::jsonb),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'create', 'ticket', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'ticketing', NULL),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'approve', 'time_off_request', '70aa9eff-61f7-5867-a657-3a6940cde2bd', 'hr', '{"status": {"from": "pending", "to": "approved"}}'::jsonb),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'send', 'invoice', 'c72699f8-700c-5760-a8e8-19ae6dfd53c5', 'accounting', '{"status": {"from": "draft", "to": "sent"}}'::jsonb),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'record_payment', 'payment', '26361e4b-8a87-5b2a-a692-10ec68e02875', 'accounting', '{"amount": {"to": 42300.00}, "payment_gateway": {"to": "Stripe"}}'::jsonb),
-    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'close_period', 'accounting_period', '957b6ce4-6f44-50c1-84b1-d9bdb8892585', 'accounting', '{"status": {"from": "closed", "to": "locked"}}'::jsonb);
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'update', 'compensation_base', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'hr', '{"amount": {"from": "139000.00", "to": "148000.00"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'create', 'ticketing_tickets', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'ticketing', NULL),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'approve', 'hr_time_off_requests', '70aa9eff-61f7-5867-a657-3a6940cde2bd', 'hr', '{"status": {"from": "pending", "to": "approved"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'send', 'invoices', 'c72699f8-700c-5760-a8e8-19ae6dfd53c5', 'accounting', '{"status": {"from": "draft", "to": "sent"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'record_payment', 'payments', '26361e4b-8a87-5b2a-a692-10ec68e02875', 'accounting', '{"amount": {"from": null, "to": "42300.00"}, "payment_gateway": {"from": null, "to": "Stripe"}}'::jsonb),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'close_period', 'accounting_periods', '957b6ce4-6f44-50c1-84b1-d9bdb8892585', 'accounting', '{"status": {"from": "closed", "to": "locked"}}'::jsonb);
 
 -- Employee direct-deposit accounts (FR-PAY-005). E001 splits 15% to savings; the primary account takes the remainder. Account numbers are stored encrypted.
 INSERT INTO employee_bank_accounts (id, tenant_id, employee_id, account_holder_name, bank_name, country, currency, account_type, account_number_encrypted, account_number_last4, is_primary, allocation_type, allocation_value, priority, verification_status, verified_at, is_active, effective_from, created_by) VALUES
