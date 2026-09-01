@@ -64,7 +64,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "compensation",
     icon: "lucide--banknote",
     label: "Compensation",
-    ...soon,
+    url: "/compensation",
   },
   {
     id: "payroll",

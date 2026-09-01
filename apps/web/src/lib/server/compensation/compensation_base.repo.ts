@@ -251,3 +251,48 @@ export async function correct(
   `
   if (row) await syncCache(tx, row.employee_id)
 }
+
+/** Current base pay with the person's name, for everyone the caller may see. */
+export type CurrentPay = {
+  employee_id: string
+  first_name: string
+  last_name: string
+  job_title: string | null
+  department_code: string | null
+  location_code: string | null
+  amount: string
+  currency: string
+  pay_frequency: string | null
+  effective_from: string
+  compensation_type: string | null
+}
+
+/**
+ * Everyone's current base pay — as far as the row policy allows.
+ *
+ * **This deliberately does not filter by person.** `compensation_base` carries
+ * a row-visibility policy, so the identical query returns one row to an
+ * employee and twelve to HR. Re-filtering here would state the rule a second
+ * time, and the two statements would eventually disagree; the policy is the
+ * rule, and `compensation.test.ts` asserts this query against four claims.
+ *
+ * It reads `compensation_base`, never `employees.base_amount_pvt` — that is
+ * the unprotected cache whose COALESCE disclosed every salary in the firm
+ * (L47), and the build fails on any query that touches it.
+ */
+export async function currentForAll(tx: Tx): Promise<CurrentPay[]> {
+  return tx<CurrentPay[]>`
+    SELECT c.employee_id,
+           e.first_name, e.last_name, e.job_title,
+           e.department_code, e.location_code,
+           c.amount::text AS amount,
+           c.currency, c.pay_frequency,
+           to_char(c.effective_from,'YYYY-MM-DD') AS effective_from,
+           c.compensation_type
+      FROM compensation_base c
+      JOIN employees e ON e.id = c.employee_id
+     WHERE c.effective_from <= CURRENT_DATE
+       AND (c.effective_to IS NULL OR c.effective_to >= CURRENT_DATE)
+     ORDER BY e.last_name, e.first_name
+  `
+}
