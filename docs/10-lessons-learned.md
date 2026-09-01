@@ -442,6 +442,39 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L52 — A soft-delete marker is state, and filling it deletes everything
+
+L51 named the category — a column where NULL means something — from one
+instance, `applies_to_location_code`. The category is larger, and the next
+instance stopped a whole module dead.
+
+`projects.archived_at` was filled on all four projects, so
+`WHERE archived_at IS NULL` returned nothing and the Projects list was empty.
+The same pass closed every ticket, deleted every task comment and archived the
+only objective. Nothing failed: the coverage guard was satisfied (the columns
+had values), the tests had not been written yet, and the page simply had no
+rows.
+
+The general shape: **`archived_at`, `deleted_at`, `closed_at`, `cancelled_at`,
+`revoked_at` and their relatives are STATE.** NULL is the live case and the
+common one. They belong to the same family as `effective_to` and take the same
+treatment — set on exactly one row per table, so both paths exist and the live
+rows outnumber the dead ones.
+
+Two smaller things surfaced building on top of it:
+
+- **A backtick inside a SQL comment ends the JavaScript template literal.**
+  Quoting a column name as `` `tasks.assigned_to` `` inside a `tx\`...\`` query
+  produced an esbuild parse error, not a SQL error, and the file failed to load
+  at all. Use plain quotes in SQL comments.
+- **`tasks.assigned_to` is TEXT holding a uuid, with no foreign key.** Joining
+  it to `employees.id` raises `operator does not exist: uuid = text`. Cast the
+  UUID side to text rather than the text side to uuid: a malformed value then
+  matches nothing and the task shows as unassigned, instead of raising
+  `invalid input syntax for type uuid` and taking the whole board down. Several
+  other `_by` and `_id` columns are typed the same way — worth a migration one
+  day, and worth knowing about before then.
+
 ### L51 — Completing the fixture is a test, and it found three things
 
 L50 completed the eighteen personal-data tables. Extending that to the whole

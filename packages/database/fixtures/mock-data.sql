@@ -2067,3 +2067,107 @@ UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"0wR93m9HmZqr85fF
 UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"Aq87mG0ZOs7o8ibV","ct":"5xl2JZR7EING","tag":"EOQUAhV1VYzODaV/QQijHA=="}' WHERE id = 'e21a30e8-9dfd-5817-8479-c7d574417831';
 UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"hESomH0MKQiWo+el","ct":"QFHQkAX90H+B","tag":"3l0vGTyKiQwcHDaC6avleQ=="}' WHERE id = '77464d71-79dd-5490-93a3-a62c9df1d027';
 UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"ag36V29FDOkWduGI","ct":"Vp7wwgO8Sj8j","tag":"P1KkN6jore07UWD2PZLikA=="}' WHERE id = 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1';
+
+-- ---------------------------------------------------------------------------
+-- Project management: make the fixture say something true.
+--
+-- The generated pass filled these columns so nothing was empty, but filled
+-- them FLATLY — every task `medium` priority and due the same day, every
+-- project 35% and on_track, and `task_count` = 3 on all four projects when
+-- three of them have one or two tasks. A uniform fixture tests one shape N
+-- times, and a counter that disagrees with the rows it counts is the
+-- `payroll_runs.employee_count` trap in another module (L50/L51).
+-- ---------------------------------------------------------------------------
+
+-- Task priority and dates vary, so ordering, filtering and the overdue badge
+-- have something to distinguish.
+UPDATE tasks SET
+    priority = CASE
+        WHEN task_name = 'Integration build'    THEN 'high'
+        WHEN task_name = 'Loyalty rules engine' THEN 'urgent'
+        WHEN task_name = 'CI pipeline'          THEN 'low'
+        WHEN task_name = 'Legacy extract'       THEN 'high'
+        ELSE 'medium' END,
+    due_date = CASE
+        WHEN task_name = 'Discovery workshops'  THEN DATE '2026-02-13'
+        WHEN task_name = 'Data model mapping'   THEN DATE '2026-03-20'
+        WHEN task_name = 'Integration build'    THEN DATE '2026-05-29'
+        WHEN task_name = 'Loyalty rules engine' THEN DATE '2026-04-17'
+        WHEN task_name = 'Frontend build'       THEN DATE '2026-06-12'
+        -- Deliberately in the past and NOT done: the only row that exercises
+        -- an overdue task. Without it the badge is never rendered.
+        WHEN task_name = 'Legacy extract'       THEN DATE '2026-08-14'
+        ELSE DATE '2026-07-31' END,
+    start_date = CASE WHEN start_date IS NULL THEN DATE '2026-02-02' ELSE start_date END;
+
+-- One project genuinely at risk, one behind: a board where everything is
+-- green never shows what the status colours are for.
+UPDATE projects SET
+    health_status = CASE project_number
+        WHEN 'PRJ-002' THEN 'at_risk'
+        WHEN 'PRJ-003' THEN 'off_track'
+        ELSE 'on_track' END,
+    priority = CASE project_number
+        WHEN 'PRJ-001' THEN 'high'
+        WHEN 'PRJ-004' THEN 'low'
+        ELSE 'medium' END;
+
+-- The counters agree with the tasks they count. Derived rather than typed, so
+-- adding a task to the fixture cannot silently break them.
+UPDATE projects p SET
+    task_count = c.total,
+    completed_task_count = c.done,
+    progress_percentage = CASE WHEN c.total = 0 THEN 0
+                               ELSE round(100.0 * c.done / c.total, 4) END
+  FROM (
+    SELECT pr.id,
+           count(t.id)::int AS total,
+           count(t.id) FILTER (WHERE t.status = 'done')::int AS done
+      FROM projects pr LEFT JOIN tasks t ON t.project_id = pr.id
+     GROUP BY pr.id
+  ) c
+ WHERE c.id = p.id;
+
+-- ---------------------------------------------------------------------------
+-- Soft-delete markers are SPARSE, not filled.
+--
+-- `archived_at`, `deleted_at` and `closed_at` are state: NULL means the row is
+-- live, and a timestamp means it is not. The generated pass filled them
+-- everywhere, which archived every project, closed every ticket and deleted
+-- every comment — so `WHERE archived_at IS NULL` returned nothing and the
+-- Projects module had no data at all.
+--
+-- Same class as `applies_to_location_code` (L51): a column where NULL carries
+-- meaning must never be filled blindly. Set on ONE row per table, so both
+-- paths are exercised and the live rows outnumber the dead ones.
+-- ---------------------------------------------------------------------------
+
+UPDATE projects SET archived_at = NULL;
+UPDATE projects SET archived_at = '2026-06-30T17:00:00Z'
+ WHERE project_number = 'PRJ-004';   -- the on-hold internal one
+
+UPDATE pm_objectives SET archived_at = NULL;   -- only one row; keep it live
+
+UPDATE pm_task_comments SET deleted_at = NULL;
+UPDATE pm_task_comments SET deleted_at = '2026-03-05T10:15:00Z'
+ WHERE id = (SELECT id FROM pm_task_comments ORDER BY id LIMIT 1);
+
+UPDATE ticketing_tickets SET closed_at = NULL, status = 'open';
+UPDATE ticketing_tickets SET closed_at = '2026-04-02T14:20:00Z', status = 'closed'
+ WHERE id IN (SELECT id FROM ticketing_tickets ORDER BY id LIMIT 2);
+
+-- A second objective, archived.
+--
+-- With one row, `archived_at` could be live or archived but not both — and
+-- setting it left the only objective archived, which is how the coverage guard
+-- caught it. Two rows make the column non-empty AND keep a live objective for
+-- the module to read: the archived path and the ordinary path both exist.
+INSERT INTO pm_objectives (id, tenant_id, objective_number, objective_name, objective_type, status, health_status, archived_at, created_at, updated_at, created_by)
+SELECT '7c3e9f21-6b48-5d0a-9e37-1f582a4b60d9',
+       o.tenant_id, 'OBJ-002', 'Retire the legacy billing stack',
+       o.objective_type, 'completed', 'on_track',
+       '2026-05-30T17:00:00Z', '2026-01-01T09:00:00Z', '2026-05-30T17:00:00Z',
+       o.created_by
+  FROM pm_objectives o ORDER BY o.id LIMIT 1
+ON CONFLICT (id) DO NOTHING;
+

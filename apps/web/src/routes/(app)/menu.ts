@@ -104,7 +104,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "projects",
     icon: "lucide--folder-kanban",
     label: "Projects",
-    ...soon,
+    url: "/projects",
   },
   {
     id: "time-tracking",
