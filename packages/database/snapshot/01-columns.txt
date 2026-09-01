@@ -517,7 +517,7 @@ employees	22	job_level	text	f
 employees	23	manager_id	uuid	f	
 employees	24	location_code	text	f	
 employees	25	pay_frequency	pay_frequency	f	'bi-weekly'::pay_frequency
-employees	26	compensation_band	text	f	
+employees	26	compensation_band_pvt	text	f	
 employees	27	pronouns	pronouns	f	
 employees	28	profile_picture	text	f	
 employees	29	prior_employers	jsonb	f	'[]'::jsonb
@@ -534,16 +534,16 @@ employees	39	updated_at	timestamp with time zone	t	now()
 employees	40	created_by	text	t	
 employees	41	version	integer	f	1
 employees	42	compensation_type	text	f	
-employees	43	base_amount	numeric(18,4)	f	
+employees	43	base_amount_pvt	numeric(18,4)	f	
 employees	44	currency	text	f	'USD'::text
 employees	45	overtime_eligible	boolean	f	false
-employees	46	default_hourly_rate	numeric(18,4)	f	
-employees	47	default_billable_rate	numeric(18,4)	f	
+employees	46	default_hourly_rate_pvt	numeric(18,4)	f	
+employees	47	default_billable_rate_pvt	numeric(18,4)	f	
 employees	48	pto_balances	jsonb	f	'{}'::jsonb
-employees	49	tax_withholding	jsonb	f	'{}'::jsonb
-employees	50	salary_structure	jsonb	f	'{}'::jsonb
-employees	51	variable_compensation	jsonb	f	'[]'::jsonb
-employees	52	benefits_elections	jsonb	f	'{}'::jsonb
+employees	49	tax_withholding_pvt	jsonb	f	'{}'::jsonb
+employees	50	salary_structure_pvt	jsonb	f	'{}'::jsonb
+employees	51	variable_compensation_pvt	jsonb	f	'[]'::jsonb
+employees	52	benefits_elections_pvt	jsonb	f	'{}'::jsonb
 employees	53	fte	numeric(18,4)	f	1.00
 employees	54	ssn_tax_id_ct	text	f	
 employment_terms	1	id	uuid	t	gen_random_uuid()

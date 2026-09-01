@@ -162,7 +162,7 @@
               {e.department_name ?? "—"} · {officeName(e.location_code)}
               <span class="block pt-1 tabular-nums">
                 {money(
-                  e.base_amount,
+                  e.base_amount_pvt,
                   e.currency ?? "USD",
                   officeLocale(e.location_code),
                 )}
@@ -230,7 +230,7 @@
                 </td>
                 <td class="text-right text-sm tabular-nums">
                   {money(
-                    e.base_amount,
+                    e.base_amount_pvt,
                     e.currency ?? "USD",
                     officeLocale(e.location_code),
                   )}

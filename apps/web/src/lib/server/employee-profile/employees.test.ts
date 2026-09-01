@@ -55,7 +55,7 @@ describe("the directory, as a plain employee", () => {
     expect(others.length).toBeGreaterThan(0)
     for (const r of others) {
       expect(
-        r.base_amount,
+        r.base_amount_pvt,
         `${r.first_name} ${r.last_name}'s salary is visible to a colleague`,
       ).toBeNull()
     }
@@ -69,8 +69,8 @@ describe("the directory, as a plain employee", () => {
     )
     const me = rows.find((r) => r.id === MARCUS)
     expect(me).toBeDefined()
-    expect(me!.base_amount).not.toBeNull()
-    expect(Number(me!.base_amount)).toBeGreaterThan(0)
+    expect(me!.base_amount_pvt).not.toBeNull()
+    expect(Number(me!.base_amount_pvt)).toBeGreaterThan(0)
     expect(me!.currency).toBe("INR")
   })
 
@@ -82,7 +82,7 @@ describe("the directory, as a plain employee", () => {
     )
     expect(sarah).not.toBeNull()
     expect(sarah!.first_name).toBe("Sarah")
-    expect(sarah!.base_amount).toBeNull()
+    expect(sarah!.base_amount_pvt).toBeNull()
   })
 })
 
@@ -93,7 +93,7 @@ describe("the directory, as the owner", () => {
     const { rows } = await withTenant(AS_OWNER, (tx) =>
       employees.list(tx, { limit: 50 }),
     )
-    const paid = rows.filter((r) => r.base_amount !== null)
+    const paid = rows.filter((r) => r.base_amount_pvt !== null)
     expect(paid.length).toBeGreaterThan(1)
   })
 })

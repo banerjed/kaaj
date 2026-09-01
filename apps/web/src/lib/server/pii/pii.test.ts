@@ -588,3 +588,63 @@ describe("two kinds of subject", () => {
     ).rejects.toThrow(/pii_keys_subject_type_is_known/)
   })
 })
+
+describe("the fixture's own ciphertext", () => {
+  it("opens — every sealed column, every row", async () => {
+    // The fixture ships pre-computed envelopes. They bind
+    // tenant | table | column | row as AAD and are wrapped by the per-employee
+    // keys seeded in `pii_keys`, so any of these drifting apart — a reseeded
+    // key, a copied envelope, a renamed column — makes them undecryptable.
+    //
+    // That failure is silent in the worst way: the ciphertext is still THERE,
+    // the column still looks populated, and `verify-fixture-coverage.mjs` is
+    // satisfied. Only opening it proves the fixture is real (L48).
+    const SEALED: [string, string, string][] = [
+      ["employees", "ssn_tax_id_ct", "id"],
+      ["hr_emergency_contacts", "address_ct", "employee_id"],
+      ["hr_emergency_contacts", "email_ct", "employee_id"],
+      ["hr_emergency_contacts", "phone_secondary_ct", "employee_id"],
+      ["employee_bank_accounts", "iban_ct", "employee_id"],
+      ["employee_bank_accounts", "bic_swift_ct", "employee_id"],
+    ]
+
+    const failures: string[] = []
+    await withTenant(AS_OWNER, async (tx) => {
+      for (const [table, column, subjectKey] of SEALED) {
+        const rows = await tx.unsafe(
+          `SELECT id::text AS id, ${subjectKey}::text AS subject, ${column} AS ct
+             FROM ${table} WHERE ${column} IS NOT NULL`,
+        )
+        expect(
+          rows.length,
+          `${table}.${column} has no sealed rows`,
+        ).toBeGreaterThan(0)
+        for (const r of rows as unknown as {
+          id: string
+          subject: string
+          ct: string
+        }[]) {
+          try {
+            const opened = await pii.openField(
+              tx,
+              {
+                tenantId: NORTHWIND,
+                subjectType: "employee",
+                subjectId: r.subject,
+              },
+              { table, column, rowId: r.id },
+              r.ct,
+            )
+            if (!opened)
+              failures.push(`${table}.${column} row ${r.id} opened to nothing`)
+          } catch (e) {
+            failures.push(
+              `${table}.${column} row ${r.id}: ${(e as Error).message}`,
+            )
+          }
+        }
+      }
+    })
+    expect(failures).toEqual([])
+  })
+})

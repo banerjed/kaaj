@@ -341,9 +341,17 @@ SELECT _check('PAY-run','DATA','payroll',
 SELECT _check('US-PAY-003','DATA','payroll',
   'Off-cycle payroll runs exist for bonuses or corrections',
   $$SELECT count(*)>0 FROM payroll_runs WHERE run_type='off_cycle'$$);
+-- PRE-tax deductions belong in this identity and were missing from it. The
+-- check passed for years because every fixture row had
+-- total_pretax_deductions = 0.00, so it was asserting a special case rather
+-- than the rule — and it only surfaced when the fixture was completed. A
+-- payslip with a 401(k) or an EPF contribution would have reconciled wrongly
+-- with nothing failing (L48).
 SELECT _check('PAY-math','DATA','payroll',
-  'gross = net + taxes + deductions for every payroll line',
-  $$SELECT bool_and(abs(gross_pay-(net_pay+total_taxes+total_posttax_deductions))<0.02)
+  'gross = net + taxes + pretax + posttax deductions, for every payroll line',
+  $$SELECT bool_and(abs(gross_pay-(net_pay+total_taxes
+                                   +total_pretax_deductions
+                                   +total_posttax_deductions))<0.02)
     FROM payroll_run_employees$$);
 SELECT _check('PAY-rollup','DATA','payroll',
   'Run totals equal the sum of their employee lines',

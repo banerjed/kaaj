@@ -246,6 +246,23 @@ Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
 
+**A restricted column on `employees` is named `_pvt`; ciphertext is named
+`_ct`.** A column on that table carrying neither is directory data, by
+construction. The disclosure matrix decides and the name must AGREE with it —
+`./check` fails both a restricted column without the suffix and a suffixed
+column nobody classified. This asserts the classification; it never infers it
+([L49](docs/10-lessons-learned.md)). Only `employees` needs this: elsewhere a
+row policy scopes the whole row.
+
+**No column of a personal-data table may be empty in the fixture.** A test
+whose subject is NULL does not fail — it reports the absence of data as the
+absence of a problem, which is how `PAY-math` omitted pre-tax deductions from
+the payroll identity and passed for months ([L50](docs/10-lessons-learned.md)).
+`./check` enforces it, with a committed sparse list; "not got round to it" is
+not a reason. Generate ciphertext through `sealField`, never by hand — and
+`pii.test.ts` opens every sealed fixture value, because a copied envelope still
+looks populated.
+
 **Every sensitive column is classified before it ships.**
 `apps/web/src/lib/server/security/matrix.ts` records, per value, who may read
 it and **which mechanism holds it** — `rls`, `encrypted`, `projection` or

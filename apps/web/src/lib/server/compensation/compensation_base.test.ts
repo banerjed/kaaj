@@ -129,13 +129,13 @@ describe("compensation effective dating", () => {
         ACTOR,
       )
       const [e] = await tx`
-        SELECT base_amount::text AS base_amount, currency
+        SELECT base_amount_pvt::text AS base_amount_pvt, currency
           FROM employees WHERE id = ${CHEN}
       `
-      return e as { base_amount: string; currency: string }
+      return e as { base_amount_pvt: string; currency: string }
     })
     // Still the currently-effective figure, not the future one.
-    expect(Number(row.base_amount)).toBe(3200000)
+    expect(Number(row.base_amount_pvt)).toBe(3200000)
     expect(row.currency).toBe("INR")
   })
 
@@ -160,11 +160,11 @@ describe("compensation effective dating", () => {
         ACTOR,
       )
       const [e] = await tx`
-        SELECT base_amount::text AS base_amount FROM employees WHERE id = ${CHEN}
+        SELECT base_amount_pvt::text AS base_amount_pvt FROM employees WHERE id = ${CHEN}
       `
-      return e as { base_amount: string }
+      return e as { base_amount_pvt: string }
     })
-    expect(Number(row.base_amount)).toBe(3500000)
+    expect(Number(row.base_amount_pvt)).toBe(3500000)
   })
 
   it("refuses a second record starting on the same date", async () => {
@@ -254,7 +254,7 @@ describe("compensation effective dating", () => {
   })
 
   it("stores money at the authoritative column's scale, in both places", async () => {
-    // compensation_base.amount is numeric(12,2) and employees.base_amount is
+    // compensation_base.amount is numeric(12,2) and employees.base_amount_pvt is
     // numeric(18,4). Postgres ROUNDS to scale silently (it does not truncate),
     // so a 4-decimal value lands differently in the two columns unless the
     // cache is rounded the same way. .9052 distinguishes the two behaviours;
@@ -280,9 +280,12 @@ describe("compensation effective dating", () => {
       )
       const rows = await comp.listForEmployee(tx, CHEN)
       const [e] = await tx`
-        SELECT base_amount::text AS base_amount FROM employees WHERE id = ${CHEN}
+        SELECT base_amount_pvt::text AS base_amount_pvt FROM employees WHERE id = ${CHEN}
       `
-      return { rows, cached: (e as { base_amount: string }).base_amount }
+      return {
+        rows,
+        cached: (e as { base_amount_pvt: string }).base_amount_pvt,
+      }
     })
 
     // Rounded, not truncated: .9052 -> .91.

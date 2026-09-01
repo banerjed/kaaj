@@ -158,9 +158,9 @@
           >
             {e.employment_status.replaceAll("_", " ")}
           </span>
-          {#if e.base_amount}
+          {#if e.base_amount_pvt}
             <span class="text-lg font-medium tabular-nums">
-              {money(e.base_amount, e.currency ?? "USD", locale)}
+              {money(e.base_amount_pvt, e.currency ?? "USD", locale)}
             </span>
             <span class="text-base-content/70 text-xs">
               {e.pay_frequency?.replaceAll("_", " ") ?? ""}
@@ -443,7 +443,7 @@
               name="amount"
               inputmode="decimal"
               class={`input w-full tabular-nums ${invalid("amount")}`}
-              value={e.base_amount ?? ""}
+              value={e.base_amount_pvt ?? ""}
               required
             />
           </fieldset>

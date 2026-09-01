@@ -191,7 +191,7 @@ export async function addRaise(
 export async function syncCache(tx: Tx, employeeId: string): Promise<void> {
   await tx`
     UPDATE employees e
-       SET base_amount   = round(c.amount, 2),
+       SET base_amount_pvt   = round(c.amount, 2),
            currency      = c.currency,
            pay_frequency = c.pay_frequency,
            updated_at    = now()
@@ -233,7 +233,7 @@ export async function overlaps(
  * Fix an existing record — a typo, not a raise. Moves no dates.
  *
  * Re-syncs the cache afterwards: this is the SECOND writer of
- * `compensation_base.amount`, and leaving `employees.base_amount` stale would
+ * `compensation_base.amount`, and leaving `employees.base_amount_pvt` stale would
  * reintroduce exactly the divergence L25 exists to prevent.
  */
 export async function correct(

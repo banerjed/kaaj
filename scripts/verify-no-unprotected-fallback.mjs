@@ -2,24 +2,24 @@
 /**
  * No query may READ a row-protected value from an unprotected copy of it.
  *
- * `compensation_base` carries a row-visibility policy; `employees.base_amount`
+ * `compensation_base` carries a row-visibility policy; `employees.base_amount_pvt`
  * is a denormalised cache of the same figure and carries none. A query written
- * as `COALESCE(cp.amount, e.base_amount)` therefore reads correctly to whoever
+ * as `COALESCE(cp.amount, e.base_amount_pvt)` therefore reads correctly to whoever
  * writes it and, for anyone the policy restricts, silently substitutes the
  * unprotected copy. Every employee could read every colleague's salary from
  * the directory page, with no error anywhere (L47).
  *
  * TWO rules, because one of them is easy to slip past:
  *
- *  1. **No qualified READ of a cache column.** `e.base_amount` in a select
+ *  1. **No qualified READ of a cache column.** `e.base_amount_pvt` in a select
  *     list, a WHERE, a CASE — any of it. The cache is written by `syncCache`
  *     and has no legitimate reader, so a qualified reference is the bug
  *     regardless of the construct around it. Writes are unqualified
- *     (`SET base_amount = …`, an INSERT column list) and are untouched.
+ *     (`SET base_amount_pvt = …`, an INSERT column list) and are untouched.
  *  2. **No COALESCE onto an unprotected copy**, for the general class beyond
  *     these three columns. Arguments are split on balanced parentheses: a
  *     regex stopping at the first `)` misses
- *     `COALESCE(round(cp.amount, 2), e.base_amount)`, and `syncCache` already
+ *     `COALESCE(round(cp.amount, 2), e.base_amount_pvt)`, and `syncCache` already
  *     writes `round(c.amount, 2)` on this very column pair.
  *
  * SQL comments are stripped first, so the rule can be explained at the call
@@ -54,16 +54,16 @@ const NOT_QUERY_CODE = ["apps/web/src/lib/server/security/matrix.ts"]
  * caught rather than silently unheld.
  */
 const CACHE_COLUMNS = [
-  "base_amount",
+  "base_amount_pvt",
   "currency",
   "pay_frequency",
-  "salary_structure",
-  "variable_compensation",
-  "compensation_band",
-  "default_hourly_rate",
-  "default_billable_rate",
-  "tax_withholding",
-  "benefits_elections",
+  "salary_structure_pvt",
+  "variable_compensation_pvt",
+  "compensation_band_pvt",
+  "default_hourly_rate_pvt",
+  "default_billable_rate_pvt",
+  "tax_withholding_pvt",
+  "benefits_elections_pvt",
 ]
 /** Aliases that mean the `employees` table in these queries. */
 const EMPLOYEE_ALIASES = ["e", "employees", "m"]

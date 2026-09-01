@@ -442,6 +442,76 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L50 — An empty fixture column is a check that has stopped testing
+
+`compensation_premiums` held zero rows. The five JSONB compensation columns on
+`employees` were `{}`. `total_pretax_deductions` was `0.00` on every payroll
+line. In each case a check ran, passed, and proved nothing — a test whose
+subject is NULL does not fail, it reports the absence of data as the absence of
+a problem.
+
+Completing the fixture across the eighteen tables holding data about a person
+turned up a guard that had been passing for the wrong reason for months:
+
+```sql
+-- PAY-math, as it stood
+abs(gross_pay - (net_pay + total_taxes + total_posttax_deductions)) < 0.02
+```
+
+`total_pretax_deductions` is missing from that identity. It passed only because
+every fixture row had zero pre-tax deductions, so the check asserted a special
+case rather than the rule. Give one employee a 401(k) and the payslip
+reconciles wrongly with nothing failing. The repository's own
+`inconsistentLines()` had the identity right, which is the independent-suites
+argument working exactly as intended — but nothing compared them until the
+fixture made the disagreement reachable.
+
+`scripts/verify-fixture-coverage.mjs` now fails the build on any column of a
+personal-data table with no non-empty value, with a committed sparse list —
+and "we did not get round to it" is explicitly not a reason there.
+
+Three things worth knowing when filling one:
+
+- **A numeric `0` and a `false` ARE data.** Excluding them would recreate the
+  blind spot the check exists to close.
+- **Set `effective_to` on exactly one row per table.** Everywhere, and every
+  arrangement has ended; nowhere, and the superseded-record path is untested.
+- **Ciphertext must be generated through the real sealing pipeline.** Envelopes
+  bind `tenant | table | column | row` as AAD and are wrapped by the
+  per-employee keys in `pii_keys`, so one copied from another column simply
+  fails to open — and it fails *silently*, because the column still looks
+  populated and the coverage check is satisfied. `pii.test.ts` now opens every
+  sealed fixture value; that is the only assertion that proves the ciphertext
+  is real.
+
+### L49 — Make the name assert the classification, never infer it
+
+The disclosure matrix records which columns are restricted. The column names
+did not, so `base_amount` sat beside `first_name` looking equally ordinary and
+`COALESCE(cp.amount, e.base_amount)` read as unremarkable in review (L47).
+
+Sensitive columns on `employees` now carry `_pvt`, beside the existing `_ct`
+for ciphertext. The property that buys: **a column on `employees` with neither
+suffix is directory data, by construction**, and a restricted read is visible
+in a diff — `e.base_amount_pvt` shows the problem where `e.base_amount` showed
+nothing.
+
+This looks like the name-based oracle that L48 rejects, and it is the opposite
+operation. L48 refuses to *infer* sensitivity from a name, because a regex
+misses a renamed column, JSONB interiors and innocuously-named PII. Here the
+matrix decides and the name is required to *agree* — checked in both
+directions, so neither a restricted column without the suffix nor a suffixed
+column nobody classified can ship. Inference is a guess; assertion is an
+invariant.
+
+Scope follows the same asymmetry as the matrix: only `employees`, because only
+a broadly-visible row needs per-column marking. Where a row policy scopes the
+whole row, the table name already says it and fifty suffixes would be noise.
+
+Renaming a column is a forward-only migration and moves the structure snapshot,
+which must be regenerated from a migration-built database — never from a
+hand-modified one.
+
 ### L48 — Protection is applied per mechanism; disclosure happens per value
 
 After L47 the question was not "what else is broken" but "why did nothing

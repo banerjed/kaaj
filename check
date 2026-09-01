@@ -110,6 +110,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "queries carry the actor"   node scripts/verify-actor.mjs
   step "no unprotected fallback"   node scripts/verify-no-unprotected-fallback.mjs
   step "sensitive cols classified" node scripts/verify-matrix-complete.mjs
+  step "fixtures are complete"    node scripts/verify-fixture-coverage.mjs
   echo ""
 fi
 

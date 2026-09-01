@@ -138,7 +138,7 @@ INSERT INTO firm_job_levels (id, tenant_id, job_title_id, level_name, level_name
     ('d61e889e-7e4e-5f63-a058-bc50b3a11a7c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '002ca495-22e8-58ba-b7ef-cf5cd13e9a56', 'C2', '{"en-US": "C2"}'::jsonb, '{"USD": {"min": "110000", "max": "150000"}, "GBP": {"min": "75000", "max": "100000"}}'::jsonb, 1);
 
 -- 12 employees across 3 locations, 6 departments, with a manager hierarchy
-INSERT INTO employees (id, tenant_id, employee_id, employee_number, first_name, last_name, email, phone, employment_status, employment_type, start_date, birth_date, department_code, job_title, job_level, location_code, manager_id, timezone, currency, base_amount, compensation_type, pay_frequency, overtime_eligible, default_billable_rate, fte, is_active, custom_fields, celebration_preferences, pto_balances, created_at, updated_at, created_by) VALUES
+INSERT INTO employees (id, tenant_id, employee_id, employee_number, first_name, last_name, email, phone, employment_status, employment_type, start_date, birth_date, department_code, job_title, job_level, location_code, manager_id, timezone, currency, base_amount_pvt, compensation_type, pay_frequency, overtime_eligible, default_billable_rate_pvt, fte, is_active, custom_fields, celebration_preferences, pto_balances, created_at, updated_at, created_by) VALUES
     ('6d466aa9-e51a-5d52-9015-152600855932', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'E001', 'E001', 'Sarah', 'Johnson', 'sarah.johnson@northwind.example', '+1-212-555-0001', 'active', 'full_time', '2024-11-27', '1978-01-01', 'ENG', 'Engineering Manager', 'L4', 'US-NYC', NULL, 'America/New_York', 'USD', 185000, 'salary', 'monthly', FALSE, 225, 1.0, TRUE, '{"shirt_size": "M", "legacy_id": "HR-E001"}'::jsonb, '{"show_birthday": true, "show_age": false, "show_anniversary": true}'::jsonb, '{"annual": {"balance": 12.5, "unit": "days"}}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('db1f1f2b-b140-5948-a34e-1c998ed98757', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'E002', 'E002', 'Marcus', 'Chen', 'marcus.chen@northwind.example', '+1-212-555-0002', 'active', 'full_time', '2024-12-17', '1979-02-02', 'ENG-BE', 'Software Engineer', 'L4', 'IN-BLR', '6d466aa9-e51a-5d52-9015-152600855932', 'Asia/Kolkata', 'INR', 3200000, 'salary', 'monthly', TRUE, 95, 1.0, TRUE, '{"shirt_size": "M", "legacy_id": "HR-E002"}'::jsonb, '{"show_birthday": true, "show_age": true, "show_anniversary": true}'::jsonb, '{"annual": {"balance": 12.5, "unit": "days"}}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('bf17b1af-963b-53ef-9083-21506fb34e9c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'E003', 'E003', 'Priya', 'Raman', 'priya.raman@northwind.example', '+1-212-555-0003', 'active', 'full_time', '2025-01-06', '1980-03-03', 'ENG-BE', 'Software Engineer', 'L3', 'IN-BLR', '6d466aa9-e51a-5d52-9015-152600855932', 'Asia/Kolkata', 'INR', 2100000, 'salary', 'monthly', TRUE, 85, 1.0, TRUE, '{"shirt_size": "M", "legacy_id": "HR-E003"}'::jsonb, '{"show_birthday": true, "show_age": true, "show_anniversary": true}'::jsonb, '{"annual": {"balance": 12.5, "unit": "days"}}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
@@ -1201,3 +1201,292 @@ UPDATE employee_bank_accounts SET ifsc_code_ct = '{"v":1,"k":1,"iv":"rEZbH6NelWj
 UPDATE hr_emergency_contacts SET phone_primary_ct = '{"v":1,"k":1,"iv":"SF7xI3FZA9wZwsCe","ct":"7F4Iax8nFrcL7ysfw9EX","tag":"Jg8OrwGbZtw06Je/u9tY0A=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
 UPDATE hr_emergency_contacts SET phone_primary_ct = '{"v":1,"k":1,"iv":"9qgQ172v6qkZk71C","ct":"noKlTt0cXFAtGVkt8sBT","tag":"ONMbmYJ7YInJj1wQKl9nwg=="}' WHERE id = 'ad65d92d-c7d3-5178-a788-b7e4ecb9e2bd';
 UPDATE hr_emergency_contacts SET phone_primary_ct = '{"v":1,"k":1,"iv":"4Uloh4TKW8bSyQjp","ct":"tnLF7hrqkN8eNn6YuiSWQg==","tag":"pEGKZzd1rdYEcEVuQa9l3g=="}' WHERE id = 'c75f6a31-cddf-58c8-97de-b87698f53477';
+
+-- ============================================================================
+-- Fixture completeness
+--
+-- Every column on a personal-data table carries a value here, because an EMPTY
+-- column is a column nothing tests. `compensation_premiums` held zero rows and
+-- every "a colleague cannot read this" assertion against it passed with
+-- nothing to hide; the JSONB compensation columns on `employees` were `{}`, so
+-- any visibility assertion over them would have passed while they were
+-- protected by nothing at all (L48).
+--
+-- A test whose subject is NULL does not fail. It passes, and reports the
+-- absence of data as the absence of a problem.
+--
+-- `scripts/verify-fixture-coverage.mjs` fails the build on any column here
+-- that goes back to empty. Written as UPDATEs against the rows above rather
+-- than folded into their INSERTs: the INSERTs stay readable as "who works
+-- here", and this section stays readable as "and nothing is untested".
+--
+-- MONEY INSIDE JSONB IS A STRING, never a JSON number — Postgres stores a JSON
+-- number exactly and hands it to JavaScript as a float64 on the way back out,
+-- so the loss happens on read where nothing looks wrong (L41).
+-- ============================================================================
+
+-- Profile detail people fill in themselves. Deliberately varied: a fixture
+-- where every row looks the same tests one shape twelve times.
+UPDATE employees SET
+    preferred_name = split_part(first_name, ' ', 1),
+    pronouns = CASE first_name
+        WHEN 'Sarah' THEN 'she_her' WHEN 'Marcus' THEN 'he_him'
+        WHEN 'Priya' THEN 'she_her' WHEN 'Aisha' THEN 'she_her'
+        WHEN 'Rachel' THEN 'she_her' WHEN 'Tom' THEN 'he_him'
+        WHEN 'James' THEN 'he_him' WHEN 'Lena' THEN 'she_her'
+        WHEN 'Nadia' THEN 'she_her' WHEN 'Diego' THEN 'he_him'
+        WHEN 'Oliver' THEN 'he_him' ELSE 'they_them' END::pronouns,
+    gender = CASE first_name
+        WHEN 'Sarah' THEN 'female' WHEN 'Marcus' THEN 'male'
+        WHEN 'Priya' THEN 'female' WHEN 'Aisha' THEN 'female'
+        WHEN 'Rachel' THEN 'female' WHEN 'Tom' THEN 'male'
+        WHEN 'James' THEN 'male' WHEN 'Lena' THEN 'female'
+        WHEN 'Nadia' THEN 'prefer_not_to_say' WHEN 'Diego' THEN 'male'
+        WHEN 'Oliver' THEN 'male' ELSE 'non_binary' END::gender,
+    marital_status = CASE first_name
+        WHEN 'Sarah' THEN 'married' WHEN 'Marcus' THEN 'married'
+        WHEN 'Priya' THEN 'single' WHEN 'Aisha' THEN 'married'
+        WHEN 'Rachel' THEN 'divorced' WHEN 'Tom' THEN 'single'
+        WHEN 'James' THEN 'domestic_partnership' WHEN 'Lena' THEN 'single'
+        WHEN 'Nadia' THEN 'prefer_not_to_say' WHEN 'Diego' THEN 'married'
+        WHEN 'Oliver' THEN 'widowed' ELSE 'separated' END::marital_status,
+    middle_name = CASE first_name
+        WHEN 'Sarah' THEN 'Anne' WHEN 'Marcus' THEN 'Wei'
+        WHEN 'James' THEN 'Alexander' WHEN 'Priya' THEN 'Lakshmi'
+        ELSE NULL END,
+    introduction = 'Works out of the ' || location_code || ' office. Ask me about '
+        || COALESCE(department_code, 'the firm') || '.',
+    hobbies = '["cycling", "cooking"]'::jsonb,
+    social_media_links = jsonb_build_object('linkedin',
+        'https://www.linkedin.com/in/' || lower(first_name) || '-' || lower(last_name)),
+    affinity_groups = '["parents-network"]'::jsonb,
+    prior_employers = '[{"employer": "Contoso Ltd", "title": "Consultant", "years": "2019-2022"}]'::jsonb,
+    prior_education = '[{"institution": "University of Leeds", "qualification": "BSc", "year": "2015"}]'::jsonb;
+
+-- Compensation detail. `salary_structure_pvt`, `variable_compensation_pvt`,
+-- `tax_withholding_pvt` and `benefits_elections_pvt` are the five columns the
+-- disclosure matrix declares protected and which had NO DATA — so nothing
+-- would have noticed them leaking. Every money value is a STRING.
+UPDATE employees SET
+    compensation_band_pvt = job_level || '-' || CASE WHEN location_code LIKE 'IN%' THEN 'IN' WHEN location_code LIKE 'UK%' THEN 'UK' ELSE 'US' END,
+    default_hourly_rate_pvt = round(default_billable_rate_pvt * 0.45, 4),
+    salary_structure_pvt = jsonb_build_object(
+        'basic_pct', '60', 'hra_pct', '24', 'special_allowance_pct', '16',
+        'review_month', '4'),
+    variable_compensation_pvt = jsonb_build_object(
+        'target_pct', CASE WHEN department_code = 'SALES' THEN '25' ELSE '10' END,
+        'plan', CASE WHEN department_code = 'SALES' THEN 'commission' ELSE 'annual_bonus' END),
+    tax_withholding_pvt = CASE
+        WHEN location_code LIKE 'IN%' THEN jsonb_build_object('regime', 'new', 'section_80c_declared', '150000')
+        WHEN location_code LIKE 'UK%' THEN jsonb_build_object('tax_code', '1257L', 'student_loan_plan', '2')
+        ELSE jsonb_build_object('filing_status', 'single', 'dependents', '0', 'extra_withholding', '0')
+        END,
+    benefits_elections_pvt = jsonb_build_object(
+        'medical', 'employee_plus_spouse', 'dental', 'employee_only',
+        'retirement_pct', '6');
+
+-- Payroll lines. The pension deduction was entirely post-tax while
+-- `pretax_deductions` sat empty, so the pre-tax path was never exercised by
+-- any test. Splitting the SAME total into a pre-tax retirement contribution
+-- and a smaller post-tax pension leaves gross, taxes, net and every run header
+-- untouched — the identities still hold, and the empty column now has data.
+UPDATE payroll_run_employees SET
+    pretax_deductions = jsonb_build_object(
+        CASE work_country WHEN 'US' THEN 'retirement_401k'
+                          WHEN 'IN' THEN 'epf_employee'
+                          ELSE 'workplace_pension' END,
+        round(total_posttax_deductions * 0.6, 2)::text),
+    total_pretax_deductions = round(total_posttax_deductions * 0.6, 2),
+    posttax_deductions = jsonb_build_object('pension',
+        (total_posttax_deductions - round(total_posttax_deductions * 0.6, 2))::text),
+    total_posttax_deductions = total_posttax_deductions - round(total_posttax_deductions * 0.6, 2)
+ WHERE total_posttax_deductions > 0;
+
+-- The employer's own contributions, which never touch net pay but do belong on
+-- a payslip and in the accounting export.
+UPDATE payroll_run_employees SET
+    employer_taxes = jsonb_build_object(
+        CASE work_country WHEN 'US' THEN 'social_employer'
+                          WHEN 'IN' THEN 'epf_employer' ELSE 'ni_employer' END,
+        round(gross_pay * 0.0765, 2)::text),
+    payment_details = jsonb_build_object('method', 'bank_transfer', 'last4', '4417'),
+    run_employee_id = 'RE-' || substr(replace(id::text, '-', ''), 1, 10),
+    resident_state = CASE work_country WHEN 'US' THEN work_state ELSE NULL END,
+    overtime_hours = 0, double_time_hours = 0, pto_hours = 8;
+
+-- Year to date. These are January runs, so YTD equals the period itself —
+-- internally consistent rather than invented, which matters because a YTD that
+-- disagrees with its own payslip is exactly the kind of figure nobody spots.
+UPDATE payroll_run_employees SET
+    ytd_federal_wages  = CASE work_country WHEN 'US' THEN gross_pay END,
+    ytd_federal_tax    = CASE work_country WHEN 'US' THEN (taxes->>'income_tax')::numeric END,
+    ytd_state_wages    = CASE work_country WHEN 'US' THEN gross_pay END,
+    ytd_state_tax      = CASE work_country WHEN 'US' THEN round((taxes->>'income_tax')::numeric * 0.2, 2) END,
+    ytd_ss_wages       = CASE work_country WHEN 'US' THEN gross_pay END,
+    ytd_ss_tax         = CASE work_country WHEN 'US' THEN round((taxes->>'social')::numeric * 0.62, 2) END,
+    ytd_medicare_wages = CASE work_country WHEN 'US' THEN gross_pay END,
+    ytd_medicare_tax   = CASE work_country WHEN 'US' THEN round((taxes->>'social')::numeric * 0.38, 2) END,
+    ytd_gross_inr      = CASE work_country WHEN 'IN' THEN gross_pay END,
+    ytd_tds            = CASE work_country WHEN 'IN' THEN (taxes->>'income_tax')::numeric END,
+    ytd_epf_employee   = CASE work_country WHEN 'IN' THEN total_pretax_deductions END,
+    ytd_epf_employer   = CASE work_country WHEN 'IN' THEN total_pretax_deductions END,
+    ytd_esi_employee   = CASE work_country WHEN 'IN' THEN round(gross_pay * 0.0075, 2) END,
+    ytd_esi_employer   = CASE work_country WHEN 'IN' THEN round(gross_pay * 0.0325, 2) END;
+
+-- Compensation records: the detail that makes each row a complete one.
+-- `effective_to` is set on exactly ONE row per table — a superseded record.
+-- Setting it everywhere would say every arrangement has ended; leaving it NULL
+-- everywhere leaves the "this was superseded" path untested.
+UPDATE compensation_base SET
+    standard_hours_per_day = CASE WHEN currency = 'GBP' THEN 7.5 ELSE 8 END,
+    standard_days_per_week = 5,
+    overtime_rules = jsonb_build_object(
+        'multiplier', '1.5', 'daily_threshold_hours', '8', 'weekly_threshold_hours', '40');
+
+UPDATE compensation_allowances SET
+    description = allowance_name || ' paid ' || COALESCE(frequency::text, 'monthly'),
+    allowance_id = 'ALW-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
+    eligibility_criteria = 'All permanent staff at the assigned location.',
+    max_reimbursement_per_period = round(amount * 1.5, 2),
+    created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85';
+UPDATE compensation_allowances SET effective_to = '2026-06-30'
+ WHERE id = (SELECT id FROM compensation_allowances ORDER BY id LIMIT 1);
+
+UPDATE compensation_variable SET
+    description = comp_name || ', reviewed each ' || COALESCE(frequency::text, 'year'),
+    variable_comp_id = 'VAR-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
+    next_payment_date = '2026-04-15',
+    performance_metrics = jsonb_build_object(
+        'metric', 'attainment_pct', 'threshold', '80', 'cap', '150');
+UPDATE compensation_variable SET effective_to = '2026-12-31'
+ WHERE id = (SELECT id FROM compensation_variable ORDER BY id LIMIT 1);
+
+UPDATE compensation_premiums SET
+    premium_id = 'PRM-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
+    premium_percentage = CASE WHEN rate_multiplier IS NOT NULL
+                              THEN round((rate_multiplier - 1) * 100, 2) ELSE 12.50 END,
+    conditions = jsonb_build_object('min_hours_per_rota', '8'),
+    eligibility_rules = jsonb_build_object('requires_rota_membership', 'true');
+UPDATE compensation_premiums SET effective_to = '2026-09-30'
+ WHERE id = (SELECT id FROM compensation_premiums ORDER BY id LIMIT 1);
+
+-- Equity. fair_market_value differs from grant/strike price on purpose: a
+-- grant priced at the last round and marked to a later valuation is the normal
+-- case, and the gap is the whole point of the record.
+UPDATE compensation_equity SET
+    equity_id = 'EQ-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
+    grant_price = COALESCE(strike_price, 1.25),
+    fair_market_value = 3.40,
+    expiration_date = (grant_date + INTERVAL '10 years')::date,
+    performance_conditions = jsonb_build_object('type', 'time_only', 'accelerate_on_change_of_control', 'true');
+
+-- Employment terms: one fixed-term contract that ran to its planned end.
+UPDATE employment_terms SET
+    planned_end_date = '2026-12-31',
+    actual_end_date = NULL
+ WHERE id = (SELECT id FROM employment_terms ORDER BY id LIMIT 1);
+UPDATE employment_terms SET
+    planned_end_date = '2025-12-31',
+    actual_end_date = '2025-12-19'
+ WHERE id = (SELECT id FROM employment_terms ORDER BY id OFFSET 1 LIMIT 1);
+
+-- Bank accounts: one superseded, one prenote confirmed.
+UPDATE employee_bank_accounts SET branch_name = 'Main branch';
+UPDATE employee_bank_accounts SET prenote_sent_at = '2025-12-02T10:00:00Z'
+ WHERE id = (SELECT id FROM employee_bank_accounts ORDER BY id LIMIT 1);
+UPDATE employee_bank_accounts SET effective_to = '2025-11-30'
+ WHERE id = (SELECT id FROM employee_bank_accounts ORDER BY id OFFSET 1 LIMIT 1);
+
+-- Emergency contacts: the non-encrypted detail. The _ct columns are sealed
+-- separately, through the real sealing pipeline.
+UPDATE hr_emergency_contacts SET
+    contact_id = 'EC-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
+    notes = 'Reachable outside working hours.';
+
+-- Employment history: a change record has to say what it changed FROM.
+UPDATE hr_employment_history h SET
+    location_code = e.location_code,
+    previous_location_code = CASE WHEN e.location_code = 'US-NYC' THEN 'UK-LON' ELSE 'US-NYC' END,
+    manager_id = e.manager_id,
+    previous_manager_id = NULL,
+    fte = 1.0,
+    previous_fte = 0.8,
+    new_employment_type = 'full_time',
+    previous_employment_type = 'part_time',
+    approved_by = '6d466aa9-e51a-5d52-9015-152600855932',
+    compensation_id = (SELECT c.id FROM compensation_base c WHERE c.employee_id = h.employee_id LIMIT 1)
+  FROM employees e WHERE e.id = h.employee_id;
+
+UPDATE hr_feedback SET
+    feedback_date = COALESCE(created_at::date, '2026-02-10'),
+    status = 'published';
+
+UPDATE hr_reviews SET
+    goals = '[{"goal": "Ship the payroll module", "status": "on_track", "weight": "40"}, {"goal": "Mentor two engineers", "status": "met", "weight": "20"}]'::jsonb;
+
+UPDATE tenant_users SET
+    last_active_at = '2026-08-28T09:15:00Z',
+    permissions = '{"dashboard_layout": "compact"}'::jsonb;
+
+-- Payroll: deduction schedules, and the India / US declaration detail.
+UPDATE payroll_employee_deductions SET
+    employee_annual_limit = 23000.00;
+UPDATE payroll_employee_deductions SET
+    effective_to = '2026-12-31',
+    suspended_from = '2026-07-01',
+    suspended_to = '2026-08-31',
+    suspension_reason = 'Unpaid sabbatical'
+ WHERE id = (SELECT id FROM payroll_employee_deductions ORDER BY id LIMIT 1);
+
+UPDATE payroll_india_salary_structure SET
+    medical_allowance = 15000, education_allowance = 2400,
+    mobile_reimbursement = 12000, internet_reimbursement = 18000,
+    annual_bonus = 60000, performance_bonus = 90000,
+    employer_nps = 45000, gratuity = 32000,
+    other_allowances = jsonb_build_object('leave_travel', '48000');
+UPDATE payroll_india_salary_structure SET effective_to = '2027-03-31'
+ WHERE id = (SELECT id FROM payroll_india_salary_structure ORDER BY id LIMIT 1);
+
+UPDATE payroll_india_tax_declarations SET
+    home_loan_interest = 180000, lta_claimed = 40000,
+    previous_employer_income = 450000, previous_employer_tds = 32000,
+    verified_at = '2026-05-20T11:00:00Z',
+    verified_by = 'a87e0200-0849-53b6-a491-e882feace3f5';
+
+UPDATE payroll_tax_withholding_certificates SET
+    document_url = 'https://files.internal.example/w4/' || id || '.pdf',
+    us_step2_amount = 0, us_step4a_other_income = 1200, us_step4b_deductions = 2500,
+    india_previous_employer_income = 450000, india_previous_employer_tds = 32000;
+UPDATE payroll_tax_withholding_certificates SET effective_to = '2026-12-31'
+ WHERE id = (SELECT id FROM payroll_tax_withholding_certificates ORDER BY id LIMIT 1);
+
+-- One promotion that also changed reporting line, so `previous_manager_id` is
+-- exercised rather than uniformly NULL.
+UPDATE hr_employment_history SET previous_manager_id = '11f31511-ad53-59c7-9e90-8ee3b553489b'
+ WHERE employee_id <> '11f31511-ad53-59c7-9e90-8ee3b553489b'
+   AND id = (SELECT id FROM hr_employment_history
+              WHERE employee_id <> '11f31511-ad53-59c7-9e90-8ee3b553489b' ORDER BY id LIMIT 1);
+
+-- Encrypted next-of-kin and banking detail.
+--
+-- Generated through the real sealing pipeline (`sealField`), not hand-written:
+-- every envelope binds tenant | table | column | row as AAD, so a value cannot
+-- be moved between rows or columns and one copied from elsewhere simply fails
+-- to open. The per-employee keys these were sealed under are the ones seeded
+-- in `pii_keys` above — reseal after changing those, or these stop decrypting.
+UPDATE hr_emergency_contacts SET address_ct = '{"v":1,"k":1,"iv":"8sLYH4JKdJcf1M8x","ct":"9QhKJg1rXHmYLE1/XuuMssbki5k=","tag":"B9HQG8pGPnawwZcCO3+lgg=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
+UPDATE hr_emergency_contacts SET email_ct = '{"v":1,"k":1,"iv":"J9dcT6vlGFb9886W","ct":"39XNr08vuOEVYa2EoTzDpYRA3SeK","tag":"PwuWLuTYJ/UZQU6cDdHrPw=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
+UPDATE hr_emergency_contacts SET phone_secondary_ct = '{"v":1,"k":1,"iv":"pIkFtfU9DLsN+/DM","ct":"6oE4z8rxbcQGZP8ddBgy","tag":"KkHReIRhFB9AKVO2me8yHw=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
+UPDATE hr_emergency_contacts SET address_ct = '{"v":1,"k":1,"iv":"aMqd73pHfqveOM6C","ct":"Op84slniYUEdRALlsLhUBGbMX4A=","tag":"ukVITlcg9sE+WZhrWt7KCg=="}' WHERE id = 'ad65d92d-c7d3-5178-a788-b7e4ecb9e2bd';
+UPDATE hr_emergency_contacts SET email_ct = '{"v":1,"k":1,"iv":"owUaXspKf8LmdRoi","ct":"pOa/4E8tcCmYewBBTX/SgQbuwyol","tag":"REFv/w3LWGhWxJsluRhA5A=="}' WHERE id = 'ad65d92d-c7d3-5178-a788-b7e4ecb9e2bd';
+UPDATE hr_emergency_contacts SET phone_secondary_ct = '{"v":1,"k":1,"iv":"+mTk+rvb9hV5VZEe","ct":"TZgh6NBU/smkv9jfTcjP","tag":"Pa0xai69sK/ZmRNtlD+Fag=="}' WHERE id = 'ad65d92d-c7d3-5178-a788-b7e4ecb9e2bd';
+UPDATE hr_emergency_contacts SET address_ct = '{"v":1,"k":1,"iv":"6KWWTT8PLXFr8yEG","ct":"n62c03nfFitsR9pfVMPSbzA6Y20=","tag":"mhy0UE5zsi8UZLwPGkK1Zg=="}' WHERE id = 'c75f6a31-cddf-58c8-97de-b87698f53477';
+UPDATE hr_emergency_contacts SET email_ct = '{"v":1,"k":1,"iv":"zB71QWIrDUh2TTUU","ct":"7kcZmLFDtyZcLqIpgkFn2DnLkA==","tag":"1tp1POVhq+BKDZVhtn3AzQ=="}' WHERE id = 'c75f6a31-cddf-58c8-97de-b87698f53477';
+UPDATE hr_emergency_contacts SET phone_secondary_ct = '{"v":1,"k":1,"iv":"LFAEzUuV881GALi6","ct":"8Y79j91V4pnMTIDHpvY5","tag":"3Qnvm1xPk1Q+5URoJhWE+A=="}' WHERE id = 'c75f6a31-cddf-58c8-97de-b87698f53477';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"rFQChz1F3eS1v7kq","ct":"DBh3uvb5J93JGZ4=","tag":"jszLseXiqabD9iS58X2r9w=="}' WHERE id = '2126f414-630c-5e02-9aa7-c399facb3401';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"USxfaGJDdARIG8fk","ct":"Gr6dcSz3iKboALQ=","tag":"FuXMjNnzZ8tNOCzV8AY35A=="}' WHERE id = '34a7cbd3-f5bf-5b13-86eb-6bef76e90c4b';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"4JhuZNx8VzCqlyEM","ct":"Zo9oIN40YEQ9psU=","tag":"WYviNfgdVZllmcFYH/ct4g=="}' WHERE id = '392ca0d4-b157-5011-a291-a2f42a7fe4c2';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"asKlAbkB2trz6yzZ","ct":"vap+gPR+kOM0HPw=","tag":"crJuTCHPeExCP9EG5eQ3qw=="}' WHERE id = '63fb798f-93a9-5fcb-ba44-ce65cbbd4693';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"pxDqtiMKJy6Ft0Ra","ct":"m9UxA/+L0S45hkc=","tag":"f1fm5iJL1G7sx2ny8tpvng=="}' WHERE id = '84274790-b9c2-5b7c-b4b3-d285ed8d3204';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"WtNz7SNaEsg86Giv","ct":"Z/djLLe+L9NDxwk=","tag":"xvN/MZJH1KskkHKdx9JS6A=="}' WHERE id = 'd8944f60-d19c-5f8f-b0e3-133a26453b16';
+UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"vBG2k11MyCBzKmwq","ct":"VxIWcqh8E8FvKqA=","tag":"shtg1O/JRJ5ZfsPD0Ssq6Q=="}' WHERE id = 'fb7bc54b-4f47-5429-9747-eede693b51c4';

@@ -6,7 +6,7 @@
  * the instances. `disclosure.test.ts` proves the fields in the matrix are held
  * the way the matrix says; nothing there can notice a column that was never
  * added. And that is how every disclosure bug in this codebase happened —
- * `employees.base_amount` (L47), and the five JSONB compensation columns
+ * `employees.base_amount_pvt` (L47), and the five JSONB compensation columns
  * beside it, were not mis-classified, they were unclassified.
  *
  * So: for the tables the matrix covers, every column is either
@@ -101,6 +101,16 @@ const declared = new Set(
 )
 
 /**
+ * Those declared `open` — deliberately colleague-readable, so they carry no
+ * suffix and must not be required to.
+ */
+const openFields = new Set(
+  [...matrixSrc.matchAll(/id:\s*"([^"]+)"[\s\S]{0,400}?defense:\s*"(\w+)"/g)]
+    .filter((m) => m[2] === "open")
+    .map((m) => m[1]),
+)
+
+/**
  * Tables whose whole row is policy-scoped. Every column on one of these is
  * classified by that single declaration — the defense is row-level, so it
  * covers all of them at once, and thirty per-column entries would be thirty
@@ -145,6 +155,50 @@ const rows = execFileSync(
   .split("\n")
   .filter(Boolean)
   .map((l) => l.split("\t"))
+
+/**
+ * The suffix and the classification must AGREE, in both directions.
+ *
+ * `_ct` means ciphertext; `_pvt` means plaintext-but-restricted. Together they
+ * give `employees` a property worth having: a column with NEITHER suffix is
+ * directory data, by construction.
+ *
+ * This is the inverse of inferring sensitivity from a name — which this script
+ * deliberately refuses to do, because a regex misses a renamed column, JSONB
+ * interiors and innocuously-named PII. Here the MATRIX decides and the name is
+ * required to match it. Checked both ways, so neither a restricted column
+ * without the suffix nor a suffixed column nobody restricted can ship.
+ */
+const SUFFIXED = /_(pvt|ct)$/
+const mismatched = []
+
+for (const [table, column] of rows) {
+  if (wholeRow.has(table)) continue // marked by the table, not the column
+  const id = `${table}.${column}`
+  const restricted = declared.has(id) && !openFields.has(id)
+  const suffixed = SUFFIXED.test(column)
+  if (restricted && !suffixed) {
+    mismatched.push(
+      `${id} is restricted in the matrix but its name does not say so — add _pvt (or _ct if encrypted)`,
+    )
+  }
+  if (suffixed && !restricted) {
+    mismatched.push(
+      `${id} is named as restricted but the matrix does not restrict it — classify it, or drop the suffix`,
+    )
+  }
+}
+
+if (mismatched.length) {
+  console.error(`\n  ${mismatched.length} name/classification mismatch(es):\n`)
+  for (const m of mismatched) console.error(`    ${m}`)
+  console.error(
+    "\n  On a broadly-visible row the column name is the only warning a" +
+      "\n  reviewer gets in a diff. `COALESCE(cp.amount, e.base_amount_pvt)`" +
+      "\n  shows the problem; `e.base_amount` showed nothing (L47).\n",
+  )
+  process.exit(1)
+}
 
 const unclassified = []
 for (const [table, column] of rows) {

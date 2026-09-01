@@ -26,6 +26,9 @@ const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
 
 /** The subject of every case: managed by Aisha, unrelated to Marcus. */
 const JAMES = "c095eafa-952e-5047-961a-82ce7b45cbf1"
+const AISHA = "11f31511-ad53-59c7-9e90-8ee3b553489b"
+const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
+const RACHEL = "a87e0200-0849-53b6-a491-e882feace3f5"
 
 const sql = postgres(
   process.env.APP_DATABASE_URL ??
@@ -39,7 +42,21 @@ type Actor = {
   role: string
   functionalRoles: string[]
   /** Relationship to JAMES, which is what the audience rules are written against. */
-  relation: "self" | "manager" | "colleague" | "hr" | "payroll" | "admin"
+  relation:
+    | "self"
+    | "manager"
+    | "colleague"
+    | "hr"
+    | "payroll"
+    | "auditor"
+    | "admin"
+    /**
+     * Privileged in their OWN domain and ordinary here. IT administers
+     * accounts, finance runs the ledger, legal handles contracts, a project
+     * manager staffs work — none of that entitles any of them to an
+     * individual's pay.
+     */
+    | "other_admin"
 }
 
 const ACTORS: Actor[] = [
@@ -52,45 +69,94 @@ const ACTORS: Actor[] = [
   },
   {
     name: "their manager",
-    employeeId: "11f31511-ad53-59c7-9e90-8ee3b553489b",
+    employeeId: AISHA,
     role: "employee",
     functionalRoles: [],
     relation: "manager",
   },
   {
     name: "an unrelated colleague",
-    employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+    employeeId: MARCUS,
     role: "employee",
     functionalRoles: [],
     relation: "colleague",
   },
   {
     name: "a contractor",
-    employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+    employeeId: MARCUS,
     role: "contractor",
     functionalRoles: [],
     relation: "colleague",
   },
   {
     name: "HR",
-    employeeId: "a87e0200-0849-53b6-a491-e882feace3f5",
+    employeeId: RACHEL,
     role: "employee",
     functionalRoles: ["hr_admin"],
     relation: "hr",
   },
   {
     name: "payroll",
-    employeeId: "a87e0200-0849-53b6-a491-e882feace3f5",
+    employeeId: RACHEL,
     role: "employee",
     functionalRoles: ["payroll_admin"],
     relation: "payroll",
+  },
+  {
+    name: "an auditor",
+    employeeId: RACHEL,
+    role: "employee",
+    functionalRoles: ["auditor"],
+    relation: "auditor",
+  },
+
+  // The four that make this list worth having. Each administers a real part of
+  // the firm; none of them administers anyone's salary. A role that is
+  // powerful somewhere is exactly the one whose limits nobody thinks to test.
+  {
+    name: "IT",
+    employeeId: MARCUS,
+    role: "employee",
+    functionalRoles: ["it_admin"],
+    relation: "other_admin",
+  },
+  {
+    name: "finance",
+    employeeId: MARCUS,
+    role: "employee",
+    functionalRoles: ["finance_admin"],
+    relation: "other_admin",
+  },
+  {
+    name: "legal",
+    employeeId: MARCUS,
+    role: "employee",
+    functionalRoles: ["legal_admin"],
+    relation: "other_admin",
+  },
+  {
+    name: "a project manager",
+    employeeId: AISHA,
+    role: "employee",
+    functionalRoles: ["project_manager"],
+    relation: "other_admin",
   },
 ]
 
 /** The audience rules, in one place, applied uniformly. */
 function mayRead(audience: Audience, relation: Actor["relation"]): boolean {
+  // `other_admin` is deliberately NOT privileged here. IT, finance, legal and
+  // a project manager each hold real power elsewhere in the product; none of
+  // it reaches an individual's compensation, and a role that is powerful
+  // somewhere is exactly the one whose limits nobody thinks to test.
+  //
+  // Auditor DOES read all of it — the row policies grant it, and an audit
+  // function that cannot see pay cannot audit payroll.
   const privileged =
-    relation === "hr" || relation === "payroll" || relation === "admin"
+    relation === "hr" ||
+    relation === "payroll" ||
+    relation === "auditor" ||
+    relation === "admin"
   switch (audience) {
     case "colleagues":
       return true
