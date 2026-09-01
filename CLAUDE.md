@@ -254,12 +254,15 @@ column nobody classified. This asserts the classification; it never infers it
 ([L49](docs/10-lessons-learned.md)). Only `employees` needs this: elsewhere a
 row policy scopes the whole row.
 
-**No column of a personal-data table may be empty in the fixture.** A test
+**No column anywhere may be empty in the fixture.** A test
 whose subject is NULL does not fail — it reports the absence of data as the
 absence of a problem, which is how `PAY-math` omitted pre-tax deductions from
 the payroll identity and passed for months ([L50](docs/10-lessons-learned.md)).
-`./check` enforces it, with a committed sparse list; "not got round to it" is
-not a reason. Generate ciphertext through `sealField`, never by hand — and
+`./check` enforces it across every base table, with a committed sparse list;
+"not got round to it" is not a reason — the only accepted one so far is "the
+table it references does not exist yet". Completing the schema this way
+surfaced five never-checked ciphertext columns, an unseeded `auth.users`, and a
+table with no rows at all ([L51](docs/10-lessons-learned.md)). Generate ciphertext through `sealField`, never by hand — and
 `pii.test.ts` opens every sealed fixture value, because a copied envelope still
 looks populated.
 

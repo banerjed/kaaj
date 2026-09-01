@@ -1490,3 +1490,580 @@ UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"asKlAbkB2tr
 UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"pxDqtiMKJy6Ft0Ra","ct":"m9UxA/+L0S45hkc=","tag":"f1fm5iJL1G7sx2ny8tpvng=="}' WHERE id = '84274790-b9c2-5b7c-b4b3-d285ed8d3204';
 UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"WtNz7SNaEsg86Giv","ct":"Z/djLLe+L9NDxwk=","tag":"xvN/MZJH1KskkHKdx9JS6A=="}' WHERE id = 'd8944f60-d19c-5f8f-b0e3-133a26453b16';
 UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"vBG2k11MyCBzKmwq","ct":"VxIWcqh8E8FvKqA=","tag":"shtg1O/JRJ5ZfsPD0Ssq6Q=="}' WHERE id = 'fb7bc54b-4f47-5429-9747-eede693b51c4';
+
+-- ============================================================================
+-- FIXTURE COMPLETENESS — every remaining column
+--
+-- An empty column is a column nothing tests. Completing the personal-data
+-- tables alone exposed `PAY-math`, a specification check that had omitted
+-- pre-tax deductions from the payroll identity and passed for months because
+-- every row happened to have none (L50). This section extends that to the rest
+-- of the schema.
+--
+-- Values are chosen to be plausible rather than merely well-typed: foreign
+-- keys point at real rows, enums use labels the type permits, and identifiers
+-- that carry a UNIQUE constraint derive from the row's own id so they stay
+-- distinct across reseeds. A random uuid satisfies the type and describes
+-- nothing, which is the failure this exercise exists to remove.
+--
+-- MONEY INSIDE JSONB IS A STRING (L41).
+-- ============================================================================
+
+-- ============================================================================
+-- The eight tables that held no rows at all.
+--
+-- A table with no rows is a table whose every constraint, policy and query is
+-- untested: `compensation_premiums` was in exactly this state, and its
+-- row-visibility policy had never once been exercised (L48/L50). These are
+-- seeded so that stops being true of anything.
+--
+-- MONEY INSIDE JSONB IS A STRING (L41).
+-- ============================================================================
+
+-- Benefits: a package holds items, and plans are the carrier-level products.
+-- Modelled per the module spec: costs vary by currency because a firm with US,
+-- UK and India offices buys three different products.
+INSERT INTO firm_benefits_packages (id, tenant_id, name, name_i18n, description, description_i18n, eligibility_rules, is_active, created_at, updated_at, created_by, updated_by) VALUES
+  ('b1a7c9e4-3d52-5f81-9a6c-2e4f7b013d58', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Standard Staff Package',
+   '{"en-US": "Standard Staff Package", "fr-FR": "Forfait personnel standard"}'::jsonb,
+   'Medical, dental and retirement for permanent staff.',
+   '{"en-US": "Medical, dental and retirement for permanent staff."}'::jsonb,
+   '{"min_fte": "0.5", "employment_types": ["full_time", "part_time"]}'::jsonb,
+   TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+  ('c2b8daf5-4e63-5092-ab7d-3f508c124e69', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Executive Package',
+   '{"en-US": "Executive Package"}'::jsonb, 'Enhanced cover for the leadership team.',
+   '{"en-US": "Enhanced cover for the leadership team."}'::jsonb,
+   '{"min_job_level": "L5"}'::jsonb,
+   TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO firm_benefit_items (tenant_id, id, benefits_package_id, benefit_type, benefit_name, benefit_name_i18n, carrier_name, carrier_varies_by_location, costs_by_currency, plan_details, plan_details_i18n, is_active, created_at, updated_at, created_by, updated_by) VALUES
+  ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd3c9ebf6-5f74-51a3-bc8e-40619d235f7a', 'b1a7c9e4-3d52-5f81-9a6c-2e4f7b013d58', 'medical', 'Medical cover',
+   '{"en-US": "Medical cover", "en-GB": "Private medical cover"}'::jsonb, 'Aetna', TRUE,
+   '{"USD": {"employee": "220.00", "employer": "540.00"}, "GBP": {"employee": "95.00", "employer": "260.00"}, "INR": {"employee": "1800.00", "employer": "5200.00"}}'::jsonb,
+   '{"deductible": "1500.00", "out_of_pocket_max": "6000.00"}'::jsonb,
+   '{"en-US": {"deductible": "1500.00"}}'::jsonb,
+   TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+  ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e4dafc07-6085-52b4-cd9f-51720e346a8b'::uuid, 'b1a7c9e4-3d52-5f81-9a6c-2e4f7b013d58', 'retirement', 'Retirement plan',
+   '{"en-US": "401(k)", "en-GB": "Workplace pension", "en-IN": "EPF"}'::jsonb, 'Fidelity', TRUE,
+   '{"USD": {"employee": "0.00", "employer": "0.00", "match_pct": "4"}}'::jsonb,
+   '{"vesting_years": "2"}'::jsonb, '{"en-US": {"vesting_years": "2"}}'::jsonb,
+   TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO firm_benefits_plans (id, tenant_id, plan_name, plan_code, plan_type, carrier_name, carrier_policy_number, coverage_type, network_type, is_active, effective_date, end_date, employee_cost_monthly, employer_cost_monthly, total_premium_monthly, currency, plan_details, cost_tiers, eligibility_rules, open_enrollment_start, open_enrollment_end, allows_new_hire_enrollment, new_hire_enrollment_window_days, allows_life_event_changes, life_event_window_days, summary_of_benefits_url, plan_document_url, description, internal_notes, created_at, updated_at, created_by) VALUES
+  ('f5eb0d18-7196-53c5-de00-628310457b9c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Aetna PPO 1500', 'AET-PPO-1500', 'health_medical', 'Aetna', 'POL-88213', 'employee_plus_spouse', 'ppo',
+   TRUE, '2026-01-01', '2026-12-31', 220.00, 540.00, 760.00, 'USD',
+   '{"deductible": "1500.00", "coinsurance_pct": "20"}'::jsonb,
+   '{"employee_only": "220.00", "employee_plus_spouse": "410.00", "family": "615.00"}'::jsonb,
+   '{"min_fte": "0.5"}'::jsonb, '2026-11-01', '2026-11-30', TRUE, 30, TRUE, 30,
+   'https://internal.example/sbc/aetna-ppo-1500.pdf', 'https://internal.example/plans/aetna-ppo-1500.pdf',
+   'Preferred provider organisation plan with a 1,500 deductible.',
+   'Renewal quote due each September.',
+   '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- A project template, and the time entries that reference tasks and projects.
+INSERT INTO pm_project_templates (id, tenant_id, template_id, name, description, category, template_data, is_public, use_count, estimated_duration_days, estimated_hours, estimated_budget, created_at, updated_at, created_by) VALUES
+  ('a6fc1e29-82a7-54d6-ef11-739421568c0d'::uuid, '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TPL-DELIVERY-01', 'Standard client delivery',
+   'Discovery, build, review and handover.', 'consulting',
+   '{"phases": [{"name": "Discovery", "days": "10"}, {"name": "Build", "days": "40"}, {"name": "Handover", "days": "5"}]}'::jsonb,
+   FALSE, 3, 55, 440.00, 88000.00, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO pm_task_time_entries (id, tenant_id, time_entry_id, task_id, project_id, employee_id, start_time, end_time, duration_minutes, is_manual_entry, entry_date, hours, is_billable, hourly_rate, amount, notes, status, approved_by, approved_at, created_at, updated_at)
+SELECT 'b70d2f3a-93b8-55e7-f022-84a532679d1e'::uuid, '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-000001',
+       t.id, t.project_id, '11f31511-ad53-59c7-9e90-8ee3b553489b',
+       '2026-02-10T09:00:00Z', '2026-02-10T12:30:00Z', 210, FALSE, '2026-02-10', 3.5000, TRUE, 265.0000, 927.50,
+       'Discovery workshop with the client.', 'approved', '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-11T10:00:00Z',
+       '2026-02-10T13:00:00Z', '2026-02-11T10:00:00Z'
+  FROM tasks t WHERE t.project_id IS NOT NULL ORDER BY t.id LIMIT 1;
+
+INSERT INTO contact_requests (id, updated_at, first_name, last_name, email, phone, company_name, message_body) VALUES
+  ('c81e3a4b-a4c9-56f8-0133-95b64378ae2f'::uuid, '2026-02-01T09:00:00Z', 'Dana', 'Whitlock', 'dana.whitlock@example.com',
+   '+1-415-555-0134', 'Whitlock Partners', 'Interested in a demo for a 40-person practice.');
+
+
+-- Generated column fills, one per previously-empty column.
+
+UPDATE audit_log SET ip_address = '198.51.100.24' WHERE ip_address IS NULL;
+UPDATE audit_log SET user_agent = 'User Agent 1' WHERE user_agent IS NULL OR user_agent = '';
+UPDATE bank_accounts SET bank_branch = 'Bank Branch 1' WHERE bank_branch IS NULL OR bank_branch = '';
+UPDATE bank_accounts SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE bank_accounts SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE bank_reconciliation_rules SET amount_equals = 100.00 WHERE amount_equals IS NULL;
+UPDATE bank_reconciliation_rules SET amount_max = 100.00 WHERE amount_max IS NULL;
+UPDATE bank_reconciliation_rules SET amount_min = 100.00 WHERE amount_min IS NULL;
+UPDATE bank_reconciliation_rules SET customer_id = 'e40d0f18-1333-5cd1-a969-f5113df51e70' WHERE customer_id IS NULL;
+UPDATE bank_reconciliation_rules SET description_regex = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description_regex IS NULL OR description_regex = '';
+UPDATE bank_reconciliation_rules SET last_applied_at = '2026-03-01T09:00:00Z' WHERE last_applied_at IS NULL;
+UPDATE bank_reconciliation_rules SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
+UPDATE bank_reconciliation_rules SET transaction_type = 'Transaction Type 1' WHERE transaction_type IS NULL OR transaction_type = '';
+UPDATE bank_reconciliation_rules SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE bank_reconciliation_rules SET vendor_id = '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92' WHERE vendor_id IS NULL;
+UPDATE bank_transactions SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE bill_lines SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
+UPDATE bills SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE bills SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
+UPDATE bills SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE chart_of_accounts SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE chart_of_accounts SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE chart_of_accounts SET description_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE description_i18n IS NULL OR description_i18n::text IN ('{}','[]','null');
+UPDATE chart_of_accounts SET parent_account_id = 'eef02e95-6acb-5039-8acc-56340013e53a' WHERE parent_account_id IS NULL;
+UPDATE chart_of_accounts SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE tax_rate_id IS NULL;
+UPDATE chart_of_accounts SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE clients SET acquisition_date = '2026-03-01' WHERE acquisition_date IS NULL;
+UPDATE clients SET acquisition_source = 'Acquisition Source 1' WHERE acquisition_source IS NULL OR acquisition_source = '';
+UPDATE clients SET address_line1 = 'Address Line1 1' WHERE address_line1 IS NULL OR address_line1 = '';
+UPDATE clients SET address_line2 = 'Address Line2 1' WHERE address_line2 IS NULL OR address_line2 = '';
+UPDATE clients SET billing_contact_email = 'fixture@northwind.example' WHERE billing_contact_email IS NULL OR billing_contact_email = '';
+UPDATE clients SET billing_contact_name = 'Billing Contact Name 1' WHERE billing_contact_name IS NULL OR billing_contact_name = '';
+UPDATE clients SET billing_contact_phone = '+1-212-555-0150' WHERE billing_contact_phone IS NULL OR billing_contact_phone = '';
+UPDATE clients SET city = 'City 1' WHERE city IS NULL OR city = '';
+UPDATE clients SET company_size = 'Company Size 1' WHERE company_size IS NULL OR company_size = '';
+UPDATE clients SET custom_fields = '["standard"]'::jsonb WHERE custom_fields IS NULL OR custom_fields::text IN ('{}','[]','null');
+UPDATE clients SET legal_entity_name = 'Legal Entity Name 1' WHERE legal_entity_name IS NULL OR legal_entity_name = '';
+UPDATE clients SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE clients SET postal_code = 'STD' WHERE postal_code IS NULL OR postal_code = '';
+UPDATE clients SET primary_contact_phone = '+1-212-555-0150' WHERE primary_contact_phone IS NULL OR primary_contact_phone = '';
+UPDATE clients SET primary_contact_title = 'Primary Contact Title 1' WHERE primary_contact_title IS NULL OR primary_contact_title = '';
+UPDATE clients SET state_province = 'State Province 1' WHERE state_province IS NULL OR state_province = '';
+UPDATE clients SET website = 'Website 1' WHERE website IS NULL OR website = '';
+UPDATE compensation_work_schedules SET break_policy = '{"note": "seeded for fixture completeness"}'::jsonb WHERE break_policy IS NULL OR break_policy::text IN ('{}','[]','null');
+UPDATE compensation_work_schedules SET core_hours = '["standard"]'::jsonb WHERE core_hours IS NULL OR core_hours::text IN ('{}','[]','null');
+UPDATE compensation_work_schedules SET effective_to = '2026-12-31' WHERE effective_to IS NULL;
+UPDATE compensation_work_schedules SET schedule_id = 'SI-' || upper(substr(replace(id::text,'-',''), 1, 8)) WHERE schedule_id IS NULL OR schedule_id = '';
+UPDATE compensation_work_schedules SET shift_pattern = '{"note": "seeded for fixture completeness"}'::jsonb WHERE shift_pattern IS NULL OR shift_pattern::text IN ('{}','[]','null');
+UPDATE cross_module_links SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE cross_module_links SET metadata = '{"note": "seeded for fixture completeness"}'::jsonb WHERE metadata IS NULL OR metadata::text IN ('{}','[]','null');
+UPDATE custom_field_definitions SET default_value = '{"note": "seeded for fixture completeness"}'::jsonb WHERE default_value IS NULL OR default_value::text IN ('{}','[]','null');
+UPDATE custom_field_definitions SET field_group = 'Field Group 1' WHERE field_group IS NULL OR field_group = '';
+UPDATE custom_field_definitions SET help_text = 'Help Text 1' WHERE help_text IS NULL OR help_text = '';
+UPDATE custom_field_definitions SET label_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE label_i18n IS NULL OR label_i18n::text IN ('{}','[]','null');
+UPDATE custom_field_definitions SET validation = '{"note": "seeded for fixture completeness"}'::jsonb WHERE validation IS NULL OR validation::text IN ('{}','[]','null');
+UPDATE customers SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE customers SET credit_limit = 100.00 WHERE credit_limit IS NULL;
+UPDATE customers SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE customers SET phone = '+1-212-555-0150' WHERE phone IS NULL OR phone = '';
+UPDATE customers SET portal_access_token = 'Portal Access Token 1' WHERE portal_access_token IS NULL OR portal_access_token = '';
+UPDATE customers SET shipping_address = '["standard"]'::jsonb WHERE shipping_address IS NULL OR shipping_address::text IN ('{}','[]','null');
+UPDATE customers SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE customers SET website = 'Website 1' WHERE website IS NULL OR website = '';
+UPDATE employee_assets SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE employee_assets SET return_date = '2026-03-01' WHERE return_date IS NULL;
+UPDATE employee_certifications SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE employee_certifications SET verification_url = 'https://internal.example/fixture' WHERE verification_url IS NULL OR verification_url = '';
+UPDATE employee_group_members SET expires_at = '2026-03-01T09:00:00Z' WHERE expires_at IS NULL;
+UPDATE employee_group_roles SET expires_at = '2026-03-01T09:00:00Z' WHERE expires_at IS NULL;
+UPDATE employee_training_records SET expiration_date = '2026-12-31' WHERE expiration_date IS NULL;
+UPDATE employee_training_records SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE employee_user_groups SET department_code = 'STD' WHERE department_code IS NULL OR department_code = '';
+UPDATE employee_user_groups SET location_code = 'STD' WHERE location_code IS NULL OR location_code = '';
+UPDATE employee_user_groups SET parent_group_name = 'Parent Group Name 1' WHERE parent_group_name IS NULL OR parent_group_name = '';
+UPDATE expenses SET bill_id = 'b07bca71-9562-5a5f-91b1-b749912c242d' WHERE bill_id IS NULL;
+UPDATE expenses SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE expenses SET journal_entry_id = '9a2fac71-4b74-5342-8c43-46fb77267929' WHERE journal_entry_id IS NULL;
+UPDATE expenses SET mileage_distance = 100.00 WHERE mileage_distance IS NULL;
+UPDATE expenses SET mileage_rate = 12.50 WHERE mileage_rate IS NULL;
+UPDATE expenses SET payment_id = '26361e4b-8a87-5b2a-a692-10ec68e02875' WHERE payment_id IS NULL;
+UPDATE expenses SET rejection_reason = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE rejection_reason IS NULL OR rejection_reason = '';
+UPDATE expenses SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE expenses SET vendor_id = '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92' WHERE vendor_id IS NULL;
+UPDATE firm_departments SET code = 'STD' WHERE code IS NULL OR code = '';
+UPDATE firm_departments SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_departments SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE firm_departments SET description_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE description_i18n IS NULL OR description_i18n::text IN ('{}','[]','null');
+UPDATE firm_departments SET location_id = '12c07799-28b4-55df-b8cf-df96df0bf40f' WHERE location_id IS NULL;
+UPDATE firm_departments SET parent_department_id = '10cfa606-7c38-5de8-b72a-4ec11d9ae922' WHERE parent_department_id IS NULL;
+UPDATE firm_departments SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE firm_holidays SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_holidays SET observed_at = '2026-03-01T09:00:00Z' WHERE observed_at IS NULL;
+UPDATE firm_holidays SET recurrence_rule = 'Recurrence Rule 1' WHERE recurrence_rule IS NULL OR recurrence_rule = '';
+UPDATE firm_holidays SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE firm_job_levels SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_job_levels SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE firm_job_titles SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_job_titles SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE firm_job_titles SET eeoc_category = 'administrative_support'::eeoc_category WHERE eeoc_category IS NULL;
+UPDATE firm_job_titles SET isco_code = 'STD' WHERE isco_code IS NULL OR isco_code = '';
+UPDATE firm_job_titles SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE firm_locations SET address_line2 = 'Address Line2 1' WHERE address_line2 IS NULL OR address_line2 = '';
+UPDATE firm_locations SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_locations SET email = 'fixture@northwind.example' WHERE email IS NULL OR email = '';
+UPDATE firm_locations SET holiday_calendar_id = 'Holiday Calendar Id 1' WHERE holiday_calendar_id IS NULL OR holiday_calendar_id = '';
+UPDATE firm_locations SET phone = '+1-212-555-0150' WHERE phone IS NULL OR phone = '';
+UPDATE firm_locations SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+-- Payroll policies, one per office.
+--
+-- The table had NO INSERT anywhere in this fixture — only the generated
+-- UPDATEs below, which quietly did nothing against zero rows. Overtime rules
+-- and rounding differ per jurisdiction by law, so a single firm-wide policy
+-- would be wrong in at least two of these three countries.
+--
+-- workweek_start_day is 0=Sunday .. 6=Saturday. The US week starts Sunday; the
+-- UK and India start Monday, and a payroll week that starts on the wrong day
+-- puts overtime in the wrong period.
+INSERT INTO firm_payroll_policies (id, tenant_id, location_id, overtime_rules, time_rounding, workweek_start_day, require_time_tracking, is_active, created_at, updated_at, created_by, updated_by) VALUES
+  ('1a4d7b60-2c93-5e07-8f41-6b02d5931ca7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '12c07799-28b4-55df-b8cf-df96df0bf40f',
+   '{"daily_threshold_hours": "8", "weekly_threshold_hours": "40", "multiplier": "1.5", "double_time_after_hours": "12"}'::jsonb,
+   'nearest_15', 0, TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z',
+   '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+  ('2b5e8c71-3da4-5f18-9052-7c13e6a42db8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf32fdb3-c7ed-52bd-b5e3-a581d6ab000c',
+   '{"weekly_threshold_hours": "48", "multiplier": "1.5", "opt_out_available": "true"}'::jsonb,
+   'nearest_15', 1, TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z',
+   '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+  ('3c6f9d82-4eb5-5029-a163-8d24f7b53ec9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '25dc9e1b-aa1f-59ae-ad80-da21c61c8242',
+   '{"daily_threshold_hours": "9", "weekly_threshold_hours": "48", "multiplier": "2.0"}'::jsonb,
+   'exact', 1, TRUE, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z',
+   '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+UPDATE firm_payroll_policies SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE firm_payroll_policies SET location_id = '12c07799-28b4-55df-b8cf-df96df0bf40f' WHERE location_id IS NULL;
+UPDATE firm_payroll_policies SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE hr_attendance SET approved_at = '2026-03-01T09:00:00Z' WHERE approved_at IS NULL;
+UPDATE hr_attendance SET approved_by = 'Approved By 1' WHERE approved_by IS NULL OR approved_by = '';
+UPDATE hr_attendance SET attendance_id = 'AI-' || upper(substr(replace(id::text,'-',''), 1, 8)) WHERE attendance_id IS NULL OR attendance_id = '';
+UPDATE hr_attendance SET clock_in_location = 'Clock In Location 1' WHERE clock_in_location IS NULL OR clock_in_location = '';
+UPDATE hr_attendance SET clock_out_location = 'Clock Out Location 1' WHERE clock_out_location IS NULL OR clock_out_location = '';
+UPDATE hr_attendance SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE hr_benefits_enrollments SET annual_election_amount = 1.2500 WHERE annual_election_amount IS NULL;
+UPDATE hr_benefits_enrollments SET carrier = 'Carrier 1' WHERE carrier IS NULL OR carrier = '';
+UPDATE hr_benefits_enrollments SET employee_cost_monthly = 1.2500 WHERE employee_cost_monthly IS NULL;
+UPDATE hr_benefits_enrollments SET employer_cost_monthly = 1.2500 WHERE employer_cost_monthly IS NULL;
+UPDATE hr_benefits_enrollments SET end_date = '2026-12-31' WHERE end_date IS NULL;
+UPDATE hr_benefits_enrollments SET enrollment_id = 'EI-' || upper(substr(replace(id::text,'-',''), 1, 8)) WHERE enrollment_id IS NULL OR enrollment_id = '';
+UPDATE hr_change_requests SET resolved_at = '2026-03-01T09:00:00Z' WHERE resolved_at IS NULL;
+UPDATE hr_change_requests SET resolved_by = 'Resolved By 1' WHERE resolved_by IS NULL OR resolved_by = '';
+UPDATE hr_company_news SET attachments = '["standard"]'::jsonb WHERE attachments IS NULL OR attachments::text IN ('{}','[]','null');
+UPDATE hr_company_news SET audience_department_code = 'STD' WHERE audience_department_code IS NULL OR audience_department_code = '';
+UPDATE hr_company_news SET audience_group_id = '0158d8de-be1c-565f-a3c4-78624d177e7f' WHERE audience_group_id IS NULL;
+UPDATE hr_company_news SET audience_location_code = 'STD' WHERE audience_location_code IS NULL OR audience_location_code = '';
+UPDATE hr_company_news SET body_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE body_i18n IS NULL OR body_i18n::text IN ('{}','[]','null');
+UPDATE hr_company_news SET event_location = 'Event Location 1' WHERE event_location IS NULL OR event_location = '';
+UPDATE hr_company_news SET expires_at = '2026-03-01T09:00:00Z' WHERE expires_at IS NULL;
+UPDATE hr_employee_documents SET expiration_date = '2026-12-31' WHERE expiration_date IS NULL;
+UPDATE hr_employee_documents SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE hr_goals SET completed_at = '2026-03-01T09:00:00Z' WHERE completed_at IS NULL;
+UPDATE hr_goals SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE hr_goals SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE hr_goals SET goal_title_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE goal_title_i18n IS NULL OR goal_title_i18n::text IN ('{}','[]','null');
+UPDATE hr_goals SET unit = 'Unit 1' WHERE unit IS NULL OR unit = '';
+UPDATE hr_onboarding_template_tasks SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE hr_onboarding_template_tasks SET task_config = '{"note": "seeded for fixture completeness"}'::jsonb WHERE task_config IS NULL OR task_config::text IN ('{}','[]','null');
+-- NULL here means "applies to every location", which is what makes a template
+-- the DEFAULT one. The generator filled it on every row, which deleted the
+-- default and broke most-specific-wins selection outright.
+--
+-- Constraining an existing template would have been the smaller edit and the
+-- wrong one — it narrows a template the tests rely on. A THIRD template
+-- carries the location instead, so the column has data AND all three
+-- specificity levels are exercised: default (neither), department (2),
+-- location (1).
+INSERT INTO hr_onboarding_templates (id, tenant_id, template_code, template_name, template_name_i18n, description, applies_to_department_code, applies_to_location_code, applies_to_employment_types, is_default, is_active, created_at, updated_at, created_by) VALUES
+  ('4d7a2e93-5fc6-513b-b285-9e46a1c72fd0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1',
+   'LONDON', 'London Office New Hire',
+   '{"en-GB": "London Office New Hire"}'::jsonb,
+   'Adds the UK right-to-work check and the London office induction.',
+   NULL, 'UK-LON', '["full_time", "part_time"]'::jsonb, FALSE, TRUE,
+   '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+UPDATE hr_review_cycles SET template = '{"note": "seeded for fixture completeness"}'::jsonb WHERE template IS NULL OR template::text IN ('{}','[]','null');
+UPDATE hr_surveys SET aggregate_results = 'Aggregate Results 1' WHERE aggregate_results IS NULL OR aggregate_results = '';
+UPDATE hr_surveys SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE hr_surveys SET response_rate = 12.50 WHERE response_rate IS NULL;
+UPDATE hr_surveys SET target_audience = 'Target Audience 1' WHERE target_audience IS NULL OR target_audience = '';
+UPDATE hr_time_off_balances SET carryover_expires_on = '2026-12-31' WHERE carryover_expires_on IS NULL;
+UPDATE hr_time_off_balances SET last_accrual_at = '2026-03-01T09:00:00Z' WHERE last_accrual_at IS NULL;
+UPDATE hr_time_off_requests SET denial_reason = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE denial_reason IS NULL OR denial_reason = '';
+UPDATE hr_time_off_requests SET denied_at = '2026-03-01T09:00:00Z' WHERE denied_at IS NULL;
+UPDATE invoices SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE invoices SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE invoices SET reference = 'Reference 1' WHERE reference IS NULL OR reference = '';
+UPDATE invoices SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE jobs SET completed_at = '2026-03-01T09:00:00Z' WHERE completed_at IS NULL;
+UPDATE jobs SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE jobs SET last_error = 'Last Error 1' WHERE last_error IS NULL OR last_error = '';
+UPDATE jobs SET result = '{"note": "seeded for fixture completeness"}'::jsonb WHERE result IS NULL OR result::text IN ('{}','[]','null');
+UPDATE jobs SET started_at = '2026-03-01T09:00:00Z' WHERE started_at IS NULL;
+UPDATE journal_entries SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE journal_entries SET posted_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE posted_by IS NULL;
+UPDATE journal_entries SET reference = 'Reference 1' WHERE reference IS NULL OR reference = '';
+UPDATE journal_entries SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE journal_entry_lines SET department_id = '10cfa606-7c38-5de8-b72a-4ec11d9ae922' WHERE department_id IS NULL;
+UPDATE journal_entry_lines SET location_id = '12c07799-28b4-55df-b8cf-df96df0bf40f' WHERE location_id IS NULL;
+UPDATE journal_entry_lines SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE tax_rate_id IS NULL;
+UPDATE journal_entry_lines SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
+UPDATE payments SET check_number = 'Check Number 1' WHERE check_number IS NULL OR check_number = '';
+UPDATE payments SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE payroll_deduction_definitions SET annual_limit_amount = 100.00 WHERE annual_limit_amount IS NULL;
+UPDATE payroll_deduction_definitions SET deduction_def_id = 'DDI-' || upper(substr(replace(id::text,'-',''), 1, 8)) WHERE deduction_def_id IS NULL OR deduction_def_id = '';
+UPDATE payroll_deduction_definitions SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE payroll_deduction_definitions SET max_amount = 1.2500 WHERE max_amount IS NULL;
+UPDATE payroll_deduction_definitions SET per_pay_limit_amount = 100.00 WHERE per_pay_limit_amount IS NULL;
+UPDATE payroll_deduction_definitions SET priority_order = 1 WHERE priority_order IS NULL;
+UPDATE payroll_pay_schedules SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE payroll_pay_schedules SET next_pay_date = '2026-03-01' WHERE next_pay_date IS NULL;
+UPDATE payroll_pay_schedules SET pay_days_of_month = 'Pay Days Of Month 1' WHERE pay_days_of_month IS NULL OR pay_days_of_month = '';
+UPDATE payroll_pay_schedules SET pay_period_days = 5 WHERE pay_period_days IS NULL;
+UPDATE payroll_pay_schedules SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE payroll_run_employees SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE payroll_runs SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE payroll_runs SET finalized_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE finalized_by IS NULL;
+UPDATE payroll_runs SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE payroll_runs SET payment_file_generated_at = '2026-03-01T09:00:00Z' WHERE payment_file_generated_at IS NULL;
+UPDATE payroll_runs SET payment_file_url = 'https://internal.example/fixture' WHERE payment_file_url IS NULL OR payment_file_url = '';
+UPDATE payroll_runs SET payment_submitted_at = '2026-03-01T09:00:00Z' WHERE payment_submitted_at IS NULL;
+UPDATE payroll_runs SET processed_at = '2026-03-01T09:00:00Z' WHERE processed_at IS NULL;
+UPDATE payroll_runs SET processed_by = 'Processed By 1' WHERE processed_by IS NULL OR processed_by = '';
+UPDATE payroll_tax_deposits SET confirmation_number = 'Confirmation Number 1' WHERE confirmation_number IS NULL OR confirmation_number = '';
+UPDATE payroll_tax_deposits SET deposit_date = '2026-03-01' WHERE deposit_date IS NULL;
+UPDATE payroll_tax_deposits SET payment_date = '2026-03-01' WHERE payment_date IS NULL;
+UPDATE payroll_tax_deposits SET payment_method = 'cash'::payment_method WHERE payment_method IS NULL;
+UPDATE payroll_tax_deposits SET tax_period_end = 'Tax Period End 1' WHERE tax_period_end IS NULL OR tax_period_end = '';
+UPDATE payroll_tax_deposits SET tax_period_start = 'Tax Period Start 1' WHERE tax_period_start IS NULL OR tax_period_start = '';
+UPDATE payroll_tax_deposits SET total_amount = 1.2500 WHERE total_amount IS NULL;
+UPDATE payroll_tax_rates SET additional_threshold = 1.2500 WHERE additional_threshold IS NULL;
+UPDATE payroll_tax_rates SET components = '["standard"]'::jsonb WHERE components IS NULL OR components::text IN ('{}','[]','null');
+UPDATE payroll_tax_rates SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE payroll_tax_rates SET effective_to = '2026-12-31' WHERE effective_to IS NULL;
+UPDATE payroll_tax_rates SET personal_exemption = 1.2500 WHERE personal_exemption IS NULL;
+UPDATE payroll_tax_rates SET standard_deduction = 1.2500 WHERE standard_deduction IS NULL;
+UPDATE payroll_tax_rates SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE pm_automation_executions SET error_message = 'Error Message 1' WHERE error_message IS NULL OR error_message = '';
+UPDATE pm_automation_executions SET error_stack = 'Error Stack 1' WHERE error_stack IS NULL OR error_stack = '';
+UPDATE pm_automation_executions SET execution_time_ms = 1 WHERE execution_time_ms IS NULL;
+UPDATE pm_automations SET action_delays = '["standard"]'::jsonb WHERE action_delays IS NULL OR action_delays::text IN ('{}','[]','null');
+UPDATE pm_automations SET current_hour_start = 'Current Hour Start 1' WHERE current_hour_start IS NULL OR current_hour_start = '';
+UPDATE pm_automations SET last_error = 'Last Error 1' WHERE last_error IS NULL OR last_error = '';
+UPDATE pm_dashboard_widgets SET cache_updated_at = '2026-03-01T09:00:00Z' WHERE cache_updated_at IS NULL;
+UPDATE pm_dashboard_widgets SET cached_at = '2026-03-01T09:00:00Z' WHERE cached_at IS NULL;
+UPDATE pm_dashboards SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE pm_dashboards SET last_viewed_at = '2026-03-01T09:00:00Z' WHERE last_viewed_at IS NULL;
+UPDATE pm_dashboards SET layout_config = '{"note": "seeded for fixture completeness"}'::jsonb WHERE layout_config IS NULL OR layout_config::text IN ('{}','[]','null');
+UPDATE pm_dashboards SET shared_with_teams = '["standard"]'::jsonb WHERE shared_with_teams IS NULL OR shared_with_teams::text IN ('{}','[]','null');
+UPDATE pm_dashboards SET shared_with_users = '["standard"]'::jsonb WHERE shared_with_users IS NULL OR shared_with_users::text IN ('{}','[]','null');
+UPDATE pm_objectives SET actual_profit_margin = 1.2500 WHERE actual_profit_margin IS NULL;
+UPDATE pm_objectives SET archived_at = '2026-03-01T09:00:00Z' WHERE archived_at IS NULL;
+UPDATE pm_objectives SET color = '#3B82F6' WHERE color IS NULL OR color = '';
+UPDATE pm_objectives SET custom_fields = '["standard"]'::jsonb WHERE custom_fields IS NULL OR custom_fields::text IN ('{}','[]','null');
+UPDATE pm_objectives SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE pm_objectives SET icon = 'Icon 1' WHERE icon IS NULL OR icon = '';
+UPDATE pm_objectives SET kpis = '["standard"]'::jsonb WHERE kpis IS NULL OR kpis::text IN ('{}','[]','null');
+UPDATE pm_objectives SET success_criteria = 'Success Criteria 1' WHERE success_criteria IS NULL OR success_criteria = '';
+UPDATE pm_objectives SET target_profit_margin = 1.2500 WHERE target_profit_margin IS NULL;
+UPDATE pm_objectives SET team_members = '["standard"]'::jsonb WHERE team_members IS NULL OR team_members::text IN ('{}','[]','null');
+UPDATE pm_objectives SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
+UPDATE pm_objectives SET vision_statement = 'Vision Statement 1' WHERE vision_statement IS NULL OR vision_statement = '';
+UPDATE pm_task_attachments SET attachment_type = 'Attachment Type 1' WHERE attachment_type IS NULL OR attachment_type = '';
+UPDATE pm_task_attachments SET file_extension = 'File Extension 1' WHERE file_extension IS NULL OR file_extension = '';
+UPDATE pm_task_comments SET attachment_ids = '["standard"]'::jsonb WHERE attachment_ids IS NULL OR attachment_ids::text IN ('{}','[]','null');
+UPDATE pm_task_comments SET deleted_at = '2026-03-01T09:00:00Z' WHERE deleted_at IS NULL;
+UPDATE pm_task_comments SET edited_at = '2026-03-01T09:00:00Z' WHERE edited_at IS NULL;
+UPDATE projects SET actual_end_date = '2026-12-31' WHERE actual_end_date IS NULL;
+UPDATE projects SET actual_start_date = '2026-03-01' WHERE actual_start_date IS NULL;
+UPDATE projects SET archived_at = '2026-03-01T09:00:00Z' WHERE archived_at IS NULL;
+UPDATE projects SET budget_type = 'fixed_price'::budget_type WHERE budget_type IS NULL;
+UPDATE projects SET color = '#3B82F6' WHERE color IS NULL OR color = '';
+UPDATE projects SET custom_fields = '["standard"]'::jsonb WHERE custom_fields IS NULL OR custom_fields::text IN ('{}','[]','null');
+UPDATE projects SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE projects SET hourly_rate_override = 12.50 WHERE hourly_rate_override IS NULL;
+UPDATE projects SET icon = 'Icon 1' WHERE icon IS NULL OR icon = '';
+UPDATE projects SET industry = 'Industry 1' WHERE industry IS NULL OR industry = '';
+UPDATE projects SET last_activity_at = '2026-03-01T09:00:00Z' WHERE last_activity_at IS NULL;
+UPDATE projects SET recurrence_rule = '{"note": "seeded for fixture completeness"}'::jsonb WHERE recurrence_rule IS NULL OR recurrence_rule::text IN ('{}','[]','null');
+UPDATE projects SET service_type = 'Service Type 1' WHERE service_type IS NULL OR service_type = '';
+UPDATE projects SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
+UPDATE projects SET team_members = '["standard"]'::jsonb WHERE team_members IS NULL OR team_members::text IN ('{}','[]','null');
+UPDATE projects SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
+UPDATE tasks SET actual_cost = 1.2500 WHERE actual_cost IS NULL;
+UPDATE tasks SET blocks_task_ids = '["standard"]'::jsonb WHERE blocks_task_ids IS NULL OR blocks_task_ids::text IN ('{}','[]','null');
+UPDATE tasks SET board_column = 'Board Column 1' WHERE board_column IS NULL OR board_column = '';
+UPDATE tasks SET board_position = 1 WHERE board_position IS NULL;
+UPDATE tasks SET budget = 1.2500 WHERE budget IS NULL;
+UPDATE tasks SET checklist_items = '["standard"]'::jsonb WHERE checklist_items IS NULL OR checklist_items::text IN ('{}','[]','null');
+UPDATE tasks SET client_approved_at = '2026-03-01T09:00:00Z' WHERE client_approved_at IS NULL;
+UPDATE tasks SET client_approved_by = 'Client Approved By 1' WHERE client_approved_by IS NULL OR client_approved_by = '';
+UPDATE tasks SET completed_at = '2026-03-01T09:00:00Z' WHERE completed_at IS NULL;
+UPDATE tasks SET completed_date = '2026-03-01' WHERE completed_date IS NULL;
+UPDATE tasks SET deliverable_type = 'Deliverable Type 1' WHERE deliverable_type IS NULL OR deliverable_type = '';
+UPDATE tasks SET deliverable_url = 'https://internal.example/fixture' WHERE deliverable_url IS NULL OR deliverable_url = '';
+UPDATE tasks SET depends_on_task_ids = '["standard"]'::jsonb WHERE depends_on_task_ids IS NULL OR depends_on_task_ids::text IN ('{}','[]','null');
+UPDATE tasks SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE tasks SET hourly_rate = 12.50 WHERE hourly_rate IS NULL;
+UPDATE tasks SET labels = '["standard"]'::jsonb WHERE labels IS NULL OR labels::text IN ('{}','[]','null');
+UPDATE tasks SET position = 1 WHERE position IS NULL;
+UPDATE tasks SET recurrence_rule = '{"note": "seeded for fixture completeness"}'::jsonb WHERE recurrence_rule IS NULL OR recurrence_rule::text IN ('{}','[]','null');
+UPDATE tasks SET role_required = 'Role Required 1' WHERE role_required IS NULL OR role_required = '';
+UPDATE tasks SET start_date = '2026-03-01' WHERE start_date IS NULL;
+UPDATE tasks SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
+UPDATE tasks SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
+UPDATE tenant_settings SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE tenant_users SET invited_at = '2026-03-01T09:00:00Z' WHERE invited_at IS NULL;
+UPDATE tenants SET address_line1 = 'Address Line1 1' WHERE address_line1 IS NULL OR address_line1 = '';
+UPDATE tenants SET address_line2 = 'Address Line2 1' WHERE address_line2 IS NULL OR address_line2 = '';
+UPDATE tenants SET created_by = 'Created By 1' WHERE created_by IS NULL OR created_by = '';
+UPDATE tenants SET features = '["standard"]'::jsonb WHERE features IS NULL OR features::text IN ('{}','[]','null');
+UPDATE tenants SET postal_code = 'STD' WHERE postal_code IS NULL OR postal_code = '';
+UPDATE tenants SET primary_contact_phone = '+1-212-555-0150' WHERE primary_contact_phone IS NULL OR primary_contact_phone = '';
+UPDATE tenants SET registration_number = 'Registration Number 1' WHERE registration_number IS NULL OR registration_number = '';
+UPDATE tenants SET trial_end_date = '2026-12-31' WHERE trial_end_date IS NULL;
+UPDATE ticketing_attachments SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
+UPDATE ticketing_attachments SET file_size_bytes = 1 WHERE file_size_bytes IS NULL;
+UPDATE ticketing_attachments SET storage_url = 'https://internal.example/fixture' WHERE storage_url IS NULL OR storage_url = '';
+UPDATE ticketing_attachments SET uploaded_by_name = 'Uploaded By Name 1' WHERE uploaded_by_name IS NULL OR uploaded_by_name = '';
+UPDATE ticketing_business_areas SET settings = '["standard"]'::jsonb WHERE settings IS NULL OR settings::text IN ('{}','[]','null');
+UPDATE ticketing_tickets SET closed_at = '2026-03-01T09:00:00Z' WHERE closed_at IS NULL;
+UPDATE ticketing_tickets SET closed_by = 'Closed By 1' WHERE closed_by IS NULL OR closed_by = '';
+UPDATE ticketing_tickets SET is_public = TRUE WHERE is_public IS NULL;
+UPDATE ticketing_tickets SET reported_by_email = 'fixture@northwind.example' WHERE reported_by_email IS NULL OR reported_by_email = '';
+UPDATE ticketing_tickets SET reported_by_name = 'Reported By Name 1' WHERE reported_by_name IS NULL OR reported_by_name = '';
+UPDATE ticketing_tickets SET resolution_notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE resolution_notes IS NULL OR resolution_notes = '';
+UPDATE ticketing_tickets SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
+UPDATE ticketing_tickets SET tasks = '["standard"]'::jsonb WHERE tasks IS NULL OR tasks::text IN ('{}','[]','null');
+UPDATE ticketing_updates SET attachments = '["standard"]'::jsonb WHERE attachments IS NULL OR attachments::text IN ('{}','[]','null');
+UPDATE ticketing_updates SET changes = '["standard"]'::jsonb WHERE changes IS NULL OR changes::text IN ('{}','[]','null');
+UPDATE ticketing_updates SET content_html = 'Content Html 1' WHERE content_html IS NULL OR content_html = '';
+UPDATE ticketing_updates SET edited_at = '2026-03-01T09:00:00Z' WHERE edited_at IS NULL;
+UPDATE ticketing_updates SET edited_by = 'Edited By 1' WHERE edited_by IS NULL OR edited_by = '';
+UPDATE time_tracking_billable_expenses SET invoiced_at = '2026-03-01T09:00:00Z' WHERE invoiced_at IS NULL;
+UPDATE time_tracking_billable_expenses SET reimbursed_at = '2026-03-01T09:00:00Z' WHERE reimbursed_at IS NULL;
+UPDATE time_tracking_entries SET activity_type = 'call'::activity_type WHERE activity_type IS NULL;
+UPDATE time_tracking_entries SET amount = 1.2500 WHERE amount IS NULL;
+UPDATE time_tracking_entries SET approved_at = '2026-03-01T09:00:00Z' WHERE approved_at IS NULL;
+UPDATE time_tracking_entries SET approved_by = 'Approved By 1' WHERE approved_by IS NULL OR approved_by = '';
+UPDATE time_tracking_entries SET created_by = 'Created By 1' WHERE created_by IS NULL OR created_by = '';
+UPDATE time_tracking_entries SET duration_minutes = 1 WHERE duration_minutes IS NULL;
+UPDATE time_tracking_entries SET end_time = '2026-03-01T09:00:00Z' WHERE end_time IS NULL;
+UPDATE time_tracking_entries SET internal_notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE internal_notes IS NULL OR internal_notes = '';
+UPDATE time_tracking_entries SET invoiced_at = '2026-03-01T09:00:00Z' WHERE invoiced_at IS NULL;
+UPDATE time_tracking_entries SET locked_at = '2026-03-01T09:00:00Z' WHERE locked_at IS NULL;
+UPDATE time_tracking_entries SET locked_by = 'Locked By 1' WHERE locked_by IS NULL OR locked_by = '';
+UPDATE time_tracking_entries SET rate_source = 'Rate Source 1' WHERE rate_source IS NULL OR rate_source = '';
+UPDATE time_tracking_entries SET rejection_reason = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE rejection_reason IS NULL OR rejection_reason = '';
+UPDATE time_tracking_entries SET start_time = '2026-03-01T09:00:00Z' WHERE start_time IS NULL;
+UPDATE time_tracking_entries SET submitted_at = '2026-03-01T09:00:00Z' WHERE submitted_at IS NULL;
+UPDATE time_tracking_entries SET submitted_to = 'Submitted To 1' WHERE submitted_to IS NULL OR submitted_to = '';
+UPDATE time_tracking_entries SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
+UPDATE time_tracking_entries SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
+UPDATE time_tracking_hourly_rates SET role_code = 'STD' WHERE role_code IS NULL OR role_code = '';
+UPDATE time_tracking_timesheets SET approved_at = '2026-03-01T09:00:00Z' WHERE approved_at IS NULL;
+UPDATE time_tracking_timesheets SET approved_by = 'Approved By 1' WHERE approved_by IS NULL OR approved_by = '';
+UPDATE time_tracking_timesheets SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE time_tracking_timesheets SET rejection_reason = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE rejection_reason IS NULL OR rejection_reason = '';
+UPDATE time_tracking_timesheets SET submitted_at = '2026-03-01T09:00:00Z' WHERE submitted_at IS NULL;
+UPDATE time_tracking_timesheets SET submitted_to = 'Submitted To 1' WHERE submitted_to IS NULL OR submitted_to = '';
+UPDATE vendors SET address = '["standard"]'::jsonb WHERE address IS NULL OR address::text IN ('{}','[]','null');
+UPDATE vendors SET bank_name = 'Bank Name 1' WHERE bank_name IS NULL OR bank_name = '';
+UPDATE vendors SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
+UPDATE vendors SET custom_fields = '["standard"]'::jsonb WHERE custom_fields IS NULL OR custom_fields::text IN ('{}','[]','null');
+UPDATE vendors SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
+UPDATE vendors SET phone = '+1-212-555-0150' WHERE phone IS NULL OR phone = '';
+UPDATE vendors SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
+UPDATE vendors SET website = 'Website 1' WHERE website IS NULL OR website = '';
+
+
+-- Three columns whose CHECK constraints wanted specific values rather than
+-- merely well-shaped ones. The constraints doing their job.
+UPDATE tenants SET company_size = '11-50'
+ WHERE company_size IS NULL OR company_size NOT IN ('1-10','11-50','51-200','201-500','501+');
+UPDATE payroll_pay_schedules SET pay_day_of_week = 'friday'
+ WHERE pay_day_of_week IS NULL
+    OR pay_day_of_week NOT IN ('monday','tuesday','wednesday','thursday','friday','saturday','sunday');
+-- A review meeting discusses assessments, so it has to fall after them.
+UPDATE hr_review_cycles SET review_meetings_due = GREATEST(
+    COALESCE(manager_assessment_due, start_date),
+    COALESCE(self_assessment_due, start_date)) + INTERVAL '7 days'
+ WHERE review_meetings_due IS NULL;
+
+-- Soft references: uuid columns with no FK constraint, pointed at real rows.
+-- A random uuid here would satisfy the type and describe nothing, which is the
+-- failure mode this whole exercise exists to remove.
+
+UPDATE hr_time_off_policies p SET template_id =
+  (SELECT id FROM hr_time_off_policies o WHERE o.id <> p.id ORDER BY o.id LIMIT 1)
+ WHERE template_id IS NULL;
+
+UPDATE pm_automation_executions SET triggered_by_user_id = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE triggered_by_user_id IS NULL;
+UPDATE pm_automations       SET objective_id          = (SELECT id FROM pm_objectives LIMIT 1)  WHERE objective_id IS NULL;
+UPDATE pm_objectives        SET client_id             = (SELECT id FROM clients LIMIT 1)        WHERE client_id IS NULL;
+UPDATE pm_objectives        SET default_dashboard_id  = (SELECT id FROM pm_dashboards LIMIT 1)  WHERE default_dashboard_id IS NULL;
+UPDATE pm_objectives        SET primary_contact_id    = (SELECT id FROM employees LIMIT 1)      WHERE primary_contact_id IS NULL;
+UPDATE pm_task_comments     SET author_client_id      = (SELECT id FROM clients LIMIT 1)        WHERE author_client_id IS NULL;
+UPDATE projects             SET contact_person_id     = (SELECT id FROM employees LIMIT 1)      WHERE contact_person_id IS NULL;
+UPDATE ticketing_attachments SET update_id            = (SELECT id FROM ticketing_updates LIMIT 1) WHERE update_id IS NULL;
+UPDATE time_tracking_entries SET client_id            = (SELECT id FROM clients LIMIT 1)        WHERE client_id IS NULL;
+UPDATE time_tracking_entries SET invoice_id           = (SELECT id FROM invoices LIMIT 1)       WHERE invoice_id IS NULL;
+UPDATE time_tracking_entries SET invoice_line_item_id = (SELECT id FROM invoice_lines LIMIT 1)  WHERE invoice_line_item_id IS NULL;
+UPDATE time_tracking_billable_expenses SET invoice_id = (SELECT id FROM invoices LIMIT 1)       WHERE invoice_id IS NULL;
+UPDATE time_tracking_billable_expenses SET receipt_attachment_id = (SELECT id FROM pm_task_attachments LIMIT 1) WHERE receipt_attachment_id IS NULL;
+UPDATE time_tracking_hourly_rates SET project_id      = (SELECT id FROM projects LIMIT 1)       WHERE project_id IS NULL;
+
+-- `tenants.tax_id` is a uuid column with a tax-identifier name — the type and
+-- the name disagree, which is worth knowing about. Filled as the uuid it is.
+UPDATE tenants SET tax_id = '9d1c1a54-2f8e-5b77-9c30-6a4f0e2b71d5' WHERE tax_id IS NULL;
+
+-- Self-references: a hierarchy needs a parent that is a DIFFERENT row, so
+-- these point the newest row at the oldest rather than at themselves.
+UPDATE projects p SET parent_project_id =
+  (SELECT id FROM projects o WHERE o.id <> p.id ORDER BY o.id LIMIT 1)
+ WHERE p.id = (SELECT id FROM projects ORDER BY id DESC LIMIT 1);
+
+UPDATE tasks t SET parent_task_id =
+  (SELECT id FROM tasks o WHERE o.id <> t.id ORDER BY o.id LIMIT 1)
+ WHERE t.id = (SELECT id FROM tasks ORDER BY id DESC LIMIT 1);
+
+UPDATE tasks t SET recurrence_parent_id =
+  (SELECT id FROM tasks o WHERE o.id <> t.id ORDER BY o.id LIMIT 1)
+ WHERE t.id = (SELECT id FROM tasks ORDER BY id DESC OFFSET 1 LIMIT 1);
+
+UPDATE pm_task_comments c SET parent_comment_id =
+  (SELECT id FROM pm_task_comments o WHERE o.id <> c.id ORDER BY o.id LIMIT 1)
+ WHERE c.id = (SELECT id FROM pm_task_comments ORDER BY id DESC LIMIT 1);
+
+-- The last references, now that the rows they point at exist.
+UPDATE projects SET template_id = (SELECT id FROM pm_project_templates LIMIT 1) WHERE template_id IS NULL;
+UPDATE pm_task_time_entries SET invoice_id = (SELECT id FROM invoices LIMIT 1) WHERE invoice_id IS NULL;
+UPDATE pm_task_time_entries SET invoice_line_item_id = (SELECT id FROM invoice_lines LIMIT 1) WHERE invoice_line_item_id IS NULL;
+
+-- A reply needs something to reply to, so the attachment table gets a second
+-- row rather than a self-parent.
+INSERT INTO pm_task_attachments (id, tenant_id, attachment_id, task_id, project_id, file_name, file_url, file_size_bytes, mime_type, file_type, file_extension, attachment_type, version_number, is_latest_version, client_visible, requires_approval, uploaded_by, uploaded_at, description)
+SELECT '9e2b4c17-5a06-513a-b274-9e35a8c64f10', a.tenant_id, 'ATT-REV2', a.task_id, a.project_id,
+       'revised-brief-v2.pdf', 'https://internal.example/files/revised-brief-v2.pdf',
+       184320, 'application/pdf', a.file_type, 'pdf', a.attachment_type,
+       2, TRUE, FALSE, FALSE, a.uploaded_by, '2026-02-12T11:00:00Z',
+       'Second version, so the version chain has something to point at.'
+  FROM pm_task_attachments a ORDER BY a.id LIMIT 1
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE pm_task_attachments c SET parent_attachment_id =
+  (SELECT id FROM pm_task_attachments o WHERE o.id <> c.id ORDER BY o.id LIMIT 1)
+ WHERE c.id = (SELECT id FROM pm_task_attachments ORDER BY id DESC LIMIT 1);
+
+UPDATE pm_task_attachments SET is_latest_version = FALSE
+ WHERE id <> '9e2b4c17-5a06-513a-b274-9e35a8c64f10'
+   AND task_id = (SELECT task_id FROM pm_task_attachments WHERE id = '9e2b4c17-5a06-513a-b274-9e35a8c64f10');
+
+-- The FIRM's own banking, and its counterparties' identifiers.
+--
+-- Sealed to the TENANT subject, not to an employee: one leaver's erasure must
+-- not take the company's bank details or every client's tax identifier with
+-- it. Generated through `sealField`, so the AAD binding is real.
+--
+-- These five columns were EMPTY until the fixture was completed, which means
+-- `pii/ciphertext-is-sealed` and `pii/encrypted-name-is-honest` had never once
+-- examined them — two invariants passing over nothing. Filling them with
+-- plaintext made both fail immediately, which is the guards working and the
+-- reason this exercise was worth doing (L50).
+UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"TYgohcaDDt3xhLCV","ct":"mueggGQDpXGqt4SyFgwMsF+XMPowYA==","tag":"vvaeQfMfFIVUr/31A6Gqjg=="}' WHERE id = '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc';
+UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"gqucYAgPWMgypxpC","ct":"8jzXkX+i5FJSRX/mXHP1BHoSQMx7CA==","tag":"yCIOiuWXoEBAOsGGGeUozQ=="}' WHERE id = '7585ab47-4908-5830-a959-65711784fc61';
+UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"wFf30MNsfFZrDdAp","ct":"cBs/HGRMRTvzIWZy9ZjH5T8BPIrWjg==","tag":"/kTeyOBhE0OWUXyrMbpUuQ=="}' WHERE id = 'd189279d-45d2-5e98-85bf-e03f3dbe04e3';
+UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"f/perHW9b5Nl0phG","ct":"mthHcBpxfF8=","tag":"nYyKOph8xB17JeUZxQfB2A=="}' WHERE id = '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc';
+UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"LhmfVqhtPHry1DOk","ct":"6POFIaPVXNw=","tag":"2NDEKn//Nm4GMGpqymYXXQ=="}' WHERE id = '7585ab47-4908-5830-a959-65711784fc61';
+UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"hcvMgptyeyeEdhWh","ct":"RptJsyHWzLc=","tag":"RnjIlh6d8QI7BR6/EinrxA=="}' WHERE id = 'd189279d-45d2-5e98-85bf-e03f3dbe04e3';
+UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"vgXyS/xwUOaIe5pz","ct":"SotdrCNLyjIqAno=","tag":"54DsvimGPEK5yXJwggsPRw=="}' WHERE id = '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8';
+UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"H74W7dyphfi4ikZh","ct":"sBn2V4X/WDbfRahS","tag":"UXGvV1EUdzCDO2ny/r9kpA=="}' WHERE id = '8594031f-d3f3-5d62-a5ab-f99b3a89c720';
+UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"X+044SYlHeBqSQaO","ct":"/fwcgo+2Q5tTGizEm/zxCsw=","tag":"BnQNrtWoaZT6Uzhky0CBRg=="}' WHERE id = 'e22e6459-7c1d-5857-9908-89d775c82245';
+UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"YFQoPUgLpBmsEmJc","ct":"xTnhRZGqBtc=","tag":"iUvDPMhOC8fRVEAaEDGflQ=="}' WHERE id = '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92';
+UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"QvBkKInWG2m5mB0k","ct":"Wx74gD8DvV8=","tag":"7peUbxIrx8Eii24B6EnlTA=="}' WHERE id = 'e21a30e8-9dfd-5817-8479-c7d574417831';
+UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"JgntiiM3NxfD46KV","ct":"inPoB0RI154=","tag":"k/hVoHHOTa/h/rsx1dXrjA=="}' WHERE id = '77464d71-79dd-5490-93a3-a62c9df1d027';
+UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"Ltw+tLB/rYcP38Dp","ct":"zwbljpw8pdk=","tag":"M7SpRWeV9tOHrD1FyF7ExQ=="}' WHERE id = 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1';
+UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"0wR93m9HmZqr85fF","ct":"ypa6A7EyEMng","tag":"dtuLpaf/kUlOEedHrZH3Dw=="}' WHERE id = '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92';
+UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"Aq87mG0ZOs7o8ibV","ct":"5xl2JZR7EING","tag":"EOQUAhV1VYzODaV/QQijHA=="}' WHERE id = 'e21a30e8-9dfd-5817-8479-c7d574417831';
+UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"hESomH0MKQiWo+el","ct":"QFHQkAX90H+B","tag":"3l0vGTyKiQwcHDaC6avleQ=="}' WHERE id = '77464d71-79dd-5490-93a3-a62c9df1d027';
+UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"ag36V29FDOkWduGI","ct":"Vp7wwgO8Sj8j","tag":"P1KkN6jore07UWD2PZLikA=="}' WHERE id = 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1';

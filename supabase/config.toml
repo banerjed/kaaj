@@ -68,7 +68,19 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["../packages/database/fixtures/mock-data.sql"]
+# ORDER MATTERS. dev-users.sql derives auth.users from the tenant_users rows
+# mock-data.sql seeds, so auth.users.id equals tenant_users.user_id by
+# construction. Listed second, and it must stay second.
+#
+# It was missing from this list entirely, so `supabase db reset` left
+# auth.users EMPTY and reported success — nobody could sign in, and the
+# failure looked like a broken login rather than an unseeded table. This is
+# the `[db.seed] sql_paths` trap CLAUDE.md names, in its second form: not a
+# wrong path, a missing one.
+sql_paths = [
+  "../packages/database/fixtures/mock-data.sql",
+  "../packages/database/fixtures/dev-users.sql",
+]
 
 # dev-users.sql is DELIBERATELY NOT LISTED HERE.
 #

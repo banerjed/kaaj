@@ -442,6 +442,56 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L51 — Completing the fixture is a test, and it found three things
+
+L50 completed the eighteen personal-data tables. Extending that to the whole
+schema — 602 empty columns across 103 tables, and eight tables holding no rows
+at all — was not bookkeeping. Filling them ran every existing guard against
+data for the first time, and three separate faults fell out immediately.
+
+**Five `_ct` columns had never held a value.** `bank_accounts.iban_ct`,
+`swift_code_ct`, `clients.tax_id_ct` and both `vendors.bank_*_ct` columns were
+empty, so `pii/ciphertext-is-sealed` and `pii/encrypted-name-is-honest` had
+passed over them without ever examining one. Filling them with plaintext made
+both fail at once — the guards were correct and had simply never been reached.
+They are now sealed to the TENANT subject, because the firm's own banking and
+its counterparties' identifiers must survive an employee's erasure.
+
+**`dev-users.sql` was missing from `[db.seed] sql_paths`.** `supabase db reset`
+left `auth.users` EMPTY and reported success, so after any reset nobody could
+sign in — and the symptom is a login that redirects, not an error mentioning
+seeds. CLAUDE.md already warns about a *wrong* `sql_paths`; this is the second
+form, a *missing* one, and it is harder to see because the file exists and
+looks seeded.
+
+**`firm_payroll_policies` had no INSERT anywhere.** Only the generated UPDATEs
+referred to it, and they matched zero rows in silence. Overtime thresholds and
+rounding differ by jurisdiction — 40 hours weekly in the US, 48 in the UK and
+India, with different multipliers — so a table with no rows meant the one place
+those rules live had never been exercised.
+
+Two things about doing this safely, both learned by getting them wrong:
+
+- **A generated value must satisfy the constraints, not just the type.** A
+  literal in a UNIQUE column collides on the second row; `'Company Size 1'`
+  fails a CHECK that lists five permitted strings; a date that ignores an
+  ordering constraint aborts the whole seed. Derive unique values from the
+  row's own id, and read the CHECK before inventing a value.
+- **Never generate into a column named `_ct` or `_pvt`.** The suffixes exist to
+  say "this is not an ordinary string" (L49), and a generator that ignores them
+  writes plaintext into a column whose name promises ciphertext. Envelopes come
+  from `sealField` or they are wrong.
+
+Seed order matters too: `profiles` and `stripe_customers` are foreign keys into
+`auth.users`, so they belong in `dev-users.sql` rather than `mock-data.sql`,
+and they must be UPSERTs because Supabase's own trigger already created the
+profile row.
+
+Three columns remain deliberately empty — `projects.contract_id`,
+`projects.proposal_id`, `tasks.assigned_team_id` — because the tables they
+reference do not exist yet. Those are committed exemptions with that reason,
+and they should be deleted when the modules land.
+
 ### L50 — An empty fixture column is a check that has stopped testing
 
 `compensation_premiums` held zero rows. The five JSONB compensation columns on

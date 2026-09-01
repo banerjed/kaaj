@@ -599,18 +599,35 @@ describe("the fixture's own ciphertext", () => {
     // That failure is silent in the worst way: the ciphertext is still THERE,
     // the column still looks populated, and `verify-fixture-coverage.mjs` is
     // satisfied. Only opening it proves the fixture is real (L48).
-    const SEALED: [string, string, string][] = [
-      ["employees", "ssn_tax_id_ct", "id"],
-      ["hr_emergency_contacts", "address_ct", "employee_id"],
-      ["hr_emergency_contacts", "email_ct", "employee_id"],
-      ["hr_emergency_contacts", "phone_secondary_ct", "employee_id"],
-      ["employee_bank_accounts", "iban_ct", "employee_id"],
-      ["employee_bank_accounts", "bic_swift_ct", "employee_id"],
+    // [table, column, the column naming the SUBJECT, subject type]
+    //
+    // The tenant-subject rows are the firm's own banking and its
+    // counterparties' identifiers. They are keyed to the FIRM so that one
+    // leaver's erasure cannot destroy the company's bank details — a different
+    // key, and therefore a separate case, not a variation of the ones above.
+    const SEALED: [string, string, string, "employee" | "tenant"][] = [
+      ["employees", "ssn_tax_id_ct", "id", "employee"],
+      ["hr_emergency_contacts", "address_ct", "employee_id", "employee"],
+      ["hr_emergency_contacts", "email_ct", "employee_id", "employee"],
+      [
+        "hr_emergency_contacts",
+        "phone_secondary_ct",
+        "employee_id",
+        "employee",
+      ],
+      ["employee_bank_accounts", "iban_ct", "employee_id", "employee"],
+      ["employee_bank_accounts", "bic_swift_ct", "employee_id", "employee"],
+      ["bank_accounts", "account_number_ct", "tenant_id", "tenant"],
+      ["bank_accounts", "iban_ct", "tenant_id", "tenant"],
+      ["bank_accounts", "swift_code_ct", "tenant_id", "tenant"],
+      ["clients", "tax_id_ct", "tenant_id", "tenant"],
+      ["vendors", "bank_account_number_ct", "tenant_id", "tenant"],
+      ["vendors", "bank_routing_number_ct", "tenant_id", "tenant"],
     ]
 
     const failures: string[] = []
     await withTenant(AS_OWNER, async (tx) => {
-      for (const [table, column, subjectKey] of SEALED) {
+      for (const [table, column, subjectKey, subjectType] of SEALED) {
         const rows = await tx.unsafe(
           `SELECT id::text AS id, ${subjectKey}::text AS subject, ${column} AS ct
              FROM ${table} WHERE ${column} IS NOT NULL`,
@@ -627,11 +644,7 @@ describe("the fixture's own ciphertext", () => {
           try {
             const opened = await pii.openField(
               tx,
-              {
-                tenantId: NORTHWIND,
-                subjectType: "employee",
-                subjectId: r.subject,
-              },
+              { tenantId: NORTHWIND, subjectType, subjectId: r.subject },
               { table, column, rowId: r.id },
               r.ct,
             )

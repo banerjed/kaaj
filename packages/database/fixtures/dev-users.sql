@@ -156,3 +156,32 @@ END
 $$;
 
 COMMIT;
+
+-- ---------------------------------------------------------------------------
+-- CMSaasStarter's own user tables.
+--
+-- These live HERE, not in mock-data.sql, because `profiles.id` and
+-- `stripe_customers.user_id` are foreign keys into `auth.users` — and this
+-- file is what creates auth.users. Seeded from mock-data, they failed the
+-- foreign key, because mock-data runs first.
+--
+-- Not part of the product's data model, but their code paths are equally
+-- untested while the tables hold nothing (L50).
+-- ---------------------------------------------------------------------------
+-- CMSaasStarter's own tables. Not part of the product's data model, but their
+-- own code paths are equally untested while they hold nothing.
+-- An UPSERT, not an INSERT: Supabase's own trigger on auth.users already
+-- created a profile row, so an INSERT collides on the primary key. Filling the
+-- columns is the point; creating the row is not.
+INSERT INTO profiles (id, updated_at, full_name, company_name, avatar_url, website, unsubscribed) VALUES
+  ('75bf4b0c-4f4b-cad9-daec-de7be09ff367', '2026-01-01T09:00:00Z', 'Sarah Johnson', 'Northwind Consulting',
+   'https://internal.example/avatars/sarah.png', 'https://northwind.example', FALSE)
+ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name, company_name = EXCLUDED.company_name,
+    avatar_url = EXCLUDED.avatar_url, website = EXCLUDED.website,
+    unsubscribed = EXCLUDED.unsubscribed, updated_at = EXCLUDED.updated_at;
+
+INSERT INTO stripe_customers (user_id, updated_at, stripe_customer_id) VALUES
+  ('75bf4b0c-4f4b-cad9-daec-de7be09ff367', '2026-01-01T09:00:00Z', 'cus_FIXTURE0001')
+ON CONFLICT (user_id) DO UPDATE SET
+    stripe_customer_id = EXCLUDED.stripe_customer_id, updated_at = EXCLUDED.updated_at;

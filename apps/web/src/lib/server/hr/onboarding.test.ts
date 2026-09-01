@@ -37,7 +37,27 @@ describe("choosing a template", () => {
     expect(t?.template_code).toBe("ENGINEERING")
   })
 
-  it("falls back to the default for a department with no template", async () => {
+  it("falls back to the default when neither department nor location matches", async () => {
+    // Bangalore, not London: the fixture now carries a LONDON template, so
+    // UK-LON is no longer a location with nothing specific to it. The case
+    // this test exists for is "nothing matches" — it needs inputs where that
+    // is actually true.
+    const t = await withTenant(AS_OWNER, (tx) =>
+      onboarding.templateFor(tx, {
+        departmentCode: "SALES",
+        locationCode: "IN-BLR",
+        employmentType: "full_time",
+      }),
+    )
+    expect(t?.template_code).toBe("STANDARD")
+    expect(t?.is_default).toBe(true)
+  })
+
+  it("prefers a location template over the default", async () => {
+    // The middle rung of the specificity ladder, which had no fixture row
+    // until the schema was fully populated: department scores 2, location 1,
+    // the default 0. Without a location template nothing exercised the
+    // difference between 1 and 0.
     const t = await withTenant(AS_OWNER, (tx) =>
       onboarding.templateFor(tx, {
         departmentCode: "SALES",
@@ -45,8 +65,21 @@ describe("choosing a template", () => {
         employmentType: "full_time",
       }),
     )
-    expect(t?.template_code).toBe("STANDARD")
-    expect(t?.is_default).toBe(true)
+    expect(t?.template_code).toBe("LONDON")
+    expect(t?.is_default).toBe(false)
+  })
+
+  it("still prefers a DEPARTMENT template over a location one", async () => {
+    // Both match for an engineer in London. Department is the more specific
+    // axis by design, and this is the only case that can tell the two apart.
+    const t = await withTenant(AS_OWNER, (tx) =>
+      onboarding.templateFor(tx, {
+        departmentCode: "ENG",
+        locationCode: "UK-LON",
+        employmentType: "full_time",
+      }),
+    )
+    expect(t?.template_code).toBe("ENGINEERING")
   })
 
   it("gives the same answer every time, whatever the row order", async () => {

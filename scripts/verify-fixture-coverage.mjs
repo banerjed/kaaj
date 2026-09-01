@@ -17,35 +17,13 @@
  * So: on the tables below, every column must have at least one row with a
  * non-empty value, or sit on EXPECTED_SPARSE with a reason.
  *
- * SCOPE, deliberately. These are the tables holding data ABOUT A PERSON, where
- * an empty column means an untested disclosure rule. The rest of the schema
- * has 485 further never-filled columns across accounting, projects and
- * ticketing — a real backlog, recorded in docs/10-lessons-learned.md (L48),
- * but not a security hole, and enforcing everywhere at once would produce an
- * exemption list nobody reads.
+ * SCOPE: every base table in the schema. It began as the eighteen tables
+ * holding data about a person and was extended once those were green — 602
+ * empty columns across 103 tables, now 3, each of which points at a module
+ * that does not exist yet.
  */
 import { execFileSync } from "node:child_process"
 
-const TABLES = [
-  "employees",
-  "employment_terms",
-  "compensation_base",
-  "compensation_allowances",
-  "compensation_variable",
-  "compensation_premiums",
-  "compensation_equity",
-  "employee_bank_accounts",
-  "hr_emergency_contacts",
-  "hr_employment_history",
-  "hr_reviews",
-  "hr_feedback",
-  "payroll_run_employees",
-  "payroll_india_salary_structure",
-  "payroll_india_tax_declarations",
-  "payroll_tax_withholding_certificates",
-  "payroll_employee_deductions",
-  "tenant_users",
-]
 
 /**
  * `table.column` -> why NULL is the only sensible value across every fixture
@@ -56,6 +34,14 @@ const TABLES = [
  * any row, seed that row instead — that is the entire point of this check.
  */
 const EXPECTED_SPARSE = new Map([
+  // Columns referencing a module that has not been built. There is no row to
+  // point at, and inventing a uuid would satisfy the type while describing
+  // nothing. Delete these entries when the module lands — a stale exemption is
+  // as much a problem as a missing one.
+  ["projects.contract_id", "no `contracts` table yet"],
+  ["projects.proposal_id", "no `proposals` table yet"],
+  ["tasks.assigned_team_id", "no `teams` table yet"],
+
   [
     "employees.end_date",
     "every fixture employee is currently employed; a leaver would set it",
@@ -94,7 +80,10 @@ BEGIN
     SELECT c.table_name t, c.column_name k, c.data_type d
       FROM information_schema.columns c
      WHERE c.table_schema='public'
-       AND c.table_name = ANY(ARRAY[${TABLES.map((t) => `'${t}'`).join(",")}])
+       AND EXISTS (SELECT 1 FROM information_schema.tables x
+                    WHERE x.table_name = c.table_name
+                      AND x.table_schema = c.table_schema
+                      AND x.table_type = 'BASE TABLE')
   LOOP
     EXECUTE format('SELECT count(*) FROM %I', r.t) INTO n;
     IF n = 0 THEN INSERT INTO _cov VALUES (r.t, r.k, 0, 0); CONTINUE; END IF;
@@ -141,4 +130,4 @@ if (empty.length) {
   )
   process.exit(1)
 }
-console.log("  every personal-data column carries fixture data")
+console.log(`  every column carries fixture data (${empty.length === 0 ? "0" : ""} gaps)`)
