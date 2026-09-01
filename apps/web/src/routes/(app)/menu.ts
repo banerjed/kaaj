@@ -161,9 +161,19 @@ export const appMenuItems: ISidebarMenuItem[] = [
     icon: "lucide--calculator",
     label: "Accounting",
     children: [
-      { id: "accounting-invoices", label: "Invoices", ...soon },
+      {
+        id: "accounting-invoices",
+        label: "Invoices",
+        url: "/accounting/invoices",
+        permission: "accounting.read",
+      },
       { id: "accounting-bills", label: "Bills", ...soon },
-      { id: "accounting-ledger", label: "General Ledger", ...soon },
+      {
+        id: "accounting-ledger",
+        label: "General Ledger",
+        url: "/accounting/ledger",
+        permission: "accounting.read",
+      },
       { id: "accounting-banking", label: "Banking", ...soon },
     ],
   },
