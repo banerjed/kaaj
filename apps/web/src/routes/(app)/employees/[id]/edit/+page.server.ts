@@ -4,6 +4,7 @@ import * as employees from "$lib/server/employee-profile/employees.repo"
 import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
+import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
@@ -33,6 +34,27 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return result
 }
 
+/**
+ * Employment history, not personal detail.
+ *
+ * Job title, manager, department, location and status are the facts someone
+ * later asks about. Date of birth, phone and address are personal data, and
+ * copying them into a table that can never be deleted from would defeat the
+ * erasure the PII layer exists to make possible.
+ */
+const EMPLOYMENT_FIELDS = [
+  "job_title",
+  "job_level",
+  "department_code",
+  "location_code",
+  "manager_id",
+  "employment_status",
+  "employment_type",
+  "start_date",
+  "end_date",
+  "fte",
+]
+
 export const actions: Actions = {
   default: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -57,7 +79,19 @@ export const actions: Actions = {
       ) {
         return true
       }
+      // Read before writing, so the entry says what the job title, manager
+      // or department WAS. "Who moved me under this manager, and when" is the
+      // question this exists to answer.
+      const before = await employees.getById(tx, params.id)
       await employees.update(tx, params.id, parsed.input)
+
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "update",
+        entityType: "employees",
+        entityId: params.id,
+        module: "employee-profile",
+        changes: audit.diff(before, parsed.input, EMPLOYMENT_FIELDS),
+      })
       return false
     })
 

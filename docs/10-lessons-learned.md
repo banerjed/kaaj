@@ -442,6 +442,60 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L54 — A rule that is prose is applied unevenly
+
+CLAUDE.md required an audit entry for "a write that someone may later be asked
+to justify". Nothing enforced it, and of 26 write actions, **3** recorded one.
+Not hiring someone. Not editing their employment record. Not the payroll policy
+that decides how overtime is computed.
+
+The convention was not ignored out of carelessness — it was applied by whoever
+happened to think of it, which is what an unenforced rule always produces. The
+same lesson as L48, in a different place.
+
+**Structured, never prose.** The decisive argument is local: `NEVER_LOGGED`
+redacts by field NAME. A change stored as a sentence — "Changed IBAN from
+GB29… to GB94…" — carries the values straight past it, into a table that holds
+INSERT and SELECT only. Structure also stays queryable, survives a UI rewrite
+and can be re-rendered in any language; a stored sentence freezes one rendering
+decision permanently.
+
+The shape that resulted:
+
+```ts
+type FieldChange = { from: string | null; to: string | null }
+changes?: Record<string, FieldChange>   // the type refuses a flat value
+reason?: string | null                  // prose for WHY, never for what
+```
+
+Four things earned themselves while building it:
+
+- **Values are STRINGS.** A JSON number in JSONB returns to JavaScript as a
+  float64 (L41). Everywhere else that is a bug to fix; here it cannot be fixed.
+  The fixture already held `{"to": 148000}` as a number.
+- **A closed `action` vocabulary** immediately caught `submitted` and
+  `acknowledged` where the verbs are `submit` and `acknowledge` — tense drift
+  that would have made the trail unfilterable.
+- **`diff()` records only what MOVED.** Writing every field of a settings row
+  buries the one that changed among twenty that did not, in a table nobody can
+  prune. That is the same as not recording it.
+- **Redaction replaces BOTH sides.** Replacing only the new value leaves the
+  old one — which for a rotated account number is the number that was actually
+  in use.
+
+`verify-audit-coverage.mjs` enforces it in three directions: an audited
+operation that stops auditing fails, a not-audited one that starts auditing
+fails, and an action on neither list fails. That last is the one that matters —
+a new write cannot ship until somebody decides, rather than defaulting to
+silence. Both failure modes were verified by probe.
+
+The line itself is a judgement, recorded in `register.ts` with a reason per
+entry: 21 audited, 4 not. Renaming a department is not audited because it
+changes a label rather than an outcome; changing a job LEVEL is, because levels
+carry the published salary bands. `audit_log` can never be pruned, so
+over-auditing is permanent noise — which is why a line exists at all rather
+than auditing everything.
+
 ### L53 — An untyped row makes every value downstream `any`
 
 The banking page rendered a sync time as `4:00 AM` — no date. The call was

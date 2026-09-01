@@ -4,6 +4,7 @@ import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
 import * as levels from "$lib/server/firm-profile/firm_job_levels.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import type { SalaryRanges } from "$lib/server/firm-profile/firm_job_levels.repo"
+import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
@@ -59,6 +60,9 @@ function readRanges(data: FormData, f: FormReader): SalaryRanges {
   }
   return ranges
 }
+
+/** salary_ranges is the published band; the rest identifies the level. */
+const LEVEL_FIELDS = ["level_name", "level_order", "salary_ranges", "is_active"]
 
 export const actions: Actions = {
   saveTitle: async ({ request, locals }) => {
@@ -134,8 +138,22 @@ export const actions: Actions = {
     }
 
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry says what changed.
+      const before = id
+        ? ((await levels.listByTitle(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await levels.update(tx, id, input)
       else await levels.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. Levels carry salary_ranges — the PUBLISHED pay bands, which are a disclosure under the EU Pay Transparency Directive.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "firm_job_levels",
+        entityId: id ?? null,
+        module: "firm-profile",
+        changes: audit.diff(before, input, LEVEL_FIELDS),
+      })
     })
     return { saved: true }
   },
@@ -146,7 +164,16 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing level."))
-    await withTenant(actorFrom(locals), (tx) => levels.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await levels.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_job_levels",
+        entityId: id,
+        module: "firm-profile",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 }

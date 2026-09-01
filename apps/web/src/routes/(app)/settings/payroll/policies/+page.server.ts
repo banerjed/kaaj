@@ -4,6 +4,7 @@ import * as policies from "$lib/server/firm-profile/firm_payroll_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
+import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 
 const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
@@ -18,6 +19,17 @@ export const load: PageServerLoad = async ({ locals }) => {
     roundingOptions: ROUNDING,
   }))
 }
+
+/** What a reviewer would ask about. Not every column: a table nobody can
+ *  prune should carry the fields that matter, and burying them among unchanged
+ *  ones is the same as not recording them. */
+const AUDITED_FIELDS = [
+  "location_id",
+  "overtime_rules",
+  "time_rounding",
+  "workweek_start_day",
+  "require_time_tracking",
+]
 
 export const actions: Actions = {
   save: async ({ request, locals }) => {
@@ -89,8 +101,23 @@ export const actions: Actions = {
     }
 
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry says what changed
+      // rather than only what it became.
+      const before = id
+        ? ((await policies.list(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await policies.update(tx, id, input)
       else await policies.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. Overtime thresholds, multipliers and rounding. If someone's overtime drops, this is the change that did it.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "firm_payroll_policies",
+        entityId: id ?? null,
+        module: "payroll",
+        changes: audit.diff(before, input, AUDITED_FIELDS),
+      })
     })
     return { saved: true }
   },
@@ -101,7 +128,16 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing policy."))
-    await withTenant(actorFrom(locals), (tx) => policies.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await policies.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_payroll_policies",
+        entityId: id,
+        module: "payroll",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 }

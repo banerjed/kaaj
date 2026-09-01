@@ -522,6 +522,16 @@ visibility keys on the role and the person, so a bare tenant id returns zero
 rows — silently, as a wrong number rather than an error
 ([L42](docs/10-lessons-learned.md)). `./check` enforces it.
 
+**Every write is classified in `apps/web/src/lib/server/audit/register.ts`,
+and `./check` fails on one that is not.** The rule below was prose for months
+and 3 of 26 actions followed it ([L54](docs/10-lessons-learned.md)). `changes`
+is `Record<string, {from, to}>` with STRING values — a JSON number returns as a
+float64 and this table cannot be corrected — `action` comes from a closed set,
+`entityType` names the table, and prose goes in `reason`, never mixed with
+values, because redaction matches field NAMES. `audit.diff()` records only the
+fields that moved: burying the one that changed among twenty that did not, in a
+table nobody can prune, is the same as not recording it.
+
 **A write that someone may later be asked to justify records an audit entry in
 the SAME transaction.** `$lib/server/audit` — approvals, pay changes, role
 grants, erasures. Written afterwards or best-effort, the trail records what the

@@ -1,29 +1,10 @@
 <script lang="ts">
-  import { untrack } from "svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money, number } from "$lib/format"
 
-  let { data, form } = $props()
-
-  // Reopened when a submit failed. The form is a plain POST, so a fail(400) is
-  // a full document load: without this the modal — and the error inside it —
-  // would vanish and the page would look untouched. `untrack` marks the read
-  // as deliberately once-only; the page-level alert covers later renders.
-  let recordingRaise = $state(untrack(() => Boolean(form?.errorFields)))
-
-  const invalid = (n: string) =>
-    (form?.errorFields ?? []).includes(n) ? "input-error" : ""
+  let { data } = $props()
 
   const e = $derived(data.employee)
-  const currencyOptions = $derived([
-    ...new Set(
-      [
-        ...(data.tenant?.supported_currencies ?? []),
-        data.tenant?.default_currency,
-        e.currency,
-      ].filter((c): c is string => Boolean(c)),
-    ),
-  ])
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
   // This person's own office decides how their money and dates read (L24).
@@ -116,18 +97,6 @@
     ]}
   />
 
-  {#if form?.saved}
-    <div role="status" class="alert alert-success mt-4">
-      <span class="iconify lucide--check size-5"></span>
-      <span>Pay change recorded.</span>
-    </div>
-  {:else if form?.message}
-    <div role="alert" class="alert alert-error mt-4">
-      <span class="iconify lucide--circle-alert size-5"></span>
-      <span>{form.message}</span>
-    </div>
-  {/if}
-
   <div class="card bg-base-100 mt-4 shadow">
     <div class="card-body gap-4">
       <div class="flex flex-wrap items-center gap-4">
@@ -206,13 +175,16 @@
             A raise is a new dated record, never an edit — the history is what
             makes a past payroll reproducible.
           </p>
-          <button
+          <!-- One place records a pay change: /compensation/[employeeId].
+               This page used to carry a second form doing the same write,
+               which meant two places to keep the audit entry correct. -->
+          <a
             class="btn btn-primary btn-sm gap-2"
-            onclick={() => (recordingRaise = true)}
+            href={`/compensation/${data.employee.id}`}
           >
             <span class="iconify lucide--trending-up size-4"></span>
             Record change
-          </button>
+          </a>
         </div>
       {/if}
 
@@ -390,123 +362,3 @@
     </div>
   </div>
 </div>
-
-{#if recordingRaise}
-  <div class="modal modal-open" role="dialog" aria-label="Record a pay change">
-    <div class="modal-box">
-      <h3 class="text-lg font-medium">Record a pay change</h3>
-      <p class="text-base-content/70 mt-1 text-sm">
-        This creates a new dated record for {fullName} and closes the current one
-        the day before it starts. Nothing existing is overwritten.
-      </p>
-
-      {#if form?.message}
-        <div role="alert" class="alert alert-error mt-3">
-          <span class="iconify lucide--circle-alert size-5"></span>
-          <span>{form.message}</span>
-        </div>
-      {/if}
-
-      <form method="POST" action="?/addRaise" class="mt-4 grid gap-4">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Effective from</legend>
-            <input
-              name="effective_from"
-              type="date"
-              class={`input w-full ${invalid("effective_from")}`}
-              required
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Reason</legend>
-            <!-- change_reason is a Postgres enum; free text here was a 500. -->
-            <select
-              name="change_reason"
-              class={`select w-full ${invalid("change_reason")}`}
-            >
-              <option value="">Not stated</option>
-              {#each data.changeReasons as r (r)}
-                <option value={r}>{r.replaceAll("_", " ")}</option>
-              {/each}
-            </select>
-          </fieldset>
-        </div>
-
-        <div class="grid gap-4 sm:grid-cols-3">
-          <fieldset class="fieldset sm:col-span-2">
-            <legend class="fieldset-legend">Amount</legend>
-            <!-- inputmode=decimal rather than type=number: the value is kept
-                 as a string end to end so numeric(12,2) never round-trips
-                 through a float (L25). -->
-            <input
-              name="amount"
-              inputmode="decimal"
-              class={`input w-full tabular-nums ${invalid("amount")}`}
-              value={e.base_amount_pvt ?? ""}
-              required
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Currency</legend>
-            <select
-              name="currency"
-              class="select w-full"
-              value={e.currency ?? data.tenant?.default_currency}
-            >
-              <!-- Never an empty list: a tenant with NULL supported_currencies
-                   would otherwise render no options, submit no currency, and
-                   fail validation. The employee's own currency is included so
-                   it cannot be silently switched to option[0]. -->
-              {#each currencyOptions as c (c)}
-                <option value={c}>{c}</option>
-              {/each}
-            </select>
-          </fieldset>
-        </div>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Compensation type</legend>
-          <!-- Was hard-coded to "salary", which rewrote an hourly worker's
-               record as salaried and stored their hourly rate as a salary. -->
-          <select
-            name="compensation_type"
-            class="select w-full"
-            value={e.compensation_type ?? "salary"}
-          >
-            {#each data.compensationTypes as t (t)}
-              <option value={t}>{t}</option>
-            {/each}
-          </select>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Pay frequency</legend>
-          <select
-            name="pay_frequency"
-            class="select w-full"
-            value={e.pay_frequency ?? "monthly"}
-          >
-            {#each data.payFrequencies as f (f)}
-              <option value={f}>{f.replaceAll("_", " ")}</option>
-            {/each}
-          </select>
-        </fieldset>
-
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (recordingRaise = false)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Record</button>
-        </div>
-      </form>
-    </div>
-    <button
-      class="modal-backdrop"
-      aria-label="Close"
-      onclick={() => (recordingRaise = false)}
-    ></button>
-  </div>
-{/if}

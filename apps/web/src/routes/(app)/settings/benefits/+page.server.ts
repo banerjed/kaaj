@@ -4,6 +4,7 @@ import * as packages from "$lib/server/firm-profile/firm_benefits_packages.repo"
 import * as items from "$lib/server/firm-profile/firm_benefit_items.repo"
 import type { CostsByCurrency } from "$lib/server/firm-profile/firm_benefit_items.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
+import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
@@ -60,6 +61,17 @@ function readCosts(data: FormData, f: FormReader): CostsByCurrency {
   return costs
 }
 
+/** Who is entitled, and what it costs them. */
+const PACKAGE_FIELDS = ["name", "eligibility_rules", "is_active"]
+/** The employer/employee split reaches payroll as a deduction. */
+const ITEM_FIELDS = [
+  "benefit_type",
+  "benefit_name",
+  "carrier_name",
+  "costs_by_currency",
+  "is_active",
+]
+
 export const actions: Actions = {
   savePackage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -88,8 +100,22 @@ export const actions: Actions = {
     }
 
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry says what changed.
+      const before = id
+        ? ((await packages.list(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await packages.update(tx, id, input)
       else await packages.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. Eligibility rules decide who is entitled to what.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "firm_benefits_packages",
+        entityId: id ?? null,
+        module: "firm-profile",
+        changes: audit.diff(before, input, PACKAGE_FIELDS),
+      })
     })
     return { saved: true }
   },
@@ -100,7 +126,16 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing package."))
-    await withTenant(actorFrom(locals), (tx) => packages.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await packages.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_benefits_packages",
+        entityId: id,
+        module: "firm-profile",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 
@@ -139,8 +174,22 @@ export const actions: Actions = {
     }
 
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry says what changed.
+      const before = id
+        ? ((await items.list(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await items.update(tx, id, input)
       else await items.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. costs_by_currency is the employer/employee split, which reaches payroll as a deduction.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "firm_benefit_items",
+        entityId: id ?? null,
+        module: "firm-profile",
+        changes: audit.diff(before, input, ITEM_FIELDS),
+      })
     })
     return { saved: true }
   },
@@ -151,7 +200,16 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing benefit."))
-    await withTenant(actorFrom(locals), (tx) => items.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await items.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_benefit_items",
+        entityId: id,
+        module: "firm-profile",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 }

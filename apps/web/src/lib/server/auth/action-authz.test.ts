@@ -69,11 +69,15 @@ const MATRIX: {
   allowed: [Role, string[]][]
 }[] = [
   {
-    module: "employees/[id] — addRaise",
+    // The pay-change write moved to /compensation/[employeeId]. It used to
+    // exist twice, which meant two places to keep the audit entry correct.
+    // The authorization coverage follows it rather than being deleted.
+    module: "compensation/[employeeId] — raise",
     load: async () =>
-      (await import("../../../routes/(app)/employees/[id]/+page.server"))
-        .actions,
-    actions: ["addRaise"],
+      (
+        await import("../../../routes/(app)/compensation/[employeeId]/+page.server")
+      ).actions,
+    actions: ["raise"],
     denied: [
       ["employee", []],
       ["contractor", []],

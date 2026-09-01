@@ -1,6 +1,7 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
+import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formString, formList } from "$lib/server/forms"
@@ -26,6 +27,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   return { company: tenant }
 }
+
+/** Every figure in the product is formatted against these. */
+const AUDITED_FIELDS = [
+  "company_name",
+  "legal_entity_name",
+  "default_locale",
+  "default_currency",
+  "default_timezone",
+  "date_format",
+  "time_format",
+  "supported_locales",
+  "supported_currencies",
+]
 
 export const actions: Actions = {
   update: async ({ request, locals }) => {
@@ -110,25 +124,39 @@ export const actions: Actions = {
       })
     }
 
-    const saved = await withTenant(actorFrom(locals), (tx) =>
-      tenants.update(tx, {
-        company_name: companyName,
-        company_name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
-        legal_entity_name: legalEntityName,
-        industry,
-        company_size: companySize,
-        default_locale: defaultLocale,
-        supported_locales: supportedLocales,
-        default_currency: defaultCurrency,
-        supported_currencies: supportedCurrencies,
-        default_timezone: defaultTimezone,
-        date_format: dateFormat,
-        time_format: timeFormat,
-        primary_contact_name: contactName,
-        primary_contact_email: contactEmail,
-        primary_contact_phone: contactPhone,
-      }),
-    )
+    const input = {
+      company_name: companyName,
+      company_name_i18n: Object.keys(nameI18n).length ? nameI18n : null,
+      legal_entity_name: legalEntityName,
+      industry,
+      company_size: companySize,
+      default_locale: defaultLocale,
+      supported_locales: supportedLocales,
+      default_currency: defaultCurrency,
+      supported_currencies: supportedCurrencies,
+      default_timezone: defaultTimezone,
+      date_format: dateFormat,
+      time_format: timeFormat,
+      primary_contact_name: contactName,
+      primary_contact_email: contactEmail,
+      primary_contact_phone: contactPhone,
+    }
+
+    const saved = await withTenant(actorFrom(locals), async (tx) => {
+      // Read before writing. These settings format every figure in the
+      // product, and the timezone moves the boundary of a working day.
+      const before = await tenants.getCurrent(tx)
+      const row = await tenants.update(tx, input)
+
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "update",
+        entityType: "tenants",
+        entityId: locals.tenantId,
+        module: "platform-tenancy",
+        changes: audit.diff(before, input, AUDITED_FIELDS),
+      })
+      return row
+    })
 
     return { saved: true, company: saved }
   },

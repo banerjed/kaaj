@@ -5,6 +5,7 @@ import * as holidaysRepo from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
+import * as audit from "$lib/server/audit/audit.repo"
 import { formString } from "$lib/server/forms"
 
 const FREQUENCIES = ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const
@@ -21,6 +22,18 @@ export const load: PageServerLoad = async ({ locals }) => {
     locations: await locationsRepo.list(tx),
   }))
 }
+
+/** What a reviewer would ask about. Not every column: a table nobody can
+ *  prune should carry the fields that matter, and burying them among unchanged
+ *  ones is the same as not recording them. */
+const AUDITED_FIELDS = [
+  "schedule_name",
+  "pay_frequency",
+  "pay_day_of_week",
+  "first_pay_date",
+  "timezone",
+  "currency",
+]
 
 export const actions: Actions = {
   save: async ({ request, locals }) => {
@@ -76,8 +89,23 @@ export const actions: Actions = {
     }
 
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry says what changed
+      // rather than only what it became.
+      const before = id
+        ? ((await schedules.list(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await schedules.update(tx, id, input)
       else await schedules.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. When people are paid. A moved pay date is a question somebody asks the same week.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "payroll_pay_schedules",
+        entityId: id ?? null,
+        module: "payroll",
+        changes: audit.diff(before, input, AUDITED_FIELDS),
+      })
     })
     return { saved: true }
   },
@@ -87,7 +115,16 @@ export const actions: Actions = {
     requireCan(contextFrom(locals), "firm.settings.write")
     const id = formString(await request.formData(), "id")
     if (!id) return fail(400, { message: "Missing schedule." })
-    await withTenant(actorFrom(locals), (tx) => schedules.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await schedules.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "payroll_pay_schedules",
+        entityId: id,
+        module: "payroll",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 }

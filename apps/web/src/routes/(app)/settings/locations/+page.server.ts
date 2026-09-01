@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as locations from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
+import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList, formString } from "$lib/server/forms"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 
@@ -17,6 +18,24 @@ export const load: PageServerLoad = async ({ locals }) => {
   const rows = await withTenant(actorFrom(locals), (tx) => locations.list(tx))
   return { locations: rows }
 }
+
+/**
+ * The fields worth recording when an office changes.
+ *
+ * Not every column: a table nobody can prune should carry what a reviewer
+ * would ask about, and burying that in twenty unchanged fields is the same as
+ * not recording it. Timezone and locale decide how time and money behave for
+ * everyone assigned here.
+ */
+const AUDITED_FIELDS = [
+  "name",
+  "location_code",
+  "timezone",
+  "locale",
+  "currency",
+  "country",
+  "is_headquarters",
+]
 
 export const actions: Actions = {
   save: async ({ request, locals }) => {
@@ -86,7 +105,12 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
+    const ctx = contextFrom(locals)
     await withTenant(actorFrom(locals), async (tx) => {
+      // Read what it was BEFORE writing, so the entry can say what changed
+      // rather than only what it became.
+      const before = id ? await locations.getById(tx, id) : null
+
       // Demote BEFORE writing. A partial unique index enforces one HQ per
       // tenant, so promoting this office while another still holds the flag
       // fails on the write itself — order matters, not just atomicity.
@@ -94,6 +118,17 @@ export const actions: Actions = {
 
       if (id) await locations.update(tx, id, input)
       else await locations.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. A location's timezone decides which DAY an
+      // attendance record belongs to (L35) and which pay period it falls in;
+      // its locale decides how every figure for the office is formatted.
+      await audit.record(tx, ctx!, {
+        action: id ? "update" : "create",
+        entityType: "firm_locations",
+        entityId: id ?? null,
+        module: "firm-profile",
+        changes: audit.diff(before, input, AUDITED_FIELDS),
+      })
     })
 
     return { saved: true }
@@ -119,6 +154,16 @@ export const actions: Actions = {
         })
       }
       await locations.archive(tx, id)
+
+      // Closing an office reassigns or strands everyone who was assigned to
+      // it, which is why the dependent check above refuses rather than warns.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_locations",
+        entityId: id,
+        module: "firm-profile",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
       return { archived: true }
     })
   },

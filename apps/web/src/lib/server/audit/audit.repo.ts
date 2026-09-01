@@ -201,3 +201,46 @@ export async function recent(
      LIMIT ${limit}
   `
 }
+
+/**
+ * The fields that actually MOVED, as `{from, to}` pairs.
+ *
+ * Recording every field of a settings row would fill a table nobody can prune
+ * with values that did not change — and burying the one field that did is the
+ * same as not recording it. This compares before against after and keeps only
+ * the difference.
+ *
+ * Everything is stringified because `FieldChange` is strings: a JSON number in
+ * JSONB returns to JavaScript as a float64, and this table cannot be corrected
+ * (L41). `null` survives as null, so "had no value" stays distinguishable from
+ * the string "null".
+ *
+ * `before` is null for a creation, which yields `{from: null, to: ...}` for
+ * every field — the correct shape for a row that did not exist.
+ */
+export function diff(
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown>,
+  fields: string[],
+): Record<string, FieldChange> {
+  const out: Record<string, FieldChange> = {}
+  for (const field of fields) {
+    const from = stringify(before?.[field])
+    const to = stringify(after[field])
+    if (from === to) continue
+    out[field] = { from, to }
+  }
+  return out
+}
+
+function stringify(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === "string") return value
+  if (typeof value === "boolean" || typeof value === "number") {
+    return String(value)
+  }
+  // An object or array — a JSONB column such as name_i18n or salary_ranges.
+  // Serialised so a change to it is visible, rather than dropped for not being
+  // a scalar.
+  return JSON.stringify(value)
+}

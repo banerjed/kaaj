@@ -4,6 +4,7 @@ import * as holidays from "$lib/server/firm-profile/firm_holidays.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
+import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList } from "$lib/server/forms"
 
 /** /settings/holidays — module-firm-profile.md § Holiday Calendar. */
@@ -22,6 +23,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     selectedYear: Number.isFinite(year) ? year : null,
   }))
 }
+
+/** What a reviewer would ask about. Not every column: a table nobody can
+ *  prune should carry the fields that matter, and burying them among unchanged
+ *  ones is the same as not recording them. */
+const AUDITED_FIELDS = [
+  "holiday_name",
+  "holiday_date",
+  "location_code",
+  "is_paid",
+  "is_recurring",
+]
 
 export const actions: Actions = {
   save: async ({ request, locals }) => {
@@ -63,8 +75,23 @@ export const actions: Actions = {
         })
       }
 
+      // Read what it was BEFORE writing, so the entry says what changed
+      // rather than only what it became.
+      const before = id
+        ? ((await holidays.list(tx)).find((r) => r.id === id) ?? null)
+        : null
+
       if (id) await holidays.update(tx, id, input)
       else await holidays.create(tx, tenantId, input)
+
+      // SAME TRANSACTION. A public holiday decides whether a day is paid leave, and whether working it earns a premium.
+      await audit.record(tx, contextFrom(locals)!, {
+        action: id ? "update" : "create",
+        entityType: "firm_holidays",
+        entityId: id ?? null,
+        module: "firm-profile",
+        changes: audit.diff(before, input, AUDITED_FIELDS),
+      })
       return { saved: true }
     })
   },
@@ -75,7 +102,16 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing holiday."))
-    await withTenant(actorFrom(locals), (tx) => holidays.archive(tx, id))
+    await withTenant(actorFrom(locals), async (tx) => {
+      await holidays.archive(tx, id)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "archive",
+        entityType: "firm_holidays",
+        entityId: id,
+        module: "firm-profile",
+        changes: { is_active: { from: "true", to: "false" } },
+      })
+    })
     return { archived: true }
   },
 }
