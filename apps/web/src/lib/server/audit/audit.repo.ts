@@ -21,22 +21,53 @@ import type { AuthContext } from "../auth/can"
  * changed, and `redact` names the ones that must never appear.
  */
 
-/** Fields that must never reach the trail, whatever a caller passes. */
+/**
+ * Fields that must never reach the trail, whatever a caller passes.
+ *
+ * **Every encrypted column in the schema is here**, plus the cleartext names
+ * they replaced and the few unencrypted values that are equally private. Ten
+ * of these were missing — `address_ct`, `email_ct`, `phone_primary_ct`,
+ * `tax_id_ct` and the rest — which meant a caller passing one would have
+ * written it into a table that can never be deleted from.
+ *
+ * `verify-audit-coverage.mjs` now fails when a `_ct` or `_encrypted` column
+ * exists in the schema and is absent here, so the list cannot fall behind the
+ * schema again.
+ *
+ * Redaction matches the KEY. That is why `reason` carries prose and never
+ * values: a sentence containing an account number has no field name to match.
+ */
 const NEVER_LOGGED = new Set([
+  // Cleartext names, kept for callers that predate encryption.
   "ssn_tax_id",
-  "ssn_tax_id_ct",
-  "account_number_ct",
-  "routing_number_ct",
-  "iban_ct",
-  "bic_swift_ct",
-  "ifsc_code_ct",
-  "sort_code_ct",
-  "wrapped_dek",
   "password",
+  "wrapped_dek",
+
+  // Encrypted columns — every one in the schema.
+  "account_number_ct",
+  "account_number_encrypted",
+  "address_ct",
+  "bank_account_number_ct",
+  "bank_routing_number_ct",
+  "bic_swift_ct",
+  "certification_number_ct",
+  "email_ct",
+  "iban_ct",
+  "ifsc_code_ct",
+  "phone_primary_ct",
+  "phone_secondary_ct",
+  "routing_number_ct",
+  "sort_code_ct",
+  "ssn_tax_id_ct",
+  "swift_code_ct",
+  "tax_id_ct",
+
+  // Not encrypted, and equally not a diff. A review's prose is withheld from
+  // its own subject until it is submitted; copying it here would route around
+  // that (L39).
   "self_assessment",
   "manager_assessment",
 ])
-
 /**
  * One field that changed, as STRINGS.
  *
@@ -100,10 +131,16 @@ export type AuditEntry = {
    * WHY, in prose, when there is a why worth keeping: "corrected a typo",
    * "backdated per the offer letter".
    *
-   * Deliberately separate from `changes`. Values never go in here — the
+   * Deliberately separate from `changes`. **Values never go in here** — the
    * redaction set matches field NAMES, so a sentence containing an account
    * number would carry it straight past `NEVER_LOGGED` into a table that
    * cannot be deleted from.
+   *
+   * This is the one path redaction cannot defend, and it is defended by not
+   * putting values in it rather than by code. Where the prose is typed by a
+   * person — a change reason on a pay record — that is a UI and training
+   * matter, not something a filter can catch without also mangling legitimate
+   * text. Keep it short, and keep it about WHY.
    */
   reason?: string | null
 }

@@ -287,3 +287,106 @@ describe("the change record's shape", () => {
     expect(JSON.stringify(row)).not.toContain("BARC")
   })
 })
+
+describe("what must never reach the trail", () => {
+  it("redacts every encrypted column the schema has", async () => {
+    // NEVER_LOGGED matches field NAMES, so a column it does not know about is
+    // one a caller can write in the clear. Ten were missing until the guard
+    // was added; this asserts the property from the application side too.
+    const encrypted = await withTenant(
+      AS_OWNER,
+      (tx) =>
+        tx<{ column_name: string }[]>`
+        SELECT DISTINCT column_name FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND (column_name ~ '_ct$' OR column_name LIKE '%_encrypted')
+      `,
+    )
+    expect(encrypted.length).toBeGreaterThan(10)
+
+    const changes = Object.fromEntries(
+      encrypted.map((c) => [
+        c.column_name,
+        { from: "SECRET-BEFORE", to: "SECRET-AFTER" },
+      ]),
+    )
+    const row = await inRollback(async (tx) => {
+      await audit.record(tx, ctx, {
+        action: "update",
+        entityType: "employees",
+        entityId: SARAH,
+        changes,
+      })
+      const [r] = await audit.forEntity(tx, "employees", SARAH)
+      return r
+    })
+
+    // Not one of them survives, on either side.
+    const asText = JSON.stringify(row)
+    expect(asText).not.toContain("SECRET-BEFORE")
+    expect(asText).not.toContain("SECRET-AFTER")
+    for (const c of encrypted) {
+      expect(row.changes![c.column_name]).toEqual({
+        from: "[redacted]",
+        to: "[redacted]",
+      })
+    }
+  })
+
+  it("the trail itself is not readable by a plain employee", async () => {
+    // Auditing a value COPIES it. Pay changes record
+    // {amount: {from, to}}, so a trail every employee could read was a second
+    // route to the disclosure L47 describes — and it existed until the row
+    // policy landed.
+    const [employee, hr] = await Promise.all([
+      countAudit({ employeeId: MARCUS, role: "employee", functionalRoles: [] }),
+      countAudit({
+        employeeId: RACHEL,
+        role: "employee",
+        functionalRoles: ["hr_admin"],
+      }),
+    ])
+    expect(hr).toBeGreaterThan(0)
+    expect(employee).toBe(0)
+  })
+
+  it("refuses finance, who may read the ledger but not the trail", async () => {
+    const n = await countAudit({
+      employeeId: MARCUS,
+      role: "employee",
+      functionalRoles: ["finance_admin"],
+    })
+    expect(n).toBe(0)
+  })
+
+  it("shows a person the entries about them", async () => {
+    // GDPR Art. 15 is an access right: a trail of decisions affecting someone
+    // that they may never see is a worse answer than one they can.
+    const n = await withTenant(
+      {
+        tenantId: NORTHWIND,
+        role: "employee",
+        functionalRoles: [],
+        employeeId: TOM,
+      },
+      (tx) => tx<{ n: number }[]>`SELECT count(*)::int AS n FROM audit_log`,
+    )
+    expect(n[0].n).toBeGreaterThan(0)
+  })
+})
+
+const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
+const RACHEL = "a87e0200-0849-53b6-a491-e882feace3f5"
+const TOM = "b9b84064-a67a-5048-8282-8fc048b4dbfb"
+
+async function countAudit(who: {
+  employeeId: string
+  role: string
+  functionalRoles: string[]
+}): Promise<number> {
+  const rows = await withTenant(
+    { tenantId: NORTHWIND, ...who },
+    (tx) => tx<{ n: number }[]>`SELECT count(*)::int AS n FROM audit_log`,
+  )
+  return rows[0].n
+}

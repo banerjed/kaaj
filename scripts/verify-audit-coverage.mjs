@@ -19,6 +19,7 @@
  * `audit_log` can never be deleted from, so over-auditing is permanent noise.
  * That is why the second and third checks matter as much as the first.
  */
+import { execFileSync } from "node:child_process"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
@@ -88,6 +89,37 @@ for (const file of routeFiles(ROUTES)) {
   }
 }
 
+// -- Redaction keeps up with the schema -------------------------------------
+//
+// NEVER_LOGGED matches field NAMES, so a column it does not know about is a
+// column a caller can write in the clear. Ten encrypted columns were missing
+// from it — address_ct, email_ct, phone_primary_ct, tax_id_ct and others —
+// which is exactly the drift a committed list suffers when nothing compares it
+// to the schema.
+const unredacted = []
+if (process.env.DATABASE_URL) {
+  const repo = readFileSync(
+    join(ROOT, "apps/web/src/lib/server/audit/audit.repo.ts"),
+    "utf8",
+  )
+  const encrypted = execFileSync(
+    "psql",
+    [
+      process.env.DATABASE_URL, "-X", "-tA", "-c",
+      "SELECT DISTINCT column_name FROM information_schema.columns " +
+        "WHERE table_schema='public' " +
+        "AND (column_name ~ '_ct$' OR column_name LIKE '%_encrypted')",
+    ],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+  for (const col of encrypted) {
+    if (!repo.includes(`"${col}"`)) unredacted.push(col)
+  }
+}
+
 let failed = false
 const report = (rows, heading, advice) => {
   if (!rows.length) return
@@ -118,6 +150,14 @@ report(
     `  ${REGISTER}, with a reason. The question: would someone later ask who\n` +
     "  changed this and what it was before, and would the answer affect a\n" +
     "  person's money, employment, rights, or a regulator's question?",
+)
+
+report(
+  unredacted,
+  "encrypted column(s) are NOT in NEVER_LOGGED:",
+  "  Redaction matches the field NAME, so a column absent from that set is one\n" +
+    "  a caller can write in the clear — into a table that can never be deleted\n" +
+    "  from. Add it to NEVER_LOGGED in audit.repo.ts.",
 )
 
 if (failed) process.exit(1)

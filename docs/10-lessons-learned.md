@@ -442,6 +442,49 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L55 — Auditing a value copies it, and the copy needs the same protection
+
+Asked to confirm that nothing sensitive reaches the audit trail, the answer was
+no — in two ways, one of them created hours earlier by the audit work itself.
+
+**The trail had no row policy.** `audit_log` carried tenant isolation and
+nothing else, so every employee could read every entry in the firm. That was
+tolerable while it held leave approvals. It stopped being tolerable the moment
+pay changes were audited, because the entry records
+
+```json
+{"amount": {"from": "139000.00", "to": "148000.00"}}
+```
+
+and a plain employee could read it for anyone. This is L47 exactly — a
+protected value reachable by an unprotected path — arriving through a route
+nobody had looked at, because the trail was designed as a WRITE and never as a
+READ.
+
+The general rule: **whatever protects the original must protect the copy.**
+`compensation_base` has had a row policy since the day it was written; the
+table recording its changes did not, and one was worth nothing without the
+other.
+
+**The redaction set had fallen behind the schema.** `NEVER_LOGGED` matches
+field NAMES, and ten encrypted columns were absent from it — `address_ct`,
+`email_ct`, `phone_primary_ct`, `phone_secondary_ct`, `tax_id_ct`,
+`swift_code_ct`, `certification_number_ct`, `account_number_encrypted` and both
+vendor bank columns. Any caller passing one would have written plaintext into a
+table that can never be deleted from. A committed list drifts unless something
+compares it to the schema; `verify-audit-coverage.mjs` now does, and fails when
+a `_ct` column exists without an entry.
+
+**One path redaction cannot defend**, recorded here because it is a real
+residual risk rather than a solved problem: `reason` is free prose, so a
+sentence containing an account number has no field name to match. It is
+defended by never putting values in it — a UI and training matter, not
+something a filter catches without mangling legitimate text.
+
+The check that would have caught all of this earlier is one question asked of
+any new write: **who can read what this writes?** The audit work answered "who
+may write it" carefully and never asked the other half.
+
 ### L54 — A rule that is prose is applied unevenly
 
 CLAUDE.md required an audit entry for "a write that someone may later be asked

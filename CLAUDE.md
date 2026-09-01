@@ -522,6 +522,13 @@ visibility keys on the role and the person, so a bare tenant id returns zero
 rows — silently, as a wrong number rather than an error
 ([L42](docs/10-lessons-learned.md)). `./check` enforces it.
 
+**Auditing a value copies it — protect the copy the same way.** `audit_log`
+had no row policy, so once pay changes were audited every employee could read
+every pay change in the firm ([L55](docs/10-lessons-learned.md)). It now carries
+row-level visibility: HR, payroll, an auditor and the owner see everything;
+everyone else sees only entries about themselves or recording what they did.
+Ask of any new write: **who can read what this writes?**
+
 **Every write is classified in `apps/web/src/lib/server/audit/register.ts`,
 and `./check` fails on one that is not.** The rule below was prose for months
 and 3 of 26 actions followed it ([L54](docs/10-lessons-learned.md)). `changes`

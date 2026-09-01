@@ -1,5 +1,6 @@
 # table	policy	command	roles	using	with_check
 accounting_periods	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+audit_log	audit_visibility	SELECT	public	(( SELECT app.reads_all_audit() AS reads_all_audit) OR (entity_id = ( SELECT app.current_employee_id() AS current_employee_id)) OR (actor_employee_id = ( SELECT app.current_employee_id() AS current_employee_id)))	
 audit_log	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 bank_accounts	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 bank_reconciliation_rules	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
