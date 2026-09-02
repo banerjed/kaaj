@@ -60,6 +60,23 @@ USING (
 against a measured 131 ms TTFB. This pattern is not optional, and getting it
 wrong makes the app feel broken for a reason no profiler points at.
 
+**And the predicate must never parse the claim itself.** The full policy has a
+third arm — a role check — which originally cast
+`current_setting('request.jwt.claims', true)::jsonb` inline. A policy
+expression cannot carry an `EXCEPTION` handler, so a malformed claim raised
+from inside the policy instead of returning no rows: a 500 rather than an empty
+page, appearing and disappearing with the query plan. It now calls
+`app.claim_role()`, which returns NULL on a bad claim like its siblings, and
+`./check` refuses any policy that casts the claim itself
+([L62](./10-lessons-learned.md), `20260902041935`).
+
+**`AS RESTRICTIVE` is load-bearing.** These tables also carry
+`tenant_isolation`, and Postgres OR-s *permissive* policies together — so a
+visibility policy recreated without those two words stops narrowing tenant
+isolation and starts bypassing it. Recreating one leaked 12 foreign rows, and
+`verify-rls.sql` phase C caught it on the next run
+([L63](./10-lessons-learned.md)).
+
 ---
 
 ## Tier 1 — add row-level RLS (15 tables)

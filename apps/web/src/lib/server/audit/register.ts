@@ -133,6 +133,62 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "archiveLevel",
     why: "Retiring a level withdraws the published band that went with it.",
   },
+  // -- Receivables: revenue recognised, and cash received ------------------
+  {
+    route: "accounting/invoices/[id]",
+    action: "issue",
+    why: "The moment a customer is told they owe money AND the moment revenue enters the general ledger. Both are things somebody is later asked to justify, and the journal it posts can never be deleted.",
+  },
+  {
+    route: "accounting/invoices/[id]",
+    action: "recordPayment",
+    why: "Cash received against a debt. 'Who marked this paid, for how much, and when' is the question every reconciliation asks.",
+  },
+  {
+    route: "accounting/invoices/[id]",
+    action: "voidInvoice",
+    why: "A document withdrawn before it was issued. Without a record, an invoice that was raised and then made to disappear leaves no trace it ever existed.",
+  },
+
+  // -- Payroll: the record of money leaving the firm -----------------------
+  {
+    route: "payroll/runs",
+    action: "openRun",
+    why: "A pay run is the record of money leaving the firm. 'Who opened this period, and for which dates' is the first question asked when two runs cover the same fortnight.",
+  },
+  {
+    route: "payroll/runs/[id]",
+    action: "calculate",
+    why: "The moment the header totals become the figures a finance lead reads and reports. What the run claimed before, and what it claims now, is the whole question.",
+  },
+  {
+    route: "payroll/runs/[id]",
+    action: "approve",
+    why: "The money is committed here, by a named approver who is not the person who calculated it. The clearest case in this register.",
+  },
+  {
+    route: "payroll/runs/[id]",
+    action: "finalize",
+    why: "The payment file is cut from here. After this the money has left, and the trail is the only account of who authorised it.",
+  },
+  {
+    route: "payroll/runs/[id]",
+    action: "cancel",
+    why: "A pay period that was opened and then abandoned. Nobody can see it did not happen without a record that it was stopped, and by whom.",
+  },
+
+  // -- Project money: what a client is eventually billed against ----------
+  {
+    route: "projects",
+    action: "create",
+    why: "budget, hourly_rate and is_billable are the terms work is billed on. 'Who set this project up as billable, and at what rate' is an invoicing question with money behind it.",
+  },
+  {
+    route: "projects/[id]",
+    action: "updateProject",
+    why: "The same fields, changed. A rate edited mid-project changes every invoice raised after it, and status is what a delivery report counts as done.",
+  },
+
   {
     route: "settings/company",
     action: "update",
@@ -167,5 +223,15 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "settings/job-titles",
     action: "archiveTitle",
     why: "Same: the band lives on the level, not the title.",
+  },
+  {
+    route: "projects/[id]",
+    action: "addTask",
+    why: "A task appearing on a board changes nobody's money, employment or rights. The row carries created_by and created_at, and audit_log can never be pruned — a line per task would bury the pay changes the trail exists to make findable.",
+  },
+  {
+    route: "projects/[id]",
+    action: "moveTask",
+    why: "Board movement, and the highest-frequency write in the product. What must not go wrong here is the project's counters, and that is guarded by staleCounters() rather than by a trail nobody would read.",
   },
 ]

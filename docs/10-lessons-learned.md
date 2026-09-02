@@ -442,6 +442,189 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L62 — A claim cast inside a policy cannot be made to fail closed
+
+`./check` went red on `G/claim-malformed` without any function having changed:
+a JWT claim of `not-json` raised `invalid input syntax for type json` from
+inside the `employees` row policy instead of returning zero rows.
+
+Four of the seven `app.*` functions that parse `request.jwt.claims` wrapped the
+`::jsonb` cast in an `EXCEPTION` handler — `current_employee_id()` even says
+why: *"a malformed claim means 'no employee', never 'every employee'"* — and
+three did not. Guarding those three fixed nothing, because
+`employees.employee_visibility` did the cast **inline in the policy
+expression**, where no handler can reach it. A policy expression cannot carry
+one; the only fix is to move the parsing into a function that can
+(`app.claim_role()`).
+
+Two things worth keeping:
+
+- **No rows ever leaked.** The safety property held throughout — an exception
+  is fail-closed. What was lost is fail-closed *quietly*, which is the
+  difference between a 500 and an empty page, and it is the behaviour the
+  harness asserts because it is the one an application can render.
+- **It was latent, not new.** Whether the policy raises depends on whether the
+  planner evaluates that arm at all, so the same schema passed for days and
+  then began failing. A bug that comes and goes with the query plan will not be
+  found by running the suite once.
+
+`verify-invariants.sql` now CALLS every zero-argument `app.*` function that
+mentions the claim with a malformed one and fails if any raises — nine checks,
+watched failing before being trusted — and separately refuses any policy whose
+expression casts the claim itself. A grep for the word `EXCEPTION` would have
+passed a handler that was present and wrong.
+
+### L63 — `DROP` + `CREATE POLICY` silently loses `AS RESTRICTIVE`
+
+While fixing L62, the `employee_visibility` policy was dropped and recreated.
+The original read `CREATE POLICY ... ON employees AS RESTRICTIVE FOR SELECT`;
+the replacement omitted those two words.
+
+**Postgres defaults a policy to PERMISSIVE, and permissive policies on the same
+command are OR-ed together.** `employees` also carries `tenant_isolation`, so
+the two stopped being *both* and became *either* — and every row that satisfied
+the visibility rule came back regardless of which tenant it belonged to. The
+next run reported `C/no-leak | employees | LEAK: 12 foreign rows visible`.
+
+This is the one in this file that did **not** fail silently, and that is the
+whole point: 587 isolation checks exist because this class of mistake is a
+single missing word in a statement that succeeds. Nothing in the SQL looked
+wrong, nothing errored, and the page would have rendered.
+
+Two rules follow. **Recreating a policy means restating every modifier** — the
+`DROP`/`CREATE` pair is not a diff, and `AS RESTRICTIVE`, `FOR`, `TO` and the
+`WITH CHECK` half are all lost by omission. And **run `./check --db` after any
+policy change, before anything else** — it is one second, and it is the only
+thing standing between a two-word omission and cross-tenant disclosure.
+
+### L61 — L50 applies to tests, not just to fixtures
+
+A test asserted that a foreign-currency invoice's journal ties to its base
+total. It passed. Then the code it was testing was deliberately broken — base
+figures rounded from the gross instead of summed from the rounded parts — and
+it **still passed**.
+
+The only foreign-currency invoice in the fixture carries **zero tax**. With a
+tax of zero, `round(sub × r) + round(0 × r)` and `round((sub + 0) × r)` are the
+same number, so the test could not tell the two implementations apart. It was
+green over an empty column, which is exactly L50 — except inside a test rather
+than inside a fixture, where nothing was looking for it.
+
+The replacement picks values where the two differ: at a rate of 1.27, a
+subtotal and a tax of 100.01 each round to 127.01 and sum to **254.02**, while
+the gross of 200.02 rounds to **254.03**. One cent, in the direction that makes
+`base_total` disagree with its own parts — which is what
+`ck_invoices_amounts_reconcile` forbids, and what a period close would surface
+weeks later.
+
+**Choosing a test value is choosing what the test can see.** The same trap as
+L25's `.9052` versus `.9012`: a value that cannot distinguish two behaviours
+tests neither. And the only reliable way to find out is to break the code and
+watch — a passing test says nothing about what it would catch.
+
+### L59 — A duplicate column arms itself the moment something can write
+
+`payroll_runs` carries two status columns. `run_status` is authoritative and
+holds all three CHECK constraints — a closed vocabulary, the stage/timestamp
+rule, separation of duties. `status` is a duplicate: unused, read by nothing,
+constrained by nothing, and carrying an index on `(tenant_id, status)`.
+`20260831140000` said so in a `COMMENT` and left it, because dropping it needs
+the API surface checked first.
+
+That was safe for exactly as long as the module was read-only. The two agreed
+because nothing could move either. Adding the lifecycle writes made them
+divergeable, and a statement that moved `run_status` alone would have left
+`status` behind — no error, no failing CHECK (they constrain `run_status`
+only), and an index pointing at a value nothing else believes.
+
+**A `COMMENT` is prose, and prose is applied unevenly (L54).**
+`20260902040128` adds `CHECK (status = run_status)`, which turns the divergence
+into a loud failure instead of a convention, and it was watched refusing a
+one-column write before being relied on. Dropping the column is still the end
+state; the constraint costs nothing and closes the hole meanwhile.
+
+The general shape: **a dead column is not inert, it is dormant.** Ask of any
+duplicate, denormalised or legacy column left in place: what happens the first
+time something writes its twin?
+
+### L60 — `rejects.toThrow(SomeError)` passes on the wrong error
+
+Three separation-of-duties tests went green without ever reaching the code they
+were testing.
+
+Each did setup — create a draft run, move lines onto it, calculate it — and
+then asserted `await expect(...).rejects.toThrow(RunRefused)`. A bug in the
+transition map made the *setup* throw `RunRefused` two lines early. The
+assertion was satisfied, the tests passed, and `approve` was never called.
+
+`toThrow(Class)` asserts a type, and a typed domain error is deliberately used
+for every refusal in the module — so every refusal satisfies every assertion
+about any refusal. The tests were checking that something went wrong, which is
+not the same as checking that the right thing went wrong.
+
+The fix is a helper that asserts the REASON:
+
+```ts
+await refusedBecause(() => runs.approve(tx, id, RACHEL), "self_approval")
+```
+
+and which fails loudly if the call succeeds at all. It caught the transition
+bug immediately.
+
+**Where a module funnels every failure through one error type — which is the
+pattern this codebase wants — the type carries no information and the test has
+to assert the discriminant.** The same applies to `RaiseRefused`,
+`DecisionRefused` and `ProjectWriteRefused`.
+
+### L57 — A create form and a filter that disagree hide the row that was just written
+
+`/projects` filtered on a status list of `planning, active, on_hold, completed,
+cancelled`. `projects.status` defaults to **`draft`**, and the list omitted it.
+
+That was harmless for exactly as long as nothing could create a project. The
+moment the create action landed, the first project anyone made would have been
+written correctly, returned no error, shown a success message — and then been
+absent from the list under every filter including the unfiltered one, because
+the page reads through the same vocabulary.
+
+The shape is worth naming: **a vocabulary list that lives next to the reader is
+half a definition.** These are plain `text` columns with no enum and no CHECK,
+so the list IS the constraint, and two copies of a constraint are one
+constraint that will disagree. The lists now live in `projects.repo.ts` and the
+pages import them, so the filter, the create form and the edit form cannot
+drift apart — and `projects.writes.test.ts` asserts that a freshly created
+project is findable by the filter, which is the assertion that would have
+caught it.
+
+The general question, asked of any new write: **can the thing this creates be
+found again by the page that lists it?** A write whose result is invisible is
+indistinguishable from a write that did not happen.
+
+### L58 — A denormalised counter is recomputed, never incremented
+
+`projects.task_count` and `completed_task_count` are stored on the project row
+and feed a progress bar. Adding the task write path made them writable for the
+first time.
+
+An increment (`SET task_count = task_count + 1`) is correct only if every
+writer remembers it, forever, and no write ever fails partway. A recount
+(`SET task_count = (SELECT count(*) ...)`) is correct whatever happened before
+it — so a row that is ALREADY wrong is repaired by the next write rather than
+carrying the error forward. The fixture shipped with exactly that kind of
+drift once, claiming 3 tasks on projects that had one or two.
+
+Two things make it hold rather than merely being intended:
+
+- the recount runs in the **same transaction** as the task write, so it cannot
+  be the half that is lost;
+- `staleCounters()` was already the diagnostic, and is now the regression
+  guard — `projects.writes.test.ts` asserts it is empty *after* a write, and
+  one case deliberately corrupts a counter and proves the next write repairs
+  it.
+
+Removing the recount was tried before trusting it: six of the eighteen write
+tests fail. A guard that has never been observed to fail is not evidence.
+
 ### L56 — The next step is written down, because the context will not survive
 
 L47 and L55 were both found by looking, not by testing, and the analysis of why

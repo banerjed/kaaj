@@ -147,30 +147,44 @@ export class FormReader {
     return value ?? opts.fallback ?? null
   }
 
-  /** A fixed set on a plain `varchar` column, where there is no Postgres enum. */
-  choice(
+  /**
+   * A fixed set on a plain `varchar` column, where there is no Postgres enum.
+   *
+   * Generic over the allowed values, so a `readonly ["todo", "done"]` returns
+   * `"todo" | "done"` rather than `string`. That matters: the repository
+   * function it is handed to declares the union, and a plain `string` there
+   * would either need a cast — which asserts what `choice` has ALREADY
+   * checked, in a second place that can drift — or would widen the repository
+   * to accept anything. A call site passing `string[]` still infers `string`,
+   * so nothing existing changes.
+   */
+  choice<T extends string>(
     name: string,
-    allowed: readonly string[],
-    opts: Base & { fallback: string },
-  ): string
-  choice(
+    allowed: readonly T[],
+    opts: Base & { fallback: T },
+  ): T
+  choice<T extends string>(
     name: string,
-    allowed: readonly string[],
+    allowed: readonly T[],
     opts: Base & { required: true },
-  ): string
-  choice(name: string, allowed: readonly string[], opts?: Base): string | null
-  choice(
+  ): T
+  choice<T extends string>(
     name: string,
-    allowed: readonly string[],
-    opts: Base & { fallback?: string } = {},
-  ): string | null {
+    allowed: readonly T[],
+    opts?: Base,
+  ): T | null
+  choice<T extends string>(
+    name: string,
+    allowed: readonly T[],
+    opts: Base & { fallback?: T } = {},
+  ): T | null {
     const value = this.read(name, opts.required ?? false, (raw) =>
-      allowed.includes(raw) ? raw : undefined,
-    )
+      allowed.includes(raw as T) ? raw : undefined,
+    ) as T | null
     // `required` yields "" rather than null so the overload is honest: the
     // caller has already returned on `!f.ok` before it reads this.
     if (value === null && opts.required && opts.fallback === undefined)
-      return ""
+      return "" as T
     return value ?? opts.fallback ?? null
   }
 

@@ -236,3 +236,342 @@ export async function inconsistentRuns(tx: Tx): Promise<
         OR r.total_gross_pay IS DISTINCT FROM coalesce(sum(pe.gross_pay), 0)
   `
 }
+
+// ---------------------------------------------------------------------------
+// Writes — the run LIFECYCLE, deliberately not the calculation
+// ---------------------------------------------------------------------------
+//
+// **What this does not do: compute anybody's pay.** Gross, taxes and net per
+// person need per-jurisdiction tax tables that do not exist in this database,
+// and inventing them would produce a correct-LOOKING number on a payslip —
+// the exact failure mode this codebase keeps being bitten by. `payroll_tax_rates`
+// is unpopulated and the India structures are untouched; until they are real,
+// the lines come from the fixture and nothing here writes one.
+//
+// What this DOES own is the state a run moves through and the header totals
+// that describe it. Both are things a person is later asked to justify, and
+// both were previously unwritable.
+//
+// Three CHECK constraints back these writes, and each was observed refusing a
+// bad write before being relied on (20260831140000, 20260902040128):
+//
+//   payroll_runs_status_is_known            the vocabulary is closed
+//   payroll_runs_stages_have_timestamps     a stage implies its timestamps
+//   payroll_runs_calculator_is_not_approver one person cannot do both
+//   payroll_runs_status_columns_agree       run_status and status move together
+//
+// What no CHECK gives is DIRECTION — `payroll_runs_status_is_known` is equally
+// happy with finalized → draft — nor the case where `calculated_by` is NULL,
+// which slips past separation of duties because that constraint only fires
+// when both columns are set. Both are enforced below.
+
+export const RUN_STATUSES = [
+  "draft",
+  "calculating",
+  "calculated",
+  "approved",
+  "finalized",
+  "paid",
+  "cancelled",
+] as const
+export type RunStatus = (typeof RUN_STATUSES)[number]
+
+/**
+ * Where a run may go from where it is. One way, and cancellation stops.
+ *
+ * A pay run that can go backwards can be un-approved after someone has been
+ * paid, and the trail then describes a state the money does not agree with.
+ */
+const NEXT: Record<RunStatus, readonly RunStatus[]> = {
+  // draft goes straight to `calculated` because the calculation here is
+  // synchronous — the header is recomputed from the lines in the same
+  // transaction. `calculating` is the state a background job would occupy and
+  // nothing enters it today; it stays in the map because the column's
+  // vocabulary has it and a job runner will, and because a status that exists
+  // in the database but not in this map is a run nothing can move.
+  draft: ["calculating", "calculated", "cancelled"],
+  calculating: ["calculated", "cancelled"],
+  calculated: ["approved", "cancelled"],
+  approved: ["finalized", "cancelled"],
+  finalized: ["paid"],
+  paid: [],
+  cancelled: [],
+}
+
+export class RunRefused extends Error {
+  constructor(
+    readonly reason:
+      | "no_such_run"
+      | "wrong_status"
+      | "no_lines"
+      | "self_approval"
+      | "never_calculated"
+      | "number_taken",
+    readonly detail?: string,
+  ) {
+    super(reason)
+    this.name = "RunRefused"
+  }
+}
+
+/**
+ * Recompute the header from the lines beneath it.
+ *
+ * `employee_count` and the four totals are the denormalised half of this
+ * table; `payroll_run_employees` is the truth. Recomputed rather than
+ * incremented, for the reason in CLAUDE.md and L58 — a header that has already
+ * drifted is repaired by the next write instead of carried forward. The
+ * fixture shipped a run claiming an employee it had no line for.
+ *
+ * Every sum is NUMERIC in Postgres. Adding these in JavaScript is the float64
+ * round trip, and once the columns are correctly typed as strings it becomes
+ * silent concatenation with no type error.
+ *
+ * `total_deductions` is pre-tax PLUS post-tax, which is the same definition
+ * `LINE_SELECT` uses for a payslip's Deductions subtotal. Two definitions of a
+ * total is one definition that will disagree.
+ */
+export async function refreshRunTotals(tx: Tx, runId: string): Promise<void> {
+  await tx`
+    UPDATE payroll_runs r
+       SET employee_count =
+             (SELECT count(*)::int FROM payroll_run_employees pe
+               WHERE pe.payroll_run_id = r.id),
+           total_gross_pay =
+             (SELECT coalesce(sum(pe.gross_pay), 0)
+                FROM payroll_run_employees pe
+               WHERE pe.payroll_run_id = r.id),
+           total_net_pay =
+             (SELECT coalesce(sum(pe.net_pay), 0)
+                FROM payroll_run_employees pe
+               WHERE pe.payroll_run_id = r.id),
+           total_taxes =
+             (SELECT coalesce(sum(pe.total_taxes), 0)
+                FROM payroll_run_employees pe
+               WHERE pe.payroll_run_id = r.id),
+           total_deductions =
+             (SELECT coalesce(sum(pe.total_pretax_deductions
+                                + pe.total_posttax_deductions), 0)
+                FROM payroll_run_employees pe
+               WHERE pe.payroll_run_id = r.id),
+           updated_at = now()
+     WHERE r.id = ${runId}::uuid
+  `
+}
+
+async function currentRun(
+  tx: Tx,
+  runId: string,
+): Promise<{
+  run_status: RunStatus
+  calculated_by: string | null
+  line_count: number
+}> {
+  const [row] = await tx<
+    {
+      run_status: RunStatus
+      calculated_by: string | null
+      line_count: number
+    }[]
+  >`
+    SELECT r.run_status, r.calculated_by,
+           (SELECT count(*)::int FROM payroll_run_employees pe
+             WHERE pe.payroll_run_id = r.id) AS line_count
+      FROM payroll_runs r WHERE r.id = ${runId}::uuid
+  `
+  if (!row) throw new RunRefused("no_such_run")
+  return row
+}
+
+function requireTransition(from: RunStatus, to: RunStatus): void {
+  if (!NEXT[from].includes(to)) {
+    throw new RunRefused("wrong_status", `${from} cannot become ${to}`)
+  }
+}
+
+/**
+ * Move a run to `calculated`: the lines are in, and the header now describes
+ * them.
+ *
+ * Refused with no lines. A run calculated over nothing reports zero gross and
+ * looks like a finished pay period in which nobody happened to be paid — which
+ * is indistinguishable, on the page, from one where the lines failed to load.
+ */
+export async function markCalculated(
+  tx: Tx,
+  runId: string,
+  actorId: string,
+): Promise<{ from: RunStatus }> {
+  const current = await currentRun(tx, runId)
+  requireTransition(current.run_status, "calculated")
+  if (current.line_count === 0) throw new RunRefused("no_lines")
+
+  // The header BEFORE the status moves, so the CHECK that a calculated run has
+  // totals is satisfied by figures that describe the lines.
+  await refreshRunTotals(tx, runId)
+  await tx`
+    UPDATE payroll_runs
+       SET run_status    = 'calculated',
+           status        = 'calculated',
+           calculated_at = now(),
+           calculated_by = ${actorId}::uuid,
+           updated_at    = now()
+     WHERE id = ${runId}::uuid
+  `
+  return { from: current.run_status }
+}
+
+/**
+ * Approve a run. The money is committed from here.
+ *
+ * Two refusals the database cannot make on its own:
+ *
+ * - **Self-approval where nobody calculated.**
+ *   `payroll_runs_calculator_is_not_approver` fires only when BOTH columns are
+ *   set, so approving a run with a NULL `calculated_by` passes it. That is the
+ *   hole this closes — an approval with no calculation behind it is one person
+ *   doing the whole thing, which is what separation of duties exists to stop.
+ * - **Self-approval where somebody did.** The CHECK catches it, but as a 500
+ *   with a constraint name in it. Refused here so the page can say why.
+ */
+export async function approve(
+  tx: Tx,
+  runId: string,
+  actorId: string,
+): Promise<{ from: RunStatus }> {
+  const current = await currentRun(tx, runId)
+  requireTransition(current.run_status, "approved")
+  if (current.calculated_by === null) throw new RunRefused("never_calculated")
+  if (current.calculated_by === actorId) throw new RunRefused("self_approval")
+
+  await refreshRunTotals(tx, runId)
+  await tx`
+    UPDATE payroll_runs
+       SET run_status  = 'approved',
+           status      = 'approved',
+           approved_at = now(),
+           approved_by = ${actorId}::uuid,
+           updated_at  = now()
+     WHERE id = ${runId}::uuid
+  `
+  return { from: current.run_status }
+}
+
+/** Finalize an approved run — the payment file is cut from here. */
+export async function finalize(
+  tx: Tx,
+  runId: string,
+  actorId: string,
+): Promise<{ from: RunStatus }> {
+  const current = await currentRun(tx, runId)
+  requireTransition(current.run_status, "finalized")
+
+  await refreshRunTotals(tx, runId)
+  await tx`
+    UPDATE payroll_runs
+       SET run_status   = 'finalized',
+           status       = 'finalized',
+           finalized_at = now(),
+           finalized_by = ${actorId}::uuid,
+           updated_at   = now()
+     WHERE id = ${runId}::uuid
+  `
+  return { from: current.run_status }
+}
+
+/**
+ * Cancel a run before it is finalized.
+ *
+ * There is no route back from `finalized` or `paid`, and none from `cancelled`
+ * either: a cancelled run is corrected by raising another, the same way an
+ * audit entry is corrected by a new row rather than an edit.
+ */
+export async function cancel(
+  tx: Tx,
+  runId: string,
+  actorId: string,
+  reason: string | null,
+): Promise<{ from: RunStatus }> {
+  const current = await currentRun(tx, runId)
+  requireTransition(current.run_status, "cancelled")
+
+  // `notes` is APPENDED to, not replaced: it already carries whatever the run
+  // was opened with, and overwriting it destroys that to record something the
+  // audit entry holds anyway. `processed_by` is deliberately left alone — it
+  // means "who processed this run", and a cancellation is the opposite of
+  // processing; who cancelled it is in the trail, which is the durable record.
+  await tx`
+    UPDATE payroll_runs
+       SET run_status = 'cancelled',
+           status     = 'cancelled',
+           notes      = concat_ws(E'\n', nullif(notes, ''),
+                                  'Cancelled: ' || ${reason}),
+           updated_at = now()
+     WHERE id = ${runId}::uuid
+  `
+  return { from: current.run_status }
+}
+
+export type NewRun = {
+  pay_period_start: string
+  pay_period_end: string
+  pay_date: string
+  country: string
+  currency: string
+  run_type: string
+  pay_schedule_id: string | null
+}
+
+/**
+ * Open a draft run for a period.
+ *
+ * The run number follows the fixture's shape — `PR-YYYY-MM-<COUNTRY>` — so a
+ * person reading a bank file can tell which period and which country it
+ * belongs to without opening anything. A second run for the same period and
+ * country collides on `UNIQUE (tenant_id, run_id)`, which is the right answer:
+ * two runs for one period is how somebody gets paid twice.
+ */
+export async function createRun(
+  tx: Tx,
+  tenantId: string,
+  input: NewRun,
+  actorId: string,
+): Promise<{ id: string; run_id: string }> {
+  const period = input.pay_period_start.slice(0, 7).replace("-", "-")
+  const base = `PR-${period}-${input.country.toUpperCase()}`
+  const runId = input.run_type === "regular" ? base : `${base}-OFF`
+
+  try {
+    const [row] = await tx<{ id: string; run_id: string }[]>`
+      INSERT INTO payroll_runs (
+        tenant_id, run_id, run_number,
+        pay_period_start, pay_period_end, pay_date,
+        run_type, run_status, status, country, currency, pay_schedule_id,
+        employee_count, total_gross_pay, total_net_pay,
+        total_taxes, total_deductions,
+        notes, created_at, updated_at, created_by
+      ) VALUES (
+        ${tenantId}::uuid, ${runId}, ${runId},
+        ${input.pay_period_start}::date, ${input.pay_period_end}::date,
+        ${input.pay_date}::date,
+        ${input.run_type}, 'draft', 'draft',
+        ${input.country.toUpperCase()}, ${input.currency.toUpperCase()},
+        ${input.pay_schedule_id}::uuid,
+        0, 0, 0, 0, 0,
+        'Opened from the payroll runs page.', now(), now(), ${actorId}::uuid
+      )
+      RETURNING id, run_id
+    `
+    return row
+  } catch (e) {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      e.code === "23505"
+    ) {
+      throw new RunRefused("number_taken", runId)
+    }
+    throw e
+  }
+}

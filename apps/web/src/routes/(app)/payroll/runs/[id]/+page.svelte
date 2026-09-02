@@ -2,7 +2,32 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
 
-  let { data } = $props()
+  let { data, form } = $props()
+
+  let cancelling = $state(false)
+
+  /**
+   * What this run may do next, mirroring NEXT in payroll_runs.repo.ts.
+   *
+   * A button the action would refuse is worse than no button: it reads as a
+   * broken page rather than as a rule. The repository refuses regardless —
+   * this only decides what is offered.
+   */
+  const may = $derived({
+    calculate: data.mayRun && data.run.run_status === "draft",
+    approve:
+      data.mayApprove &&
+      data.run.run_status === "calculated" &&
+      // Whoever calculated it cannot approve it. The database refuses this
+      // too, but as a constraint violation rather than a sentence.
+      data.run.calculated_by_name !== null,
+    finalize: data.mayApprove && data.run.run_status === "approved",
+    cancel:
+      data.mayRun &&
+      ["draft", "calculating", "calculated", "approved"].includes(
+        data.run.run_status,
+      ),
+  })
 
   /** The market the run belongs to. Figures are never converted. */
   const locale = $derived(
@@ -35,6 +60,18 @@
     ]}
   />
 
+  {#if form?.moved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Run {form.from} → {form.moved}.</span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
+
   <div class="card bg-base-100 mt-4 shadow">
     <div class="card-body gap-3 p-4">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -45,6 +82,58 @@
         </p>
         <span class="badge badge-sm capitalize">{data.run.run_status}</span>
       </div>
+
+      <!-- The lifecycle ---------------------------------------------------
+           Each step is a POST, never a link: they move money, and a link that
+           writes is a link a crawler can pull. Every one of them writes an
+           audit entry in the same transaction as the change. -->
+      {#if may.calculate || may.approve || may.finalize || may.cancel}
+        <div
+          class="border-base-200 flex flex-wrap items-center gap-2 border-t pt-3"
+        >
+          {#if may.calculate}
+            <form method="POST" action="?/calculate">
+              <button class="btn btn-primary btn-sm">
+                <span class="iconify lucide--calculator size-4"></span>
+                Calculate
+              </button>
+            </form>
+          {/if}
+          {#if may.approve}
+            <form method="POST" action="?/approve">
+              <button class="btn btn-primary btn-sm">
+                <span class="iconify lucide--check size-4"></span>
+                Approve
+              </button>
+            </form>
+          {/if}
+          {#if may.finalize}
+            <form method="POST" action="?/finalize">
+              <button class="btn btn-primary btn-sm">
+                <span class="iconify lucide--lock size-4"></span>
+                Finalize
+              </button>
+            </form>
+          {/if}
+          {#if may.cancel}
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm ms-auto"
+              onclick={() => (cancelling = true)}
+            >
+              Cancel run
+            </button>
+          {/if}
+        </div>
+        {#if data.run.calculated_by_name}
+          <p class="text-base-content/70 text-xs">
+            Calculated by {data.run
+              .calculated_by_name}{#if data.run.approved_by_name}, approved by {data
+                .run.approved_by_name}{/if}. Whoever calculates a run cannot
+            approve it.
+          </p>
+        {/if}
+      {/if}
 
       <dl class="grid gap-3 sm:grid-cols-4">
         {#each [["Gross", data.run.total_gross_pay], ["Taxes", data.run.total_taxes], ["Deductions", data.run.total_deductions], ["Net", data.run.total_net_pay]] as [k, v] (k)}
@@ -176,3 +265,43 @@
     {/each}
   </div>
 </div>
+
+<!-- Cancel a run ---------------------------------------------------------- -->
+{#if cancelling}
+  <div class="modal modal-open" role="dialog" aria-label="Cancel pay run">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">Cancel {data.run.run_id}</h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        There is no route back. A cancelled run is corrected by raising another,
+        the same way an audit entry is corrected by a new row rather than an
+        edit.
+      </p>
+      <form method="POST" action="?/cancel" class="mt-4 grid gap-4">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Why</legend>
+          <textarea
+            name="reason"
+            class="textarea w-full"
+            rows="2"
+            maxlength="500"
+            required
+            placeholder="Recorded in the audit trail"
+          ></textarea>
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (cancelling = false)}>Keep the run</button
+          >
+          <button type="submit" class="btn btn-error">Cancel run</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (cancelling = false)}
+    ></button>
+  </div>
+{/if}

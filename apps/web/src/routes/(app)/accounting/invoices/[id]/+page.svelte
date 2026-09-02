@@ -2,7 +2,26 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
 
-  let { data } = $props()
+  let { data, form } = $props()
+
+  let paying = $state(false)
+  let voiding = $state(false)
+
+  /**
+   * What this invoice may do next.
+   *
+   * A button the action would refuse reads as a broken page rather than as a
+   * rule, so the options are derived from the same statuses the repository
+   * enforces. The repository refuses regardless — this only decides what is
+   * offered.
+   */
+  const may = $derived({
+    issue: data.mayWrite && data.invoice.status === "draft",
+    void: data.mayWrite && data.invoice.status === "draft",
+    pay:
+      data.mayWrite &&
+      ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
+  })
 
   const locale = $derived(
     data.invoice.currency === "GBP"
@@ -25,6 +44,30 @@
       { label: data.invoice.invoice_number, active: true },
     ]}
   />
+
+  {#if form?.issued}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>
+        Issued. Revenue posted to the ledger as {form.issued}.
+      </span>
+    </div>
+  {:else if form?.paid}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>{form.paid} recorded. The invoice is now {form.status}.</span>
+    </div>
+  {:else if form?.voided}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Invoice voided.</span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
 
   <div class="card bg-base-100 mt-4 shadow">
     <div class="card-body gap-3 p-4">
@@ -156,4 +199,161 @@
       </ul>
     </div>
   {/if}
+
+  <!-- The receivables cycle -----------------------------------------------
+       Each is a POST: they recognise revenue or receive cash, and a link that
+       writes is a link a crawler can pull. Every one posts a balanced journal
+       entry in the same transaction as the document it changes. -->
+  {#if may.issue || may.pay || may.void}
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      {#if may.issue}
+        <form method="POST" action="?/issue">
+          <button class="btn btn-primary btn-sm">
+            <span class="iconify lucide--send size-4"></span>
+            Issue invoice
+          </button>
+        </form>
+        <p class="text-base-content/70 text-xs">
+          Posts {money(data.invoice.total, cur, locale)} to receivables and the revenue
+          behind it.
+        </p>
+      {/if}
+      {#if may.pay}
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          onclick={() => (paying = true)}
+        >
+          <span class="iconify lucide--banknote size-4"></span>
+          Record a payment
+        </button>
+      {/if}
+      {#if may.void}
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm ms-auto"
+          onclick={() => (voiding = true)}
+        >
+          Void
+        </button>
+      {/if}
+    </div>
+  {/if}
 </div>
+
+<!-- Record a payment ------------------------------------------------------ -->
+{#if paying}
+  <div class="modal modal-open" role="dialog" aria-label="Record a payment">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">
+        Payment against {data.invoice.invoice_number}
+      </h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        {money(data.invoice.amount_due, cur, locale)} outstanding. More than that
+        is refused — an over-allocation is not something a later reconciliation can
+        undo.
+      </p>
+      <form method="POST" action="?/recordPayment" class="mt-4 grid gap-4">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Amount ({cur})</legend>
+          <!-- inputmode, never type="number": the latter round-trips through
+               a float in the browser before the server sees it. -->
+          <input
+            name="amount"
+            class="input w-full"
+            inputmode="decimal"
+            required
+            value={data.invoice.amount_due ?? ""}
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Received on</legend>
+          <input
+            name="payment_date"
+            type="date"
+            class="input w-full"
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Method</legend>
+          <select name="payment_method" class="select w-full" required>
+            {#each data.methods as m (m)}
+              <option value={m} class="capitalize"
+                >{m.replace(/_/g, " ")}</option
+              >
+            {/each}
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Into</legend>
+          <select name="bank_account_id" class="select w-full">
+            <option value="">Not recorded</option>
+            {#each data.bankAccounts as b (b.id)}
+              <option value={b.id}>{b.account_name}</option>
+            {/each}
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Reference</legend>
+          <input name="reference" class="input w-full" maxlength="100" />
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (paying = false)}>Cancel</button
+          >
+          <button type="submit" class="btn btn-primary">Record payment</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (paying = false)}
+    ></button>
+  </div>
+{/if}
+
+<!-- Void ------------------------------------------------------------------ -->
+{#if voiding}
+  <div class="modal modal-open" role="dialog" aria-label="Void invoice">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">
+        Void {data.invoice.invoice_number}
+      </h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        Only a draft can be voided. Once an invoice is issued its revenue is in
+        the ledger, and reversing it is a credit note — a new document — not an
+        edit to this one.
+      </p>
+      <form method="POST" action="?/voidInvoice" class="mt-4 grid gap-4">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Why</legend>
+          <textarea
+            name="reason"
+            class="textarea w-full"
+            rows="2"
+            maxlength="500"
+            required
+            placeholder="Recorded in the audit trail"
+          ></textarea>
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (voiding = false)}>Keep it</button
+          >
+          <button type="submit" class="btn btn-error">Void invoice</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (voiding = false)}
+    ></button>
+  </div>
+{/if}

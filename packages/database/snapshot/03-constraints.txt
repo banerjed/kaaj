@@ -285,6 +285,7 @@ payroll_runs	fk_payroll_runs_pay_schedule_id	f	FOREIGN KEY (pay_schedule_id) REF
 payroll_runs	payroll_runs_calculator_is_not_approver	c	CHECK (((calculated_by IS NULL) OR (approved_by IS NULL) OR (calculated_by <> approved_by)))
 payroll_runs	payroll_runs_pkey	p	PRIMARY KEY (id)
 payroll_runs	payroll_runs_stages_have_timestamps	c	CHECK (((((run_status)::text <> 'calculated'::text) OR (calculated_at IS NOT NULL)) AND (((run_status)::text <> ALL ((ARRAY['approved'::character varying, 'finalized'::character varying, 'paid'::character varying])::text[])) OR ((calculated_at IS NOT NULL) AND (approved_at IS NOT NULL))) AND (((run_status)::text <> ALL ((ARRAY['finalized'::character varying, 'paid'::character varying])::text[])) OR (finalized_at IS NOT NULL))))
+payroll_runs	payroll_runs_status_columns_agree	c	CHECK ((status = (run_status)::text))
 payroll_runs	payroll_runs_status_is_known	c	CHECK (((run_status)::text = ANY ((ARRAY['draft'::character varying, 'calculating'::character varying, 'calculated'::character varying, 'approved'::character varying, 'finalized'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))
 payroll_runs	payroll_runs_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 payroll_runs	payroll_runs_tenant_id_run_id_key	u	UNIQUE (tenant_id, run_id)

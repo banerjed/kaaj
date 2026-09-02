@@ -36,7 +36,8 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** Ten steps, about ten seconds. Non-zero exit means do not push.
+production.** Seventeen steps, about 25 seconds. Non-zero exit means do not
+push.
 
 ```
 ./check          everything — run this before pushing
@@ -73,13 +74,21 @@ take effect.
 |---|---|---|
 | tenant isolation | every RLS policy actually filters, per table | 587 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold | 133 |
-| structure snapshot | the schema is exactly what was committed | 4,152 facts |
+| schema invariants | ADR design rules hold, and a bad claim fails closed | 142 |
+| structure snapshot | the schema is exactly what was committed | 3,823 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 25 |
+| authorization | every form action authorizes; no DELETE in app code | 37 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
-| security | authorization, PII and tenant isolation, both suites | 346 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 603 tests |
+| no unprotected fallback | no protected column `COALESCE`s to an open one | — |
+| sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
+| writes are audited | every action is in the audit register, either list | 31 + 6 |
+| fixtures are complete | no base-table column is empty in the fixture | — |
+| security | authorization, PII and tenant isolation, both suites | 357 |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 964 tests |
+
+**These counts go stale.** They are here because a number nobody can check is a
+claim nobody can challenge — so correct them when they move, or delete the
+column. They were last verified 2026-09-02.
 
 These are complementary and none substitutes for another:
 
@@ -382,6 +391,43 @@ date and passing `svelte-check`
 different machines, and a Docker VM's clock drifts across a host sleep. Compare
 against `clock_timestamp()` in the same query, or assert `col = now()` to prove
 a column default was used ([L43](docs/10-lessons-learned.md)).
+
+**A row policy is `AS RESTRICTIVE` unless it is deliberately an alternative,
+and recreating one means restating every modifier.** Postgres defaults to
+PERMISSIVE and OR-s permissive policies together, so a table with
+`tenant_isolation` plus a visibility policy needs the second to be RESTRICTIVE
+or the two become *either* rather than *both*. A `DROP`/`CREATE` pair is not a
+diff: `AS RESTRICTIVE`, `FOR`, `TO` and `WITH CHECK` are all lost by omission,
+the statement succeeds, and nothing looks wrong. This has already caused a
+12-row cross-tenant leak, caught only by `./check`
+([L63](docs/10-lessons-learned.md)). **Run `./check --db` immediately after any
+policy change.**
+
+**Never parse `request.jwt.claims` inside a policy expression — call an `app.*`
+function.** The `::jsonb` cast raises on a malformed claim, and a policy
+expression cannot carry an `EXCEPTION` handler, so the request becomes a 500
+rather than an empty page — intermittently, because it depends on whether the
+planner evaluates that arm ([L62](docs/10-lessons-learned.md)). Every such
+function returns the closed answer (`NULL`, `false`) on a bad claim;
+`./check` calls each one with `not-json` and fails if it raises.
+
+**A denormalised counter is RECOMPUTED in the same transaction, never
+incremented.** `SET n = n + 1` is correct only if every writer remembers it and
+no write ever fails partway; `SET n = (SELECT count(*) ...)` is correct whatever
+happened before it, so a row that is already wrong is repaired by the next write
+instead of carrying the error forward. The read path counts the real rows
+alongside the stored figure so a disagreement is visible, and a test asserts
+they agree AFTER a write ([L58](docs/10-lessons-learned.md)). A wrong counter
+feeds a progress bar, and a wrong progress bar looks exactly like a right one.
+
+**A vocabulary for a plain `text` column lives in the repository, and the pages
+import it.** These columns have no enum and no CHECK behind them, so the list IS
+the constraint — and two copies of a constraint are one constraint that will
+disagree. `/projects` filtered on a status list that omitted `draft`, the column
+default, so the first project anyone created would have been written correctly
+and then been invisible under every filter ([L57](docs/10-lessons-learned.md)).
+Ask of any new write: **can the thing this creates be found again by the page
+that lists it?**
 
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so

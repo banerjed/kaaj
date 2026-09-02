@@ -445,6 +445,74 @@ SELECT 'pii/keys-are-wrapped', 'pii_keys.wrapped_dek',
        'every stored data key must be an envelope, never raw material';
 
 -- -----------------------------------------------------------------------------
+-- A malformed JWT claim fails closed QUIETLY
+-- -----------------------------------------------------------------------------
+-- Four of seven claim-parsing functions wrapped their `::jsonb` cast in an
+-- EXCEPTION handler and three did not, and `employees.employee_visibility`
+-- performed the cast INLINE in the policy expression, where no handler can
+-- reach it. A claim that is not JSON then raised `invalid input syntax for
+-- type json` from inside a row policy: a 500 rather than an empty page, and
+-- one that came and went with the query plan, so it sat latent in `./check`
+-- and then started failing without the function changing (20260902041935).
+--
+-- No rows ever leaked — the safety property held. What did not hold is
+-- fail-closed *quietly*, which is the behaviour an application can render.
+--
+-- This CALLS each function with a malformed claim rather than grepping its
+-- source for the word EXCEPTION. A handler that is present but wrong passes a
+-- grep and fails this.
+DO $claims$
+DECLARE
+    fn      RECORD;
+    ok      BOOLEAN;
+    detail  TEXT;
+BEGIN
+    FOR fn IN
+        SELECT p.oid::regprocedure AS sig, p.proname
+          FROM pg_proc p
+         WHERE p.pronamespace = 'app'::regnamespace
+           AND p.pronargs = 0
+           AND pg_get_functiondef(p.oid) LIKE '%request.jwt.claims%'
+    LOOP
+        BEGIN
+            PERFORM set_config('request.jwt.claims', 'not-json', true);
+            EXECUTE format('SELECT %s', fn.sig);
+            ok := true;
+            detail := 'returns rather than raising on a malformed claim';
+        EXCEPTION WHEN OTHERS THEN
+            ok := false;
+            detail := 'raised: ' || SQLERRM;
+        END;
+        INSERT INTO _inv (rule, subject, passed, detail)
+        VALUES ('claims/fail-closed-quietly', 'app.' || fn.proname, ok, detail);
+    END LOOP;
+    PERFORM set_config('request.jwt.claims', '', true);
+END $claims$;
+
+-- The other half: a policy may not cast the claim itself. A policy expression
+-- cannot carry an EXCEPTION handler, so an inline cast is unfixable in place —
+-- the parsing has to live in a function. `app.claim_role()` is the one for a
+-- role; add a sibling rather than inlining the next one.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'claims/no-inline-cast-in-policy',
+       c.relname || '.' || p.polname,
+       FALSE,
+       'casts request.jwt.claims inline; use an app.* function that can catch'
+  FROM pg_policy p
+  JOIN pg_class c ON c.oid = p.polrelid
+ WHERE coalesce(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%request.jwt.claims%'
+   AND coalesce(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%jsonb%';
+
+-- And the same rule stated positively, so the check cannot pass by finding
+-- nothing at all — an empty result from the query above is the pass, but only
+-- if policies were actually examined.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'claims/policies-examined', '(row policies)',
+       count(*) > 0,
+       count(*) || ' policies inspected for inline claim casts'
+  FROM pg_policy;
+
+-- -----------------------------------------------------------------------------
 -- Append-only: the application must not be able to destroy a record
 -- -----------------------------------------------------------------------------
 -- 20260830120000_append_only.sql revoked DELETE from app_user everywhere but a
