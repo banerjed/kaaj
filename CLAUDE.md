@@ -220,6 +220,76 @@ everyone pays for. If an entry stops being true, delete it.
 
 ---
 
+## Security: how the breaches actually happened
+
+Every disclosure found in this codebase was a *correct-looking number in the
+right-looking column*. None raised an error, none failed a test, and several
+sat behind guards that were passing. The detailed rules are below and in
+[docs/10-lessons-learned.md](docs/10-lessons-learned.md); this section is the
+lens that lets you spot the **next** one.
+
+**A protected value has more than one home.** Protection is applied per
+MECHANISM — a policy on a table, a `can()` on an action, encryption on a
+column. Disclosure happens per VALUE. Before trusting any protection, list
+every place that value exists: denormalised caches, JSONB documents, audit
+entries, exports, indexes, error messages, log lines. *Every salary in the firm
+was readable because `COALESCE` fell back to a cache of the protected column
+(L47), and readable again later because the audit trail copied it (L55).*
+
+**Ask who can READ what you write.** A new write is designed as a write, and
+its read side is examined by nobody. That is the single highest-yield question
+in this file. *`audit_log` had no row policy, so auditing pay changes handed
+every employee every pay change in the firm (L55).*
+
+**A guard that has never been observed to fail is not evidence.** Reintroduce
+the bug and watch it fail before you trust it. *The first version of the
+unprotected-fallback guard let three of four evasion shapes through; the PII
+guard had `FROM employees` hardcoded and passed over plaintext IBANs in other
+tables (L48).*
+
+**An empty column is an unchecked column.** A test whose subject is NULL does
+not fail — it reports the absence of data as the absence of a problem. *Five
+`_ct` columns were never examined by two PII invariants because they held
+nothing; `PAY-math` omitted pre-tax deductions and passed for months because
+every row had zero (L50, L51).*
+
+**Test as the actor meant to be REFUSED.** Repository suites deliberately run
+as an owner so a policy cannot silently narrow what they see — which makes the
+refused branch of every query unreachable from them. Assert both halves: the
+refused actor gets nothing, *and* the permitted one still gets the value. *426
+tests could not see L47.*
+
+**A rule written only in prose is applied unevenly.** Make it a committed
+register plus a `./check` step that fails on anything unclassified — so a new
+case forces a decision instead of defaulting to silence. *The audit requirement
+was prose for months and 3 of 26 writes followed it (L54); the disclosure
+matrix exists for the same reason (L48).*
+
+**`any` forbids nothing.** An untyped row makes every value downstream
+unexaminable, so a wrong-shaped argument is not merely allowed — it cannot be
+checked. Type anything that crosses into a page. *(L53)*
+
+**Make the classification visible in the name.** `_pvt` for restricted,
+`_ct` for ciphertext, so a reviewer sees it in the diff. The register decides
+and the name must AGREE — enforced both ways. *(L49)*
+
+### Before shipping anything touching personal or financial data
+
+1. **Where else does this value live?** Cache, JSONB, audit entry, export,
+   index. Each home needs its own defence.
+2. **Run the read as a refused actor**, against the live database, not in your
+   head. An employee, and a `finance_admin` or `it_admin` — the roles powerful
+   somewhere else are the ones whose limits nobody tests.
+3. **Watch the guard fail.** If nothing failed, you have not tested it.
+4. **Check the fixture has data.** A green assertion over NULL is not a pass.
+5. **Confirm it is classified** — in the disclosure matrix, the audit register,
+   or a committed exemption with a reason.
+
+Answering "who may write this" is half the work. The breaches were all in the
+other half.
+
+---
+
 ## Rules that are easy to get wrong
 
 **Migrations, not `schema.sql`.** `packages/database/reference/schema.sql` is the design
