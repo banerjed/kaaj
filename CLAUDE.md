@@ -273,6 +273,11 @@ checked. Type anything that crosses into a page. *(L53)*
 `_ct` for ciphertext, so a reviewer sees it in the diff. The register decides
 and the name must AGREE — enforced both ways. *(L49)*
 
+The planned mechanisation of all this — an exhaustive taint check over every
+read path × every actor — is specified in
+[docs/16-disclosure-verification.md](docs/16-disclosure-verification.md),
+including what it deliberately will **not** catch.
+
 ### Before shipping anything touching personal or financial data
 
 1. **Where else does this value live?** Cache, JSONB, audit entry, export,

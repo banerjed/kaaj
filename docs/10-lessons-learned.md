@@ -442,6 +442,24 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L56 — The next step is written down, because the context will not survive
+
+L47 and L55 were both found by looking, not by testing, and the analysis of why
+took longer than either fix. That analysis is perishable: it lives in a
+conversation, and the next session starts without it.
+
+[docs/16-disclosure-verification.md](docs/16-disclosure-verification.md)
+specifies the mechanisation — an exhaustive taint check over every read path ×
+every actor, driven by the disclosure matrix rather than by diffing RLS — and,
+as importantly, the seven things it will still not catch: inference and
+aggregation, existence oracles in 404-vs-403, timing, error text, unclassified
+tables, missing fixture scenarios, and the actor sample.
+
+The rule the document exists to enforce: **a check believed to be exhaustive
+and is not is worse than no check**, because a passing suite is taken as
+evidence. Every limitation is stated in the spec so that nobody later reads
+"330 assertions" as "proven secure".
+
 ### L55 — Auditing a value copies it, and the copy needs the same protection
 
 Asked to confirm that nothing sensitive reaches the audit trail, the answer was
