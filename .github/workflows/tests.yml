@@ -25,6 +25,13 @@ env:
   PUBLIC_SUPABASE_ANON_KEY: "fake_anon_key"
   PRIVATE_SUPABASE_SERVICE_ROLE: "fake_service_role"
   PRIVATE_STRIPE_API_KEY: "fake_strip_api_key"
+  # NOT a fake. The PII suite opens sealed values in the committed fixture, so
+  # it needs the key those values were sealed with — the dev KEK from
+  # apps/web/.env.example, which is committed on purpose and is the same class
+  # of credential as the app_user password: worthless off a dev machine, and
+  # the reason a fresh clone can decrypt the fixture at all. pii.test.ts reads
+  # .env.example itself to assert the two agree.
+  PRIVATE_PII_KEK: "1:xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
 
 jobs:
   build_and_test:
