@@ -46,7 +46,19 @@ declare global {
     interface PageData {
       session: SafeAuthSession | null
     }
-    // interface Error {}
+    /**
+     * What `+error.svelte` can render. `message` is always present and is
+     * added by SvelteKit.
+     *
+     * `id` is OPTIONAL on purpose, and the option is the honest part: it is
+     * minted by `handleError` for an UNEXPECTED error — a bug, with a log line
+     * behind it. An expected `error(403, "No tenant")` has none, because there
+     * is nothing to investigate and a reference number nobody can look up is
+     * worse than no reference number.
+     */
+    interface Error {
+      id?: string
+    }
     // interface Platform {}
   }
 }

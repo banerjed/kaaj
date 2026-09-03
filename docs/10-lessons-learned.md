@@ -442,6 +442,36 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L69 — `PostgresError.detail` is the row, and whether you see it depends on the ROLE
+
+A unique-violation error from this database carries the values that collided:
+
+    detail: Key (tenant_id, department_code)=(07fb03f8-…, ENG) already exists.
+
+The surprise is that this is role-dependent, and the two measurements disagree
+in the way most likely to mislead. Connected as `postgres` — the table owner —
+`detail` is populated. Under `SET LOCAL ROLE app_user`, which is what every
+request runs as (L3), Postgres withholds it and `detail` is `undefined`. Same
+statement, same constraint, same driver.
+
+So a probe run from a script "proves" the leak, and the same probe through the
+running app "proves" there is nothing to worry about. Both are correct about
+the path they exercised. The owner-role path is not hypothetical: `./check`,
+the migrations, `packages/database/tests/verify-remote.sh` and anything holding
+`PRIVATE_SUPABASE_SERVICE_ROLE` all connect that way.
+
+`message` is not role-dependent and echoes the submitted value at any
+privilege — `invalid input syntax for type uuid: "not-a-uuid"`, and the same
+shape puts a date of birth in the log for a `date` column.
+
+`safeError` in `$lib/errors.ts` is an allowlist for this reason, and
+`errors.test.ts` is where the rule is observable, because the request path
+cannot produce the field it exists to drop.
+
+**When a security probe passes, check which credential ran it.** A defence
+measured on one path says nothing about another, and the privileged path is
+usually the one nobody tests.
+
 ### L68 — A refused form closed the form, and an archive that did nothing said it had
 
 Two halves of the same failure: the page asserted an outcome that had not

@@ -5,9 +5,11 @@ import {
 } from "$env/static/public"
 import { createServerClient } from "@supabase/ssr"
 import type { AMREntry } from "@supabase/supabase-js"
-import type { Handle } from "@sveltejs/kit"
+import type { Handle, HandleServerError } from "@sveltejs/kit"
 import { sequence } from "@sveltejs/kit/hooks"
 import { supabaseServiceRole } from "$lib/server/supabase_service_role"
+import { safeError } from "$lib/errors"
+import { log } from "$lib/server/log"
 
 export const supabase: Handle = async ({ event, resolve }) => {
   event.locals.supabase = createServerClient(
@@ -172,3 +174,52 @@ function appMetadataFromToken(accessToken?: string): {
 }
 
 export const handle: Handle = sequence(supabase, authGuard)
+
+/**
+ * Every unexpected error gets an id, and that id reaches both the log and the
+ * page.
+ *
+ * SvelteKit replaces an unexpected error's message with the literal string
+ * "Internal Error" before it reaches the browser, which is correct — the real
+ * one can carry a query or a row. The cost is that a person reporting a
+ * problem has nothing to quote and we have nothing to search. The id is the
+ * whole fix: one line on the error page, one field in the log.
+ *
+ * Only UNEXPECTED errors arrive here. Anything raised with `error()` — a 403
+ * with no tenant, a 404 for a missing employee — is a decision the application
+ * made on purpose and is not a bug to investigate. After the form work in
+ * L66-L68, what remains here is by construction the class nobody predicted.
+ *
+ * `locals` is populated by the handles above, but this hook also runs when one
+ * of THEM throws, so every field is read defensively.
+ */
+export const handleError: HandleServerError = ({
+  error,
+  event,
+  status,
+  message,
+}) => {
+  const id = crypto.randomUUID()
+
+  // A 404 is someone following a stale link, not a fault. Logging it as an
+  // error trains people to ignore the error stream.
+  if (status !== 404) {
+    log.error({
+      id,
+      msg: message,
+      status,
+      route: event.route?.id ?? event.url.pathname,
+      method: event.request?.method,
+      // The actor, which `locals` already carries for every request that got
+      // past the auth handle. Who it happened to is most of the question.
+      tenantId: event.locals?.tenantId ?? null,
+      tenantRole: event.locals?.tenantRole ?? null,
+      functionalRoles: event.locals?.functionalRoles ?? [],
+      employeeId: event.locals?.employeeId ?? null,
+      // Allowlisted. Never the raw error: `detail` is the row (see $lib/errors).
+      error: safeError(error),
+    })
+  }
+
+  return { id, message }
+}
