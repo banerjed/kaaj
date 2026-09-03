@@ -3,6 +3,8 @@
   import { calendarDate, number } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -24,9 +26,7 @@
   const cycle = $derived(data.cycles[0])
 </script>
 
-<svelte:head>
-  <title>Performance · Kaaj</title>
-</svelte:head>
+<PageHead title="Performance" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -300,15 +300,9 @@
   {/if}
 
   {#if data.reviews.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span
-          class="iconify lucide--clipboard-check text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">
-          You have no reviews in this cycle.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--clipboard-check"
+      message="You have no reviews in this cycle."
+    />
   {/if}
 </div>

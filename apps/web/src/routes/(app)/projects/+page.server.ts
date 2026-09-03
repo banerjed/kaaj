@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
@@ -57,6 +58,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
        WHERE employment_status = 'active'
        ORDER BY first_name, last_name
     `,
+    // For per-market number formatting; see localeForCurrency.
+    locations: await locationsRepo.list(tx),
   }))
 }
 

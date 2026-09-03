@@ -1,8 +1,10 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, instant, money } from "$lib/format"
+  import { calendarDate, instant, localeForCurrency, money } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
 
@@ -10,7 +12,7 @@
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
 
   const localeFor = (c: string) =>
-    c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
+    localeForCurrency(data.locations, c, tenantLocale)
 
   const statusTone = (s: string | null): Tone =>
     s === "reconciled"
@@ -35,7 +37,7 @@
       : Number(a.current_balance ?? 0) - Number(a.feed_balance)
 </script>
 
-<svelte:head><title>Banking · Kaaj</title></svelte:head>
+<PageHead title="Banking" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -143,13 +145,11 @@
   </form>
 
   {#if data.transactions.length === 0}
-    <div class="card bg-base-100 mt-2 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--landmark text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">Nothing matches that.</p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--landmark"
+      class="mt-2"
+      message="Nothing matches that."
+    />
   {:else}
     <div class="card bg-base-100 mt-2 shadow">
       <div class="overflow-x-auto">

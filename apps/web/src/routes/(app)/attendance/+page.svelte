@@ -4,6 +4,8 @@
   import { isPositive } from "$lib/decimal"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
 
@@ -46,9 +48,7 @@
     hours(v, row.locale ?? tenantLocale)
 </script>
 
-<svelte:head>
-  <title>Attendance · Kaaj</title>
-</svelte:head>
+<PageHead title="Attendance" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -99,15 +99,10 @@
   </form>
 
   {#if data.days.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--calendar-off text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">
-          No attendance recorded for that period.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--calendar-off"
+      message="No attendance recorded for that period."
+    />
   {:else}
     <p class="text-base-content/70 mt-4 text-sm">
       {data.days.length}

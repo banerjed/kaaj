@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money } from "$lib/format"
+  import { calendarDate, localeForCurrency, money } from "$lib/format"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
 
@@ -8,10 +10,10 @@
 
   /** Pay is read in the market it is paid in, and never converted. */
   const localeFor = (c: string) =>
-    c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
+    localeForCurrency(data.locations, c, tenantLocale)
 </script>
 
-<svelte:head><title>Compensation · Kaaj</title></svelte:head>
+<PageHead title="Compensation" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -31,14 +33,10 @@
   </p>
 
   {#if data.rows.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--wallet text-base-content/30 size-8"></span>
-        <p class="text-base-content/70 text-sm">
-          No pay record is on file for you yet.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--wallet"
+      message="No pay record is on file for you yet."
+    />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="overflow-x-auto">

@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
 
@@ -14,7 +16,7 @@
   let open = $state<string | null>(null)
 </script>
 
-<svelte:head><title>General Ledger · Kaaj</title></svelte:head>
+<PageHead title="General Ledger" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -69,13 +71,7 @@
   </form>
 
   {#if data.entries.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--book-open text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">No entries in that range.</p>
-      </div>
-    </div>
+    <EmptyState icon="lucide--book-open" message="No entries in that range." />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="overflow-x-auto">

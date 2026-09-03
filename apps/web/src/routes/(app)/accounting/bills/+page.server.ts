@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as pay from "$lib/server/accounting/payables.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -33,5 +34,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     bills: await pay.listBills(tx, { status, unapprovedOnly }),
     statuses: STATUSES,
     filters: { status, unapprovedOnly },
+    // For per-market number formatting; see localeForCurrency.
+    locations: await locationsRepo.list(tx),
   }))
 }

@@ -94,6 +94,121 @@ export const PROTECTED_TABLES: Record<
   },
 }
 
+/**
+ * Who may read a value about the FIRM's own business — a functional role,
+ * not a relationship to an employee. `Audience` above answers "is this person
+ * the subject, their manager, or HR"; that question does not apply to an
+ * invoice. This is the different axis the top of this file used to defer.
+ */
+export type FunctionalAudience =
+  /**
+   * `finance_admin` and `auditor` read; `finance_admin` and the base admin
+   * roles (`owner`, `firm_admin`) write, `auditor` does not. Mirrors
+   * `app.reads_all_accounting()` / `app.writes_accounting()` exactly —
+   * `supabase/migrations/20260903045821_accounting_row_visibility.sql`.
+   */
+  "finance"
+
+/**
+ * The fifteen accounting tables, table-level, the same way `PROTECTED_TABLES`
+ * covers `compensation_*` — the row is finance-function-only, so the policy
+ * defends every column on it at once.
+ *
+ * Deliberately NOT a 130-row per-column matrix. `disclosure.test.ts`'s
+ * generated-case model is built against `Audience` (self/manager/colleague/
+ * hr/payroll) — a subject's relationship to their OWN data — which has no
+ * meaning for a bank account or a journal entry, so reusing it here would be
+ * the wrong tool wearing the right shape. The mechanism itself is measured
+ * directly, both halves, in `row-visibility.test.ts`'s "accounting is visible
+ * to the finance function, and to nobody else" — this declaration is what
+ * lets `verify-matrix-complete.mjs` hold every column on these tables to
+ * having been decided, the same guarantee `employees` gets.
+ */
+export const PROTECTED_BUSINESS_TABLES: Record<
+  string,
+  {
+    defense: Extract<Defense, "rls">
+    audience: FunctionalAudience
+    why: string
+  }
+> = {
+  invoices: {
+    defense: "rls",
+    audience: "finance",
+    why: "What the firm bills, and to whom — commercial terms, not directory data.",
+  },
+  invoice_lines: {
+    defense: "rls",
+    audience: "finance",
+    why: "Line-item detail behind an invoice total.",
+  },
+  bills: {
+    defense: "rls",
+    audience: "finance",
+    why: "What the firm owes, and to whom.",
+  },
+  bill_lines: {
+    defense: "rls",
+    audience: "finance",
+    why: "Line-item detail behind a bill total.",
+  },
+  payments: {
+    defense: "rls",
+    audience: "finance",
+    why: "Money actually moving, in either direction.",
+  },
+  payment_allocations: {
+    defense: "rls",
+    audience: "finance",
+    why: "Which invoice or bill a payment settles.",
+  },
+  bank_accounts: {
+    defense: "rls",
+    audience: "finance",
+    why: "The firm's own account numbers — a direct fraud target if read by anyone outside finance.",
+  },
+  bank_transactions: {
+    defense: "rls",
+    audience: "finance",
+    why: "The firm's real cash movements, ahead of reconciliation.",
+  },
+  bank_reconciliation_rules: {
+    defense: "rls",
+    audience: "finance",
+    why: "How incoming transactions map to the ledger — read together with bank_transactions, it explains the firm's banking relationships.",
+  },
+  journal_entries: {
+    defense: "rls",
+    audience: "finance",
+    why: "The general ledger. Every other accounting table ultimately posts here.",
+  },
+  journal_entry_lines: {
+    defense: "rls",
+    audience: "finance",
+    why: "The debits and credits behind a journal entry.",
+  },
+  chart_of_accounts: {
+    defense: "rls",
+    audience: "finance",
+    why: "The firm's account structure — not a figure by itself, but the map every figure above is filed under.",
+  },
+  accounting_periods: {
+    defense: "rls",
+    audience: "finance",
+    why: "Which periods are open or closed governs which of the above can still be written.",
+  },
+  vendors: {
+    defense: "rls",
+    audience: "finance",
+    why: "Who the firm pays, and the banking and tax detail attached to that relationship.",
+  },
+  expenses: {
+    defense: "rls",
+    audience: "finance",
+    why: "What was spent, by whom, and reimbursed how — financial detail about a person, filed as a business record rather than under `employees`.",
+  },
+}
+
 export type SensitiveField = {
   /** `table.column`, or `table.column.jsonPath` for a value inside JSONB. */
   id: string
@@ -106,15 +221,14 @@ export type SensitiveField = {
 }
 
 /**
- * First cut: `employees` and the five `compensation_*` tables.
+ * `employees` and the five `compensation_*` tables, per column — the subject
+ * relationship (self/manager/colleague/hr/payroll) that `Audience` encodes.
  *
- * Deliberately not the whole schema. 130 columns match a sensitive-shaped name
- * and most are firm business data (invoices, journal entries, the firm's own
- * bank accounts) whose audience is a functional role rather than a
- * relationship to a subject — a different axis, and a second matrix. Proving
- * the harness on the six tables where a live exposure was measured comes
- * first; a 130-row matrix built in one pass would have holes indistinguishable
- * from correct entries.
+ * Firm business data (invoices, journal entries, the firm's own bank
+ * accounts) is `PROTECTED_BUSINESS_TABLES` above instead of more entries
+ * here: its audience is a functional role, not a relationship to a subject —
+ * a different axis, declared table-level rather than as a 130-row per-column
+ * matrix that would have holes indistinguishable from correct entries.
  */
 export const SENSITIVE_FIELDS: SensitiveField[] = [
   // -- employees: one row, broadly visible, carrying values of three kinds ---
@@ -211,5 +325,6 @@ export const SENSITIVE_FIELDS: SensitiveField[] = [
 /** Everything the matrix covers: the policy-scoped tables, plus employees. */
 export const COVERED_TABLES = [
   ...Object.keys(PROTECTED_TABLES),
+  ...Object.keys(PROTECTED_BUSINESS_TABLES),
   ...new Set(SENSITIVE_FIELDS.map((f) => f.table)),
 ]

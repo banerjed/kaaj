@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as base from "$lib/server/compensation/compensation_base.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 
@@ -31,6 +32,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       seesEveryone: can(ctx, "compensation.read.all"),
       mayRecordChange: can(ctx, "compensation.write"),
       myEmployeeId: ctx?.employeeId ?? null,
+      // For per-market number formatting; see localeForCurrency.
+      locations: await locationsRepo.list(tx),
     }
   })
 }

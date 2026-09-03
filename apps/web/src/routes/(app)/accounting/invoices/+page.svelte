@@ -1,14 +1,17 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money } from "$lib/format"
+  import { calendarDate, localeForCurrency, money } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
 
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   /** An invoice is read in the market it was raised in, never converted. */
   const localeFor = (c: string) =>
-    c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : "en-US"
+    localeForCurrency(data.locations, c, tenantLocale)
 
   // `overdue` is a real status in this column and was missing here, so an
   // overdue invoice showed a grey badge beside a red "overdue" tag on the same
@@ -25,7 +28,7 @@
             : "neutral"
 </script>
 
-<svelte:head><title>Invoices · Kaaj</title></svelte:head>
+<PageHead title="Invoices" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -63,13 +66,7 @@
   </form>
 
   {#if data.invoices.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--file-text text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">No invoices match that.</p>
-      </div>
-    </div>
+    <EmptyState icon="lucide--file-text" message="No invoices match that." />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="overflow-x-auto">

@@ -1,11 +1,13 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money, number } from "$lib/format"
+  import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -20,7 +22,7 @@
 
   /** A budget is shown in the currency of the engagement, never converted. */
   const localeFor = (c: string | null) =>
-    c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
+    c ? localeForCurrency(data.locations, c, tenantLocale) : tenantLocale
 
   const healthTone = (h: string | null): Tone =>
     h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"
@@ -39,7 +41,7 @@
   const label = (v: string) => v.replace(/_/g, " ")
 </script>
 
-<svelte:head><title>Projects · Kaaj</title></svelte:head>
+<PageHead title="Projects" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -100,13 +102,7 @@
   {/if}
 
   {#if data.projects.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--folder-open text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">No projects match that.</p>
-      </div>
-    </div>
+    <EmptyState icon="lucide--folder-open" message="No projects match that." />
   {:else}
     <div class="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
       {#each data.projects as p (p.id)}

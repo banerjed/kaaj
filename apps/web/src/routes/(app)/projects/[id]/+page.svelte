@@ -4,6 +4,8 @@
   import { fieldErrors } from "$lib/form-errors"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -37,7 +39,7 @@
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 </script>
 
-<svelte:head><title>{data.project.project_name} · Kaaj</title></svelte:head>
+<PageHead title={data.project.project_name} />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -164,15 +166,11 @@
   </h2>
 
   {#if data.tasks.length === 0}
-    <div class="card bg-base-100 mt-2 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--list-checks text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">
-          No tasks on this project yet.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--list-checks"
+      class="mt-2"
+      message="No tasks on this project yet."
+    />
   {:else}
     <div class="card bg-base-100 mt-2 shadow">
       <div class="overflow-x-auto">

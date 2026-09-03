@@ -5,6 +5,7 @@ import { RaiseRefused } from "$lib/server/compensation/compensation_base.repo"
 import * as allowances from "$lib/server/compensation/compensation_allowances.repo"
 import * as variable from "$lib/server/compensation/compensation_variable.repo"
 import * as equity from "$lib/server/compensation/compensation_equity.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
@@ -50,6 +51,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       equity: await equity.forEmployee(tx, id),
       mayRecordChange: can(ctx, "compensation.write"),
       isSelf: ctx?.employeeId === id,
+      // For per-market number formatting; see localeForCurrency.
+      locations: await locationsRepo.list(tx),
     }
   })
 }

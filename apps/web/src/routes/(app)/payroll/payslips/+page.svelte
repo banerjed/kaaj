@@ -1,8 +1,12 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money } from "$lib/format"
+  import { calendarDate, localeForCurrency, money } from "$lib/format"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
+
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
   /**
    * A payslip is read in the market that issued it, and the figure is never
@@ -10,7 +14,7 @@
    * viewer's browser.
    */
   const localeFor = (currency: string) =>
-    currency === "GBP" ? "en-GB" : currency === "INR" ? "en-IN" : "en-US"
+    localeForCurrency(data.locations, currency, tenantLocale)
 
   const rows = (doc: Record<string, string> | null) =>
     Object.entries(doc ?? {}).filter(([, v]) => v && Number(v) !== 0)
@@ -20,9 +24,7 @@
   let open = $state<string | null>(null)
 </script>
 
-<svelte:head>
-  <title>My Payslips · Kaaj</title>
-</svelte:head>
+<PageHead title="My Payslips" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -34,17 +36,12 @@
   />
 
   {#if data.payslips.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--receipt text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">
-          {data.notAnEmployee
-            ? "Your account is not linked to an employee record, so there is nothing to show here."
-            : "No payslips yet. They appear here once a pay run is finalized."}
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--receipt"
+      message={data.notAnEmployee
+        ? "Your account is not linked to an employee record, so there is nothing to show here."
+        : "No payslips yet. They appear here once a pay run is finalized."}
+    />
   {:else}
     <div class="mt-4 grid gap-3">
       {#each data.payslips as p (p.id)}

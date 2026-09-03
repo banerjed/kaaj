@@ -7,6 +7,8 @@
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -43,9 +45,7 @@
     Number(v) < 0 ? "text-error" : Number(v) < 2 ? "text-warning" : ""
 </script>
 
-<svelte:head>
-  <title>Time Off · Kaaj</title>
-</svelte:head>
+<PageHead title="Time Off" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -107,13 +107,11 @@
   </h2>
 
   {#if pending.length === 0}
-    <div class="card bg-base-100 mt-2 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--check-check text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">Nothing waiting on you.</p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--check-check"
+      class="mt-2"
+      message="Nothing waiting on you."
+    />
   {:else}
     <div class="card bg-base-100 mt-2 shadow">
       <div class="overflow-x-auto">

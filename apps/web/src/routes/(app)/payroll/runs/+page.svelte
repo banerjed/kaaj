@@ -6,6 +6,8 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -32,9 +34,7 @@
           : "neutral"
 </script>
 
-<svelte:head>
-  <title>Pay Runs · Kaaj</title>
-</svelte:head>
+<PageHead title="Pay Runs" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
@@ -96,13 +96,7 @@
   {/if}
 
   {#if data.runs.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--receipt text-base-content/30 size-8"
-        ></span>
-        <p class="text-base-content/70 text-sm">No pay runs match that.</p>
-      </div>
-    </div>
+    <EmptyState icon="lucide--receipt" message="No pay runs match that." />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="overflow-x-auto">

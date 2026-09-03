@@ -93,6 +93,24 @@ const EXEMPT = new Map([
 ])
 
 const GUARD = /\brequireCan\(|\bcan\(\s*ctx\b|\bcanReadEmployee\(/
+/**
+ * Every write in this codebase reaches Postgres through `withTenant` — it is
+ * the one place a transaction opens, and CLAUDE.md requires the actor on all
+ * of them. So "before the first `withTenant(`" is "before the write" without
+ * having to parse which repository calls actually mutate.
+ */
+const WRITE_ENTRY = /\bwithTenant\(/
+
+/**
+ * Comments stripped before either regex runs, so a guard mentioned only in a
+ * comment cannot satisfy the presence check, and a stray `//` cannot shift
+ * where a real one appears to sit.
+ */
+function code(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1")
+}
 
 function* serverFiles(dir) {
   for (const name of readdirSync(dir)) {
@@ -103,6 +121,15 @@ function* serverFiles(dir) {
 }
 
 const problems = []
+/**
+ * authz/guard-before-write — the guard's own regex match must sit before the
+ * first `withTenant(` in the action body. Coverage (does a guard appear
+ * anywhere) was the cheap half; this is the ordering the name of the step
+ * actually promises. It stays a lexical check, same as the rest of this file:
+ * a guard reached only through a helper this script cannot see into is a
+ * review question, not something a regex should claim to settle.
+ */
+const misordered = []
 const deletions = []
 let checked = 0
 
@@ -115,14 +142,22 @@ for (const file of serverFiles(ROUTES)) {
   const region = src.slice(start)
   const heads = [...region.matchAll(/^ {2}(\w+): async \(/gm)]
   for (const [i, head] of heads.entries()) {
-    const body = region.slice(
+    const rawBody = region.slice(
       head.index,
       i + 1 < heads.length ? heads[i + 1].index : region.length,
     )
+    const body = code(rawBody)
     const id = `${relative(ROOT, file)} -> ${head[1]}`
     checked++
     if (EXEMPT.has(id)) continue
-    if (!GUARD.test(body)) problems.push(id)
+
+    const guardAt = body.search(GUARD)
+    if (guardAt === -1) {
+      problems.push(id)
+      continue
+    }
+    const writeAt = body.search(WRITE_ENTRY)
+    if (writeAt !== -1 && guardAt > writeAt) misordered.push(id)
   }
 }
 
@@ -185,10 +220,22 @@ if (problems.length) {
   )
   process.exit(1)
 }
+if (misordered.length) {
+  console.error(
+    `\n  ${misordered.length} action(s) authorize AFTER their first withTenant(...):\n`,
+  )
+  for (const m of misordered) console.error(`    ${m}`)
+  console.error(
+    "\n  A guard that runs after the transaction has already opened is not a" +
+      "\n  guard — move requireCan(...) (or the matching check) above the first" +
+      "\n  withTenant(...) call in this action.\n",
+  )
+  process.exit(1)
+}
 if (stale.length && checked === 0) {
   console.error("  no actions found — the scanner is looking in the wrong place")
   process.exit(1)
 }
 console.log(
-  `  ${checked} actions guarded; no DELETE outside ${DELETE_ALLOWED.size} allowed file(s)`,
+  `  ${checked} actions guarded, in order; no DELETE outside ${DELETE_ALLOWED.size} allowed file(s)`,
 )

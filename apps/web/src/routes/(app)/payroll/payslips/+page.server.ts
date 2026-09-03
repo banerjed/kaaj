@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as runs from "$lib/server/payroll/payroll_runs.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom } from "$lib/server/auth/can"
 
@@ -18,11 +19,13 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!ctx?.employeeId) {
     // A tenant member who is not an employee — an external accountant, say.
     // There is no payslip to show, and that is not an error.
-    return { payslips: [], notAnEmployee: true }
+    return { payslips: [], notAnEmployee: true, locations: [] }
   }
 
   return withTenant(actorFrom(locals), async (tx) => ({
     payslips: await runs.forEmployee(tx, ctx.employeeId!),
     notAnEmployee: false,
+    // For per-market number formatting; see localeForCurrency.
+    locations: await locationsRepo.list(tx),
   }))
 }

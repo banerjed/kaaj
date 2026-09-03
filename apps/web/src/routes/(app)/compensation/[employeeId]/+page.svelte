@@ -1,9 +1,10 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money, number } from "$lib/format"
+  import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data, form } = $props()
 
@@ -13,7 +14,7 @@
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (c: string | null) =>
-    c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
+    c ? localeForCurrency(data.locations, c, tenantLocale) : tenantLocale
 
   /** The open record — no end date — is what the person is paid today. */
   const current = $derived(data.history.find((h) => h.effective_to === null))
@@ -50,14 +51,10 @@
   {#if data.history.length === 0}
     <!-- Empty because the row policy refused it, not because the page broke.
          A blank shell would read as a bug (L21). -->
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-10 text-center">
-        <span class="iconify lucide--lock text-base-content/30 size-8"></span>
-        <p class="text-base-content/70 text-sm">
-          You cannot see this person's compensation.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--lock"
+      message="You cannot see this person's compensation."
+    />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
       <div class="card-body gap-3 p-4">
