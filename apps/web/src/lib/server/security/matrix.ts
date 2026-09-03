@@ -180,6 +180,13 @@ export type SensitiveField = {
  * `employees` and the `compensation_*` tables, per column — the subject
  * relationship `Audience` encodes. Firm business data is
  * `PROTECTED_BUSINESS_TABLES` above instead (a different, functional-role axis).
+ *
+ * A new private employee attribute does NOT belong here as another `_pvt`
+ * column: `defense: "projection"` only exists because `employees` is a
+ * broadly-visible directory row RLS can't touch. A proper 1:1 table (like
+ * `compensation_base`) gets a real row-visibility policy instead — RLS does
+ * the whole job, with nothing for a future query to forget. Reserve this list
+ * for what's already here.
  */
 export const SENSITIVE_FIELDS: SensitiveField[] = [
   // -- employees: one row, broadly visible, carrying values of three kinds ---
