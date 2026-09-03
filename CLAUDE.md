@@ -35,7 +35,7 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** Seventeen steps, about 25 seconds. Non-zero exit means do not
+production.** Eighteen steps, about 25 seconds. Non-zero exit means do not
 push.
 
 ```
@@ -81,13 +81,14 @@ take effect.
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
 | writes are audited | every action is in the audit register, either list | 31 + 6 |
+| refusals have a message | every constraint a form can trip answers with a sentence | 23 |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | security | authorization, PII and tenant isolation, both suites | 357 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 964 tests |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-02.
+column. They were last verified 2026-09-03.
 
 These are complementary and none substitutes for another:
 
@@ -428,13 +429,17 @@ and then been invisible under every filter ([L57](docs/10-lessons-learned.md)).
 Ask of any new write: **can the thing this creates be found again by the page
 that lists it?**
 
-**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`.** It is
-the only check that loads a URL — the other sixteen prove the schema, the
+**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`, and a
+new FORM gets a case in `apps/web/e2e/form-errors.spec.ts`.** They are
+the only checks that load a URL — the other seventeen prove the schema, the
 policies, the classifications and the units, and none of them renders anything.
 The suite asks for the page's heading BY ROLE, which is how it found that no
 page in the product had an `<h1>` at all ([L64](docs/10-lessons-learned.md)).
 It is read-only on purpose: the fixture is shared with the unit suites, and a
-spec that writes needs its own serial project and a reseed. Run it with
+spec that writes needs its own serial project and a reseed. `form-errors.spec.ts`
+stays read-only by only ever submitting things the action REFUSES — it asserts
+that the message names the field, that the field is marked, and that the form is
+still on screen to be corrected ([L68](docs/10-lessons-learned.md)). Run it with
 `pnpm --filter @kaaj/web e2e`; it is deliberately NOT in `./check`, which is
 22 seconds and worth keeping that way.
 
@@ -501,6 +506,64 @@ value` before the query is sent. Pass `null` and test `IS NULL`
 **A rule the reader cannot express calls `f.reject("field")`** — a cycle, a
 date clash, an inverted band — so every failure arrives through one path and
 the page can put the cursor on the field.
+
+**A write that the database can refuse is caught, and answers with a sentence.**
+`FormReader` validates the shape of a value and cannot know that the code is
+already taken or that the row was archived a minute ago. Every such refusal —
+UNIQUE, CHECK, FK — reached the user as an "Internal Error" page with the form
+contents gone, including four separate "somebody already used that code" cases
+([L66](docs/10-lessons-learned.md)). Wrap the write and translate:
+
+```ts
+try {
+  return await withTenant(actorFrom(locals), async (tx) => { … })
+} catch (e) {
+  const refused = constraintFailure(e)   // $lib/server/db/constraints
+  if (refused) return refused
+  throw e
+}
+```
+
+The registry keys on **`constraint_name`, never the message text** — the name is
+in the migration, and SQLSTATE `23505` alone cannot say which field to mark. An
+unregistered constraint keeps crashing loudly on purpose; that is what gets it
+registered rather than hidden behind "something went wrong". `./check`'s
+`refusals have a message` step fails on any UNIQUE or CHECK on a form-written
+table that is neither registered nor exempted with a reason.
+
+**A date is read with `f.date()`. A shape regex is not a date check.**
+`/^\d{4}-\d{2}-\d{2}$/` accepts `2026-02-31`, and postgres.js serialises it
+through a JS `Date` that rolls it forward — so the row stored `2026-03-03`,
+with no error and `saved: true` ([L67](docs/10-lessons-learned.md)). A wrong
+hire date is a wrong first pay period. The same applies to any value the
+driver serialises: validate in the units the column stores.
+
+**A write reports what it DID, not that the request arrived.** An `UPDATE …
+WHERE id = $1` that matches nothing returns success, so all eight `archive`
+actions answered `{ archived: true }` for rows that did not exist — and audited
+the archiving ([L68](docs/10-lessons-learned.md)). Return `RETURNING id` and
+have the action check it before it claims anything. Ask of any write: **if this
+silently did nothing, would the page look different?**
+
+**A refused field is MARKED, and the form is still on screen to mark.** Three
+things have to hold together, and each failed separately:
+
+- the message NAMES the field. `f.problem()` does this by default now —
+  "Check Anchor date." — so never pass a bare "Some fields need attention."
+- the control carries the highlight AND `aria-invalid`. Use `fieldErrors(form)`
+  from `$lib/form-errors`; a red border is invisible to a screen reader and to
+  anyone who cannot separate the hue.
+- a form in a modal uses `use:enhance={closeOnSuccess(() => (editing = null))}`
+  from `$lib/form-enhance`. A plain POST reloads, which resets the `$state`
+  holding the modal open — so the alert described a form that was no longer
+  there, with everything typed into it gone. **`update({ reset: false })` is
+  not optional**: the default resets the form and discards the person's work at
+  the moment they need it back. A form that is not in a modal still wants
+  `keepValues` for the same reason.
+
+`apps/web/e2e/form-errors.spec.ts` asserts all three. It writes nothing —
+every submission in it is one the action refuses — which is why it can sit
+beside the read-only specs.
 
 `src/lib/server/forms.test.ts` is the regression guard. Every case in it
 returned a 500, or a silent `saved: true`, against the running app before the

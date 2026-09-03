@@ -5,6 +5,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList, formString } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 
 /**
@@ -106,30 +107,38 @@ export const actions: Actions = {
     if (!f.ok) return fail(400, f.problem())
 
     const ctx = contextFrom(locals)
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry can say what changed
-      // rather than only what it became.
-      const before = id ? await locations.getById(tx, id) : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry can say what changed
+        // rather than only what it became.
+        const before = id ? await locations.getById(tx, id) : null
 
-      // Demote BEFORE writing. A partial unique index enforces one HQ per
-      // tenant, so promoting this office while another still holds the flag
-      // fails on the write itself — order matters, not just atomicity.
-      if (isHq) await locations.clearOtherHeadquarters(tx, id || null)
+        // Demote BEFORE writing. A partial unique index enforces one HQ per
+        // tenant, so promoting this office while another still holds the flag
+        // fails on the write itself — order matters, not just atomicity.
+        if (isHq) await locations.clearOtherHeadquarters(tx, id || null)
 
-      if (id) await locations.update(tx, id, input)
-      else await locations.create(tx, tenantId, input)
+        if (id) await locations.update(tx, id, input)
+        else await locations.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. A location's timezone decides which DAY an
-      // attendance record belongs to (L35) and which pay period it falls in;
-      // its locale decides how every figure for the office is formatted.
-      await audit.record(tx, ctx!, {
-        action: id ? "update" : "create",
-        entityType: "firm_locations",
-        entityId: id ?? null,
-        module: "firm-profile",
-        changes: audit.diff(before, input, AUDITED_FIELDS),
+        // SAME TRANSACTION. A location's timezone decides which DAY an
+        // attendance record belongs to (L35) and which pay period it falls in;
+        // its locale decides how every figure for the office is formatted.
+        await audit.record(tx, ctx!, {
+          action: id ? "update" : "create",
+          entityType: "firm_locations",
+          entityId: id ?? null,
+          module: "firm-profile",
+          changes: audit.diff(before, input, AUDITED_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // A duplicate office code or a second headquarters is a thing the
+      // person can fix; without this it was an "Internal Error" page.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
 
     return { saved: true }
   },
@@ -153,7 +162,12 @@ export const actions: Actions = {
           message: `${deps.employees} active ${deps.employees === 1 ? "person is" : "people are"} still assigned to this office. Move them first.`,
         })
       }
-      await locations.archive(tx, id)
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await locations.archive(tx, id))) {
+        return fail(400, {
+          message: "That office no longer exists. Reload the page.",
+        })
+      }
 
       // Closing an office reassigns or strands everyone who was assigned to
       // it, which is why the dependent check above refuses rather than warns.

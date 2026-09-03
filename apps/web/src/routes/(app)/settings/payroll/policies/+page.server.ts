@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
 
@@ -100,25 +101,32 @@ export const actions: Actions = {
       require_time_tracking: f.bool("require_time_tracking"),
     }
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry says what changed
-      // rather than only what it became.
-      const before = id
-        ? ((await policies.list(tx)).find((r) => r.id === id) ?? null)
-        : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry says what changed
+        // rather than only what it became.
+        const before = id
+          ? ((await policies.list(tx)).find((r) => r.id === id) ?? null)
+          : null
 
-      if (id) await policies.update(tx, id, input)
-      else await policies.create(tx, tenantId, input)
+        if (id) await policies.update(tx, id, input)
+        else await policies.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. Overtime thresholds, multipliers and rounding. If someone's overtime drops, this is the change that did it.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "firm_payroll_policies",
-        entityId: id ?? null,
-        module: "payroll",
-        changes: audit.diff(before, input, AUDITED_FIELDS),
+        // SAME TRANSACTION. Overtime thresholds, multipliers and rounding. If someone's overtime drops, this is the change that did it.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "firm_payroll_policies",
+          entityId: id ?? null,
+          module: "payroll",
+          changes: audit.diff(before, input, AUDITED_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // A stale office reference, or a workweek start the CHECK refuses.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
@@ -128,8 +136,9 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing policy."))
-    await withTenant(actorFrom(locals), async (tx) => {
-      await policies.archive(tx, id)
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await policies.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "firm_payroll_policies",
@@ -137,7 +146,13 @@ export const actions: Actions = {
         module: "payroll",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That payroll policy no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

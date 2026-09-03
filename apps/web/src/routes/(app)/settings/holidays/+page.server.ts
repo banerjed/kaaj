@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 /** /settings/holidays — module-firm-profile.md § Holiday Calendar. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -67,33 +68,40 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
-    return withTenant(actorFrom(locals), async (tx) => {
-      if (await holidays.clashes(tx, locationCode, date, id || undefined)) {
-        return fail(400, {
-          errorFields: ["date"],
-          message: "That office already observes a holiday on that date.",
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        if (await holidays.clashes(tx, locationCode, date, id || undefined)) {
+          return fail(400, {
+            errorFields: ["date"],
+            message: "That office already observes a holiday on that date.",
+          })
+        }
+
+        // Read what it was BEFORE writing, so the entry says what changed
+        // rather than only what it became.
+        const before = id
+          ? ((await holidays.list(tx)).find((r) => r.id === id) ?? null)
+          : null
+
+        if (id) await holidays.update(tx, id, input)
+        else await holidays.create(tx, tenantId, input)
+
+        // SAME TRANSACTION. A public holiday decides whether a day is paid leave, and whether working it earns a premium.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "firm_holidays",
+          entityId: id ?? null,
+          module: "firm-profile",
+          changes: audit.diff(before, input, AUDITED_FIELDS),
         })
-      }
-
-      // Read what it was BEFORE writing, so the entry says what changed
-      // rather than only what it became.
-      const before = id
-        ? ((await holidays.list(tx)).find((r) => r.id === id) ?? null)
-        : null
-
-      if (id) await holidays.update(tx, id, input)
-      else await holidays.create(tx, tenantId, input)
-
-      // SAME TRANSACTION. A public holiday decides whether a day is paid leave, and whether working it earns a premium.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "firm_holidays",
-        entityId: id ?? null,
-        module: "firm-profile",
-        changes: audit.diff(before, input, AUDITED_FIELDS),
+        return { saved: true }
       })
-      return { saved: true }
-    })
+    } catch (e) {
+      // A duplicate holiday reference; previously an "Internal Error" page.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
   },
 
   archive: async ({ request, locals }) => {
@@ -102,8 +110,9 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing holiday."))
-    await withTenant(actorFrom(locals), async (tx) => {
-      await holidays.archive(tx, id)
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await holidays.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "firm_holidays",
@@ -111,7 +120,13 @@ export const actions: Actions = {
         module: "firm-profile",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That holiday no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

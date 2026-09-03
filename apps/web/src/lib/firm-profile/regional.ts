@@ -50,6 +50,22 @@ export const DATE_FORMATS = [
 
 export const TIME_FORMATS = ["12h", "24h"] as const
 
+/**
+ * `tenants.company_size` is a CHECK constraint on a plain `text` column, not a
+ * Postgres enum — so it is not in `@kaaj/enums`, and this list IS the
+ * constraint. It lives here rather than in the page because two copies of a
+ * constraint are one constraint that will disagree (L57): the page had the
+ * only copy, the action read the column with `f.text`, and an off-list value
+ * reached Postgres and answered HTTP 500.
+ */
+export const COMPANY_SIZES = [
+  "1-10",
+  "11-50",
+  "51-200",
+  "201-500",
+  "501+",
+] as const
+
 const isLocale = (code: string) =>
   SUPPORTED_LOCALES.some((l) => l.code === code)
 

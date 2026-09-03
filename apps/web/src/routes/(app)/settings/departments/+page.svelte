@@ -2,8 +2,15 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { localised } from "$lib/format"
   import type { FirmDepartment } from "$lib/server/firm-profile/firm_departments.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -221,7 +228,12 @@
         {current ? "Edit department" : "New department"}
       </h3>
 
-      <form method="POST" action="?/save" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/save"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editing = null))}
+      >
         {#if current}
           <input type="hidden" name="id" value={current.id} />
         {/if}
@@ -234,7 +246,8 @@
             <legend class="fieldset-legend">Name</legend>
             <input
               name="name"
-              class="input w-full"
+              aria-invalid={err.aria("name")}
+              class={`input w-full ${err.input("name")}`}
               value={current?.name ?? ""}
               required
             />
@@ -243,7 +256,8 @@
             <legend class="fieldset-legend">Code</legend>
             <input
               name="department_code"
-              class="input w-full font-mono uppercase"
+              aria-invalid={err.aria("department_code")}
+              class={`input w-full font-mono uppercase ${err.input("department_code")}`}
               value={current?.department_code ?? ""}
               placeholder="ENG-BE"
               required
@@ -276,7 +290,8 @@
             <legend class="fieldset-legend">Parent department</legend>
             <select
               name="parent_department_code"
-              class="select w-full"
+              aria-invalid={err.aria("parent_department_code")}
+              class={`select w-full ${err.select("parent_department_code")}`}
               value={current?.parent_department_code ?? ""}
             >
               <option value="">None — top level</option>
@@ -294,7 +309,8 @@
             <legend class="fieldset-legend">Location</legend>
             <select
               name="location_code"
-              class="select w-full"
+              aria-invalid={err.aria("location_code")}
+              class={`select w-full ${err.select("location_code")}`}
               value={current?.location_code ?? ""}
             >
               <option value="">Not assigned</option>
@@ -310,7 +326,8 @@
             <legend class="fieldset-legend">Cost centre</legend>
             <input
               name="cost_center"
-              class="input w-full"
+              aria-invalid={err.aria("cost_center")}
+              class={`input w-full ${err.input("cost_center")}`}
               value={current?.cost_center ?? ""}
             />
           </fieldset>
@@ -318,7 +335,8 @@
             <legend class="fieldset-legend">Budget currency</legend>
             <select
               name="budget_currency"
-              class="select w-full"
+              aria-invalid={err.aria("budget_currency")}
+              class={`select w-full ${err.select("budget_currency")}`}
               value={current?.budget_currency ?? data.tenant?.default_currency}
             >
               {#each data.tenant?.supported_currencies ?? [] as c (c)}
@@ -332,7 +350,8 @@
           <legend class="fieldset-legend">Description</legend>
           <textarea
             name="description"
-            class="textarea w-full"
+            aria-invalid={err.aria("description")}
+            class={`textarea w-full ${err.textarea("description")}`}
             rows="2"
             value={current?.description ?? ""}
           ></textarea>

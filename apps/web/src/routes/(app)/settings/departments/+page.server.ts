@@ -5,6 +5,7 @@ import * as locations from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 /**
  * /settings/departments — module-firm-profile.md § Departments Page.
@@ -69,26 +70,34 @@ export const actions: Actions = {
     const id = f.uuid("id")
     const supportedLocales = formList(data, "supported_locales")
 
-    return withTenant(actorFrom(locals), async (tx) => {
-      const input = await readForm(tx, f, supportedLocales)
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const input = await readForm(tx, f, supportedLocales)
 
-      if (!f.ok) {
-        return fail(400, {
-          ...f.problem(
-            f.errorFields.includes("parent_department_code") &&
-              f.errorFields.length === 1
-              ? "That parent would make the department its own ancestor."
-              : "Some fields need attention.",
-          ),
-          editing: id || "new",
-        })
-      }
+        if (!f.ok) {
+          return fail(400, {
+            ...f.problem(
+              f.errorFields.includes("parent_department_code") &&
+                f.errorFields.length === 1
+                ? "That parent would make the department its own ancestor."
+                : "Some fields need attention.",
+            ),
+            editing: id || "new",
+          })
+        }
 
-      if (id) await departments.update(tx, id, input)
-      else await departments.create(tx, tenantId, input)
+        if (id) await departments.update(tx, id, input)
+        else await departments.create(tx, tenantId, input)
 
-      return { saved: true }
-    })
+        return { saved: true }
+      })
+    } catch (e) {
+      // A duplicate department code, or a parent that was archived while the
+      // form sat open. Both were an "Internal Error" page before.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
   },
 
   archive: async ({ request, locals }) => {
@@ -98,7 +107,14 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing department."))
 
-    await withTenant(actorFrom(locals), (tx) => departments.archive(tx, id))
+    const archived = await withTenant(actorFrom(locals), (tx) =>
+      departments.archive(tx, id),
+    )
+    if (!archived) {
+      return fail(400, {
+        message: "That department no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

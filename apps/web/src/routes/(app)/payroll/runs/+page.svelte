@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   let opening = $state(false)
 
@@ -187,13 +194,15 @@
         method="POST"
         action="?/openRun"
         class="mt-4 grid gap-4 sm:grid-cols-2"
+        use:enhance={closeOnSuccess(() => (opening = false))}
       >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Period starts</legend>
           <input
             name="pay_period_start"
+            aria-invalid={err.aria("pay_period_start")}
             type="date"
-            class="input w-full"
+            class={`input w-full ${err.input("pay_period_start")}`}
             required
           />
         </fieldset>
@@ -202,22 +211,30 @@
           <legend class="fieldset-legend">Period ends</legend>
           <input
             name="pay_period_end"
+            aria-invalid={err.aria("pay_period_end")}
             type="date"
-            class="input w-full"
+            class={`input w-full ${err.input("pay_period_end")}`}
             required
           />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Pay date</legend>
-          <input name="pay_date" type="date" class="input w-full" required />
+          <input
+            name="pay_date"
+            aria-invalid={err.aria("pay_date")}
+            type="date"
+            class={`input w-full ${err.input("pay_date")}`}
+            required
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Country</legend>
           <input
             name="country"
-            class="input w-full uppercase"
+            aria-invalid={err.aria("country")}
+            class={`input w-full uppercase ${err.input("country")}`}
             maxlength="2"
             placeholder="US"
             required
@@ -228,7 +245,8 @@
           <legend class="fieldset-legend">Currency</legend>
           <input
             name="currency"
-            class="input w-full uppercase"
+            aria-invalid={err.aria("currency")}
+            class={`input w-full uppercase ${err.input("currency")}`}
             maxlength="3"
             value="USD"
             required
@@ -237,7 +255,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Type</legend>
-          <select name="run_type" class="select w-full" required>
+          <select
+            name="run_type"
+            aria-invalid={err.aria("run_type")}
+            class={`select w-full ${err.select("run_type")}`}
+            required
+          >
             {#each data.runTypes as t (t)}
               <option value={t} class="capitalize"
                 >{t.replace(/_/g, " ")}</option
@@ -248,7 +271,11 @@
 
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Pay schedule</legend>
-          <select name="pay_schedule_id" class="select w-full">
+          <select
+            name="pay_schedule_id"
+            aria-invalid={err.aria("pay_schedule_id")}
+            class={`select w-full ${err.select("pay_schedule_id")}`}
+          >
             <option value="">None</option>
             {#each data.schedules as sc (sc.id)}
               <option value={sc.id}>{sc.name} · {sc.currency}</option>

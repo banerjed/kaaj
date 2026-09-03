@@ -11,6 +11,7 @@ import {
   employeeEnums,
   parseEmployeeForm,
 } from "$lib/server/employee-profile/employee-form"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -69,31 +70,38 @@ export const actions: Actions = {
       })
     }
 
-    const cycle = await withTenant(actorFrom(locals), async (tx) => {
-      if (
-        await employees.wouldReportToSelf(
-          tx,
-          params.id,
-          parsed.input.manager_id,
-        )
-      ) {
-        return true
-      }
-      // Read before writing, so the entry says what the job title, manager
-      // or department WAS. "Who moved me under this manager, and when" is the
-      // question this exists to answer.
-      const before = await employees.getById(tx, params.id)
-      await employees.update(tx, params.id, parsed.input)
+    let cycle
+    try {
+      cycle = await withTenant(actorFrom(locals), async (tx) => {
+        if (
+          await employees.wouldReportToSelf(
+            tx,
+            params.id,
+            parsed.input.manager_id,
+          )
+        ) {
+          return true
+        }
+        // Read before writing, so the entry says what the job title, manager
+        // or department WAS. "Who moved me under this manager, and when" is the
+        // question this exists to answer.
+        const before = await employees.getById(tx, params.id)
+        await employees.update(tx, params.id, parsed.input)
 
-      await audit.record(tx, contextFrom(locals)!, {
-        action: "update",
-        entityType: "employees",
-        entityId: params.id,
-        module: "employee-profile",
-        changes: audit.diff(before, parsed.input, EMPLOYMENT_FIELDS),
+        await audit.record(tx, contextFrom(locals)!, {
+          action: "update",
+          entityType: "employees",
+          entityId: params.id,
+          module: "employee-profile",
+          changes: audit.diff(before, parsed.input, EMPLOYMENT_FIELDS),
+        })
+        return false
       })
-      return false
-    })
+    } catch (e) {
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
 
     if (cycle) {
       return fail(400, {

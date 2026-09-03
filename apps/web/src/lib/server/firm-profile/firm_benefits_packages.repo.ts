@@ -61,10 +61,19 @@ export async function update(
   `
 }
 
-/** Deactivate: hr_benefits_enrollments reference the package historically. */
-export async function archive(tx: Tx, id: string): Promise<void> {
-  await tx`
+/**
+ * Deactivate, and say whether a row actually matched.
+ *
+ * `Promise<void>` here meant an id that matches nothing — a stale tab, a
+ * crafted POST, or a row this actor's policies hide — was indistinguishable
+ * from a successful archive, and the page answered "archived". A write that
+ * reports success for something it did not do is the failure shape this
+ * codebase keeps finding (L68).
+ */
+export async function archive(tx: Tx, id: string): Promise<boolean> {
+  const rows = await tx<{ id: string }[]>`
     UPDATE firm_benefits_packages SET is_active = FALSE, updated_at = now()
      WHERE id = ${id}
-  `
+   RETURNING id`
+  return rows.length > 0
 }

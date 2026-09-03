@@ -78,7 +78,8 @@ export type Decision = "approved" | "denied"
 
 export class DecisionRefused extends Error {
   constructor(
-    readonly reason: "not_pending" | "self_approval" | "not_your_report",
+    readonly reason:
+      "not_pending" | "not_found" | "self_approval" | "not_your_report",
   ) {
     super(reason)
     this.name = "DecisionRefused"

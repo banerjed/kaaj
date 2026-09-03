@@ -87,7 +87,11 @@ export const actions: Actions = {
           SELECT employee_id, total_hours::text AS total_hours
             FROM hr_time_off_requests WHERE id = ${id}
         `
-        if (!subject) throw new DecisionRefused("not_pending")
+        // Not the same thing as "already decided". A row that is absent —
+        // deleted, or belonging to a tenant this actor cannot see — was being
+        // reported as a decision that had already happened, which is a
+        // sentence about a request that does not exist.
+        if (!subject) throw new DecisionRefused("not_found")
 
         if (
           ctx &&
@@ -134,7 +138,9 @@ export const actions: Actions = {
               ? "You cannot decide your own leave request."
               : e.reason === "not_your_report"
                 ? "You can only decide requests from people who report to you."
-                : "That request has already been decided.",
+                : e.reason === "not_found"
+                  ? "That request no longer exists. Reload the page."
+                  : "That request has already been decided.",
         })
       }
       throw e

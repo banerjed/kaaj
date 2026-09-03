@@ -8,8 +8,15 @@
   } from "$lib/firm-profile/pay-dates"
   import { timezoneOptions } from "$lib/firm-profile/regional"
   import type { PaySchedule } from "$lib/server/payroll/payroll_pay_schedules.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
@@ -209,7 +216,12 @@
       <h3 class="text-lg font-medium">
         {current ? "Edit schedule" : "New schedule"}
       </h3>
-      <form method="POST" action="?/save" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/save"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editing = null))}
+      >
         {#if current}
           <input type="hidden" name="id" value={current.id} />
         {/if}
@@ -221,7 +233,8 @@
           <legend class="fieldset-legend">Name</legend>
           <input
             name="name"
-            class="input w-full"
+            aria-invalid={err.aria("name")}
+            class={`input w-full ${err.input("name")}`}
             value={current?.name ?? ""}
             placeholder="UK Monthly Payroll"
             required
@@ -233,7 +246,8 @@
             <legend class="fieldset-legend">Frequency</legend>
             <select
               name="frequency"
-              class="select w-full"
+              aria-invalid={err.aria("frequency")}
+              class={`select w-full ${err.select("frequency")}`}
               value={current?.frequency ?? "monthly"}
             >
               {#each ["weekly", "bi-weekly", "semi-monthly", "monthly"] as f (f)}
@@ -245,8 +259,9 @@
             <legend class="fieldset-legend">Anchor date</legend>
             <input
               name="anchor_date"
+              aria-invalid={err.aria("anchor_date")}
               type="date"
-              class="input w-full"
+              class={`input w-full ${err.input("anchor_date")}`}
               value={current?.anchor_date ?? ""}
               required
             />
@@ -261,7 +276,8 @@
             <legend class="fieldset-legend">Timezone</legend>
             <select
               name="timezone"
-              class="select w-full"
+              aria-invalid={err.aria("timezone")}
+              class={`select w-full ${err.select("timezone")}`}
               value={current?.timezone ?? tenantZone}
             >
               {#each zonesByRegion as group (group.region)}
@@ -277,7 +293,8 @@
             <legend class="fieldset-legend">Currency</legend>
             <select
               name="currency"
-              class="select w-full"
+              aria-invalid={err.aria("currency")}
+              class={`select w-full ${err.select("currency")}`}
               value={current?.currency ?? data.tenant?.default_currency}
             >
               {#each currencies as c (c)}

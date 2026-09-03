@@ -6,7 +6,8 @@ import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
-import { formString } from "$lib/server/forms"
+import { FormReader, formString } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 const FREQUENCIES = ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const
 
@@ -42,31 +43,24 @@ export const actions: Actions = {
     const tenantId = locals.tenantId
     const data = await request.formData()
 
-    const id = formString(data, "id")
-    const name = formString(data, "name").trim()
-    const frequency = formString(data, "frequency")
-    const anchorDate = formString(data, "anchor_date")
-    const timezone = formString(data, "timezone")
-    const currency = formString(data, "currency")
-
-    const errorFields: string[] = []
-    if (name === "") errorFields.push("name")
-    if (!FREQUENCIES.includes(frequency as (typeof FREQUENCIES)[number]))
-      errorFields.push("frequency")
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) errorFields.push("anchor_date")
-    if (!currency) errorFields.push("currency")
-
+    // Every field through the reader. This action used to read all six with
+    // `formString` and check them by hand, which meant `id` was never checked
+    // for uuid shape, `name` had no length cap, `currency` was only checked
+    // for emptiness, and `anchor_date` was a bare shape regex. Five crafted
+    // POSTs produced five HTTP 500s, and the shape regex accepted 2026-02-31
+    // (L67). The column types are the LAST line of defence, not the first
+    // (L34).
+    const f = new FormReader(data)
+    const id = f.uuid("id")
+    const name = f.text("name", { required: true, max: 255 })
+    const frequency = f.choice("frequency", FREQUENCIES, { required: true })
+    const anchorDate = f.date("anchor_date", { required: true })
     // A schedule's timezone decides which calendar day a pay date falls on, so
     // an unreal zone would silently shift every payment.
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: timezone })
-    } catch {
-      errorFields.push("timezone")
-    }
+    const timezone = f.timezone("timezone", { required: true })
+    const currency = f.currency("currency", { required: true })
 
-    if (errorFields.length) {
-      return fail(400, { errorFields, message: "Some fields need attention." })
-    }
+    if (!f.ok) return fail(400, f.problem())
 
     const supported = data
       .getAll("supported_locales")
@@ -84,39 +78,48 @@ export const actions: Actions = {
       anchor_date: anchorDate,
       timezone,
       currency,
-      adjust_for_weekends: formString(data, "adjust_for_weekends") === "on",
-      adjust_for_holidays: formString(data, "adjust_for_holidays") === "on",
+      adjust_for_weekends: f.bool("adjust_for_weekends"),
+      adjust_for_holidays: f.bool("adjust_for_holidays"),
     }
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry says what changed
-      // rather than only what it became.
-      const before = id
-        ? ((await schedules.list(tx)).find((r) => r.id === id) ?? null)
-        : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry says what changed
+        // rather than only what it became.
+        const before = id
+          ? ((await schedules.list(tx)).find((r) => r.id === id) ?? null)
+          : null
 
-      if (id) await schedules.update(tx, id, input)
-      else await schedules.create(tx, tenantId, input)
+        if (id) await schedules.update(tx, id, input)
+        else await schedules.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. When people are paid. A moved pay date is a question somebody asks the same week.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "payroll_pay_schedules",
-        entityId: id ?? null,
-        module: "payroll",
-        changes: audit.diff(before, input, AUDITED_FIELDS),
+        // SAME TRANSACTION. When people are paid. A moved pay date is a question somebody asks the same week.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "payroll_pay_schedules",
+          entityId: id ?? null,
+          module: "payroll",
+          changes: audit.diff(before, input, AUDITED_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // A duplicate schedule reference, or a CHECK on frequency.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
   archive: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "firm.settings.write")
-    const id = formString(await request.formData(), "id")
-    if (!id) return fail(400, { message: "Missing schedule." })
-    await withTenant(actorFrom(locals), async (tx) => {
-      await schedules.archive(tx, id)
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Missing schedule."))
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await schedules.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "payroll_pay_schedules",
@@ -124,7 +127,13 @@ export const actions: Actions = {
         module: "payroll",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That pay schedule no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

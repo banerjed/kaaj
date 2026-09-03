@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   let cancelling = $state(false)
 
@@ -276,12 +283,18 @@
         the same way an audit entry is corrected by a new row rather than an
         edit.
       </p>
-      <form method="POST" action="?/cancel" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/cancel"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (cancelling = false))}
+      >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Why</legend>
           <textarea
             name="reason"
-            class="textarea w-full"
+            aria-invalid={err.aria("reason")}
+            class={`textarea w-full ${err.textarea("reason")}`}
             rows="2"
             maxlength="500"
             required

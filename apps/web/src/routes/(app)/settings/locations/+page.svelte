@@ -7,8 +7,15 @@
     currencyLabel,
   } from "$lib/firm-profile/regional"
   import type { FirmLocation } from "$lib/server/firm-profile/firm_locations.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const supportedLocales = $derived(
     data.tenant?.supported_locales ?? [data.tenant?.default_locale ?? "en-US"],
@@ -22,8 +29,6 @@
 
   let editing = $state<FirmLocation | "new" | null>(null)
   const current = $derived(editing === "new" ? null : editing)
-  const invalid = (n: string) =>
-    (form?.errorFields ?? []).includes(n) ? "input-error" : ""
 
   // The spec's three tabs: basic / regional / contact.
   const MODAL_TABS = ["Basic", "Regional", "Contact"] as const
@@ -257,7 +262,12 @@
         {current ? "Edit office" : "New office"}
       </h3>
 
-      <form method="POST" action="?/save" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/save"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editing = null))}
+      >
         {#if current}
           <input type="hidden" name="id" value={current.id} />
         {/if}
@@ -291,7 +301,8 @@
                 <legend class="fieldset-legend">Office name</legend>
                 <input
                   name="name"
-                  class={`input w-full ${invalid("name")}`}
+                  aria-invalid={err.aria("name")}
+                  class={`input w-full ${err.input("name")}`}
                   value={current?.name ?? ""}
                   required
                 />
@@ -300,7 +311,8 @@
                 <legend class="fieldset-legend">Code</legend>
                 <input
                   name="location_code"
-                  class={`input w-full font-mono uppercase ${invalid("location_code")}`}
+                  aria-invalid={err.aria("location_code")}
+                  class={`input w-full font-mono uppercase ${err.input("location_code")}`}
                   value={current?.location_code ?? ""}
                   placeholder="UK-LON"
                   required
@@ -334,14 +346,16 @@
               <legend class="fieldset-legend">Address</legend>
               <input
                 name="address_line1"
-                class="input w-full"
+                aria-invalid={err.aria("address_line1")}
+                class={`input w-full ${err.input("address_line1")}`}
                 value={current?.address_line1 ?? ""}
                 placeholder="Street"
                 autocomplete="address-line1"
               />
               <input
                 name="address_line2"
-                class="input mt-2 w-full"
+                aria-invalid={err.aria("address_line2")}
+                class={`input mt-2 w-full ${err.input("address_line2")}`}
                 value={current?.address_line2 ?? ""}
                 placeholder="Line 2"
                 autocomplete="address-line2"
@@ -349,21 +363,24 @@
               <div class="mt-2 grid gap-2 sm:grid-cols-3">
                 <input
                   name="city"
-                  class="input w-full"
+                  aria-invalid={err.aria("city")}
+                  class={`input w-full ${err.input("city")}`}
                   value={current?.city ?? ""}
                   placeholder="City"
                   autocomplete="address-level2"
                 />
                 <input
                   name="state"
-                  class="input w-full"
+                  aria-invalid={err.aria("state")}
+                  class={`input w-full ${err.input("state")}`}
                   value={current?.state ?? ""}
                   placeholder="Region"
                   autocomplete="address-level1"
                 />
                 <input
                   name="postal_code"
-                  class="input w-full"
+                  aria-invalid={err.aria("postal_code")}
+                  class={`input w-full ${err.input("postal_code")}`}
                   value={current?.postal_code ?? ""}
                   placeholder="Postal code"
                   autocomplete="postal-code"
@@ -376,7 +393,8 @@
                 <legend class="fieldset-legend">Country (ISO 3166-1)</legend>
                 <input
                   name="country"
-                  class={`input w-full uppercase ${invalid("country")}`}
+                  aria-invalid={err.aria("country")}
+                  class={`input w-full uppercase ${err.input("country")}`}
                   value={current?.country ?? ""}
                   placeholder="GB"
                   maxlength="2"
@@ -387,9 +405,10 @@
                 <legend class="fieldset-legend">Desk capacity</legend>
                 <input
                   name="capacity"
+                  aria-invalid={err.aria("capacity")}
                   type="number"
                   inputmode="numeric"
-                  class={`input w-full tabular-nums ${invalid("capacity")}`}
+                  class={`input w-full tabular-nums ${err.input("capacity")}`}
                   value={current?.capacity ?? ""}
                 />
               </fieldset>
@@ -415,7 +434,8 @@
               <legend class="fieldset-legend">Timezone</legend>
               <select
                 name="timezone"
-                class={`select w-full ${invalid("timezone")}`}
+                aria-invalid={err.aria("timezone")}
+                class={`select w-full ${err.select("timezone")}`}
                 bind:value={previewZone}
               >
                 {#each zonesByRegion as group (group.region)}
@@ -439,7 +459,8 @@
                 <legend class="fieldset-legend">Locale override</legend>
                 <select
                   name="locale"
-                  class="select w-full"
+                  aria-invalid={err.aria("locale")}
+                  class={`select w-full ${err.select("locale")}`}
                   value={current?.locale ?? ""}
                 >
                   <option value="">
@@ -458,7 +479,8 @@
                 <legend class="fieldset-legend">Currency override</legend>
                 <select
                   name="currency"
-                  class="select w-full"
+                  aria-invalid={err.aria("currency")}
+                  class={`select w-full ${err.select("currency")}`}
                   value={current?.currency ?? ""}
                 >
                   <option value="">
@@ -481,10 +503,11 @@
               <legend class="fieldset-legend">Phone</legend>
               <input
                 name="phone"
+                aria-invalid={err.aria("phone")}
                 type="tel"
                 inputmode="tel"
                 autocomplete="tel"
-                class={`input w-full ${invalid("phone")}`}
+                class={`input w-full ${err.input("phone")}`}
                 value={current?.phone ?? ""}
               />
             </fieldset>
@@ -492,10 +515,11 @@
               <legend class="fieldset-legend">Email</legend>
               <input
                 name="email"
+                aria-invalid={err.aria("email")}
                 type="email"
                 inputmode="email"
                 autocomplete="email"
-                class={`input w-full ${invalid("email")}`}
+                class={`input w-full ${err.input("email")}`}
                 value={current?.email ?? ""}
               />
             </fieldset>

@@ -172,7 +172,24 @@ describe("the reader as a whole", () => {
     f.uuid("id", { required: true })
     f.decimal("amount", { required: true, scale: 2 })
     expect(f.errorFields.sort()).toEqual(["amount", "id", "name"])
-    expect(f.problem().message).toBe("Some fields need attention.")
+    // The default message NAMES them. "Some fields need attention." is true of
+    // every rejection and actionable in none, and most pages in the product do
+    // not render `errorFields` as a highlight — so it was the whole of what
+    // the person was told.
+    expect(f.problem().message).toBe("Check Name, Id and Amount.")
+  })
+
+  it("names one field without a list, and keeps a caller's own message", () => {
+    const f = form({ location_code: "" })
+    f.text("location_code", { required: true, max: 50 })
+    expect(f.problem().message).toBe("Check Location code.")
+    expect(f.problem("Pick an office.").message).toBe("Pick an office.")
+  })
+
+  it("qualifies a per-currency field, so the right band is named", () => {
+    const f = form({ "range.USD.max": "oops" })
+    f.decimal("range.USD.max", { scale: 2 })
+    expect(f.problem().message).toBe("Check Max (USD).")
   })
 
   it("reports a field once however many rules it breaks", () => {

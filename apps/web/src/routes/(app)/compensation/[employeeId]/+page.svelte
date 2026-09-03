@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (c: string | null) =>
@@ -233,13 +240,19 @@
         This closes the current record and opens a new one. It is written to the
         audit log and cannot be deleted.
       </p>
-      <form method="POST" action="?/raise" class="mt-4 grid gap-3">
+      <form
+        method="POST"
+        action="?/raise"
+        class="mt-4 grid gap-3"
+        use:enhance={closeOnSuccess(() => (recording = false))}
+      >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Effective from</legend>
           <input
             type="date"
             name="effective_from"
-            class="input w-full"
+            aria-invalid={err.aria("effective_from")}
+            class={`input w-full ${err.input("effective_from")}`}
             required
           />
         </fieldset>
@@ -250,7 +263,8 @@
                  a float in the browser before the server ever sees it. -->
             <input
               name="amount"
-              class="input w-full"
+              aria-invalid={err.aria("amount")}
+              class={`input w-full ${err.input("amount")}`}
               inputmode="decimal"
               required
             />
@@ -259,7 +273,8 @@
             <legend class="fieldset-legend">Currency</legend>
             <input
               name="currency"
-              class="input w-full"
+              aria-invalid={err.aria("currency")}
+              class={`input w-full ${err.input("currency")}`}
               maxlength="3"
               value={current?.currency ?? "USD"}
               required
@@ -269,7 +284,12 @@
         <div class="grid gap-3 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Basis</legend>
-            <select name="compensation_type" class="select w-full" required>
+            <select
+              name="compensation_type"
+              aria-invalid={err.aria("compensation_type")}
+              class={`select w-full ${err.select("compensation_type")}`}
+              required
+            >
               <option value="salary">Salary</option>
               <option value="hourly">Hourly</option>
               <option value="commission">Commission</option>
@@ -278,7 +298,12 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Frequency</legend>
-            <select name="pay_frequency" class="select w-full" required>
+            <select
+              name="pay_frequency"
+              aria-invalid={err.aria("pay_frequency")}
+              class={`select w-full ${err.select("pay_frequency")}`}
+              required
+            >
               <option value="monthly">Monthly</option>
               <option value="semi_monthly">Semi-monthly</option>
               <option value="biweekly">Biweekly</option>
@@ -291,7 +316,8 @@
           <legend class="fieldset-legend">Reason</legend>
           <input
             name="change_reason"
-            class="input w-full"
+            aria-invalid={err.aria("change_reason")}
+            class={`input w-full ${err.input("change_reason")}`}
             maxlength="500"
             placeholder="annual_review, promotion, market_adjustment"
           />

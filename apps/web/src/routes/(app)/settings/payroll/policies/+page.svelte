@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import type { PayrollPolicy } from "$lib/server/firm-profile/firm_payroll_policies.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const DAYS = [
     "Sunday",
@@ -180,7 +187,12 @@
       <h3 class="text-lg font-medium">
         {current ? "Edit policy" : "New policy"}
       </h3>
-      <form method="POST" action="?/save" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/save"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editing = null))}
+      >
         {#if current}
           <input type="hidden" name="id" value={current.id} />
         {/if}
@@ -188,7 +200,11 @@
         {#if !current}
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Applies to</legend>
-            <select name="location_code" class="select w-full">
+            <select
+              name="location_code"
+              aria-invalid={err.aria("location_code")}
+              class={`select w-full ${err.select("location_code")}`}
+            >
               <option value="">Firm-wide default</option>
               {#each data.locations as l (l.id)}
                 <option value={l.location_code}>{l.name}</option>
@@ -202,7 +218,8 @@
             <legend class="fieldset-legend">Workweek starts</legend>
             <select
               name="workweek_start_day"
-              class="select w-full"
+              aria-invalid={err.aria("workweek_start_day")}
+              class={`select w-full ${err.select("workweek_start_day")}`}
               value={String(current?.workweek_start_day ?? 0)}
             >
               {#each DAYS as day, i (day)}
@@ -214,7 +231,8 @@
             <legend class="fieldset-legend">Time rounding</legend>
             <select
               name="time_rounding"
-              class="select w-full"
+              aria-invalid={err.aria("time_rounding")}
+              class={`select w-full ${err.select("time_rounding")}`}
               value={current?.time_rounding ?? "none"}
             >
               {#each data.roundingOptions as r (r)}
@@ -233,8 +251,9 @@
               >
               <input
                 name="daily_threshold_hours"
+                aria-invalid={err.aria("daily_threshold_hours")}
                 inputmode="decimal"
-                class="input w-full tabular-nums"
+                class={`input w-full tabular-nums ${err.input("daily_threshold_hours")}`}
                 value={current?.overtime_rules?.daily_threshold_hours ?? ""}
                 placeholder="8"
               />
@@ -245,8 +264,9 @@
               >
               <input
                 name="weekly_threshold_hours"
+                aria-invalid={err.aria("weekly_threshold_hours")}
                 inputmode="decimal"
-                class="input w-full tabular-nums"
+                class={`input w-full tabular-nums ${err.input("weekly_threshold_hours")}`}
                 value={current?.overtime_rules?.weekly_threshold_hours ?? ""}
                 placeholder="40"
               />
@@ -255,8 +275,9 @@
               <span class="label text-base-content/70 text-xs">Multiplier</span>
               <input
                 name="multiplier"
+                aria-invalid={err.aria("multiplier")}
                 inputmode="decimal"
-                class="input w-full tabular-nums"
+                class={`input w-full tabular-nums ${err.input("multiplier")}`}
                 value={current?.overtime_rules?.multiplier ?? ""}
                 placeholder="1.5"
               />
@@ -267,8 +288,9 @@
               >
               <input
                 name="double_time_after_hours"
+                aria-invalid={err.aria("double_time_after_hours")}
                 inputmode="decimal"
-                class="input w-full tabular-nums"
+                class={`input w-full tabular-nums ${err.input("double_time_after_hours")}`}
                 value={current?.overtime_rules?.double_time_after_hours ?? ""}
                 placeholder="12"
               />

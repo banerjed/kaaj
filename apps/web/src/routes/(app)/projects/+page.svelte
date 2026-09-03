@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   /** The create dialog. Closed unless the last submit failed on a field. */
   let creating = $state(false)
@@ -207,12 +214,14 @@
         method="POST"
         action="?/create"
         class="mt-4 grid gap-4 sm:grid-cols-2"
+        use:enhance={closeOnSuccess(() => (creating = false))}
       >
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Name</legend>
           <input
             name="project_name"
-            class="input w-full"
+            aria-invalid={err.aria("project_name")}
+            class={`input w-full ${err.input("project_name")}`}
             maxlength="200"
             required
             autocomplete="off"
@@ -221,7 +230,11 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client</legend>
-          <select name="client_id" class="select w-full">
+          <select
+            name="client_id"
+            aria-invalid={err.aria("client_id")}
+            class={`select w-full ${err.select("client_id")}`}
+          >
             <option value="">Internal — no client</option>
             {#each data.clients as c (c.id)}
               <option value={c.id}>{c.client_name}</option>
@@ -231,7 +244,11 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Project manager</legend>
-          <select name="project_manager_id" class="select w-full">
+          <select
+            name="project_manager_id"
+            aria-invalid={err.aria("project_manager_id")}
+            class={`select w-full ${err.select("project_manager_id")}`}
+          >
             <option value="">Unassigned</option>
             {#each data.managers as m (m.id)}
               <option value={m.id}>{m.name}</option>
@@ -241,7 +258,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Status</legend>
-          <select name="status" class="select w-full" required>
+          <select
+            name="status"
+            aria-invalid={err.aria("status")}
+            class={`select w-full ${err.select("status")}`}
+            required
+          >
             {#each data.statuses as s (s)}
               <option value={s} selected={s === "draft"} class="capitalize">
                 {label(s)}
@@ -252,7 +274,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Priority</legend>
-          <select name="priority" class="select w-full" required>
+          <select
+            name="priority"
+            aria-invalid={err.aria("priority")}
+            class={`select w-full ${err.select("priority")}`}
+            required
+          >
             {#each data.priorities as p (p)}
               <option value={p} selected={p === "medium"} class="capitalize">
                 {p}
@@ -263,7 +290,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Health</legend>
-          <select name="health_status" class="select w-full" required>
+          <select
+            name="health_status"
+            aria-invalid={err.aria("health_status")}
+            class={`select w-full ${err.select("health_status")}`}
+            required
+          >
             {#each data.healths as h (h)}
               <option value={h} selected={h === "on_track"} class="capitalize">
                 {label(h)}
@@ -276,7 +308,8 @@
           <legend class="fieldset-legend">Currency</legend>
           <input
             name="currency"
-            class="input w-full uppercase"
+            aria-invalid={err.aria("currency")}
+            class={`input w-full uppercase ${err.input("currency")}`}
             maxlength="3"
             value="USD"
             required
@@ -285,12 +318,22 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Starts</legend>
-          <input name="start_date" type="date" class="input w-full" />
+          <input
+            name="start_date"
+            aria-invalid={err.aria("start_date")}
+            type="date"
+            class={`input w-full ${err.input("start_date")}`}
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Target end</legend>
-          <input name="target_end_date" type="date" class="input w-full" />
+          <input
+            name="target_end_date"
+            aria-invalid={err.aria("target_end_date")}
+            type="date"
+            class={`input w-full ${err.input("target_end_date")}`}
+          />
         </fieldset>
 
         <fieldset class="fieldset">
@@ -299,19 +342,30 @@
             inputmode, never type="number": the latter round-trips the value
             through a float in the browser before the server ever sees it.
           -->
-          <input name="budget" class="input w-full" inputmode="decimal" />
+          <input
+            name="budget"
+            aria-invalid={err.aria("budget")}
+            class={`input w-full ${err.input("budget")}`}
+            inputmode="decimal"
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Hourly rate</legend>
-          <input name="hourly_rate" class="input w-full" inputmode="decimal" />
+          <input
+            name="hourly_rate"
+            aria-invalid={err.aria("hourly_rate")}
+            class={`input w-full ${err.input("hourly_rate")}`}
+            inputmode="decimal"
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Estimated hours</legend>
           <input
             name="estimated_hours"
-            class="input w-full"
+            aria-invalid={err.aria("estimated_hours")}
+            class={`input w-full ${err.input("estimated_hours")}`}
             inputmode="decimal"
           />
         </fieldset>
@@ -331,7 +385,8 @@
           <legend class="fieldset-legend">Description</legend>
           <textarea
             name="description"
-            class="textarea w-full"
+            aria-invalid={err.aria("description")}
+            class={`textarea w-full ${err.textarea("description")}`}
             rows="2"
             maxlength="2000"
           ></textarea>

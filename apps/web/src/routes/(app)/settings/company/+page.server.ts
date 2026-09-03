@@ -4,9 +4,16 @@ import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
 import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader, formString, formList } from "$lib/server/forms"
+import {
+  FormReader,
+  checkFields,
+  formString,
+  formList,
+} from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 import {
   validateRegional,
+  COMPANY_SIZES,
   DATE_FORMATS,
   TIME_FORMATS,
 } from "$lib/firm-profile/regional"
@@ -84,7 +91,7 @@ export const actions: Actions = {
     // the field would save as NULL (L33).
     const legalEntityName = f.text("legal_entity_name", { max: 255 })
     const industry = f.text("industry", { max: 100 })
-    const companySize = f.text("company_size", { max: 50 })
+    const companySize = f.choice("company_size", COMPANY_SIZES)
     const contactName = f.text("primary_contact_name", { max: 255 })
 
     errorFields.push(...f.errorFields)
@@ -118,10 +125,8 @@ export const actions: Actions = {
     }
 
     if (errorFields.length > 0) {
-      return fail(400, {
-        errorFields: [...new Set(errorFields)],
-        message: "Some fields need attention.",
-      })
+      const unique = [...new Set(errorFields)]
+      return fail(400, { errorFields: unique, message: checkFields(unique) })
     }
 
     const input = {
@@ -142,22 +147,28 @@ export const actions: Actions = {
       primary_contact_phone: contactPhone,
     }
 
-    const saved = await withTenant(actorFrom(locals), async (tx) => {
-      // Read before writing. These settings format every figure in the
-      // product, and the timezone moves the boundary of a working day.
-      const before = await tenants.getCurrent(tx)
-      const row = await tenants.update(tx, input)
+    try {
+      const saved = await withTenant(actorFrom(locals), async (tx) => {
+        // Read before writing. These settings format every figure in the
+        // product, and the timezone moves the boundary of a working day.
+        const before = await tenants.getCurrent(tx)
+        const row = await tenants.update(tx, input)
 
-      await audit.record(tx, contextFrom(locals)!, {
-        action: "update",
-        entityType: "tenants",
-        entityId: locals.tenantId,
-        module: "platform-tenancy",
-        changes: audit.diff(before, input, AUDITED_FIELDS),
+        await audit.record(tx, contextFrom(locals)!, {
+          action: "update",
+          entityType: "tenants",
+          entityId: locals.tenantId,
+          module: "platform-tenancy",
+          changes: audit.diff(before, input, AUDITED_FIELDS),
+        })
+        return row
       })
-      return row
-    })
-
-    return { saved: true, company: saved }
+      return { saved: true, company: saved }
+    } catch (e) {
+      // company_size is a CHECK constraint, not an enum; a crafted value was a 500.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
   },
 }

@@ -2,8 +2,15 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localised } from "$lib/format"
   import type { FirmHoliday } from "$lib/server/firm-profile/firm_holidays.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -169,7 +176,12 @@
       <h3 class="text-lg font-medium">
         {current ? "Edit holiday" : "New holiday"}
       </h3>
-      <form method="POST" action="?/save" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/save"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editing = null))}
+      >
         {#if current}
           <input type="hidden" name="id" value={current.id} />
         {/if}
@@ -181,7 +193,8 @@
           <legend class="fieldset-legend">Name</legend>
           <input
             name="name"
-            class="input w-full"
+            aria-invalid={err.aria("name")}
+            class={`input w-full ${err.input("name")}`}
             value={current?.name ?? ""}
             required
           />
@@ -192,7 +205,8 @@
             <legend class="fieldset-legend">Office</legend>
             <select
               name="location_code"
-              class="select w-full"
+              aria-invalid={err.aria("location_code")}
+              class={`select w-full ${err.select("location_code")}`}
               value={current?.location_code ?? ""}
               required
             >
@@ -207,8 +221,9 @@
                  display locale, which is what the DATE column wants. -->
             <input
               name="date"
+              aria-invalid={err.aria("date")}
               type="date"
-              class="input w-full"
+              class={`input w-full ${err.input("date")}`}
               value={current?.date ?? ""}
               required
             />

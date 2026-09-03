@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 /** The `payment_method` enum, which `enumValue` reads from @kaaj/enums. */
 const METHODS = [
@@ -136,7 +137,14 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     // Every reader above the gate (L33). `decimal` keeps the amount a string
     // from the browser to Postgres — the one number here that must not round.
-    const amount = f.decimal("amount", { scale: 2, required: true })
+    // `min` matters: `ck_payments_positive_amounts` refuses a zero or negative
+    // payment, and without a bound here that CHECK was the validator — which
+    // answers with a 500 rather than a field error (L66).
+    const amount = f.decimal("amount", {
+      scale: 2,
+      required: true,
+      min: 0.01,
+    })
     const paymentDate = f.date("payment_date", { required: true })
     const method = f.choice("payment_method", METHODS, { required: true })
     const reference = f.text("reference", { max: 100 })
@@ -179,6 +187,9 @@ export const actions: Actions = {
       })
     } catch (e) {
       if (e instanceof AccountingRefused) return fail(400, refusal(e))
+      // A bank account chosen from a list that has since changed.
+      const refused = constraintFailure(e)
+      if (refused) return refused
       throw e
     }
   },

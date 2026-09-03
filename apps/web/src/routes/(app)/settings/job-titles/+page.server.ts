@@ -8,6 +8,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 import { allEnumerations } from "@kaaj/enums"
 
 /** /settings/job-titles — module-firm-profile.md § Job Titles Page. */
@@ -88,10 +89,16 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      if (id) await titles.update(tx, id, input)
-      else await titles.create(tx, tenantId, input)
-    })
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        if (id) await titles.update(tx, id, input)
+        else await titles.create(tx, tenantId, input)
+      })
+    } catch (e) {
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
@@ -101,7 +108,14 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing job title."))
-    await withTenant(actorFrom(locals), (tx) => titles.archive(tx, id))
+    const archived = await withTenant(actorFrom(locals), (tx) =>
+      titles.archive(tx, id),
+    )
+    if (!archived) {
+      return fail(400, {
+        message: "That job title no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 
@@ -137,24 +151,32 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry says what changed.
-      const before = id
-        ? ((await levels.listByTitle(tx)).find((r) => r.id === id) ?? null)
-        : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry says what changed.
+        const before = id
+          ? ((await levels.listByTitle(tx)).find((r) => r.id === id) ?? null)
+          : null
 
-      if (id) await levels.update(tx, id, input)
-      else await levels.create(tx, tenantId, input)
+        if (id) await levels.update(tx, id, input)
+        else await levels.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. Levels carry salary_ranges — the PUBLISHED pay bands, which are a disclosure under the EU Pay Transparency Directive.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "firm_job_levels",
-        entityId: id ?? null,
-        module: "firm-profile",
-        changes: audit.diff(before, input, LEVEL_FIELDS),
+        // SAME TRANSACTION. Levels carry salary_ranges — the PUBLISHED pay bands, which are a disclosure under the EU Pay Transparency Directive.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "firm_job_levels",
+          entityId: id ?? null,
+          module: "firm-profile",
+          changes: audit.diff(before, input, LEVEL_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // The job title this level hangs off was archived while the form was
+      // open — a stale tab, not an exotic case.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
@@ -164,8 +186,9 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing level."))
-    await withTenant(actorFrom(locals), async (tx) => {
-      await levels.archive(tx, id)
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await levels.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "firm_job_levels",
@@ -173,7 +196,13 @@ export const actions: Actions = {
         module: "firm-profile",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That level no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

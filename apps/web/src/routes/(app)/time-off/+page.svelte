@@ -2,8 +2,15 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, number } from "$lib/format"
   import type { TimeOffRequest } from "$lib/server/hr/hr_time_off_requests.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess, keepValues } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
@@ -140,7 +147,11 @@
                 <td class="text-base-content/70 text-sm">{r.reason ?? "—"}</td>
                 <td>
                   <div class="flex gap-1">
-                    <form method="POST" action="?/decide">
+                    <form
+                      method="POST"
+                      action="?/decide"
+                      use:enhance={keepValues}
+                    >
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="decision" value="approved" />
                       <button
@@ -216,14 +227,20 @@
         {calendarDate(denying.start_date, officeLocale(denying.location_code))}.
         The days go back to their balance.
       </p>
-      <form method="POST" action="?/decide" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/decide"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (denying = null))}
+      >
         <input type="hidden" name="id" value={denying.id} />
         <input type="hidden" name="decision" value="denied" />
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Reason</legend>
           <textarea
             name="denial_reason"
-            class="textarea w-full"
+            aria-invalid={err.aria("denial_reason")}
+            class={`textarea w-full ${err.textarea("denial_reason")}`}
             rows="2"
             placeholder="Shown to the requester"
           ></textarea>

@@ -44,6 +44,33 @@ type NumberOpts = Base & { min?: number; max?: number }
 /** `scale` is the column's, so a value the column would silently round is refused. */
 type DecimalOpts = NumberOpts & { scale: number; integerDigits?: number }
 
+/**
+ * A field name as a person would read it.
+ *
+ * `location_code` is "Location code"; the dotted names — `range.USD.max`,
+ * `name_i18n.en-GB` — keep their qualifier, because "Maximum" alone does not
+ * say WHICH salary band is wrong when a form carries one per currency.
+ */
+function labelFor(field: string): string {
+  const parts = field.split(".")
+  const last = parts[parts.length - 1].replace(/_/g, " ")
+  const label = last.charAt(0).toUpperCase() + last.slice(1)
+  // `range.USD.max` -> "Maximum (USD)". The middle segment is the currency or
+  // locale the field belongs to.
+  return parts.length > 2 ? `${label} (${parts[1]})` : label
+}
+
+/** "Check Location code and Timezone." — never a bare "something is wrong". */
+export function checkFields(fields: string[]): string {
+  if (fields.length === 0) return "Some fields need attention."
+  const labels = fields.map(labelFor)
+  const list =
+    labels.length === 1
+      ? labels[0]
+      : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`
+  return `Check ${list}.`
+}
+
 export class FormReader {
   private readonly failures = new Set<string>()
 
@@ -57,9 +84,20 @@ export class FormReader {
     return [...this.failures]
   }
 
-  /** Ready to spread into `fail(400, …)`. */
-  problem(message = "Some fields need attention.") {
-    return { errorFields: this.errorFields, message }
+  /**
+   * Ready to spread into `fail(400, …)`.
+   *
+   * The default message NAMES the fields. "Some fields need attention." is
+   * true of every rejection and actionable in none of them, and only three
+   * pages in the product render `errorFields` as a highlight — so on the rest
+   * the person was told something was wrong and not what. The names come from
+   * the same `errorFields` the highlight uses, so the two cannot disagree.
+   */
+  problem(message?: string) {
+    return {
+      errorFields: this.errorFields,
+      message: message ?? checkFields(this.errorFields),
+    }
   }
 
   /** For a rule this reader cannot express — a cycle, a clash, an overlap. */

@@ -1,4 +1,4 @@
-import { FormReader, formString } from "$lib/server/forms"
+import { FormReader, checkFields, formString } from "$lib/server/forms"
 import {
   sanitizeEmail,
   sanitizeName,
@@ -21,8 +21,6 @@ import type { EmployeeInput } from "./employees.repo"
  */
 const enums = allEnumerations()
 const valuesOf = (name: string) => enums.get(name) ?? []
-
-const nullIfBlank = (v: string) => (v.trim() === "" ? null : v.trim())
 
 /** An optional enum: blank means "not recorded", not an invalid value. */
 function optionalEnum(
@@ -88,13 +86,14 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
   const employeeId = formString(data, "employee_id").trim().toUpperCase()
   if (!/^[A-Z0-9-]{1,50}$/.test(employeeId)) errorFields.push("employee_id")
 
-  const startDate = formString(data, "start_date")
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) errorFields.push("start_date")
-
-  const endDate = nullIfBlank(formString(data, "end_date"))
-  if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-    errorFields.push("end_date")
-  } else if (endDate && endDate < startDate) {
+  // Through the reader, never a regex. `/^\d{4}-\d{2}-\d{2}$/` is a SHAPE
+  // check, and 2026-02-31 has the right shape — postgres.js then serialises it
+  // through a JS Date, which rolls it forward and stores 2026-03-03 with no
+  // error and a 303. Measured, not assumed (L67). `f.date` round-trips the
+  // parse, so the day has to be a day that exists.
+  const startDate = f.date("start_date", { required: true })
+  const endDate = f.date("end_date")
+  if (endDate && startDate && endDate < startDate) {
     // Leaving before starting is not a typo the database will catch: both are
     // valid DATEs and there is no CHECK across the pair.
     errorFields.push("end_date")
@@ -140,10 +139,7 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
     errorFields,
   )
 
-  const birthDate = nullIfBlank(formString(data, "birth_date"))
-  if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-    errorFields.push("birth_date")
-  }
+  const birthDate = f.date("birth_date")
 
   errorFields.push(...f.errorFields)
 
@@ -155,7 +151,7 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
       message:
         gone && unique.includes("end_date")
           ? "Someone who has left needs a leaving date."
-          : "Some fields need attention.",
+          : checkFields(unique),
     }
   }
 

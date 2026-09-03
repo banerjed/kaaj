@@ -3,6 +3,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { approxMoney, money, number } from "$lib/format"
   import {
+    COMPANY_SIZES,
     DATE_FORMATS,
     TIME_FORMATS,
     timezoneOptions,
@@ -10,12 +11,17 @@
     localeOptions,
     currencyOptions,
   } from "$lib/firm-profile/regional"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { keepValues } from "$lib/form-enhance"
 
   let { data, form } = $props()
 
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
+
   const company = $derived(form?.company ?? data.company)
-  const invalid = (name: string) =>
-    (form?.errorFields ?? []).includes(name) ? "input-error" : ""
 
   const zonesByRegion = timezoneOptions()
 
@@ -115,7 +121,12 @@
     </div>
   {/if}
 
-  <form method="POST" action="?/update" class="mt-4 grid gap-4 xl:grid-cols-3">
+  <form
+    method="POST"
+    action="?/update"
+    class="mt-4 grid gap-4 xl:grid-cols-3"
+    use:enhance={keepValues}
+  >
     <!-- Identity ------------------------------------------------------- -->
     <div class="card bg-base-100 shadow xl:col-span-2">
       <div class="card-body gap-4">
@@ -139,7 +150,8 @@
           <legend class="fieldset-legend">Company name</legend>
           <input
             name="company_name"
-            class={`input w-full ${invalid("company_name")}`}
+            aria-invalid={err.aria("company_name")}
+            class={`input w-full ${err.input("company_name")}`}
             value={company.company_name}
             required
           />
@@ -178,7 +190,8 @@
             <legend class="fieldset-legend">Legal entity name</legend>
             <input
               name="legal_entity_name"
-              class="input w-full"
+              aria-invalid={err.aria("legal_entity_name")}
+              class={`input w-full ${err.input("legal_entity_name")}`}
               value={company.legal_entity_name ?? ""}
             />
           </fieldset>
@@ -186,7 +199,8 @@
             <legend class="fieldset-legend">Industry</legend>
             <input
               name="industry"
-              class="input w-full"
+              aria-invalid={err.aria("industry")}
+              class={`input w-full ${err.input("industry")}`}
               value={company.industry ?? ""}
             />
           </fieldset>
@@ -196,13 +210,12 @@
           <legend class="fieldset-legend">Company size</legend>
           <select
             name="company_size"
-            class="select w-full"
+            aria-invalid={err.aria("company_size")}
+            class={`select w-full ${err.select("company_size")}`}
             value={company.company_size ?? ""}
           >
             <option value="">Not specified</option>
-            <!-- These five are a CHECK constraint on tenants.company_size, not
-                 a Postgres enum, so they are not in @kaaj/enums. -->
-            {#each ["1-10", "11-50", "51-200", "201-500", "501+"] as size (size)}
+            {#each COMPANY_SIZES as size (size)}
               <option value={size}>{size} people</option>
             {/each}
           </select>
@@ -270,7 +283,8 @@
             <legend class="fieldset-legend">Default language</legend>
             <select
               name="default_locale"
-              class={`select w-full ${invalid("default_locale")}`}
+              aria-invalid={err.aria("default_locale")}
+              class={`select w-full ${err.select("default_locale")}`}
               bind:value={locale}
             >
               {#each locales as l (l.code)}
@@ -283,7 +297,8 @@
             <legend class="fieldset-legend">Default currency</legend>
             <select
               name="default_currency"
-              class={`select w-full ${invalid("default_currency")}`}
+              aria-invalid={err.aria("default_currency")}
+              class={`select w-full ${err.select("default_currency")}`}
               bind:value={currency}
             >
               {#each currencies as code (code)}
@@ -318,7 +333,8 @@
             <legend class="fieldset-legend">Default timezone</legend>
             <select
               name="default_timezone"
-              class={`select w-full ${invalid("default_timezone")}`}
+              aria-invalid={err.aria("default_timezone")}
+              class={`select w-full ${err.select("default_timezone")}`}
               bind:value={timezone}
             >
               {#each zonesByRegion as group (group.region)}
@@ -335,7 +351,8 @@
             <legend class="fieldset-legend">Date format</legend>
             <select
               name="date_format"
-              class="select w-full"
+              aria-invalid={err.aria("date_format")}
+              class={`select w-full ${err.select("date_format")}`}
               value={company.date_format ?? "MM/DD/YYYY"}
             >
               {#each DATE_FORMATS as f (f)}
@@ -348,7 +365,8 @@
             <legend class="fieldset-legend">Time format</legend>
             <select
               name="time_format"
-              class="select w-full"
+              aria-invalid={err.aria("time_format")}
+              class={`select w-full ${err.select("time_format")}`}
               bind:value={timeFormat}
             >
               {#each TIME_FORMATS as f (f)}
@@ -369,7 +387,8 @@
             <legend class="fieldset-legend">Name</legend>
             <input
               name="primary_contact_name"
-              class="input w-full"
+              aria-invalid={err.aria("primary_contact_name")}
+              class={`input w-full ${err.input("primary_contact_name")}`}
               value={company.primary_contact_name ?? ""}
               autocomplete="name"
             />
@@ -378,10 +397,11 @@
             <legend class="fieldset-legend">Email</legend>
             <input
               name="primary_contact_email"
+              aria-invalid={err.aria("primary_contact_email")}
               type="email"
               inputmode="email"
               autocomplete="email"
-              class={`input w-full ${invalid("primary_contact_email")}`}
+              class={`input w-full ${err.input("primary_contact_email")}`}
               value={company.primary_contact_email ?? ""}
             />
           </fieldset>
@@ -389,10 +409,11 @@
             <legend class="fieldset-legend">Phone</legend>
             <input
               name="primary_contact_phone"
+              aria-invalid={err.aria("primary_contact_phone")}
               type="tel"
               inputmode="tel"
               autocomplete="tel"
-              class={`input w-full ${invalid("primary_contact_phone")}`}
+              class={`input w-full ${err.input("primary_contact_phone")}`}
               value={company.primary_contact_phone ?? ""}
             />
           </fieldset>

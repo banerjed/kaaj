@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 // The vocabulary comes from the repository, which mirrors
 // payroll_runs_status_is_known (20260831140000). One list, so the filter and
@@ -138,6 +139,9 @@ export const actions: Actions = {
           field: "pay_period_start",
         })
       }
+      // A schedule chosen from a list that has since changed.
+      const refused = constraintFailure(e)
+      if (refused) return refused
       throw e
     }
   },

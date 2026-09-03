@@ -1,8 +1,15 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   let paying = $state(false)
   let voiding = $state(false)
@@ -253,14 +260,20 @@
         is refused — an over-allocation is not something a later reconciliation can
         undo.
       </p>
-      <form method="POST" action="?/recordPayment" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/recordPayment"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (paying = false))}
+      >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Amount ({cur})</legend>
           <!-- inputmode, never type="number": the latter round-trips through
                a float in the browser before the server sees it. -->
           <input
             name="amount"
-            class="input w-full"
+            aria-invalid={err.aria("amount")}
+            class={`input w-full ${err.input("amount")}`}
             inputmode="decimal"
             required
             value={data.invoice.amount_due ?? ""}
@@ -270,14 +283,20 @@
           <legend class="fieldset-legend">Received on</legend>
           <input
             name="payment_date"
+            aria-invalid={err.aria("payment_date")}
             type="date"
-            class="input w-full"
+            class={`input w-full ${err.input("payment_date")}`}
             required
           />
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Method</legend>
-          <select name="payment_method" class="select w-full" required>
+          <select
+            name="payment_method"
+            aria-invalid={err.aria("payment_method")}
+            class={`select w-full ${err.select("payment_method")}`}
+            required
+          >
             {#each data.methods as m (m)}
               <option value={m} class="capitalize"
                 >{m.replace(/_/g, " ")}</option
@@ -287,7 +306,11 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Into</legend>
-          <select name="bank_account_id" class="select w-full">
+          <select
+            name="bank_account_id"
+            aria-invalid={err.aria("bank_account_id")}
+            class={`select w-full ${err.select("bank_account_id")}`}
+          >
             <option value="">Not recorded</option>
             {#each data.bankAccounts as b (b.id)}
               <option value={b.id}>{b.account_name}</option>
@@ -296,7 +319,12 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Reference</legend>
-          <input name="reference" class="input w-full" maxlength="100" />
+          <input
+            name="reference"
+            aria-invalid={err.aria("reference")}
+            class={`input w-full ${err.input("reference")}`}
+            maxlength="100"
+          />
         </fieldset>
         <div class="modal-action">
           <button
@@ -328,12 +356,18 @@
         the ledger, and reversing it is a credit note — a new document — not an
         edit to this one.
       </p>
-      <form method="POST" action="?/voidInvoice" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/voidInvoice"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (voiding = false))}
+      >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Why</legend>
           <textarea
             name="reason"
-            class="textarea w-full"
+            aria-invalid={err.aria("reason")}
+            class={`textarea w-full ${err.textarea("reason")}`}
             rows="2"
             maxlength="500"
             required

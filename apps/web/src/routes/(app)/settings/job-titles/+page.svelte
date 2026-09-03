@@ -3,8 +3,15 @@
   import { localeForCurrency, localised, money } from "$lib/format"
   import type { FirmJobTitle } from "$lib/server/firm-profile/firm_job_titles.repo"
   import type { FirmJobLevel } from "$lib/server/firm-profile/firm_job_levels.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -214,7 +221,12 @@
       <h3 class="text-lg font-medium">
         {currentTitle ? "Edit job title" : "New job title"}
       </h3>
-      <form method="POST" action="?/saveTitle" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/saveTitle"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editingTitle = null))}
+      >
         {#if currentTitle}
           <input type="hidden" name="id" value={currentTitle.id} />
         {/if}
@@ -226,7 +238,8 @@
           <legend class="fieldset-legend">Title</legend>
           <input
             name="title"
-            class="input w-full"
+            aria-invalid={err.aria("title")}
+            class={`input w-full ${err.input("title")}`}
             value={currentTitle?.title ?? ""}
             required
           />
@@ -256,7 +269,8 @@
           <legend class="fieldset-legend">EEOC category</legend>
           <select
             name="eeoc_category"
-            class="select w-full"
+            aria-invalid={err.aria("eeoc_category")}
+            class={`select w-full ${err.select("eeoc_category")}`}
             value={currentTitle?.eeoc_category ?? ""}
           >
             <option value="">Not specified</option>
@@ -300,7 +314,12 @@
       <h3 class="text-lg font-medium">
         {editingLevel.level ? "Edit level" : "New level"}
       </h3>
-      <form method="POST" action="?/saveLevel" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/saveLevel"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editingLevel = null))}
+      >
         {#if editingLevel.level}
           <input type="hidden" name="id" value={editingLevel.level.id} />
         {/if}
@@ -311,7 +330,8 @@
             <legend class="fieldset-legend">Level name</legend>
             <input
               name="level_name"
-              class="input w-full"
+              aria-invalid={err.aria("level_name")}
+              class={`input w-full ${err.input("level_name")}`}
               value={editingLevel.level?.level_name ?? ""}
               placeholder="L3"
               required
@@ -321,9 +341,10 @@
             <legend class="fieldset-legend">Sort order</legend>
             <input
               name="sort_order"
+              aria-invalid={err.aria("sort_order")}
               type="number"
               inputmode="numeric"
-              class="input w-full"
+              class={`input w-full ${err.input("sort_order")}`}
               value={editingLevel.level?.sort_order ?? 0}
             />
           </fieldset>

@@ -11,6 +11,7 @@ import {
   employeeEnums,
   parseEmployeeForm,
 } from "$lib/server/employee-profile/employee-form"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 /** /employees/new — module-employee-profile.md § Use Case 1: Onboarding. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -64,21 +65,30 @@ export const actions: Actions = {
       })
     }
 
-    const created = await withTenant(actorFrom(locals), async (tx) => {
-      const row = await employees.create(tx, tenantId, parsed.input, actorId)
+    let created
+    try {
+      created = await withTenant(actorFrom(locals), async (tx) => {
+        const row = await employees.create(tx, tenantId, parsed.input, actorId)
 
-      // The start of an employment relationship, and the creation of a
-      // person's record under GDPR. `from` is null throughout because the
-      // person did not exist a moment ago.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: "create",
-        entityType: "employees",
-        entityId: row.id,
-        module: "employee-profile",
-        changes: audit.diff(null, parsed.input, HIRE_FIELDS),
+        // The start of an employment relationship, and the creation of a
+        // person's record under GDPR. `from` is null throughout because the
+        // person did not exist a moment ago.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: "create",
+          entityType: "employees",
+          entityId: row.id,
+          module: "employee-profile",
+          changes: audit.diff(null, parsed.input, HIRE_FIELDS),
+        })
+        return row
       })
-      return row
-    })
+    } catch (e) {
+      // The unique employee_id this file's own comment predicts. It was an
+      // "Internal Error" page, with the whole hire form lost.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
 
     // Redirect to the record rather than re-rendering the form: the person now
     // exists, and leaving a populated create form on screen invites a second

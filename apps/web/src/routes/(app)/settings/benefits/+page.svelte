@@ -3,8 +3,15 @@
   import { localeForCurrency, localised, money } from "$lib/format"
   import type { BenefitsPackage } from "$lib/server/firm-profile/firm_benefits_packages.repo"
   import type { BenefitItem } from "$lib/server/firm-profile/firm_benefit_items.repo"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(data.tenant?.supported_locales ?? [locale])
@@ -232,7 +239,12 @@
       <h3 class="text-lg font-medium">
         {currentPackage ? "Edit package" : "New package"}
       </h3>
-      <form method="POST" action="?/savePackage" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/savePackage"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editingPackage = null))}
+      >
         {#if currentPackage}
           <input type="hidden" name="id" value={currentPackage.id} />
         {/if}
@@ -244,7 +256,8 @@
           <legend class="fieldset-legend">Package name</legend>
           <input
             name="name"
-            class="input w-full"
+            aria-invalid={err.aria("name")}
+            class={`input w-full ${err.input("name")}`}
             value={currentPackage?.name ?? ""}
             placeholder="Standard — full time"
             required
@@ -275,7 +288,8 @@
           <legend class="fieldset-legend">Description</legend>
           <textarea
             name="description"
-            class="textarea w-full"
+            aria-invalid={err.aria("description")}
+            class={`textarea w-full ${err.textarea("description")}`}
             rows="2"
             value={currentPackage?.description ?? ""}
           ></textarea>
@@ -305,7 +319,12 @@
       <h3 class="text-lg font-medium">
         {editingItem.item ? "Edit benefit" : "New benefit"}
       </h3>
-      <form method="POST" action="?/saveItem" class="mt-4 grid gap-4">
+      <form
+        method="POST"
+        action="?/saveItem"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (editingItem = null))}
+      >
         {#if editingItem.item}
           <input type="hidden" name="id" value={editingItem.item.id} />
         {/if}
@@ -320,7 +339,8 @@
             <legend class="fieldset-legend">Name</legend>
             <input
               name="benefit_name"
-              class="input w-full"
+              aria-invalid={err.aria("benefit_name")}
+              class={`input w-full ${err.input("benefit_name")}`}
               value={editingItem.item?.benefit_name ?? ""}
               required
             />
@@ -329,7 +349,8 @@
             <legend class="fieldset-legend">Type</legend>
             <select
               name="benefit_type"
-              class="select w-full"
+              aria-invalid={err.aria("benefit_type")}
+              class={`select w-full ${err.select("benefit_type")}`}
               value={editingItem.item?.benefit_type ?? "health"}
             >
               {#each data.benefitTypes as t (t)}
@@ -343,7 +364,8 @@
           <legend class="fieldset-legend">Carrier</legend>
           <input
             name="carrier_name"
-            class="input w-full"
+            aria-invalid={err.aria("carrier_name")}
+            class={`input w-full ${err.input("carrier_name")}`}
             value={editingItem.item?.carrier_name ?? ""}
           />
           <label class="label mt-2 cursor-pointer justify-start gap-3">

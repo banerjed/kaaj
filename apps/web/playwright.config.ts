@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test"
 /**
  * End-to-end tests: the only part of `./check` that loads a URL.
  *
- * The other sixteen steps prove the schema, the policies, the classifications
+ * The other seventeen steps prove the schema, the policies, the classifications
  * and the units. None of them renders a page — which is the shape of most of
  * `docs/10-lessons-learned.md`: a blank shell (L21), a long firm name pushing
  * the buttons off-screen (L11), contrast that only fails in one theme (L22),

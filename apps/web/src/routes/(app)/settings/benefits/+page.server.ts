@@ -8,6 +8,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
+import { constraintFailure } from "$lib/server/db/constraints"
 
 /** The benefit kinds the product understands. */
 const BENEFIT_TYPES = [
@@ -99,24 +100,31 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry says what changed.
-      const before = id
-        ? ((await packages.list(tx)).find((r) => r.id === id) ?? null)
-        : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry says what changed.
+        const before = id
+          ? ((await packages.list(tx)).find((r) => r.id === id) ?? null)
+          : null
 
-      if (id) await packages.update(tx, id, input)
-      else await packages.create(tx, tenantId, input)
+        if (id) await packages.update(tx, id, input)
+        else await packages.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. Eligibility rules decide who is entitled to what.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "firm_benefits_packages",
-        entityId: id ?? null,
-        module: "firm-profile",
-        changes: audit.diff(before, input, PACKAGE_FIELDS),
+        // SAME TRANSACTION. Eligibility rules decide who is entitled to what.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "firm_benefits_packages",
+          entityId: id ?? null,
+          module: "firm-profile",
+          changes: audit.diff(before, input, PACKAGE_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // A stale package reference; previously an "Internal Error" page.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
@@ -126,8 +134,9 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing package."))
-    await withTenant(actorFrom(locals), async (tx) => {
-      await packages.archive(tx, id)
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await packages.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "firm_benefits_packages",
@@ -135,7 +144,13 @@ export const actions: Actions = {
         module: "firm-profile",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That benefits package no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 
@@ -173,24 +188,31 @@ export const actions: Actions = {
       )
     }
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      // Read what it was BEFORE writing, so the entry says what changed.
-      const before = id
-        ? ((await items.list(tx)).find((r) => r.id === id) ?? null)
-        : null
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
+        // Read what it was BEFORE writing, so the entry says what changed.
+        const before = id
+          ? ((await items.list(tx)).find((r) => r.id === id) ?? null)
+          : null
 
-      if (id) await items.update(tx, id, input)
-      else await items.create(tx, tenantId, input)
+        if (id) await items.update(tx, id, input)
+        else await items.create(tx, tenantId, input)
 
-      // SAME TRANSACTION. costs_by_currency is the employer/employee split, which reaches payroll as a deduction.
-      await audit.record(tx, contextFrom(locals)!, {
-        action: id ? "update" : "create",
-        entityType: "firm_benefit_items",
-        entityId: id ?? null,
-        module: "firm-profile",
-        changes: audit.diff(before, input, ITEM_FIELDS),
+        // SAME TRANSACTION. costs_by_currency is the employer/employee split, which reaches payroll as a deduction.
+        await audit.record(tx, contextFrom(locals)!, {
+          action: id ? "update" : "create",
+          entityType: "firm_benefit_items",
+          entityId: id ?? null,
+          module: "firm-profile",
+          changes: audit.diff(before, input, ITEM_FIELDS),
+        })
       })
-    })
+    } catch (e) {
+      // The package this benefit hangs off was archived while the form was open.
+      const refused = constraintFailure(e)
+      if (refused) return refused
+      throw e
+    }
     return { saved: true }
   },
 
@@ -200,8 +222,9 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem("Missing benefit."))
-    await withTenant(actorFrom(locals), async (tx) => {
-      await items.archive(tx, id)
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      // Nothing matched: no audit entry, and no claim that it was archived.
+      if (!(await items.archive(tx, id))) return false
       await audit.record(tx, contextFrom(locals)!, {
         action: "archive",
         entityType: "firm_benefit_items",
@@ -209,7 +232,13 @@ export const actions: Actions = {
         module: "firm-profile",
         changes: { is_active: { from: "true", to: "false" } },
       })
+      return true
     })
+    if (!archived) {
+      return fail(400, {
+        message: "That benefit no longer exists. Reload the page.",
+      })
+    }
     return { archived: true }
   },
 }

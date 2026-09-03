@@ -442,6 +442,102 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L68 — A refused form closed the form, and an archive that did nothing said it had
+
+Two halves of the same failure: the page asserted an outcome that had not
+happened.
+
+**The modal.** Every settings form lives in `{#if editing}`, where `editing` is
+`$state`. A plain `<form method="POST">` reloads the page on submit, which
+reconstructs that state as `null` — so a `fail(400, …)` came back, the alert
+rendered, and *the form it described was gone*, along with everything typed
+into it. The action had named the offending field in `errorFields` the whole
+time; the control it named was no longer in the document. `departments` even
+returned `editing: id || "new"` in its failure payload, for a page that never
+read it.
+
+**The archive.** All eight `archive` actions ran `UPDATE … WHERE id = $1`
+against a repository returning `Promise<void>`, then answered
+`{ archived: true }`. An id matching nothing — a stale tab, a crafted POST, a
+row this actor's policies hide — is indistinguishable from a successful
+archive. Observed as the OWNER, so it is not an RLS artifact; it wrote an audit
+entry for the archiving too.
+
+`use:enhance` with `update({ reset: false })` fixes the first: no reload, so
+the modal stays and the typed values with it. **The default `update()` RESETS
+the form**, which discards the person's work at exactly the moment they need it
+back. The second is `RETURNING id` and a boolean the action checks before it
+claims anything, or writes an audit entry.
+
+**Ask what the page would look like if the write silently did nothing.** If
+that is identical to success, the page is not reporting the write, it is
+reporting that the request was received.
+
+### L67 — `/^\d{4}-\d{2}-\d{2}$/` accepted 2026-02-31, and it was stored as 2026-03-03
+
+`FormReader.date()` exists because a shape check is not a date check, and says
+so in its own docstring. Two files validated dates with the bare regex anyway —
+`employee-form.ts` for `start_date`, `end_date` and `birth_date`, and the pay
+schedules action for `anchor_date`.
+
+Posted against the running app:
+
+| Input | Result |
+|---|---|
+| `start_date=2026-02-31` | **303, saved, stored as `2026-03-03`** |
+| `end_date=2027-06-31` | **303, saved, stored as `2027-07-01`** |
+| `birth_date=2026-13-45` | 500 |
+
+The rollover is the dangerous one. `2026-02-31` has the right shape, so the
+regex passes it; postgres.js then serialises it through a JS `Date`, which
+rolls the overflow forward and hands Postgres a date that is real. Nothing
+errors, `saved: true`, and the hire date is three days wrong — which is a wrong
+first pay period and a wrong leave accrual. A browser's `<input type="date">`
+will not submit it, so it is crafted-POST reachable, exactly like L34.
+
+`f.date()` round-trips the parse — `new Date(t).toISOString().slice(0,10) ===
+raw` — so a day that does not exist cannot come back as one that does.
+
+**A regex validates a STRING. Only a parse validates a date.** The same is true
+of anything the driver serialises on the way out: the check has to be in the
+same units as the thing being stored.
+
+### L66 — Every database refusal a form could provoke was an "Internal Error" page
+
+`FormReader` is thorough about the shape of a value and knows nothing about
+what is already in the table. Everything in that second category reached the
+user as a crash page with the form's contents gone. Posted against the running
+app, all `500`:
+
+| Input | SQLSTATE |
+|---|---|
+| a second office with `location_code=US-NYC` | 23505 |
+| a second department with `department_code=ENG` | 23505 |
+| a second holiday with `holiday_id=US-NEWYEAR` | 23505 |
+| a second employee with `employee_id=E003` | 23505 |
+| `company_size=gigantic` — a CHECK, not an enum | 23514 |
+| a benefit item pointing at an archived package | 23503 |
+| a job level pointing at an archived title | 23503 |
+
+None is exotic. Four are "somebody already used that code", which is the most
+ordinary thing a person can do to a form, and two are a stale tab. Only
+`projects.repo` and `payroll_runs.repo` mapped a SQLSTATE to a sentence, and
+`firm_locations.repo` carried a comment *admitting* a second headquarters
+raises a raw constraint violation.
+
+The registry in `$lib/server/db/constraints.ts` answers them, keyed on
+**`constraint_name`, never the message text**: the message is prose Postgres
+composes and may change, the name is in the migration, and SQLSTATE 23505
+alone cannot say which field to put the cursor on. An unregistered constraint
+still crashes loudly rather than collapsing into "something went wrong" — that
+is what gets the next one registered instead of hidden.
+
+`./check`'s `refusals have a message` step compares the registry against the
+live schema in both directions, so a new UNIQUE or CHECK on a form-written
+table fails until somebody decides what the person should be told. This is the
+third time a rule that existed only in prose turned out to be followed
+unevenly (L54, L48).
+
 ### L65 — A test that waits for nothing can pass before the code runs
 
 Three theme cases asserted `data-theme` is null, and would have passed against

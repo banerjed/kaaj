@@ -1,8 +1,13 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
 
   let { data, form } = $props()
+
+  // Which field to put the highlight on. The action names them in
+  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
+  const err = $derived(fieldErrors(form))
 
   let addingTask = $state(false)
   let editing = $state(false)
@@ -232,7 +237,8 @@
                       <input type="hidden" name="task_id" value={t.id} />
                       <select
                         name="status"
-                        class="select select-sm capitalize"
+                        aria-invalid={err.aria("status")}
+                        class={`select select-sm capitalize ${err.select("status")}`}
                         aria-label={`Status of ${t.task_name}`}
                         value={t.status}
                         onchange={(e) => e.currentTarget.form?.requestSubmit()}
@@ -284,7 +290,8 @@
           <legend class="fieldset-legend">Name</legend>
           <input
             name="task_name"
-            class="input w-full"
+            aria-invalid={err.aria("task_name")}
+            class={`input w-full ${err.input("task_name")}`}
             maxlength="200"
             required
             autocomplete="off"
@@ -293,7 +300,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Status</legend>
-          <select name="status" class="select w-full" required>
+          <select
+            name="status"
+            aria-invalid={err.aria("status")}
+            class={`select w-full ${err.select("status")}`}
+            required
+          >
             {#each data.taskStatuses as s (s)}
               <option value={s} selected={s === "todo"} class="capitalize">
                 {label(s)}
@@ -304,7 +316,11 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Priority</legend>
-          <select name="priority" class="select w-full">
+          <select
+            name="priority"
+            aria-invalid={err.aria("priority")}
+            class={`select w-full ${err.select("priority")}`}
+          >
             {#each data.taskPriorities as p (p)}
               <option value={p} selected={p === "medium"} class="capitalize">
                 {p}
@@ -315,7 +331,11 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Assignee</legend>
-          <select name="assigned_to" class="select w-full">
+          <select
+            name="assigned_to"
+            aria-invalid={err.aria("assigned_to")}
+            class={`select w-full ${err.select("assigned_to")}`}
+          >
             <option value="">Unassigned</option>
             {#each data.assignees as a (a.id)}
               <option value={a.id}>{a.name}</option>
@@ -327,19 +347,30 @@
           <legend class="fieldset-legend">Estimated hours</legend>
           <input
             name="estimated_hours"
-            class="input w-full"
+            aria-invalid={err.aria("estimated_hours")}
+            class={`input w-full ${err.input("estimated_hours")}`}
             inputmode="decimal"
           />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Starts</legend>
-          <input name="start_date" type="date" class="input w-full" />
+          <input
+            name="start_date"
+            aria-invalid={err.aria("start_date")}
+            type="date"
+            class={`input w-full ${err.input("start_date")}`}
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Due</legend>
-          <input name="due_date" type="date" class="input w-full" />
+          <input
+            name="due_date"
+            aria-invalid={err.aria("due_date")}
+            type="date"
+            class={`input w-full ${err.input("due_date")}`}
+          />
         </fieldset>
 
         <label class="label cursor-pointer justify-start gap-2 sm:col-span-2">
@@ -357,7 +388,8 @@
           <legend class="fieldset-legend">Description</legend>
           <textarea
             name="description"
-            class="textarea w-full"
+            aria-invalid={err.aria("description")}
+            class={`textarea w-full ${err.textarea("description")}`}
             rows="2"
             maxlength="2000"
           ></textarea>
@@ -400,7 +432,8 @@
           <legend class="fieldset-legend">Name</legend>
           <input
             name="project_name"
-            class="input w-full"
+            aria-invalid={err.aria("project_name")}
+            class={`input w-full ${err.input("project_name")}`}
             maxlength="200"
             required
             value={data.project.project_name}
@@ -409,7 +442,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Status</legend>
-          <select name="status" class="select w-full" required>
+          <select
+            name="status"
+            aria-invalid={err.aria("status")}
+            class={`select w-full ${err.select("status")}`}
+            required
+          >
             {#each data.projectStatuses as s (s)}
               <option
                 value={s}
@@ -422,7 +460,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Priority</legend>
-          <select name="priority" class="select w-full" required>
+          <select
+            name="priority"
+            aria-invalid={err.aria("priority")}
+            class={`select w-full ${err.select("priority")}`}
+            required
+          >
             {#each data.projectPriorities as p (p)}
               <option
                 value={p}
@@ -435,7 +478,12 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Health</legend>
-          <select name="health_status" class="select w-full" required>
+          <select
+            name="health_status"
+            aria-invalid={err.aria("health_status")}
+            class={`select w-full ${err.select("health_status")}`}
+            required
+          >
             {#each data.projectHealths as h (h)}
               <option
                 value={h}
@@ -450,8 +498,9 @@
           <legend class="fieldset-legend">Target end</legend>
           <input
             name="target_end_date"
+            aria-invalid={err.aria("target_end_date")}
             type="date"
-            class="input w-full"
+            class={`input w-full ${err.input("target_end_date")}`}
             value={data.project.target_end_date ?? ""}
           />
         </fieldset>
@@ -460,7 +509,8 @@
           <legend class="fieldset-legend">Budget</legend>
           <input
             name="budget"
-            class="input w-full"
+            aria-invalid={err.aria("budget")}
+            class={`input w-full ${err.input("budget")}`}
             inputmode="decimal"
             value={data.project.budget ?? ""}
           />
@@ -470,7 +520,8 @@
           <legend class="fieldset-legend">Currency</legend>
           <input
             name="currency"
-            class="input w-full uppercase"
+            aria-invalid={err.aria("currency")}
+            class={`input w-full uppercase ${err.input("currency")}`}
             maxlength="3"
             required
             value={data.project.currency ?? "USD"}
@@ -481,7 +532,8 @@
           <legend class="fieldset-legend">Hourly rate</legend>
           <input
             name="hourly_rate"
-            class="input w-full"
+            aria-invalid={err.aria("hourly_rate")}
+            class={`input w-full ${err.input("hourly_rate")}`}
             inputmode="decimal"
             value={data.project.hourly_rate ?? ""}
           />

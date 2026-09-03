@@ -1,5 +1,6 @@
 <script lang="ts">
   import { timezoneOptions } from "$lib/firm-profile/regional"
+  import { fieldErrors } from "$lib/form-errors"
 
   /**
    * One form for creating and editing. The alternative — two nearly-identical
@@ -34,8 +35,7 @@
   } = $props()
 
   const zonesByRegion = timezoneOptions()
-  const invalid = (n: string) =>
-    (form?.errorFields ?? []).includes(n) ? "input-error" : ""
+  const err = $derived(fieldErrors(form))
 
   const value = (key: string) => (employee?.[key] as string | null) ?? ""
   const label = (v: string) => v.replaceAll("_", " ")
@@ -72,7 +72,8 @@
           <legend class="fieldset-legend">First name</legend>
           <input
             name="first_name"
-            class={`input w-full ${invalid("first_name")}`}
+            aria-invalid={err.aria("first_name")}
+            class={`input w-full ${err.input("first_name")}`}
             value={value("first_name")}
             autocomplete="given-name"
             required
@@ -82,7 +83,8 @@
           <legend class="fieldset-legend">Middle name</legend>
           <input
             name="middle_name"
-            class="input w-full"
+            aria-invalid={err.aria("middle_name")}
+            class={`input w-full ${err.input("middle_name")}`}
             value={value("middle_name")}
             autocomplete="additional-name"
           />
@@ -91,7 +93,8 @@
           <legend class="fieldset-legend">Last name</legend>
           <input
             name="last_name"
-            class={`input w-full ${invalid("last_name")}`}
+            aria-invalid={err.aria("last_name")}
+            class={`input w-full ${err.input("last_name")}`}
             value={value("last_name")}
             autocomplete="family-name"
             required
@@ -104,7 +107,8 @@
           <legend class="fieldset-legend">Preferred name</legend>
           <input
             name="preferred_name"
-            class="input w-full"
+            aria-invalid={err.aria("preferred_name")}
+            class={`input w-full ${err.input("preferred_name")}`}
             value={value("preferred_name")}
             placeholder="What they go by"
           />
@@ -113,7 +117,8 @@
           <legend class="fieldset-legend">Employee ID</legend>
           <input
             name="employee_id"
-            class={`input w-full font-mono uppercase ${invalid("employee_id")}`}
+            aria-invalid={err.aria("employee_id")}
+            class={`input w-full font-mono uppercase ${err.input("employee_id")}`}
             value={value("employee_id")}
             placeholder="E013"
             required
@@ -123,8 +128,9 @@
           <legend class="fieldset-legend">Date of birth</legend>
           <input
             name="birth_date"
+            aria-invalid={err.aria("birth_date")}
             type="date"
-            class={`input w-full ${invalid("birth_date")}`}
+            class={`input w-full ${err.input("birth_date")}`}
             value={value("birth_date")}
           />
         </fieldset>
@@ -135,10 +141,11 @@
           <legend class="fieldset-legend">Email</legend>
           <input
             name="email"
+            aria-invalid={err.aria("email")}
             type="email"
             inputmode="email"
             autocomplete="email"
-            class={`input w-full ${invalid("email")}`}
+            class={`input w-full ${err.input("email")}`}
             value={value("email")}
             required
           />
@@ -147,10 +154,11 @@
           <legend class="fieldset-legend">Phone</legend>
           <input
             name="phone"
+            aria-invalid={err.aria("phone")}
             type="tel"
             inputmode="tel"
             autocomplete="tel"
-            class={`input w-full ${invalid("phone")}`}
+            class={`input w-full ${err.input("phone")}`}
             value={value("phone")}
           />
         </fieldset>
@@ -185,7 +193,8 @@
           <legend class="fieldset-legend">Status</legend>
           <select
             name="employment_status"
-            class={`select w-full ${invalid("employment_status")}`}
+            aria-invalid={err.aria("employment_status")}
+            class={`select w-full ${err.select("employment_status")}`}
             bind:value={status}
           >
             {#each enums.employmentStatus as s (s)}
@@ -197,7 +206,8 @@
           <legend class="fieldset-legend">Type</legend>
           <select
             name="employment_type"
-            class="select w-full"
+            aria-invalid={err.aria("employment_type")}
+            class={`select w-full ${err.select("employment_type")}`}
             value={value("employment_type") || "full_time"}
           >
             {#each enums.employmentType as t (t)}
@@ -209,7 +219,8 @@
           <legend class="fieldset-legend">Pay frequency</legend>
           <select
             name="pay_frequency"
-            class="select w-full"
+            aria-invalid={err.aria("pay_frequency")}
+            class={`select w-full ${err.select("pay_frequency")}`}
             value={value("pay_frequency")}
           >
             <option value="">Not set</option>
@@ -225,8 +236,9 @@
           <legend class="fieldset-legend">Start date</legend>
           <input
             name="start_date"
+            aria-invalid={err.aria("start_date")}
             type="date"
-            class={`input w-full ${invalid("start_date")}`}
+            class={`input w-full ${err.input("start_date")}`}
             value={value("start_date")}
             required
           />
@@ -237,8 +249,9 @@
           </legend>
           <input
             name="end_date"
+            aria-invalid={err.aria("end_date")}
             type="date"
-            class={`input w-full ${invalid("end_date")}`}
+            class={`input w-full ${err.input("end_date")}`}
             value={value("end_date")}
             required={isLeaver}
           />
@@ -250,7 +263,8 @@
           <legend class="fieldset-legend">Department</legend>
           <select
             name="department_code"
-            class="select w-full"
+            aria-invalid={err.aria("department_code")}
+            class={`select w-full ${err.select("department_code")}`}
             value={value("department_code")}
           >
             <option value="">Not assigned</option>
@@ -263,7 +277,8 @@
           <legend class="fieldset-legend">Manager</legend>
           <select
             name="manager_id"
-            class={`select w-full ${invalid("manager_id")}`}
+            aria-invalid={err.aria("manager_id")}
+            class={`select w-full ${err.select("manager_id")}`}
             value={value("manager_id")}
           >
             <option value="">None</option>
@@ -279,7 +294,8 @@
           <legend class="fieldset-legend">Job title</legend>
           <input
             name="job_title"
-            class="input w-full"
+            aria-invalid={err.aria("job_title")}
+            class={`input w-full ${err.input("job_title")}`}
             value={value("job_title")}
             list="job-titles"
           />
@@ -293,7 +309,8 @@
           <legend class="fieldset-legend">Level</legend>
           <input
             name="job_level"
-            class="input w-full"
+            aria-invalid={err.aria("job_level")}
+            class={`input w-full ${err.input("job_level")}`}
             value={value("job_level")}
             placeholder="L3"
           />
@@ -305,7 +322,8 @@
           <legend class="fieldset-legend">Office</legend>
           <select
             name="location_code"
-            class="select w-full"
+            aria-invalid={err.aria("location_code")}
+            class={`select w-full ${err.select("location_code")}`}
             value={locationCode}
             onchange={(e) => onLocationChange(e.currentTarget.value)}
           >
@@ -317,7 +335,12 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Timezone</legend>
-          <select name="timezone" class="select w-full" bind:value={timezone}>
+          <select
+            name="timezone"
+            aria-invalid={err.aria("timezone")}
+            class={`select w-full ${err.select("timezone")}`}
+            bind:value={timezone}
+          >
             <option value="">Not set</option>
             {#each zonesByRegion as group (group.region)}
               <optgroup label={group.region}>
@@ -337,7 +360,8 @@
         <legend class="fieldset-legend">Introduction</legend>
         <textarea
           name="introduction"
-          class="textarea w-full"
+          aria-invalid={err.aria("introduction")}
+          class={`textarea w-full ${err.textarea("introduction")}`}
           rows="3"
           value={value("introduction")}
         ></textarea>
