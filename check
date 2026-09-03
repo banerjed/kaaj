@@ -111,6 +111,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "enum fixture is current"   bash -c 'pnpm --filter @kaaj/enums build >/dev/null && git diff --quiet packages/enums/dist/expected-enums.sql'
   step "actions are authorized"    node scripts/verify-authz.mjs
   step "queries carry the actor"   node scripts/verify-actor.mjs
+  step "no backtick in SQL"       node scripts/verify-no-backtick-in-sql.mjs
   step "no unprotected fallback"   node scripts/verify-no-unprotected-fallback.mjs
   step "sensitive cols classified" node scripts/verify-matrix-complete.mjs
   step "writes are audited"       node scripts/verify-audit-coverage.mjs

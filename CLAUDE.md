@@ -35,7 +35,7 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** Nineteen steps, about 25 seconds; `./check --all` adds the
+production.** 21 steps, about 25 seconds; `./check --all` adds the
 browser suite. Non-zero exit means do not
 push.
 
@@ -61,11 +61,13 @@ directory in the repo.
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 45 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
+| no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
 | writes are audited | every action is in the audit register, either list | 31 + 6 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 23 |
 | service role quarantined | nothing outside a committed list bypasses RLS | 5 files |
+| product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | security | authorization, PII and tenant isolation, both suites | 357 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 964 tests |
