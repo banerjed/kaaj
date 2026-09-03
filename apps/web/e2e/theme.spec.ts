@@ -41,7 +41,7 @@ async function visitWithStoredConfig(
   page: Page,
   path: string,
   stored: string,
-  settlesOn: "light" | "dark" | "system",
+  settlesOn: "nord" | "night" | "system",
 ) {
   await page.goto(path)
   await page.evaluate(([key, v]) => window.localStorage.setItem(key, v), [
@@ -69,15 +69,34 @@ const themeAttr = (page: Page) =>
  * against body measures nothing. `--color-base-100` is read too because it is
  * the more direct evidence: the attribute can be set for a theme whose
  * variables never compiled, and the page then renders with no palette.
+ *
+ * The token's VALUE is deliberately not asserted. These are daisyUI's built-in
+ * `nord` and `night` palettes now, so pinning a literal here would re-create
+ * the thing removing the hand-written themes was meant to end: a copy of
+ * someone else's palette, in our repo, going stale silently. What matters is
+ * that the variable resolved at all, and `brightness` below is what says WHICH
+ * palette resolved.
  */
 const surface = (page: Page) =>
   page.evaluate(() => {
     const root = document.documentElement
     const bg = getComputedStyle(root).backgroundColor
-    const channels = (bg.match(/\d+/g) ?? []).slice(0, 3).map(Number)
+
+    // Converted by the BROWSER, never parsed here. daisyUI's built-in themes
+    // resolve to `oklch(0.20768 0.039 265.754)`, and the regex this used to
+    // run over `rgb(...)` pulled "20768" out of that as a channel and called
+    // a near-black surface a brightness of 20788. Painting the colour and
+    // reading the pixel is the only form that survives a colour-space change.
+    const canvas = document.createElement("canvas")
+    canvas.width = canvas.height = 1
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, 1, 1)
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+
     return {
       bg,
-      brightness: channels.reduce((a, b) => a + b, 0),
+      brightness: r + g + b,
       base100: getComputedStyle(root)
         .getPropertyValue("--color-base-100")
         .trim(),
@@ -88,18 +107,18 @@ test("light is applied, and the page is actually painted", async ({ page }) => {
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "light" }),
-    "light",
+    JSON.stringify({ theme: "nord" }),
+    "nord",
   )
 
-  expect(await themeAttr(page)).toBe("light")
+  expect(await themeAttr(page)).toBe("nord")
 
   const { brightness, base100 } = await surface(page)
   expect(
     brightness,
     "light theme did not paint a light surface",
   ).toBeGreaterThan(600)
-  expect(base100, "--color-base-100 did not resolve").toBe("#ffffff")
+  expect(base100, "--color-base-100 did not resolve").not.toBe("")
 })
 
 test("dark is applied, and paints a dark surface rather than a light one", async ({
@@ -108,11 +127,11 @@ test("dark is applied, and paints a dark surface rather than a light one", async
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "dark" }),
-    "dark",
+    JSON.stringify({ theme: "night" }),
+    "night",
   )
 
-  expect(await themeAttr(page)).toBe("dark")
+  expect(await themeAttr(page)).toBe("night")
 
   // A dark theme that resolved to the light palette would still be "painted".
   // The channel sum is what distinguishes applied from merely present.
@@ -120,7 +139,7 @@ test("dark is applied, and paints a dark surface rather than a light one", async
   expect(brightness, `dark theme painted a light surface (${bg})`).toBeLessThan(
     260,
   )
-  expect(base100).not.toBe("#ffffff")
+  expect(base100, "--color-base-100 did not resolve").not.toBe("")
 })
 
 test("system sets no data-theme at all", async ({ page }) => {
@@ -175,8 +194,8 @@ test("the sidebar follows the theme rather than carrying its own", async ({
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "light" }),
-    "light",
+    JSON.stringify({ theme: "nord" }),
+    "nord",
   )
   const sidebarTheme = await page
     .locator("#layout-sidebar")
@@ -193,8 +212,8 @@ test("theme selection lives in the profile drawer and works", async ({
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "light" }),
-    "light",
+    JSON.stringify({ theme: "nord" }),
+    "nord",
   )
 
   // The topbar trigger specifically. Three labels drive this drawer — trigger,
@@ -203,8 +222,10 @@ test("theme selection lives in the profile drawer and works", async ({
   await page.locator('label[for="topbar-profile-drawer"]').first().click()
   await expect(page.getByText("Appearance")).toBeVisible()
 
+  // The LABEL is Dark; the value written to `data-theme` is daisyUI's built-in
+  // theme name. This assertion is what proves the two stay separate.
   await page.getByRole("button", { name: "Dark", exact: true }).click()
-  await expect.poll(() => themeAttr(page), { timeout: 5_000 }).toBe("dark")
+  await expect.poll(() => themeAttr(page), { timeout: 5_000 }).toBe("night")
 
   await page.getByRole("button", { name: "System", exact: true }).click()
   await expect.poll(() => themeAttr(page), { timeout: 5_000 }).toBeNull()

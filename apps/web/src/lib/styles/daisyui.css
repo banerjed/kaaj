@@ -1,102 +1,29 @@
+/*
+ * The two palettes, taken from daisyUI rather than hand-written.
+ *
+ * `nord` for light and `night` for dark, both BUILT IN. This file used to
+ * carry 98 lines of hand-maintained token values, which is how the palette
+ * drifted out of contrast compliance without anyone noticing: three
+ * `--color-*-content` tokens paired white text with mid-bright colours, so
+ * `btn-info`, `alert-success` and every solid coloured badge failed WCAG AA in
+ * the light theme (docs/07-app-provenance.md). Owning a copy of a palette
+ * means owning its bugs; the built-ins are daisyUI's to keep correct.
+ *
+ * `--prefersdark` on `night` is deliberate and is what makes the third option
+ * work. `system` is not a palette — ConfigProvider REMOVES `data-theme`
+ * entirely for it, and with no attribute present `prefersdark` is the only
+ * thing that can follow the OS. daisyUI's guidance warns against combining
+ * `--prefersdark` with a theme controller, because a controller offering only
+ * light and dark would start dark and then toggle dark-to-dark; this app
+ * offers a real `system` choice, so the warning does not apply. `theme.spec.ts`
+ * asserts all three states.
+ *
+ * `exclude: rootscrollgutter` is unchanged: daisyUI's scroll-gutter rule fights
+ * the app shell's own overflow handling.
+ */
 @plugin "daisyui" {
+  themes:
+    nord --default,
+    night --prefersdark;
   exclude: rootscrollgutter;
-}
-
-@plugin "daisyui/theme" {
-  name: "dark";
-  color-scheme: dark;
-  prefersdark: true;
-
-  /* == Layout Colors == */
-  --root-bg: #121416;
-  --layout-sidebar-background: #181c20;
-  --layout-topbar-background: #181b1f;
-
-  /* == Base Colors == */
-  --color-base-100: #181c20;
-  --color-base-200: #22262a;
-  --color-base-300: #2c3034;
-  --color-base-content: #f0f4f8;
-
-  /* == Colors == */
-  --color-primary: #378dff;
-  --color-primary-content: #101418;
-  --color-secondary: #b071ff;
-  --color-secondary-content: #101418;
-  --color-accent: #00d3bb;
-  --color-accent-content: #f3fbf6;
-  --color-neutral: #dce1e6;
-  --color-neutral-content: #1e2832;
-  --color-info: #14b4ff;
-  --color-info-content: #ffffff;
-  --color-success: #0bbf58;
-  --color-success-content: #ffffff;
-  --color-warning: #f5a524;
-  --color-warning-content: #150a00;
-  --color-error: #f31260;
-  --color-error-content: #ffffff;
-
-  /* == Sizes == */
-  --radius-field: 0.25rem;
-  --radius-box: 0.25rem;
-  --rounded-box: 0.25rem;
-  --radius-selector: 0.25rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --card-p: 20px;
-  --card-fs: var(--text-base);
-
-  /* == Other Options == */
-  --depth: 0;
-  --noise: 0;
-}
-@plugin "daisyui/theme" {
-  name: "light";
-  default: true;
-  color-scheme: light;
-
-  /* == Layout Colors == */
-  --root-bg: #fafbfc;
-  --layout-sidebar-background: #ffffff;
-  --layout-topbar-background: #ffffff;
-
-  /* == Base Colors == */
-  --color-base-100: #ffffff;
-  --color-base-200: #eef0f2;
-  --color-base-300: #dcdee0;
-  --color-base-content: #1e2328;
-
-  /* == Colors == */
-  --color-primary: #1169dd;
-  --color-primary-content: #ffffff;
-  --color-secondary: #9050da;
-  --color-secondary-content: #ffffff;
-  --color-accent: #00d3bb;
-  --color-accent-content: #f3fbf6;
-  --color-neutral: #1e2832;
-  --color-neutral-content: #fafcff;
-  --color-info: #14b4ff;
-  --color-info-content: #ffffff;
-  --color-success: #0bbf58;
-  --color-success-content: #ffffff;
-  --color-warning: #f5a524;
-  --color-warning-content: #150a00;
-  --color-error: #f31260;
-  --color-error-content: #ffffff;
-
-  /* == Sizes == */
-  --radius-field: 0.25rem;
-  --radius-box: 0.25rem;
-  --rounded-box: 0.25rem;
-  --radius-selector: 0.25rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --card-p: 20px;
-  --card-fs: var(--text-base);
-
-  /* == Other Options == */
-  --depth: 0;
-  --noise: 0;
 }

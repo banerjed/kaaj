@@ -32,7 +32,10 @@
     The classes are unchanged, so it looks identical. Found by the first e2e
     run, which asks for the heading by ROLE rather than by text (L64).
   -->
-  <h1 class="text-lg font-medium">{title}</h1>
+  <!-- font-display is Instrument Serif, which ships ONLY weight 400 — so no
+       font-medium here, or the browser synthesises a fake bold. Size carries
+       the emphasis instead. -->
+  <h1 class="font-display text-xl">{title}</h1>
   {#if centerItem}
     {@render centerItem()}
   {/if}

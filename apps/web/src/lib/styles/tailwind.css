@@ -1,26 +1,22 @@
 /*** Tailwind CSS Presets ***/
 @import "tailwindcss";
 
-/** Dark Variant with theme & system mode **/
 /*
- * Two themes, and `system`. The structure matters more than the names: an
- * EXPLICIT dark choice is dark, an EXPLICIT light choice is never dark, and
- * anything else — which is `system`, the default — follows the OS.
+ * There is no `dark:` variant override here, deliberately.
  *
- * The `:not([data-theme="light"] *)` arm is what makes the second clause
- * correct. Dropping it and testing only `prefers-color-scheme` would make a
- * user who chose Light get dark styling on a dark OS.
+ * One used to redefine `dark:` so it read `data-theme` and handled the
+ * three-state light/dark/system model. It served exactly ONE utility in the
+ * whole repo — `dark:invert`, inside `plugins/flatpickr.css`, which is not
+ * imported and whose library is not installed. Twelve lines of custom CSS for
+ * a dead file.
+ *
+ * The colours do not need it: daisyUI resolves them from the nearest
+ * `data-theme`, and `system` works because ConfigProvider REMOVES the
+ * attribute and `night` carries `--prefersdark`. If a `dark:` utility is ever
+ * genuinely wanted, Tailwind's built-in variant already keys on
+ * `prefers-color-scheme` — which is wrong for an explicit Light choice on a
+ * dark OS, so redefine it THEN, with a caller to justify it.
  */
-@variant dark {
-  &:where([data-theme="dark"] *) {
-    @slot;
-  }
-  &:not([data-theme="light"] *) {
-    @media (prefers-color-scheme: dark) {
-      @slot;
-    }
-  }
-}
 
 /** Container utility **/
 @utility container {

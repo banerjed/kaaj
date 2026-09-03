@@ -442,6 +442,42 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L73 — Owning a copy of someone else's palette means owning its bugs
+
+Two themes lived as ~98 lines of hand-written tokens copied out of the Nexus
+template. Nobody had measured them. `--color-info-content`,
+`--color-success-content` and `--color-error-content` were all `#ffffff`,
+paired with mid-bright colours white cannot sit on, so 3 of 4 solid coloured
+badges — and every solid `btn-*` and `alert-*` on the same pairs — failed WCAG
+AA in the light theme. `--color-warning-content` was near-black, which is the
+only reason `warning` passed and the only reason the problem was visible at all
+when soft badges were trialled against it.
+
+Replacing both with daisyUI's built-in `nord` and `night` fixed every one of
+them and deleted the 98 lines. Nothing was "fixed" in the sense of tuning a
+colour; the copy was simply given back to the people who maintain it.
+
+**A vendored palette is a dependency you have hidden from your dependency
+manager.** It cannot be updated, nothing tells you it is stale, and no test
+covers a colour. The same argument applies to a copied icon set, a copied type
+scale, or any other design token block.
+
+Two things fell out of it. `theme.spec.ts` asserted `--color-base-100` equalled
+`#ffffff` — a literal from the palette we no longer own, which is the coupling
+the change existed to remove; it now asserts the variable RESOLVED and lets the
+painted brightness say which palette applied. And the theme NAMES are now
+daisyUI's, written to `data-theme`, while the labels a person reads stay Light
+and Dark — a stored `light` or `dark` from before falls through the existing
+unknown-theme guard to `system`, so no migration was needed.
+
+**Every hand-parsed colour string in this session was wrong.** Three separate
+times: `oklab()` components read as RGB 0-255 (reported 10.28:1 for a 1.94:1
+pair), an alpha colour composited over white instead of its real backdrop
+(1.4:1 for 4.63:1), and a `/\d+/g` channel regex over `oklch(0.20768 …)`
+scoring a near-black surface at brightness 20788. Paint the colour to a canvas
+and read the pixel; the browser is the only correct parser, and it is three
+lines.
+
 ### L72 — We drifted from the template's badge idiom, and only a third tool saw it
 
 The complaint was "lots of very complex class definitions, against the grain of

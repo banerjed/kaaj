@@ -81,19 +81,41 @@ fine; undocumented divergence is drift:
 | Divergence | Why |
 |---|---|
 | The firm's name sits in the topbar, beside the menu toggle, at `text-xl` | Nexus puts its search palette there and shows no tenant identity anywhere — it is a single-tenant demo. This is multi-tenant software where an admin may hold accounts in several firms, and "which company am I editing?" must be answerable without opening a menu. The sidebar's `text-xs` line under the user's name is not an answer |
-| Status badges are SOLID; Nexus uses `badge-soft` (28 times, and solid never) | Measured in this app's light theme, soft is worse on every tone and turns the only passing one into the worst failure — warning goes 9.57:1 to 1.94:1, success 2.44 to 2.28, error 4.14 to 3.75, info 2.33 to 2.19. The accessibility floor is this document's own stated divergence, and L22 says the light theme is the half that fails. See the note below: the underlying problem is the theme tokens, not the badge style |
+| Status badges are SOLID; Nexus uses `badge-soft` (28 times, and solid never) | `badge-soft` fails WCAG AA in the light theme, and re-measured under `nord` it still does: 1.69:1 success, 1.32:1 warning, 3.27:1 error, 2.31:1 info, against solid's 9.60 / 12.24 / 4.97 / 7.05. It passes in `night` (5.83–9.28), but a badge style cannot be theme-dependent. The accessibility floor is this document's own stated divergence, and L22 says the light theme is the half that fails |
 
-**The badge palette does not meet WCAG AA in the light theme, and this predates
-the divergence above.** `--color-info-content`, `--color-success-content` and
-`--color-error-content` are all `#ffffff`, paired with mid-bright colours that
-white cannot sit on: white on `#14b4ff` is 2.33:1, on `#0bbf58` is 2.44:1, and
-on `#f31260` is 4.14:1, against the 4.5:1 AA needs. `--color-warning-content` is
-`#150a00` — near-black — which is why warning is the one tone that passes at
-9.57:1. The same pairs back every solid `btn-*` and `alert-*`, so this is a
-theme-token decision rather than a badge one, and it is not fixed here: darkening
-three content colours changes the product's palette and is the owner's call.
-Measured with the browser converting each computed colour to sRGB — parsing
-daisyUI's `oklab()` strings by hand produces confident nonsense.
+| Typography is Inter + Instrument Serif, not Nexus's Inclusive Sans | Inclusive Sans was inherited, not chosen. Inter is the body face in all three references that prompted the change (Tailwind Plus Salient, Tailwind Plus Oatmeal `mist_instrument`, and Linear — verified by reading the computed `font-family` off each rendered page, not from the kit names); Instrument Serif is Oatmeal's display face. Applied in BOTH themes: daisyUI themes carry no font slot, Tailwind `@theme` tokens are global, and varying the typeface by theme would reflow every heading on a toggle. Instrument Serif ships one weight (400), so `font-display` headings must not carry `font-bold` |
+
+**The palette is daisyUI's `nord` (light) and `night` (dark), not ours.** The
+two themes used to be ~98 lines of hand-written tokens in
+`lib/styles/daisyui.css`, and owning that copy is how it drifted out of
+contrast compliance: `--color-info-content`, `--color-success-content` and
+`--color-error-content` were all `#ffffff` paired with mid-bright colours white
+cannot sit on, so 3 of 4 solid coloured badges — and every solid `btn-*` and
+`alert-*` on the same pairs — failed WCAG AA in light. Switching to the
+built-ins fixed it outright. Measured after:
+
+| | nord (light) | night (dark) |
+|---|---|---|
+| `badge-success` | 9.60:1 | 10.44:1 |
+| `badge-warning` | 12.24:1 | 11.41:1 |
+| `badge-error` | 4.97:1 | 7.38:1 |
+| `badge-info` | 7.05:1 | 7.57:1 |
+| `btn-primary` | 5.04:1 | 9.18:1 |
+| `text-base-content/70` | 4.59:1 | 4.63:1 |
+
+Everything clears 4.5:1, though `base-content/70` clears it only just — L22's
+floor stays exactly where it is.
+
+The user-facing labels are still **Light** and **Dark**; `nord`/`night` are the
+values written to `data-theme`. `TopbarProfileMenu` keeps them separate on
+purpose and `theme.spec.ts` asserts it.
+
+Measure a colour pair by letting the BROWSER convert it — paint it to a canvas
+and read the pixel. Parsing a computed string by hand bit three times in one
+session: `oklab()` components read as RGB 0-255 gave a confident 10.28:1 for a
+pair that was 1.94:1; an alpha colour composited over white instead of its real
+backdrop gave 1.4:1 for one that was 4.63:1; and a `/\d+/g` channel regex over
+`oklch(0.20768 …)` reported a near-black surface as brightness 20788.
 
 ---
 

@@ -195,15 +195,11 @@ and the component holds the ten complete class strings, so restyling every
 status badge is one edit ([L72](docs/10-lessons-learned.md)).
 
 **They are SOLID, not `badge-soft`, against both Nexus and daisyUI's own
-preference.** Measured in the light theme, soft is worse on every tone and
-takes the one passing colour below AA — warning 9.57:1 → 1.94:1. The
-accessibility floor outranks template fidelity here and the divergence is
-recorded in [docs/07-app-provenance.md](docs/07-app-provenance.md), which also
-carries the real problem: `info`, `success` and `error` all pair WHITE content
-text with a mid-bright colour, so 3 of 4 solid badges fail AA in light too.
-That is a theme-token decision, still open. **Measure a colour pair by letting
-the browser convert it** — parsing daisyUI's `oklab()` output by hand reads the
-components as RGB and yields a confident wrong answer.
+preference.** `badge-soft` fails AA in the light theme — 1.32:1 to 3.27:1 under
+`nord`, against solid's 4.97 to 12.24. It passes in dark, but a badge style
+cannot be theme-dependent. The accessibility floor outranks template fidelity
+and the divergence is recorded in
+[docs/07-app-provenance.md](docs/07-app-provenance.md).
 
 **Never assemble a class name.** `badge-${size}` is invisible to Tailwind,
 which reads source text and cannot evaluate an expression — the class is simply
@@ -211,12 +207,35 @@ never generated, the element renders unstyled, and nothing errors. Map each
 state to a COMPLETE class string, as `StatusBadge`'s `BADGE` table does —
 daisyUI's own audit flags an assembled one for the same reason.
 
+**The palettes are daisyUI's built-in `nord` (light) and `night` (dark), and
+the app never owns a copy of them.** `data-theme` carries those names; the
+labels a person reads are still Light and Dark, and `TopbarProfileMenu` keeps
+value and label separate on purpose. `system` removes `data-theme` entirely,
+which is what `--prefersdark` on `night` is for — daisyUI warns against
+combining `--prefersdark` with a controller, and that warning is about
+controllers WITHOUT a system option. The two themes used to be ~98 hand-written
+lines, and owning that copy is how 3 of 4 solid badges came to fail AA
+([L73](docs/10-lessons-learned.md)).
+
+**Measure a colour pair by letting the BROWSER convert it** — paint it to a
+canvas and read the pixel. Hand-parsing a computed colour string was wrong
+three times in one session: `oklab()` components read as RGB, an alpha colour
+composited over white rather than its backdrop, and a `/\d+/g` channel regex
+over `oklch(0.20768 …)` scoring a near-black surface at brightness 20788.
+
+**Two faces, in BOTH themes: `--font-sans` is Inter, `--font-display` is
+Instrument Serif.** daisyUI themes carry no font slot and Tailwind `@theme`
+tokens are global, so a per-theme typeface would mean redefining tokens under
+`[data-theme]` and reflowing every heading on a toggle. A theme switch changes
+colour, not type. Instrument Serif ships ONE weight — `font-display` headings
+must not carry `font-bold`, or the browser synthesises a fake bold.
+
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
 mode either way — so the failure is invisible if you only check one theme. Any
 new colour pair needs measuring in BOTH — and the light one is the half that
-fails; see [L22](docs/10-lessons-learned.md). Kaaj carries light and dark only;
-`#378dff`, the dark theme's primary, still carries white at just 3.27:1.
+fails; see [L22](docs/10-lessons-learned.md). Under `nord` it measures
+4.59:1 — above the 4.5 floor, but only just, so the floor stays where it is.
 
 **Customization is data, never code.** Customers customize through rows, custom
 field definitions and settings — never per-tenant schema changes or per-tenant

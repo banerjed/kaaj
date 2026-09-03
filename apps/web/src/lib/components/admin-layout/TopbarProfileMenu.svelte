@@ -26,16 +26,18 @@
     selectedClass: string
   }[] = [
     {
-      value: "light",
+      // The VALUE is daisyUI's built-in theme name and reaches `data-theme`;
+      // the LABEL is what a person reads. They are deliberately different.
+      value: "nord",
       label: "Light",
       icon: "lucide--sun",
-      selectedClass: "group-data-[theme=light]/html:bg-base-200",
+      selectedClass: "group-data-[theme=nord]/html:bg-base-200",
     },
     {
-      value: "dark",
+      value: "night",
       label: "Dark",
       icon: "lucide--moon",
-      selectedClass: "group-data-[theme=dark]/html:bg-base-200",
+      selectedClass: "group-data-[theme=night]/html:bg-base-200",
     },
     {
       value: "system",

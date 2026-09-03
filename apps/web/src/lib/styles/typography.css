@@ -1,9 +1,25 @@
 /* Fonts load from app.html, not from here (L18). Nexus's four families and
-   its [data-font-family] switcher are gone; Kaaj has one typeface. */
+   its [data-font-family] switcher are gone.
+ *
+ * TWO faces, and the same two in BOTH themes. Inter for everything the product
+ * says, Instrument Serif for display headings — the pairing from Tailwind
+ * Plus's Oatmeal `mist_instrument` kit, verified by reading the computed
+ * `font-family` off its rendered preview rather than from the kit's name.
+ *
+ * Deliberately NOT per-theme. daisyUI themes carry no font slot, Tailwind
+ * `@theme` tokens are global, and varying the typeface by theme would mean
+ * every heading reflowing on a light/dark toggle — Inter and Instrument Serif
+ * have different metrics. A theme switch changes colour, not type.
+ *
+ * Instrument Serif ships ONE weight (400). `font-display` headings must not
+ * carry `font-bold` or the browser synthesises a fake bold; use size and
+ * colour for emphasis there instead. */
 
 /** Typography config for tailwindcss **/
 @theme {
-  --font-sans: "Inclusive Sans", sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  /* Display only — section and page headings, never body or table text. */
+  --font-display: "Instrument Serif", Georgia, serif;
 
   --text-xs: 12px;
   --text-sm: 14px;
