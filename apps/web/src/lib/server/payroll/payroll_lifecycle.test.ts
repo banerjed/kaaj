@@ -5,20 +5,10 @@ import * as runs from "./payroll_runs.repo"
 import { RunRefused } from "./payroll_runs.repo"
 
 /**
- * The pay run LIFECYCLE, against the real database.
- *
- * This is the module where correctness is not negotiable, so the tests are
- * about the two things that can go wrong without an error:
- *
- * 1. **The header drifting from the lines.** `employee_count` and the four
- *    totals are denormalised; the lines are what people are actually paid. A
- *    header that disagrees is what a finance lead reads and reports.
- * 2. **A transition that should have been refused.** Three CHECK constraints
- *    back these writes, but none of them gives DIRECTION — the database is
- *    equally happy with finalized → draft — and separation of duties only
- *    fires when both `calculated_by` and `approved_by` are set.
- *
- * Every case rolls back, so the fixture is unchanged afterwards.
+ * The pay run LIFECYCLE, against the real database. Covers the two things
+ * that can go wrong without an error: the header drifting from the lines,
+ * and a transition that should have been refused (no CHECK gives direction).
+ * Every case rolls back.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -52,14 +42,7 @@ async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   }
 }
 
-/**
- * Assert not merely that a write was refused, but WHY.
- *
- * `rejects.toThrow(RunRefused)` passes on any refusal at all, including one
- * raised two lines earlier by the setup — which is exactly what happened while
- * these were being written: a transition bug made `markCalculated` throw, and
- * three separation-of-duties tests went green without ever reaching `approve`.
- */
+/** Assert not merely that a write was refused, but WHY (a bare toThrow(RunRefused) can pass on the wrong refusal). */
 async function refusedBecause(
   fn: () => Promise<unknown>,
   reason: RunRefused["reason"],
@@ -87,9 +70,7 @@ const NEW_RUN = {
 
 /**
  * A draft run with real lines, borrowed from an existing run inside the
- * rollback. Nothing in the product can create a line yet — computing one needs
- * tax tables this database does not have — so the lines have to come from
- * somewhere real rather than be invented here.
+ * rollback — nothing here can compute a line without tax tables the DB lacks.
  */
 async function draftWithLines(tx: Tx): Promise<string> {
   const created = await runs.createRun(tx, NORTHWIND, NEW_RUN, RACHEL)
@@ -98,12 +79,8 @@ async function draftWithLines(tx: Tx): Promise<string> {
        SET payroll_run_id = ${created.id}::uuid
      WHERE payroll_run_id = ${US_RUN}::uuid
   `
-  // The donor run now claims seven people it has no lines for — which is the
-  // very inconsistency these tests assert the absence of, manufactured by the
-  // setup rather than by the code under test. Left uncorrected it made
-  // `inconsistentRuns` report the DONOR and the test read as a failure of the
-  // write. Setup that breaks an invariant has to repair it, or the assertion
-  // is measuring the wrong thing.
+  // Repair the donor run's now-broken header, so setup doesn't itself trip
+  // the invariant these tests assert.
   await runs.refreshRunTotals(tx, US_RUN)
   return created.id
 }
@@ -133,7 +110,6 @@ describe("opening a run", () => {
   })
 
   it("refuses a second run for the same period and country", async () => {
-    // Two runs for one period is how somebody gets paid twice.
     await refusedBecause(
       () =>
         inRollback(async (tx) => {
@@ -161,8 +137,6 @@ describe("opening a run", () => {
 
 describe("calculating a run", () => {
   it("refuses a run with no lines", async () => {
-    // A run calculated over nothing reports zero gross and looks exactly like
-    // a finished period in which nobody was paid.
     await refusedBecause(
       () =>
         inRollback(async (tx) => {
@@ -190,7 +164,6 @@ describe("calculating a run", () => {
   })
 
   it("leaves no run whose header disagrees with its lines", async () => {
-    // The maintainer's query, run AFTER a write rather than before one.
     const bad = await inRollback(async (tx) => {
       const id = await draftWithLines(tx)
       await runs.markCalculated(tx, id, RACHEL)
@@ -200,9 +173,7 @@ describe("calculating a run", () => {
   })
 
   it("REPAIRS a header that had already drifted", async () => {
-    // The reason the totals are recomputed rather than adjusted: a header that
-    // is already wrong is corrected by the next write instead of carried
-    // forward. The fixture shipped exactly this kind of drift once.
+    // Recomputed, not adjusted — a wrong header self-heals on next write.
     const { drifted, repaired } = await inRollback(async (tx) => {
       const id = await draftWithLines(tx)
       await tx`
@@ -219,9 +190,7 @@ describe("calculating a run", () => {
   })
 
   it("does not touch whether the LINES themselves add up", async () => {
-    // net = gross - taxes - deductions is a property of the calculation, which
-    // this lifecycle deliberately does not do. Asserting it is unchanged keeps
-    // the two concerns separate rather than pretending one fixed the other.
+    // The lifecycle deliberately does not compute pay; keep the concerns separate.
     const { before, after } = await inRollback(async (tx) => {
       const before = await runs.inconsistentLines(tx)
       const id = await draftWithLines(tx)
@@ -234,8 +203,6 @@ describe("calculating a run", () => {
 
 describe("separation of duties", () => {
   it("refuses the calculator approving their own run", async () => {
-    // The database refuses this too, but as a 500 with a constraint name in
-    // it. Refused here so the page can say why.
     await refusedBecause(
       () =>
         inRollback(async (tx) => {
@@ -248,13 +215,11 @@ describe("separation of duties", () => {
   })
 
   it("refuses approving a run nothing calculated", async () => {
-    // The CHECK only fires when BOTH columns are set, so an approval with a
-    // NULL calculated_by slips past it — one person doing the whole thing.
+    // CHECK only fires when both columns are set; NULL calculated_by slips past it.
     await refusedBecause(
       () =>
         inRollback(async (tx) => {
           const id = await draftWithLines(tx)
-          // Straight to the status the transition allows, without a calculator.
           await tx`
             UPDATE payroll_runs
                SET run_status = 'calculated', status = 'calculated',
@@ -268,8 +233,6 @@ describe("separation of duties", () => {
   })
 
   it("lets a DIFFERENT person approve, and records who", async () => {
-    // Both halves. A rule that refuses everyone reads as a broken page, not as
-    // a control.
     const run = await inRollback(async (tx) => {
       const id = await draftWithLines(tx)
       await runs.markCalculated(tx, id, RACHEL)
@@ -285,9 +248,7 @@ describe("separation of duties", () => {
 
 describe("the transitions are one way", () => {
   it("refuses finalized going back to approved", async () => {
-    // payroll_runs_status_is_known permits it; nothing in the database gives
-    // DIRECTION. A run that can be un-approved after someone has been paid
-    // leaves the trail describing a state the money does not agree with.
+    // The CHECK permits it; nothing in the database gives direction.
     await refusedBecause(
       () => inRollback((tx) => runs.approve(tx, US_RUN, RACHEL)),
       "wrong_status",
@@ -331,9 +292,7 @@ describe("the transitions are one way", () => {
 
 describe("the two status columns cannot diverge", () => {
   it("moves run_status and status together through every transition", async () => {
-    // payroll_runs carries a duplicate `status` column that nothing reads and
-    // no CHECK constrained until 20260902040128. A lifecycle write that moved
-    // one without the other would leave an index on (tenant_id, status)
+    // A duplicate `status` column moving out of step would leave an index
     // pointing at a value nothing else believes — silently.
     const seen = await inRollback(async (tx) => {
       const id = await draftWithLines(tx)

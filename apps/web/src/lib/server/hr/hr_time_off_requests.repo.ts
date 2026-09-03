@@ -3,11 +3,9 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_time_off_requests — asking for leave, and the approval of it.
  *
- * `total_hours` is STORED, not derived from the dates. How many working hours
- * a date range contains depends on the office's holiday calendar and its
- * weekend convention — a request spanning 26 January is four days in London and
- * three in Bangalore. Recomputing it on read would silently disagree with what
- * was approved.
+ * `total_hours` is stored, not derived from the dates — how many working
+ * hours a range contains depends on the office's holiday calendar, so
+ * recomputing on read would silently disagree with what was approved.
  */
 
 export type TimeOffRequest = {
@@ -52,9 +50,7 @@ export async function list(
   filters: { status?: string; employeeId?: string } = {},
 ): Promise<TimeOffRequest[]> {
   const { status = "", employeeId = "" } = filters
-  // NULL rather than '' for the uuid: SQL does not short-circuit, so
-  // `'' = '' OR id = ''::uuid` still evaluates the cast and raises
-  // `invalid input syntax for type uuid`. A NULL parameter casts cleanly.
+  // NULL rather than '' for the uuid cast (L37).
   const employee = employeeId || null
   return tx<TimeOffRequest[]>`
     ${tx.unsafe(SELECT)}
@@ -88,20 +84,10 @@ export class DecisionRefused extends Error {
 
 /**
  * Approve or deny, and move the hours on the balance in the same transaction.
- *
- * `pending` and `used` are both already deducted from `current_balance`, so an
- * approval moves hours between those two columns and leaves the available
- * balance untouched — the person spent it when they asked. A denial gives it
- * back.
- *
- * Two refusals, neither of which the schema can express:
- *
- *  - **Only a pending request can be decided.** Without this, clicking approve
- *    twice deducts twice; approving an already-denied request silently revives
- *    it.
- *  - **Nobody approves their own leave.** The RLS policy is tenant isolation
- *    only, so this is the only thing standing between a manager and unlimited
- *    self-granted holiday.
+ * `pending`/`used` are both already deducted from `current_balance`, so
+ * approval just moves hours between them; denial gives it back. Refuses a
+ * non-pending request (double-decide) and self-approval — RLS is tenant
+ * isolation only, so this is the only guard against a manager self-granting leave.
  */
 export async function decide(
   tx: Tx,
@@ -139,9 +125,7 @@ export async function decide(
      WHERE id = ${requestId}
   `
 
-  // Hours are stored in the request; balances are in the policy's unit (days in
-  // the fixture). Convert with the standard working day rather than assuming
-  // they are the same unit.
+  // Request stores hours; balances are in the policy's unit (days in fixture).
   const HOURS_PER_DAY = 8
 
   if (decision === "approved") {

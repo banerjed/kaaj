@@ -1,10 +1,7 @@
 /**
- * Type declarations for @kaaj/validation.
- *
- * The implementation is plain ESM JavaScript so it runs unchanged in a browser,
- * on the server, and under any future mobile runtime (ADR-004). Consumers that
- * type-check JS would otherwise report implicit-any across the whole file, so
- * the public surface is described here instead.
+ * Type declarations for @kaaj/validation. Hand-written because the
+ * implementation is plain ESM JS (framework-agnostic, ADR-004) — this
+ * describes the public surface so consumers don't see implicit-any.
  */
 
 /** Every sanitiser returns this shape — never a bare value. */

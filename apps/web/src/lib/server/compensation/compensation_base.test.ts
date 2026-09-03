@@ -4,23 +4,13 @@ import { withTenant } from "../db/tenant"
 import * as comp from "./compensation_base.repo"
 
 /**
- * Effective dating, against the real database.
- *
- * There is no constraint stopping two compensation rows from covering the same
- * day. When it happens the directory's DISTINCT ON picks one arbitrarily, so
- * the same person shows a different salary on different page loads — with no
- * error anywhere. That makes this an invariant that has to be TESTED, not
- * merely intended.
- *
- * Every case rolls back, so the fixture is unchanged afterwards.
+ * Effective dating, against the real database. No constraint stops two rows
+ * covering the same day, so this is tested, not just intended. Every case
+ * rolls back.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an owner so RLS doesn't narrow what the test sees (see db/row-visibility.test.ts). */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -77,8 +67,7 @@ describe("compensation effective dating", () => {
       return comp.listForEmployee(tx, CHEN)
     })
 
-    // Newest first: the raise is open, and what it superseded closed on the
-    // 30th — not the 1st, which would leave both covering that day.
+    // Superseded row closed on the 30th, not the 1st (would double-cover it).
     expect(rows[0].effective_from).toBe("2026-10-01")
     expect(rows[0].effective_to).toBeNull()
     expect(rows[1].effective_to).toBe("2026-09-30")
@@ -108,9 +97,6 @@ describe("compensation effective dating", () => {
   })
 
   it("does NOT push a future-dated raise into the employees cache", async () => {
-    // The cache is what the directory falls back to when no dated row covers
-    // today, so writing a future amount into it shows tomorrow's salary as
-    // today's pay. 2026-10-01 has not arrived; the cache must not move.
     const row = await inRollback(async (tx) => {
       await comp.addRaise(
         tx,
@@ -134,7 +120,6 @@ describe("compensation effective dating", () => {
       `
       return e as { base_amount_pvt: string; currency: string }
     })
-    // Still the currently-effective figure, not the future one.
     expect(Number(row.base_amount_pvt)).toBe(3200000)
     expect(row.currency).toBe("INR")
   })
@@ -168,9 +153,6 @@ describe("compensation effective dating", () => {
   })
 
   it("refuses a second record starting on the same date", async () => {
-    // The likeliest real path: record a change, notice a typo, record it again.
-    // Before this guard both rows stayed open, the directory picked one
-    // arbitrarily, and the detail page threw on a duplicate each-key.
     await expect(
       inRollback(async (tx) => {
         const input = {
@@ -209,7 +191,7 @@ describe("compensation effective dating", () => {
           },
           ACTOR,
         )
-        // Backdated relative to the row just written: would leave both open.
+        // Backdated relative to the row just written.
         await comp.addRaise(
           tx,
           NORTHWIND,
@@ -254,11 +236,7 @@ describe("compensation effective dating", () => {
   })
 
   it("stores money at the authoritative column's scale, in both places", async () => {
-    // compensation_base.amount is numeric(12,2) and employees.base_amount_pvt is
-    // numeric(18,4). Postgres ROUNDS to scale silently (it does not truncate),
-    // so a 4-decimal value lands differently in the two columns unless the
-    // cache is rounded the same way. .9052 distinguishes the two behaviours;
-    // .9012 would pass under either and prove nothing.
+    // .9052 (not .9012) distinguishes rounding from truncation.
     const result = await inRollback(async (tx) => {
       const [{ today }] =
         await tx`SELECT to_char(CURRENT_DATE,'YYYY-MM-DD') AS today`

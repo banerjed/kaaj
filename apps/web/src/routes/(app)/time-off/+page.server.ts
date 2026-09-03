@@ -15,13 +15,7 @@ import {
   requireCan,
 } from "$lib/server/auth/can"
 
-/**
- * /time-off — module-hr.md.
- *
- * Shows the approval queue and, for whoever is signed in, their own balances.
- * The employee record is found from `tenant_users.employee_id`, which is the
- * link between an auth identity and a person in the firm.
- */
+/** /time-off — module-hr.md. Shows the approval queue and the signed-in employee's own balances. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const userId = locals.user?.id
@@ -51,9 +45,7 @@ export const actions: Actions = {
   decide: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
-    // A manager may decide for their own reports without holding
-    // timeoff.approve outright, so the blanket check is deferred until the
-    // requester is known.
+    // A manager may decide for their own reports without timeoff.approve; checked once the requester is known.
     if (!can(ctx, "timeoff.approve") && !can(ctx, "employee.read.reports")) {
       requireCan(ctx, "timeoff.approve")
     }
@@ -72,25 +64,20 @@ export const actions: Actions = {
 
     try {
       await withTenant(actorFrom(locals), async (tx) => {
-        // The approver is an EMPLOYEE, not an auth user. Resolving it here
-        // keeps the repository free of auth concepts.
+        // Approver is an employee, not an auth user — resolved here to keep the repository auth-free.
         const [me] = await tx<{ employee_id: string | null }[]>`
           SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
         `
         if (!me?.employee_id) throw new DecisionRefused("self_approval")
 
-        // Whose request is it? Needed before the reporting-line check, and
-        // `decide` refuses self-approval again inside the transaction.
+        // Needed before the reporting-line check.
         const [subject] = await tx<
           { employee_id: string; total_hours: string }[]
         >`
           SELECT employee_id, total_hours::text AS total_hours
             FROM hr_time_off_requests WHERE id = ${id}
         `
-        // Not the same thing as "already decided". A row that is absent —
-        // deleted, or belonging to a tenant this actor cannot see — was being
-        // reported as a decision that had already happened, which is a
-        // sentence about a request that does not exist.
+        // Not the same as "already decided" — a missing row is a request that doesn't exist.
         if (!subject) throw new DecisionRefused("not_found")
 
         if (
@@ -108,22 +95,14 @@ export const actions: Actions = {
           denialReason,
         )
 
-        // Same transaction as the decision itself. An approval whose record
-        // was written afterwards, or best-effort, would diverge from what
-        // actually happened exactly when it matters — and approval state is
-        // the thing that must not be inferable from a query alone.
+        // Same transaction as the decision itself (L40).
         if (ctx) {
           await audit.record(tx, ctx, {
-            // `decision` is "approved" | "denied"; the trail's vocabulary is
-            // the verb, so every entry reads the same way whatever wrote it.
             action: decision === "approved" ? "approve" : "deny",
             entityType: "hr_time_off_requests",
             entityId: id,
             module: "hr",
             changes: {
-              // What actually MOVED. The subject and the hours did not change
-              // — they are context, and context that never varies belongs in
-              // the entity the entry already points at.
               status: { from: "pending", to: decision },
             },
             reason: denialReason,

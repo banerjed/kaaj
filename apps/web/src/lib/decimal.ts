@@ -1,12 +1,6 @@
 /**
- * Comparing decimals held as strings.
- *
- * Money is a string end to end (CLAUDE.md § Money), so the ordering checks a
- * validator needs — "is max at least min?", "is this negative?" — cannot go
- * through `Number()` without reintroducing the float this codebase exists to
- * avoid. `numeric(15,2)` at crore scale exceeds what a float64 holds exactly.
- *
- * This compares, and does not add. Arithmetic still happens in SQL.
+ * Compares decimals held as strings, without parsing to float (CLAUDE.md §
+ * Money). Comparison only — arithmetic still happens in SQL.
  */
 
 /** -1, 0 or 1, exactly, for two decimal strings the form reader has shaped. */

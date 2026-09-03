@@ -7,10 +7,7 @@
   let { data } = $props()
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
-  /**
-   * The ledger is the FIRM's books, kept in its base currency, so one locale
-   * throughout — unlike an invoice, which is read in the market that raised it.
-   */
+  /** The firm's books, in base currency — unlike an invoice, one locale throughout. */
   const baseCurrency = $derived(data.tenant?.default_currency ?? "USD")
 
   let open = $state<string | null>(null)
@@ -27,9 +24,7 @@
     ]}
   />
 
-  <!-- The one thing a ledger must never hide. If any entry's debits and
-       credits disagree, the books do not add up, and that belongs at the top
-       of the page rather than in a log. -->
+  <!-- A ledger that doesn't balance belongs at the top, not buried in a log. -->
   {#if data.unbalanced.length > 0}
     <div role="alert" class="alert alert-error mt-4">
       <span class="iconify lucide--triangle-alert size-5"></span>
@@ -134,9 +129,7 @@
                       {e.line_count} lines
                       {#if e.reference}· {e.reference}{/if}
                     </p>
-                    <!-- Lines are loaded with the page rather than fetched on
-                         expand: eight entries is one query, and a per-row
-                         fetch would be the N+1 doc 03 forbids. -->
+                    <!-- Loaded with the page, not on expand — avoids per-row N+1. -->
                     <table class="table table-sm">
                       <tbody>
                         {#each data.lines[e.id] ?? [] as l (l.id)}

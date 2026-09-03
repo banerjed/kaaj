@@ -1,18 +1,5 @@
 <script lang="ts">
-  /**
-   * The centred icon-plus-sentence card shown in place of a list, a table, or
-   * a detail panel with nothing in it.
-   *
-   * Fourteen pages wrote this card by hand — same wrapper, same padding, same
-   * muted icon and text classes — differing only in which lucide icon and
-   * which sentence. That is the same shape `StatusBadge` was written for: a
-   * page names what varies, and one place holds how it is styled, so
-   * restyling every empty state is one edit rather than fourteen.
-   *
-   * `message` is a plain string, not a snippet — every call site is a
-   * sentence, at most a ternary between two of them (payslips: "not linked to
-   * an employee" vs "no payslips yet"), never markup.
-   */
+  /** Shared empty-state card (icon + sentence), replacing 14 hand-copied instances. */
   let {
     icon,
     class: className = "mt-4",

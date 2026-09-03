@@ -3,19 +3,10 @@ import type { Tx } from "../db/tenant"
 export type { Tx }
 
 /**
- * compensation_base — what someone is paid, effective-dated.
- *
- * A raise is a NEW ROW with a later `effective_from`, never an edit. The
- * history is the point: payroll for March must be reproducible in December,
- * and overwriting the figure destroys the only record of what was true then.
- *
- * Nothing in the schema prevents two rows covering the same day. When that
- * happens the directory's `DISTINCT ON (employee_id) ... ORDER BY
- * effective_from DESC` picks one arbitrarily, so the same person shows a
- * different salary on different page loads — and the detail page, which keys
- * its history rows on `effective_from`, throws outright and stops rendering.
- * Keeping the windows disjoint is therefore enforced HERE, at write time, and
- * not merely asserted in a test.
+ * compensation_base — what someone is paid, effective-dated. A raise is a new
+ * row with a later effective_from, never an edit — history must stay
+ * reproducible. Nothing in the schema stops overlapping windows, so it's
+ * enforced here at write time, not just asserted in a test.
  */
 
 export type CompensationBase = {
@@ -43,11 +34,7 @@ export class RaiseRefused extends Error {
   }
 }
 
-/**
- * `compensation_base.amount` is numeric(12,2): ten integer digits. Beyond that
- * Postgres raises `numeric field overflow`, which without this check reaches
- * the user as an unhandled 500 rather than a field error.
- */
+/** numeric(12,2) allows ten integer digits; beyond that Postgres raises a 500. */
 const MAX_INTEGER_DIGITS = 10
 
 export async function listForEmployee(
@@ -81,22 +68,10 @@ export type RaiseInput = {
 }
 
 /**
- * Record a new compensation record, closing whatever it supersedes.
- *
- * Refuses rather than corrupting, in three cases the first version got wrong:
- *
- *  - **Same date.** The likeliest path in practice: record a change, notice the
- *    amount was wrong, record it again for the same date. `effective_from <
- *    new` closes nothing, so two open rows result. That is a correction, and it
- *    belongs in `correct()`.
- *  - **Backdating.** An effective date before the open row's start leaves both
- *    open and overlapping.
- *  - **A future row already exists.** A row starting later is not closed by one
- *    starting earlier, so the new open-ended row swallows it.
- *
- * `overlaps()` is then re-checked inside the same transaction, so any case not
- * anticipated above aborts the write rather than being discovered later by a
- * page that will not render.
+ * Record a new compensation row, closing whatever it supersedes. Refuses a
+ * duplicate date (that's a correction — use `correct()`), a backdate, or a
+ * date after an already-existing future row. `overlaps()` is re-checked
+ * inside the transaction as a backstop for any case missed above.
  */
 export async function addRaise(
   tx: Tx,
@@ -121,8 +96,7 @@ export async function addRaise(
   if (counts.same > 0) throw new RaiseRefused("duplicate_date")
   if (counts.later > 0) throw new RaiseRefused("would_overlap")
 
-  // Close the open row the day BEFORE the new one starts: `effective_to` is
-  // inclusive, so closing on the start date leaves both covering it.
+  // effective_to is inclusive, so close the day BEFORE the new row starts.
   await tx`
     UPDATE compensation_base
        SET effective_to = (${input.effective_from}::date - INTERVAL '1 day')
@@ -131,9 +105,7 @@ export async function addRaise(
        AND effective_from < ${input.effective_from}::date
   `
 
-  // Carry forward what the superseded row held. Without this, a raise silently
-  // drops the annual equivalent, the overtime flag and the standard hours —
-  // fields the form does not ask about and the person still has.
+  // Carry forward fields the form doesn't ask about, so a raise doesn't drop them.
   const [prev] = await tx<
     {
       annual_equivalent: string | null
@@ -177,16 +149,9 @@ export async function addRaise(
 }
 
 /**
- * Bring the denormalised columns on `employees` in line with whichever row is
- * CURRENT — not with whichever row was written last.
- *
- * The directory falls back to these when no dated row covers today. Writing a
- * future-dated raise straight into them showed tomorrow's salary as today's pay
- * for anyone in that state.
- *
- * `round()` matches what the `::numeric(12,2)` cast does on the authoritative
- * column, so the cache — numeric(18,4), and able to hold more — agrees with it
- * (L25).
+ * Sync the denormalised columns on `employees` to whichever row is CURRENT,
+ * not whichever was written last. `round()` matches the numeric(12,2) cast on
+ * the authoritative column so the wider cache column agrees with it (L25).
  */
 export async function syncCache(tx: Tx, employeeId: string): Promise<void> {
   await tx`
@@ -208,10 +173,7 @@ export async function syncCache(tx: Tx, employeeId: string): Promise<void> {
   `
 }
 
-/**
- * Rows whose windows overlap. Should always be empty; `addRaise` checks it
- * before committing, because the invariant has no constraint behind it.
- */
+/** Rows whose windows overlap — should always be empty; no CHECK backs this, so `addRaise` verifies it. */
 export async function overlaps(
   tx: Tx,
   employeeId: string,
@@ -229,13 +191,7 @@ export async function overlaps(
   `
 }
 
-/**
- * Fix an existing record — a typo, not a raise. Moves no dates.
- *
- * Re-syncs the cache afterwards: this is the SECOND writer of
- * `compensation_base.amount`, and leaving `employees.base_amount_pvt` stale would
- * reintroduce exactly the divergence L25 exists to prevent.
- */
+/** Fix an existing record — a typo, not a raise; moves no dates. Re-syncs the cache (L25). */
 export async function correct(
   tx: Tx,
   id: string,
@@ -268,17 +224,9 @@ export type CurrentPay = {
 }
 
 /**
- * Everyone's current base pay — as far as the row policy allows.
- *
- * **This deliberately does not filter by person.** `compensation_base` carries
- * a row-visibility policy, so the identical query returns one row to an
- * employee and twelve to HR. Re-filtering here would state the rule a second
- * time, and the two statements would eventually disagree; the policy is the
- * rule, and `compensation.test.ts` asserts this query against four claims.
- *
- * It reads `compensation_base`, never `employees.base_amount_pvt` — that is
- * the unprotected cache whose COALESCE disclosed every salary in the firm
- * (L47), and the build fails on any query that touches it.
+ * Everyone's current base pay — as far as the row policy allows. Deliberately
+ * does not filter by person; the RLS policy on compensation_base is the rule.
+ * Never reads employees.base_amount_pvt, the unprotected cache (L47).
  */
 export async function currentForAll(tx: Tx): Promise<CurrentPay[]> {
   return tx<CurrentPay[]>`

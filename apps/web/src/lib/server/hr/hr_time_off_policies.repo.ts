@@ -1,12 +1,9 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * hr_time_off_policies — leave entitlement, per jurisdiction.
- *
- * Policies are scoped to offices by `location_codes`, because statutory leave
- * is national: the fixture carries US-PTO (1.67 days/month, 5 carried over),
- * UK-ANNUAL (2.33, 5) and IN-EARNED (1.75, 30). A single firm-wide policy
- * cannot be lawful in three countries at once.
+ * hr_time_off_policies — leave entitlement, per jurisdiction. Scoped to
+ * offices by `location_codes` since statutory leave is national — one
+ * firm-wide policy can't be lawful in three countries at once.
  */
 
 export type AccrualRules = {

@@ -1,16 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { safeError } from "./errors"
 
-/**
- * The allowlist, watched refusing the fields that carry rows.
- *
- * Every shape here was taken from a real `PostgresError` measured against this
- * database. The `detail` case is the one that matters and the one the request
- * path CANNOT produce: Postgres withholds it from `app_user`, so only the
- * table owner — `./check`, the migrations, the remote verifier, anything on
- * the service role — ever sees it. That makes this test the only place the
- * rule is observable, which is exactly why it is written down.
- */
+/** Real `PostgresError` shapes. `detail` matters most: only the table owner sees it, never `app_user`. */
 
 /** As postgres.js builds it, for the table OWNER. */
 const ownerConstraintViolation = Object.assign(
@@ -67,8 +58,6 @@ describe("safeError", () => {
     expect(safeError("just a string").message).toBe("just a string")
     expect(safeError(null).message).toBe("null")
     expect(safeError(undefined).message).toBe("undefined")
-    // A thrown object with nothing on it still has to say something, or the
-    // log line is an empty husk that reads like a working reporter.
     const bare = safeError({})
     expect(bare.message).toContain("no message")
   })
@@ -77,8 +66,7 @@ describe("safeError", () => {
     const out = safeError(
       Object.assign(new Error("x"), { name: "PostgresError", code: 23505 }),
     )
-    // `code` arrived as a number and is dropped rather than coerced: the
-    // allowlist decides the FIELD, the type check decides the value.
+    // A numeric `code` is dropped rather than coerced.
     expect(out.code).toBeUndefined()
     expect(Object.values(out).every((v) => typeof v === "string")).toBe(true)
   })

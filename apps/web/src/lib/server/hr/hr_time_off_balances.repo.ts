@@ -3,24 +3,13 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_time_off_balances — how much leave someone has left.
  *
- * THE COLUMNS DO NOT SIMPLY ADD UP, and getting this wrong hands people leave
- * they have not earned. Verified against all seven fixture rows:
- *
  *     current_balance = opening_balance + accrued + adjusted
  *                       - used - pending - forfeited
  *
- * Two traps in that identity:
- *
- *  - `carried_over` is NOT a separate addend. It is already folded into
- *    `opening_balance`, and it exists to show where the opening figure came
- *    from. Adding it again inflates every fixture balance by 5-12 days.
- *  - `pending` is already DEDUCTED. `current_balance` is what is available to
- *    book, not what has been earned — so a request must be checked against it
- *    directly, never against opening + accrued.
- *
- * `current_balance` is stored rather than computed on read because accrual is a
- * scheduled job and the ledger has to be reproducible at a point in time. The
- * identity above is asserted by a test instead.
+ * Two traps: `carried_over` is already folded into `opening_balance` — do not
+ * add it again. `pending` is already deducted, so `current_balance` (not
+ * opening + accrued) is what must be checked before booking a new request.
+ * Stored, not computed on read, since accrual runs as a scheduled job.
  */
 
 export type TimeOffBalance = {

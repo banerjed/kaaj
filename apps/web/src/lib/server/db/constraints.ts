@@ -1,27 +1,14 @@
 import { fail } from "@sveltejs/kit"
 
 /**
- * Database refusals, turned into a sentence the person who submitted the form
- * can act on.
+ * Database refusals, turned into a sentence the form's submitter can act on.
+ * `FormReader` catches the shape of a value; only the database knows a UNIQUE
+ * or FK was violated, and uncaught that's an Internal Error with the form's
+ * contents gone.
  *
- * `FormReader` is the first line and it catches the shape of a value. It
- * cannot catch what only the database knows: that this office code is already
- * taken, that the package this benefit points at was archived a moment ago,
- * that this firm already has a headquarters. Those arrive as a `PostgresError`
- * from inside the transaction, and an uncaught one is an "Internal Error"
- * crash page with the form's contents gone — measured, not assumed: a
- * duplicate `location_code` answered HTTP 500 with no field named and nothing
- * the user could do about it.
- *
- * **Keyed on `constraint_name`, never on the message text.** The message is
- * prose Postgres composes and is free to change; the constraint name is in the
- * migration. It is also the only thing that says WHICH field to put the cursor
- * on — SQLSTATE 23505 alone means "something was duplicate".
- *
- * **The registry is a committed literal, like every other list here.** A new
- * UNIQUE or CHECK reachable from a form is a deliberate line in this file with
- * a sentence a person can read. `./check` fails on one that is missing, so a
- * new constraint forces the decision rather than defaulting to a 500.
+ * Keyed on `constraint_name`, never message text — the name is stable and is
+ * the only thing that says WHICH field to mark. `./check` fails on a
+ * form-reachable constraint missing from this registry.
  */
 
 type Refusal = { errorFields: string[]; message: string }
@@ -103,10 +90,7 @@ const REGISTRY: Record<string, Refusal> = {
     message: "A payment has to be more than zero.",
   },
 
-  // ---- Foreign keys ----------------------------------------------------
-  // These fire when the row a form points at was archived or deleted between
-  // the page rendering and the form being submitted — a stale tab, which is
-  // ordinary rather than exotic.
+  // ---- Foreign keys — fires when a stale tab points at an archived/deleted row --
   fk_firm_benefit_items_benefits_package_id: {
     errorFields: ["benefits_package_id"],
     message:
@@ -177,12 +161,8 @@ function constraintNameOf(e: unknown): string | null {
 }
 
 /**
- * `fail(400, …)` for a registered refusal, or `null` for anything else.
- *
- * Returning null rather than a generic message is the point: an unregistered
- * constraint keeps crashing loudly, in development and in the logs, where
- * somebody adds it to the registry. Swallowing it into "something went wrong"
- * would hide the next one forever.
+ * `fail(400, …)` for a registered refusal, or `null` for anything else — an
+ * unregistered constraint keeps crashing loudly rather than being swallowed.
  *
  * ```ts
  * try {

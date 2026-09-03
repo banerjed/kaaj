@@ -13,20 +13,14 @@ import {
 
 /**
  * Per-subject data keys, and the read/write path for an encrypted field.
- *
- * Every encrypted value in the product goes through `sealField` and
- * `openField`. Nothing else calls `encrypt`/`decrypt` directly, because the
- * binding — tenant, table, column, row — has to be identical on both sides and
- * a call site that assembles it by hand will eventually get it wrong.
+ * Everything goes through `sealField`/`openField` — never `encrypt`/`decrypt`
+ * directly — so the tenant|table|column|row binding stays consistent.
  */
 
 /**
- * Whose data this is.
- *
- * `employee` — their own record. Erasing the person destroys it.
- * `tenant`   — the FIRM's own data, and its counterparties'. Keyed to the firm
- *              so one leaver's erasure request cannot take the company's
- *              banking details or every client's tax identifier with it.
+ * Whose data this is. `employee` — erasing the person destroys it. `tenant` —
+ * the firm's own data and its counterparties', keyed so one leaver's erasure
+ * can't take the company's banking details with it.
  */
 export type Subject = {
   tenantId: string
@@ -40,12 +34,7 @@ type KeyCache = Map<string, Buffer>
 
 const cacheKey = (s: Subject) => `${s.tenantId}:${s.subjectType}:${s.subjectId}`
 
-/**
- * The subject's data key, creating one on first use.
- *
- * `key_label` records the specification's `{org_prefix}-{4digit_code}` for the
- * organisation. It identifies the key; it is emphatically not derived into it.
- */
+/** The subject's data key, creating one on first use. */
 export async function dataKey(
   tx: Tx,
   subject: Subject,
@@ -81,9 +70,7 @@ export async function dataKey(
       subject.tenantId,
       subject.subjectId,
     )
-    // ON CONFLICT DO NOTHING, then re-read: two concurrent first-writes for the
-    // same person would otherwise each insert a key, and the loser's ciphertext
-    // would be unreadable under the winner's key.
+    // ON CONFLICT DO NOTHING + re-read guards concurrent first-writes racing to insert a key.
     await tx`
       INSERT INTO pii_keys (tenant_id, subject_type, subject_id, key_label, kek_version, wrapped_dek)
       VALUES (${subject.tenantId}, ${subject.subjectType}, ${subject.subjectId},
@@ -119,20 +106,14 @@ async function keyLabel(tx: Tx, tenantId: string): Promise<string | null> {
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase()
     .slice(0, 8)
-  // Four digits taken from the tenant id, so the label is stable. It carries no
-  // secrecy and is not required to — it names a key, it does not make one.
+  // Names a key, does not make one — carries no secrecy.
   const digits = String(
     parseInt(tenantId.replace(/-/g, "").slice(0, 8), 16) % 10000,
   ).padStart(4, "0")
   return `${prefix}-${digits}`
 }
 
-/**
- * True when this subject has an erasure on record. `sealField` refuses to mint a
- * fresh key for them: new PII arriving for someone whose data was erased is
- * either a mistake or a re-hire, and both deserve a deliberate decision rather
- * than a silent new key beside a standing erasure record.
- */
+/** True when this subject has an erasure on record — `sealField` refuses to mint a fresh key for them. */
 export async function isErased(tx: Tx, subject: Subject): Promise<boolean> {
   const [row] = await tx<{ n: number }[]>`
     SELECT count(*)::int AS n FROM pii_erasures
@@ -168,12 +149,8 @@ export async function sealField(
 }
 
 /**
- * Decrypt, or report why not.
- *
- * A destroyed key is not an error — it is an erasure that was honoured — so it
- * reads as `null` with `erased: true` rather than throwing. Every other failure
- * throws, because a ciphertext that will not open is either tampering or a
- * botched rotation and must not look like an empty field.
+ * Decrypt, or report why not. A destroyed key reads as `{null, erased: true}`,
+ * not an error. Every other failure throws — must not look like an empty field.
  */
 export async function openField(
   tx: Tx,
@@ -185,9 +162,7 @@ export async function openField(
   const envelope = parseEnvelope(stored)
   if (!envelope) return { value: null, erased: false }
 
-  // Asked before unwrapping, because `dataKey` would MINT a key for a subject
-  // whose key was destroyed — and a fresh key cannot open old ciphertext, so
-  // the erasure would read as corruption instead of as an erasure.
+  // Checked here, not via dataKey() — that would MINT a fresh key for an erased subject.
   const [key] = await tx<{ kek_version: number; wrapped_dek: string }[]>`
     SELECT kek_version, wrapped_dek FROM pii_keys
      WHERE tenant_id = ${subject.tenantId}
@@ -211,17 +186,10 @@ export async function openField(
 }
 
 /**
- * Erasure — GDPR Article 17, DPDP Act section 12(3), CCPA/CPRA deletion.
- *
- * Destroying the key is the load-bearing step: it renders every encrypted field
- * belonging to this person unrecoverable everywhere the ciphertext exists,
- * including in backups already taken. Nulling the columns afterwards is
- * housekeeping — it tidies the live row, and on its own it would leave every
- * historical backup fully readable.
- *
- * The order matters. Key first: if the process dies between the two steps, the
- * data is already unrecoverable, which is the failure everyone would rather
- * have.
+ * Erasure — GDPR Art. 17, DPDP §12(3), CCPA/CPRA. Destroying the key is the
+ * load-bearing step (it makes every ciphertext unrecoverable, backups
+ * included); nulling columns is housekeeping. Key first: a crash mid-way still
+ * leaves the data unrecoverable.
  */
 export async function eraseSubject(
   tx: Tx,
@@ -240,9 +208,7 @@ export async function eraseSubject(
      RETURNING id
   `
 
-  // Written whether or not a key existed: "there was nothing to erase" is
-  // itself the answer to a regulator's question, and an absent record would be
-  // indistinguishable from a request that was never actioned.
+  // Written whether or not a key existed — "nothing to erase" is itself the answer.
   await tx`
     INSERT INTO pii_erasures
       (tenant_id, subject_type, subject_id, subject_label, reason, requested_by)
@@ -275,14 +241,7 @@ export async function needsRewrap(
   `
 }
 
-/**
- * Re-wrap one subject's key under the newest master key.
- *
- * Rotation touches the KEY only — the field ciphertext is untouched, because it
- * was never encrypted under the master key. That is the whole point of the
- * envelope: rotating the master is a small bounded write, not a rewrite of
- * every encrypted column in the database.
- */
+/** Re-wrap one subject's key under the newest master key — touches the KEY only, never the field ciphertext. */
 export async function rewrapSubject(tx: Tx, subject: Subject): Promise<void> {
   const [row] = await tx<{ kek_version: number; wrapped_dek: string }[]>`
     SELECT kek_version, wrapped_dek FROM pii_keys

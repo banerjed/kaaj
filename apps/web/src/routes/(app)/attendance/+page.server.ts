@@ -9,18 +9,12 @@ const STATUSES = ["present", "late", "absent", "early_departure"] as const
 
 /**
  * /attendance — module-hr.md § Attendance Tracking (US-HR-022, US-HR-024).
- *
- * Read-only for this slice: the timesheet as recorded, in each office's own
- * timezone. Clock in/out and corrections (US-HR-021, US-HR-025) need a write
- * path and an audit trail, and overtime (US-HR-026) needs the payroll policy to
- * carry data — see the note in 11-module-roadmap.md.
+ * Read-only for now; clock in/out, corrections and overtime are future slices (11-module-roadmap.md).
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  // The URL is the filter state (doc 03), so a filtered view is shareable and
-  // survives a reload. Read through the same reader the actions use: a crafted
-  // `?from=x` would otherwise reach a ::date cast.
+  // URL is the filter state (shareable, survives reload); read through FormReader so a crafted `?from=x` can't reach the ::date cast.
   const params = new FormData()
   for (const k of ["from", "to", "status", "employee"]) {
     params.append(k, url.searchParams.get(k) ?? "")
@@ -41,8 +35,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         employeeId: employeeId ?? undefined,
       }),
       statuses: STATUSES,
-      // A bad filter is not worth a 400 on a read — it is dropped, and the page
-      // reflects what was actually applied rather than what was asked for.
+      // A bad filter is dropped, not a 400; the page reflects what was actually applied.
       filters: {
         from: from ?? "",
         to: to ?? "",

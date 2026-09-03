@@ -2,12 +2,8 @@ import type { ISidebarMenuItem } from "./SidebarMenuItem.svelte"
 
 /**
  * The ids of the item matching `url` and every ancestor above it, so the
- * sidebar can expand the right groups and mark the right item active.
- *
- * Nexus found the item recursively and then walked the tree a second time with
- * three hardcoded nested loops to recover its ancestors — traversing everything
- * twice, and silently returning nothing for anything below the third level.
- * This collects the path on the way down, in one pass, at any depth.
+ * sidebar can expand the right groups and mark the right item active. Single
+ * pass, any depth (Nexus's version was a fixed 3-level walk).
  */
 export const getActivatedItemParentKeys = (
   menuItems: ISidebarMenuItem[],
@@ -30,12 +26,9 @@ export const getActivatedItemParentKeys = (
 }
 
 /**
- * The menu as this person should see it: entries carrying a `permission` they
- * do not hold are removed, and a group left with no children goes with them.
- *
- * **This is not access control.** Every page's `load` and every action checks
- * for itself; removing a link only stops the app offering a route that answers
- * 403. Treating a hidden link as a guard is how an unguarded route ships (L44).
+ * The menu as this person should see it: entries needing a `permission` they
+ * lack are removed. Not access control — every load/action still checks for
+ * itself (L44).
  */
 export const visibleMenuItems = (
   menuItems: ISidebarMenuItem[],

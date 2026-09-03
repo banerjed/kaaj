@@ -8,21 +8,12 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   let paying = $state(false)
   let voiding = $state(false)
 
-  /**
-   * What this invoice may do next.
-   *
-   * A button the action would refuse reads as a broken page rather than as a
-   * rule, so the options are derived from the same statuses the repository
-   * enforces. The repository refuses regardless — this only decides what is
-   * offered.
-   */
+  /** What this invoice may do next — mirrors the statuses the repo enforces. */
   const may = $derived({
     issue: data.mayWrite && data.invoice.status === "draft",
     void: data.mayWrite && data.invoice.status === "draft",
@@ -134,9 +125,7 @@
         </table>
       </div>
 
-      <!-- The reconciliation, spelled out. Exact figures throughout: this is a
-           document someone checks against a bank statement, so nothing here
-           may be abbreviated. -->
+      <!-- Exact figures only — checked against a bank statement. -->
       <dl
         class="border-base-200 ms-auto grid w-full max-w-sm gap-1 border-t pt-3 text-sm"
       >
@@ -208,10 +197,7 @@
     </div>
   {/if}
 
-  <!-- The receivables cycle -----------------------------------------------
-       Each is a POST: they recognise revenue or receive cash, and a link that
-       writes is a link a crawler can pull. Every one posts a balanced journal
-       entry in the same transaction as the document it changes. -->
+  <!-- Each posts a balanced journal entry; POST only, never a link. -->
   {#if may.issue || may.pay || may.void}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {#if may.issue}
@@ -269,8 +255,7 @@
       >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Amount ({cur})</legend>
-          <!-- inputmode, never type="number": the latter round-trips through
-               a float in the browser before the server sees it. -->
+          <!-- inputmode, never type="number" — that round-trips through a float. -->
           <input
             name="amount"
             aria-invalid={err.aria("amount")}

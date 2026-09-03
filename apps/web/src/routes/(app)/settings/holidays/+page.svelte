@@ -9,8 +9,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -18,12 +16,7 @@
     data.tenant?.supported_locales ?? [tenantLocale],
   )
 
-  /**
-   * A holiday belongs to one office, so its date reads in that office's locale:
-   * 26/01/2026 in London, 1/26/2026 in New York. Showing every row in the
-   * tenant default would silently reorder day and month for two thirds of the
-   * calendar. Same reasoning as localeForCurrency (L24).
-   */
+  /** A holiday's date reads in its own office's locale, same reasoning as localeForCurrency (L24). */
   const officeLocale = (code: string) =>
     data.locations.find((l) => l.location_code === code)?.locale ?? tenantLocale
 
@@ -216,8 +209,7 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Date</legend>
-            <!-- type=date posts ISO YYYY-MM-DD regardless of the browser's
-                 display locale, which is what the DATE column wants. -->
+            <!-- type=date posts ISO YYYY-MM-DD regardless of browser locale, matching the DATE column. -->
             <input
               name="date"
               aria-invalid={err.aria("date")}

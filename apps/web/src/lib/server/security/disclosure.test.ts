@@ -8,18 +8,11 @@ import {
 } from "./matrix"
 
 /**
- * The disclosure matrix, executed.
- *
- * 17 field declarations x 6 actor archetypes, generated rather than written
- * out — so every field is checked the SAME WAY. That uniformity is the point,
- * more than the assertion count: the bugs this codebase keeps finding are ones
- * where a single field was handled differently from its neighbours and nobody
- * noticed (L47's COALESCE, L41's JSONB, the vacuous fixture passes).
- *
- * These connect as `app_user` directly, like row-visibility.test.ts: the
- * question is what the DATABASE hands a given claim. Projection-level defense
- * is asserted separately, in employees.test.ts, because it is a property of a
- * query rather than of a grant.
+ * The disclosure matrix, executed — every field x every actor archetype,
+ * generated rather than written out, so each is checked the SAME WAY.
+ * Connects as `app_user` directly, like row-visibility.test.ts: the question
+ * is what the DATABASE hands a claim. Projection defense is asserted
+ * separately, in employees.test.ts.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -50,12 +43,7 @@ type Actor = {
     | "payroll"
     | "auditor"
     | "admin"
-    /**
-     * Privileged in their OWN domain and ordinary here. IT administers
-     * accounts, finance runs the ledger, legal handles contracts, a project
-     * manager staffs work — none of that entitles any of them to an
-     * individual's pay.
-     */
+    /** Privileged in their OWN domain, ordinary here — e.g. IT, finance, legal. */
     | "other_admin"
 }
 
@@ -110,9 +98,7 @@ const ACTORS: Actor[] = [
     relation: "auditor",
   },
 
-  // The four that make this list worth having. Each administers a real part of
-  // the firm; none of them administers anyone's salary. A role that is
-  // powerful somewhere is exactly the one whose limits nobody thinks to test.
+  // Each of these four administers a real part of the firm, but not salary.
   {
     name: "IT",
     employeeId: MARCUS,
@@ -145,13 +131,8 @@ const ACTORS: Actor[] = [
 
 /** The audience rules, in one place, applied uniformly. */
 function mayRead(audience: Audience, relation: Actor["relation"]): boolean {
-  // `other_admin` is deliberately NOT privileged here. IT, finance, legal and
-  // a project manager each hold real power elsewhere in the product; none of
-  // it reaches an individual's compensation, and a role that is powerful
-  // somewhere is exactly the one whose limits nobody thinks to test.
-  //
-  // Auditor DOES read all of it — the row policies grant it, and an audit
-  // function that cannot see pay cannot audit payroll.
+  // `other_admin` is deliberately NOT privileged; `auditor` is (the row
+  // policies grant it — an audit function must be able to see pay).
   const privileged =
     relation === "hr" ||
     relation === "payroll" ||
@@ -204,23 +185,15 @@ describe("the disclosure matrix", () => {
   })
 
   it("covers every field with a declared reason", () => {
-    // An entry without a why is an entry nobody decided; it is a state that
-    // happens to hold, which is what the matrix exists to replace.
     for (const f of SENSITIVE_FIELDS) {
       expect(f.why.length, `${f.id} has no reason`).toBeGreaterThan(30)
     }
   })
 
   // -- defense: rls --------------------------------------------------------
-  // Asserted per TABLE, not per column: the policy scopes the whole row, so
-  // "can this actor see this subject's row" is the entire question and
-  // repeating it per column would be thirty copies of one assertion.
-  //
-  // BOTH directions, always. A policy that is too tight blanks a page rather
-  // than erroring (L21), so "the colleague saw nothing" is only evidence
-  // alongside "the person themselves did" — and until compensation_premiums
-  // was seeded it held zero rows, which made every negative case here pass
-  // with nothing to hide.
+  // Per TABLE, not per column: the row policy scopes the whole row. Asserts
+  // BOTH directions — a too-tight policy blanks a page rather than erroring
+  // (L21), so "denied" is only meaningful alongside "the subject sees it".
   for (const [table, rule] of Object.entries(PROTECTED_TABLES)) {
     for (const a of ACTORS) {
       const allowed = mayRead(rule.audience, a.relation)
@@ -234,10 +207,8 @@ describe("the disclosure matrix", () => {
   }
 
   it("every policy-scoped table has a fixture row for the subject", async () => {
-    // Without this the negative cases above are vacuous. compensation_premiums
-    // held zero rows and "a colleague cannot see it" passed for the wrong
-    // reason — the same shape as the isolation harness failing rather than
-    // passing when a table has no fixture.
+    // Without this the negative cases above are vacuous (an empty table
+    // passes "cannot see it" for the wrong reason).
     for (const table of Object.keys(PROTECTED_TABLES)) {
       const rows = await asActor(
         ACTORS.find((a) => a.relation === "hr")!,
@@ -252,10 +223,8 @@ describe("the disclosure matrix", () => {
   })
 
   // -- defense: projection -------------------------------------------------
-  // The row IS visible — employees is a directory — so RLS cannot help and a
-  // NULL in the fixture proves nothing. What must hold is that no query
-  // projects the value; verify-no-unprotected-fallback.mjs enforces it, and
-  // this asserts the guard actually covers every such field.
+  // Row is visible (employees is a directory), so RLS can't help; the guard
+  // in verify-no-unprotected-fallback.mjs must cover every such field.
   const projected = SENSITIVE_FIELDS.filter((x) => x.defense === "projection")
   it("every projection-defended field is named in the build guard", async () => {
     const { readFileSync } = await import("node:fs")
@@ -276,9 +245,6 @@ describe("the disclosure matrix", () => {
   })
 
   it("a projection-defended row IS still readable — the defense is not RLS", async () => {
-    // Stated positively so nobody later "fixes" this by tightening the row
-    // policy: the directory has to work. If this ever fails, the defense model
-    // for these fields changed and the matrix is stale.
     const colleague = ACTORS.find((a) => a.relation === "colleague")!
     const rows = await asActor(
       colleague,
@@ -300,7 +266,6 @@ describe("the disclosure matrix", () => {
       )
       const v = (rows[0] as unknown as { v: string | null } | undefined)?.v
       if (v === null || v === undefined) return // nothing stored for this person
-      // A sealed envelope, never a national identifier in the clear.
       expect(v).not.toMatch(/^\d{3}-?\d{2}-?\d{4}$/)
       expect(v.length).toBeGreaterThan(20)
     })
@@ -309,8 +274,6 @@ describe("the disclosure matrix", () => {
   // -- defense: open -------------------------------------------------------
   for (const f of SENSITIVE_FIELDS.filter((x) => x.defense === "open")) {
     it(`${f.id}: is deliberately readable by a colleague`, async () => {
-      // Asserted, not assumed. If this starts failing, someone restricted a
-      // field the product deliberately shares and the matrix should say so.
       const colleague = ACTORS.find((a) => a.relation === "colleague")!
       expect(await readsColumn(colleague, f)).toBe(true)
     })

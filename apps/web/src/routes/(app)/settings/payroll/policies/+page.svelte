@@ -8,8 +8,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const DAYS = [

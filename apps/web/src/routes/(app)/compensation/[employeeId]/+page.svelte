@@ -8,8 +8,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -49,8 +47,7 @@
   {/if}
 
   {#if data.history.length === 0}
-    <!-- Empty because the row policy refused it, not because the page broke.
-         A blank shell would read as a bug (L21). -->
+    <!-- Empty because the row policy refused it, not a broken page (L21). -->
     <EmptyState
       icon="lucide--lock"
       message="You cannot see this person's compensation."
@@ -256,8 +253,7 @@
         <div class="grid gap-3 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Amount</legend>
-            <!-- inputmode, never type="number": the latter round-trips through
-                 a float in the browser before the server ever sees it. -->
+            <!-- inputmode, never type="number" — that round-trips through a float. -->
             <input
               name="amount"
               aria-invalid={err.aria("amount")}

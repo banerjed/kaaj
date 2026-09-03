@@ -2,18 +2,9 @@ import { describe, expect, it } from "vitest"
 import { isHttpError } from "@sveltejs/kit"
 
 /**
- * Every write action, invoked as every role, asserting the actual outcome.
- *
- * This is the case that `authz/actions-are-guarded` cannot see and the `can()`
- * unit tests cannot see either. The guard proves a check EXISTS; the unit tests
- * prove a permission maps to the right roles. Neither notices a wrong
- * permission STRING in one action — `firm.settings.write` typed where
- * `tenant.settings.write` was meant passes both, and quietly lets HR rewrite
- * the company profile.
- *
- * The actions are imported and called directly with a synthetic `locals`, so
- * what is asserted is the behaviour of the deployed code path, not a
- * description of it.
+ * Every write action, invoked as every role, asserting the actual outcome —
+ * catches a wrong permission STRING that a guard-exists check and a
+ * role-mapping unit test would each pass. Calls the deployed action directly.
  */
 
 type Role = "owner" | "firm_admin" | "employee" | "contractor"
@@ -48,18 +39,15 @@ async function outcome(
     return null
   } catch (e) {
     if (isHttpError(e)) return e.status
-    // Past the gate and failed for another reason — a missing form field, a
-    // constraint. Not an authorization outcome, which is what this asserts.
+    // Past the gate, failed for another reason — not an authz outcome.
     return null
   }
 }
 
 /**
- * Who each action must refuse, and who it must let through to the form.
- *
- * `allowed` does NOT mean the write succeeds — the request carries an empty
- * body, so it fails validation afterwards. It means authorization did not stop
- * them, which is the whole subject here.
+ * Who each action must refuse, and who it must let through. `allowed` does
+ * NOT mean the write succeeds (the request body is empty) — only that
+ * authorization did not stop it.
  */
 const MATRIX: {
   module: string
@@ -69,9 +57,6 @@ const MATRIX: {
   allowed: [Role, string[]][]
 }[] = [
   {
-    // The pay-change write moved to /compensation/[employeeId]. It used to
-    // exist twice, which meant two places to keep the audit entry correct.
-    // The authorization coverage follows it rather than being deleted.
     module: "compensation/[employeeId] — raise",
     load: async () =>
       (
@@ -130,11 +115,7 @@ const MATRIX: {
       (await import("../../../routes/(app)/settings/company/+page.server"))
         .actions,
     actions: ["update"],
-    // tenant.settings.write, NOT firm.settings.write. hr_admin runs the firm's
-    // configuration and must not reach the company profile — that pair is
-    // exactly what a typo'd permission string would silently merge, and this
-    // case caught a denial message that claimed owner-only when firm_admin
-    // holds it too.
+    // tenant.settings.write, NOT firm.settings.write — hr_admin must not reach it.
     denied: [
       ["employee", []],
       ["employee", ["hr_admin"]],
@@ -243,9 +224,7 @@ const MATRIX: {
     load: async () =>
       (await import("../../../routes/(app)/performance/+page.server")).actions,
     actions: ["submit"],
-    // performance.write — a reviewer writes and submits. The repository then
-    // refuses anyone who is not THIS review's reviewer, which is a different
-    // question from holding the permission at all.
+    // performance.write; the repository separately refuses a non-reviewer.
     denied: [
       ["employee", []],
       ["contractor", []],
@@ -262,9 +241,7 @@ const MATRIX: {
     load: async () =>
       (await import("../../../routes/(app)/performance/+page.server")).actions,
     actions: ["acknowledge"],
-    // Everyone acknowledges their OWN review, so the gate is the floor and
-    // the repository refuses anyone else's. Nobody is denied at this layer —
-    // which is the honest answer, not an omission.
+    // Gate is the floor; the repository refuses anyone else's review.
     denied: [],
     allowed: [
       ["employee", []],
@@ -308,7 +285,6 @@ for (const spec of MATRIX) {
       }
       for (const [role, fns] of spec.allowed) {
         it(`admits ${action} for ${name(role, fns)}`, async () => {
-          // A gate that refuses everyone is not authorization, it is an outage.
           const actions = await spec.load()
           expect(await outcome(actions[action], locals(role, fns))).not.toBe(
             403,
@@ -321,9 +297,7 @@ for (const spec of MATRIX) {
 
 describe("the matrix covers every action that exists", () => {
   it("names all 23", async () => {
-    // If someone adds an action, this fails until it is classified here —
-    // the companion to authz/actions-are-guarded, which only checks that a
-    // call is present.
+    // Companion to authz/actions-are-guarded, which only checks a call exists.
     const named = MATRIX.reduce((n, m) => n + m.actions.length, 0)
     const timeOff = 1 // decide — covered in time_off.test.ts, needs a real request
     expect(named + timeOff).toBe(25)

@@ -9,8 +9,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   let addingTask = $state(false)
@@ -27,9 +25,7 @@
         : tenantLocale,
   )
 
-  // `medium` was `badge-neutral` — the heaviest badge in the set, on the least
-  // remarkable value. The word is still there, which is what carries the
-  // meaning; the colour was doing redundant work.
+  // `medium` reads as neutral — the label carries the meaning, not the colour.
   const priorityTone = (p: string | null): Tone =>
     p === "urgent" ? "critical" : p === "high" ? "caution" : "neutral"
 
@@ -145,9 +141,7 @@
   <h2 class="mt-6 text-base font-medium">
     Tasks
     <span class="badge badge-sm ms-1">{data.tasks.length}</span>
-    <!-- The counter on the project row is shown only when it DISAGREES with
-         the tasks actually present. A denormalised count that nobody checks
-         drifts, and it drifts into a progress bar that still looks right. -->
+    <!-- Shown only when the denormalised count disagrees with the actual tasks (L58). -->
     {#if data.project.task_count !== data.tasks.length}
       <span class="badge badge-error badge-sm ms-1">
         row claims {data.project.task_count}
@@ -219,11 +213,7 @@
                 </td>
                 <td>
                   {#if data.mayWrite}
-                    <!--
-                      A plain form per row: changing the select submits it.
-                      The move is a POST, never a GET — it writes, and a link
-                      that writes is a link a crawler can pull.
-                    -->
+                    <!-- POST, never GET — this writes, and a crawler can follow a GET link. -->
                     <form method="POST" action="?/moveTask">
                       <input type="hidden" name="task_id" value={t.id} />
                       <select

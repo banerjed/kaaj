@@ -25,22 +25,15 @@ export const load: PageServerLoad = async ({ locals }) => {
     }),
   )
 
-  // EEOC categories come from the enum package, which is checked against the
-  // Postgres type by ./check — a hand-typed list here would drift silently.
+  // From the enum package, kept in step with the Postgres type by ./check.
   const eeoc = allEnumerations().get("eeoc_category") ?? []
 
   return { jobTitles, jobLevels, locations, eeocCategories: eeoc }
 }
 
 /**
- * Salary bands arrive as `range.<CUR>.min` / `.max` pairs. A currency with both
- * fields blank is omitted rather than stored as zeros — "no band for this
- * market" and "a band of nothing" are different statements.
- */
-/**
- * Salary bands, as strings. `Number("")` is 0, so the old reader turned a band
- * with a blank maximum into "max 0" rather than refusing it, and every value
- * went through a float64 on the way to a numeric column (CLAUDE.md § Money).
+ * Salary bands arrive as `range.<CUR>.min` / `.max`, as strings. Both blank is
+ * omitted, not stored as zero: "no band" and "a band of nothing" differ.
  */
 function readRanges(data: FormData, f: FormReader): SalaryRanges {
   const ranges: SalaryRanges = {}
@@ -161,7 +154,7 @@ export const actions: Actions = {
         if (id) await levels.update(tx, id, input)
         else await levels.create(tx, tenantId, input)
 
-        // SAME TRANSACTION. Levels carry salary_ranges — the PUBLISHED pay bands, which are a disclosure under the EU Pay Transparency Directive.
+        // Same transaction — salary_ranges is a published pay band (EU Pay Transparency Directive).
         await audit.record(tx, contextFrom(locals)!, {
           action: id ? "update" : "create",
           entityType: "firm_job_levels",
@@ -171,8 +164,7 @@ export const actions: Actions = {
         })
       })
     } catch (e) {
-      // The job title this level hangs off was archived while the form was
-      // open — a stale tab, not an exotic case.
+      // The job title this level hangs off was archived while the form was open.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

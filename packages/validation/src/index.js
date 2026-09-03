@@ -1,27 +1,10 @@
-/**
- * Data Validation Utilities
- *
- * Comprehensive validation and sanitization functions for business management platform
- * Ensures data integrity, uniformity, and security across all modules
- *
- * @module validation-utils
- * @version 1.0.0
- * @date 2025-12-05
- */
+/** Validation and sanitization functions shared across every module. */
 
 // ============================================================================
 // STRING SANITIZATION & VALIDATION
 // ============================================================================
 
-/**
- * Sanitize and validate person names (first, last, middle names)
- * - Trims whitespace
- * - Removes multiple spaces
- * - Capitalizes appropriately
- * - Allows hyphens, apostrophes, spaces
- * - Handles international characters (Unicode)
- * - Removes special characters and numbers
- */
+/** Sanitizes a person name: trims, collapses spaces, capitalizes, allows hyphens/apostrophes/Unicode. */
 export const sanitizeName = (name, options = {}) => {
   const {
     maxLength = 100,
@@ -108,18 +91,10 @@ export const sanitizeName = (name, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate and sanitize email addresses
- * - RFC 5322 compliant validation
- * - Normalizes to lowercase
- * - Trims whitespace
- * - Checks for common typos
- */
+/** Validates and sanitizes an email: lowercases, RFC 5322 regex, flags common domain typos. */
 export const sanitizeEmail = (email, options = {}) => {
   const { maxLength = 254 } = options
-  // NOTE: a `checkDomain` option was accepted here but never read — passing
-  // checkDomain:true performed no domain check. Removed rather than left
-  // silently inert. DNS/MX validation belongs in a server-side call anyway.
+  // No `checkDomain` option: DNS/MX validation belongs server-side, not here.
 
   if (!email || typeof email !== "string") {
     return { valid: false, value: "", errors: ["Email is required"] }
@@ -170,12 +145,7 @@ export const sanitizeEmail = (email, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate and format phone numbers
- * - Supports US and international formats
- * - Removes non-numeric characters
- * - Formats consistently
- */
+/** Validates and formats a phone number for the given country. */
 export const sanitizePhoneNumber = (phone, options = {}) => {
   const { country = "US", format = true, allowExtensions = true } = options
 
@@ -535,12 +505,7 @@ export const sanitizePhoneNumber = (phone, options = {}) => {
   }
 }
 
-/**
- * Sanitize addresses
- * - Normalizes street names, directionals, suffixes
- * - Capitalizes properly
- * - Removes extra spaces
- */
+/** Sanitizes a street address: normalizes common abbreviations, capitalizes, collapses spaces. */
 export const sanitizeAddress = (address, options = {}) => {
   const { maxLength = 255, capitalizeWords = true } = options
 
@@ -829,11 +794,7 @@ export const sanitizePostalCode = (postalCode, options = {}) => {
 // IDENTIFIER VALIDATION
 // ============================================================================
 
-/**
- * Validate and format SSN (US Social Security Number)
- * - Format: XXX-XX-XXXX
- * - Validates against known invalid patterns
- */
+/** Validates a US SSN (XXX-XX-XXXX) and rejects known-invalid patterns. */
 export const sanitizeSSN = (ssn, options = {}) => {
   const { format = true, maskForDisplay = false } = options
 
@@ -881,10 +842,7 @@ export const sanitizeSSN = (ssn, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate and format EIN (Employer Identification Number)
- * - Format: XX-XXXXXXX
- */
+/** Validates a US EIN (XX-XXXXXXX). */
 export const sanitizeEIN = (ein, options = {}) => {
   const { format = true } = options
 
@@ -911,11 +869,7 @@ export const sanitizeEIN = (ein, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate and format PAN (India Permanent Account Number)
- * - Format: AAAAA9999A
- * - 5 letters, 4 digits, 1 letter
- */
+/** Validates an India PAN (AAAAA9999A: 5 letters, 4 digits, 1 letter). */
 export const sanitizePAN = (pan, options = {}) => {
   if (!pan || typeof pan !== "string") {
     return { valid: false, value: "", errors: ["PAN is required"] }
@@ -949,11 +903,7 @@ export const sanitizePAN = (pan, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate Aadhaar number (India)
- * - 12 digits
- * - Verhoeff algorithm checksum
- */
+/** Validates an India Aadhaar number: 12 digits, Verhoeff checksum. */
 export const sanitizeAadhaar = (aadhaar, options = {}) => {
   const { format = true, maskForDisplay = false } = options
 
@@ -1025,27 +975,14 @@ const verifyVerhoeff = (num) => {
 // FINANCIAL VALIDATION
 // ============================================================================
 
-/**
- * Validate and format currency amounts.
- *
- * **Not a path for money that reaches a column.** This returns a JS `number`,
- * and money in this product is a decimal STRING end to end because a float64
- * cannot hold `numeric(15,2)` at crore scale exactly — see CLAUDE.md § Money.
- * Use `FormReader.decimal()` for anything that will be stored, compared or
- * paid; it keeps the value a string from the browser to Postgres.
- *
- * What this is still good for is a range/shape opinion on a figure that is
- * never persisted. It currently has no callers in the product, and adding one
- * for a stored value would be a bug.
- */
+/** Returns a JS number — never use for stored money (money is a string end to end). Only for a non-persisted range check. */
 export const sanitizeCurrency = (amount, options = {}) => {
   const {
     min = 0,
     max = Number.MAX_SAFE_INTEGER,
     allowNegative = false,
     precision = 2,
-    // NOTE: a `currency` option was accepted here but never read. Amount
-    // sanitisation is currency-independent; formatting is the caller's job.
+    // No `currency` option: sanitisation is currency-independent; formatting is the caller's job.
   } = options
 
   if (amount === null || amount === undefined || amount === "") {
@@ -1105,9 +1042,7 @@ export const sanitizeCurrency = (amount, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate bank account number
- */
+/** Validates a bank account number. */
 export const sanitizeBankAccountNumber = (accountNumber, options = {}) => {
   const { country = "US", maskForDisplay = false } = options
 
@@ -1147,11 +1082,7 @@ export const sanitizeBankAccountNumber = (accountNumber, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate routing number (US)
- * - 9 digits
- * - Validates checksum
- */
+/** Validates a US routing number: 9 digits, with checksum. */
 export const sanitizeRoutingNumber = (routingNumber, options = {}) => {
   if (!routingNumber || typeof routingNumber !== "string") {
     return { valid: false, value: "", errors: ["Routing number is required"] }
@@ -1186,11 +1117,7 @@ export const sanitizeRoutingNumber = (routingNumber, options = {}) => {
   return { valid: true, value: digits, errors: [] }
 }
 
-/**
- * Validate IFSC code (India)
- * - Format: AAAA0BBBBBB
- * - 4 letters (bank code), 0, 6 alphanumeric (branch code)
- */
+/** Validates an India IFSC code: AAAA0BBBBBB — 4-letter bank code, literal 0, 6-char branch code. */
 export const sanitizeIFSC = (ifsc, options = {}) => {
   if (!ifsc || typeof ifsc !== "string") {
     return { valid: false, value: "", errors: ["IFSC code is required"] }
@@ -1211,12 +1138,7 @@ export const sanitizeIFSC = (ifsc, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate IBAN (International Bank Account Number)
- * - Used in European countries
- * - Country-specific length and format validation
- * - MOD-97 checksum validation
- */
+/** Validates an IBAN: per-country length/format plus the MOD-97 checksum. */
 export const sanitizeIBAN = (iban, options = {}) => {
   const { country = null } = options
 
@@ -1286,8 +1208,7 @@ export const sanitizeIBAN = (iban, options = {}) => {
     }
   }
 
-  // Validate MOD-97 checksum
-  // Move first 4 characters to end, convert letters to numbers (A=10, B=11, etc.)
+  // MOD-97 checksum: move first 4 chars to end, letters -> numbers (A=10, B=11, ...).
   const rearranged = sanitized.substring(4) + sanitized.substring(0, 4)
   const numericString = rearranged
     .split("")
@@ -1316,11 +1237,7 @@ export const sanitizeIBAN = (iban, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate BIC/SWIFT code
- * - Format: 4 letters (bank) + 2 letters (country) + 2 alphanumeric (location) + optional 3 alphanumeric (branch)
- * - Length: 8 or 11 characters
- */
+/** Validates a BIC/SWIFT code: bank(4) + country(2) + location(2) + optional branch(3), 8 or 11 chars. */
 export const sanitizeBIC = (bic, options = {}) => {
   if (!bic || typeof bic !== "string") {
     return { valid: false, value: "", errors: ["BIC/SWIFT code is required"] }
@@ -1354,13 +1271,7 @@ export const sanitizeBIC = (bic, options = {}) => {
 // TAX ID VALIDATION (INTERNATIONAL)
 // ============================================================================
 
-/**
- * Validate UK National Insurance Number (NIN)
- * - Format: 2 letters + 6 digits + 1 letter (e.g., AB123456C)
- * - First letter cannot be D, F, I, Q, U, V
- * - Second letter cannot be D, F, I, O, Q, U, V
- * - Final letter is always A, B, C, or D
- */
+/** Validates a UK NIN (AB123456C): letter pairs exclude D/F/I/Q/U/V (2nd also excludes O); final letter is A-D. */
 export const sanitizeUKNIN = (nin, options = {}) => {
   const { format = true } = options
 
@@ -1404,9 +1315,7 @@ export const sanitizeUKNIN = (nin, options = {}) => {
     }
   }
 
-  // HMRC never allocates these two-letter prefixes. Checking the letters
-  // individually does not catch them: B and G are each valid on their own, but
-  // 'BG' is not issued.
+  // HMRC never allocates these two-letter prefixes, even though each letter is valid alone.
   const invalidPrefixes = ["BG", "GB", "KN", "NK", "NT", "TN", "ZZ"]
   if (invalidPrefixes.includes(sanitized.substring(0, 2))) {
     return {
@@ -1423,11 +1332,7 @@ export const sanitizeUKNIN = (nin, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate Canadian Social Insurance Number (SIN)
- * - Format: 9 digits
- * - Luhn algorithm checksum validation
- */
+/** Validates a Canadian SIN: 9 digits, Luhn checksum. */
 export const sanitizeCanadaSIN = (sin, options = {}) => {
   const { format = true, maskForDisplay = false } = options
 
@@ -1473,11 +1378,7 @@ export const sanitizeCanadaSIN = (sin, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate French INSEE Number (Numéro de sécurité sociale)
- * - Format: 15 digits
- * - 1 digit (sex) + 2 digits (year) + 2 digits (month) + 2 digits (department) + 3 digits (commune) + 3 digits (order) + 2 digits (key)
- */
+/** Validates a French INSEE number: sex(1) + year(2) + month(2) + department(2) + commune(3) + order(3) + key(2), 15 digits. */
 export const sanitizeFranceINSEE = (insee, options = {}) => {
   const { format = true } = options
 
@@ -1519,11 +1420,7 @@ export const sanitizeFranceINSEE = (insee, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate German Tax ID (Steueridentifikationsnummer)
- * - Format: 11 digits
- * - Specific validation rules
- */
+/** Validates a German tax ID (Steueridentifikationsnummer): 11 digits. */
 export const sanitizeGermanyTaxID = (taxId, options = {}) => {
   if (!taxId || typeof taxId !== "string") {
     return { valid: false, value: "", errors: ["Tax ID is required"] }
@@ -1562,11 +1459,7 @@ export const sanitizeGermanyTaxID = (taxId, options = {}) => {
   return { valid: true, value: digits, errors: [] }
 }
 
-/**
- * Validate Italian Codice Fiscale
- * - Format: 16 characters (mix of letters and numbers)
- * - Complex calculation based on name, birthdate, and birthplace
- */
+/** Validates an Italian Codice Fiscale: 16 chars, derived from name/birthdate/birthplace. */
 export const sanitizeItalyCodiceFiscale = (cf, options = {}) => {
   if (!cf || typeof cf !== "string") {
     return { valid: false, value: "", errors: ["Codice Fiscale is required"] }
@@ -1690,11 +1583,7 @@ export const sanitizeItalyCodiceFiscale = (cf, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate Netherlands BSN (Burgerservicenummer)
- * - Format: 8 or 9 digits
- * - 11-proof checksum validation
- */
+/** Validates a Dutch BSN: 8 or 9 digits, 11-proof checksum. */
 export const sanitizeNetherlandsBSN = (bsn, options = {}) => {
   if (!bsn || typeof bsn !== "string") {
     return { valid: false, value: "", errors: ["BSN is required"] }
@@ -1724,11 +1613,7 @@ export const sanitizeNetherlandsBSN = (bsn, options = {}) => {
   return { valid: true, value: digits, errors: [] }
 }
 
-/**
- * Validate Swedish Personnummer (Personal Identity Number)
- * - Format: YYMMDD-XXXX or YYYYMMDD-XXXX
- * - 10 or 12 digits with Luhn checksum
- */
+/** Validates a Swedish Personnummer (YYMMDD-XXXX or YYYYMMDD-XXXX): Luhn checksum. */
 export const sanitizeSwedenPersonnummer = (personnummer, options = {}) => {
   const { format = true } = options
 
@@ -1777,11 +1662,7 @@ export const sanitizeSwedenPersonnummer = (personnummer, options = {}) => {
   return { valid: true, value: sanitized, errors: [] }
 }
 
-/**
- * Validate Swiss AVS Number (Sozialversicherungsnummer)
- * - Format: 756.XXXX.XXXX.XX
- * - 13 digits with EAN-13 checksum (starts with 756)
- */
+/** Validates a Swiss AVS number (756.XXXX.XXXX.XX): 13 digits, EAN-13 checksum, starts with 756. */
 export const sanitizeSwitzerlandAVS = (avs, options = {}) => {
   const { format = true } = options
 
@@ -1967,11 +1848,7 @@ export const sanitizeDate = (date, options = {}) => {
   return { valid: true, value: formatted, errors: [] }
 }
 
-/**
- * Validate date of birth
- * - Must be in the past
- * - Reasonable age limits (0-120 years)
- */
+/** Validates a date of birth: must be in the past, age 0-120. */
 export const sanitizeDateOfBirth = (dob, options = {}) => {
   const { minAge = 0, maxAge = 120 } = options
 
@@ -2017,9 +1894,7 @@ export const sanitizeDateOfBirth = (dob, options = {}) => {
 // EMPLOYMENT VALIDATION
 // ============================================================================
 
-/**
- * Validate employee ID/number
- */
+/** Validates an employee ID/number. */
 export const sanitizeEmployeeNumber = (empNumber, options = {}) => {
   const {
     minLength = 1,
@@ -2028,8 +1903,7 @@ export const sanitizeEmployeeNumber = (empNumber, options = {}) => {
     allowNumbers = true,
     format = null, // Optional format pattern, e.g. "EMP-####"
   } = options
-  // NOTE: a `prefix` option was accepted here but never applied — callers could
-  // pass it and get silence. Use `format` instead, which enforces the same thing.
+  // No `prefix` option: use `format` instead.
 
   if (!empNumber || typeof empNumber !== "string") {
     return { valid: false, value: "", errors: ["Employee number is required"] }
@@ -2122,9 +1996,7 @@ export const sanitizeJobTitle = (title, options = {}) => {
 // COMPOSITE VALIDATORS
 // ============================================================================
 
-/**
- * Validate full employee profile
- */
+/** Validates a full employee profile. */
 export const validateEmployeeProfile = (profile) => {
   const errors = {}
   const sanitized = {}
@@ -2268,13 +2140,7 @@ export const validateAddress = (address) => {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-/**
- * Generic string sanitizer
- * - Trims whitespace
- * - Removes control characters
- * - Normalizes unicode
- * - Prevents XSS
- */
+/** Generic string sanitizer: trims, strips control chars, normalizes Unicode, escapes XSS-relevant chars. */
 export const sanitizeString = (str, options = {}) => {
   const {
     maxLength = 1000,
@@ -2294,17 +2160,11 @@ export const sanitizeString = (str, options = {}) => {
     sanitized = sanitized.trim()
   }
 
-  // Strip control characters. Removing them is the whole point of this
-  // function, hence the rule is disabled rather than the pattern weakened.
-  //
-  // Both branches were previously identical, which made `allowNewlines` a
-  // no-op: newlines survived even when the caller asked for them to be removed.
+  // Strip control chars. allowNewlines keeps \n, \r, \t; the regex differs between branches on purpose.
   if (allowNewlines) {
-    // Keep \n (\x0A), \r (\x0D) and tab (\x09).
     // eslint-disable-next-line no-control-regex
     sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
   } else {
-    // Strip every control character, newlines and tabs included.
     // eslint-disable-next-line no-control-regex
     sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, "")
   }
@@ -2353,10 +2213,7 @@ export const validateEnum = (value, allowedValues, fieldName = "field") => {
   return { valid: true, value, errors: [] }
 }
 
-/**
- * Batch validation helper
- * Validates multiple fields and returns combined results
- */
+/** Validates multiple fields against a schema and returns combined results. */
 export const validateFields = (data, schema) => {
   const errors = {}
   const sanitized = {}

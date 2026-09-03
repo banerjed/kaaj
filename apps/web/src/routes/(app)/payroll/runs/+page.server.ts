@@ -8,21 +8,13 @@ import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
-// The vocabulary comes from the repository, which mirrors
-// payroll_runs_status_is_known (20260831140000). One list, so the filter and
-// the lifecycle cannot disagree about what a status is (L57).
+// Vocabulary comes from the repository, so the filter can't drift from the lifecycle (L57).
 const STATUSES = runs.RUN_STATUSES
 
 /** What the fixture uses, and what the column will accept. */
 const RUN_TYPES = ["regular", "off_cycle", "correction", "bonus"] as const
 
-/**
- * /payroll/runs — module-payroll.md.
- *
- * Reading a run means reading everyone's pay in it, so the READ is gated on
- * `compensation.read.all`. Opening a draft run is gated on `payroll.run`,
- * which is a different permission held by different people.
- */
+/** /payroll/runs — reading a run reads everyone's pay, so gated on `compensation.read.all`; opening one needs `payroll.run` instead. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
@@ -56,18 +48,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 }
 
 export const actions: Actions = {
-  /**
-   * Open a draft run for a period.
-   *
-   * Audited: a pay run is the record of money leaving the firm, and "who
-   * opened the period, and for which dates" is the first question asked when
-   * two runs cover the same fortnight. The entry goes in the SAME transaction
-   * as the INSERT (L40).
-   *
-   * It creates NOTHING but the header. Lines are per-person pay, and computing
-   * those needs tax tables this database does not have — see the note at the
-   * top of the repository.
-   */
+  /** Open a draft run header only — line computation needs tax tables not in this database (see repo). Audited in the same transaction (L40). */
   openRun: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

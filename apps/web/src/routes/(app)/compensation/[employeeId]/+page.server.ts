@@ -14,14 +14,7 @@ import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 /** Mirrors what the fixture and the schema actually use. */
 const TYPES = ["salary", "hourly", "commission", "retainer"] as const
 
-/**
- * /compensation/[employeeId] — one person's whole package.
- *
- * The row policy decides what comes back: your own record reaches you, and
- * everything reaches HR, payroll and an auditor. A person who may not see this
- * employee gets empty lists rather than an error, so the page says so rather
- * than rendering a blank shell (L21).
- */
+/** /compensation/[employeeId] — row policy scopes what returns; a refused viewer gets empty lists, not an error (L21). */
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
@@ -58,29 +51,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 }
 
 export const actions: Actions = {
-  /**
-   * Record a pay change.
-   *
-   * Two things this must not get wrong, both already handled by `addRaise`:
-   * it closes the row it supersedes rather than leaving two open, and it
-   * refuses a same-date, backdated or overlapping write instead of corrupting
-   * the history.
-   *
-   * What is added here is the AUDIT ENTRY, in the same transaction. A pay
-   * change is the example CLAUDE.md names: written afterwards or best-effort,
-   * the trail records what the application believed happened, and the two
-   * diverge exactly when someone is asking why (L40).
-   */
+  /** Record a pay change; `addRaise` handles closing/overlap. Audit entry is in the same transaction (L40). */
   raise: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
     requireCan(ctx, "compensation.write")
 
     const f = new FormReader(await request.formData())
-    // Every field read BEFORE the gate. A reader called inside the object
-    // built after `if (!f.ok)` runs once the gate has already passed, so its
-    // rejection is raised too late to report — and a non-required field
-    // returns null on rejection, saving NULL and answering saved: true (L33).
+    // Read above the gate — inside the object it'd be reported too late (L33).
     const effectiveFrom = f.date("effective_from", { required: true })
     const amount = f.decimal("amount", { scale: 2, required: true })
     const currency = f.currency("currency", { required: true })
@@ -98,9 +76,7 @@ export const actions: Actions = {
 
     try {
       await withTenant(actorFrom(locals), async (tx) => {
-        // Read what it was BEFORE changing it. Without this the trail records
-        // only what a value became, which is the half nobody asks about — the
-        // question is always "what was it before, and who changed it".
+        // Read the prior value first — the audit trail needs before AND after.
         const previous = (
           await base.listForEmployee(tx, params.employeeId)
         ).find((r) => r.effective_to === null)
@@ -122,13 +98,7 @@ export const actions: Actions = {
           ctx!.employeeId ?? ctx!.userId,
         )
 
-        // SAME TRANSACTION as the change itself. The fields that changed, not
-        // a row dump: audit_log holds INSERT and SELECT only, so anything
-        // written here is written forever.
-        // SAME TRANSACTION as the change itself, with the OLD and NEW value
-        // of every field that moved. Values are strings: a JSON number inside
-        // JSONB returns to JavaScript as a float64, and this table cannot be
-        // corrected (L41).
+        // Same transaction; only the fields that changed, as strings (L41).
         await audit.record(tx, ctx!, {
           action: "pay_change",
           entityType: "compensation_base",

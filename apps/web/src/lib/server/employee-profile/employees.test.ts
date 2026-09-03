@@ -4,17 +4,9 @@ import { withTenant } from "../db/tenant"
 import * as employees from "./employees.repo"
 
 /**
- * The employee directory, read as a RESTRICTED actor.
- *
- * Every other repository suite runs as an actor who reads everything, so that
- * a row-visibility policy does not silently narrow what a repository test
- * sees. That convention has a blind spot, and this file exists to cover it:
- * a projection that falls back to an UNPROTECTED column when the protected one
- * is invisible looks correct to an owner, because the owner never reaches the
- * fallback. `employees.list` did exactly that and disclosed every salary in
- * the firm to every employee (L47).
- *
- * These cases must therefore run as someone who is meant to be refused.
+ * The employee directory, read as a RESTRICTED actor (unlike other repo
+ * suites, which run as an owner). A fallback to an unprotected column looks
+ * correct to an owner, who never reaches it — that's exactly how L47 happened.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -46,9 +38,7 @@ describe("the directory, as a plain employee", () => {
       employees.list(tx, { limit: 50 }),
     )
 
-    // Both halves matter. A policy too tight blanks the page instead of
-    // erroring (L21), so "no pay visible" is only meaningful alongside
-    // "colleagues are visible".
+    // Both halves — a too-tight policy blanks the page silently (L21).
     expect(rows.length).toBeGreaterThan(1)
 
     const others = rows.filter((r) => r.id !== MARCUS)
@@ -62,8 +52,6 @@ describe("the directory, as a plain employee", () => {
   })
 
   it("still shows the person their own pay", async () => {
-    // The failure this guards is the over-correction: hiding everyone's pay
-    // including your own, which reads as a broken page rather than a policy.
     const { rows } = await withTenant(AS_MARCUS, (tx) =>
       employees.list(tx, { limit: 50 }),
     )
@@ -75,8 +63,6 @@ describe("the directory, as a plain employee", () => {
   })
 
   it("hides pay on the detail page too, not just the list", async () => {
-    // Two queries carried the same fallback. Fixing one and shipping the
-    // other is L42's shape exactly.
     const sarah = await withTenant(AS_MARCUS, (tx) =>
       employees.getById(tx, SARAH),
     )
@@ -88,8 +74,6 @@ describe("the directory, as a plain employee", () => {
 
 describe("the directory, as the owner", () => {
   it("shows what everyone is paid", async () => {
-    // The other half: the fix must not have blanked the figure for the people
-    // whose job is to see it.
     const { rows } = await withTenant(AS_OWNER, (tx) =>
       employees.list(tx, { limit: 50 }),
     )

@@ -65,15 +65,9 @@ function refusal(e: ProjectWriteRefused) {
 
 export const actions: Actions = {
   /**
-   * Add a task.
-   *
-   * NOT audited, by the register's own test: a task appearing on a board does
-   * not change anyone's money, employment or rights, and `audit_log` can never
-   * be pruned — so a row per task movement buries the pay changes it exists to
-   * make findable. The row itself carries `created_by` and `created_at`.
-   *
-   * What this MUST get right instead is the project's counters, and it does:
-   * `createTask` recomputes them in the same transaction.
+   * Add a task. NOT audited — a task move doesn't touch money, employment or
+   * rights, and a row per move would bury the entries that matter. `createTask`
+   * recomputes the project's counters in the same transaction.
    */
   addTask: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -85,9 +79,7 @@ export const actions: Actions = {
     const description = f.text("description", { max: 2000 })
     const status = f.choice("status", TASK_STATUSES, { required: true })
     const priority = f.choice("priority", TASK_PRIORITIES)
-    // `tasks.assigned_to` is TEXT holding a uuid and carries no foreign key.
-    // Reading it as a uuid anyway is what stops a malformed value reaching a
-    // column the board later joins on.
+    // assigned_to is TEXT with no FK; validating as uuid anyway stops a malformed value.
     const assignedTo = f.uuid("assigned_to")
     const startDate = f.date("start_date")
     const dueDate = f.date("due_date")
@@ -125,12 +117,9 @@ export const actions: Actions = {
   },
 
   /**
-   * Move a task to another status.
-   *
-   * NOT audited, same reasoning as `addTask`. The completion fields move
-   * together inside `setTaskStatus`, which is the part that would otherwise
-   * fail silently — a task pulled back out of `done` keeping its completion
-   * date reads as finished to everything downstream.
+   * Move a task to another status. NOT audited, same reasoning as `addTask`.
+   * `setTaskStatus` moves the completion fields together, so pulling a task
+   * back out of `done` doesn't leave it still looking finished.
    */
   moveTask: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -158,15 +147,7 @@ export const actions: Actions = {
     }
   },
 
-  /**
-   * Edit the project itself.
-   *
-   * Audited: the budget, the rate and the billable flag are what a client is
-   * billed against, and `status` is what a report counts as delivered. Only
-   * the fields that MOVED are recorded — burying the one that changed among
-   * eight that did not, in a table nobody can prune, is the same as not
-   * recording it.
-   */
+  /** Edit the project itself. Audited — only the fields that moved. */
   updateProject: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
@@ -210,10 +191,7 @@ export const actions: Actions = {
           ctx!.employeeId ?? ctx!.userId,
         )
 
-        // `audit.diff` records only the fields that moved, and stringifies
-        // each side itself — booleans and NUMERIC-as-string alike. The field
-        // list is explicit so adding a column to the form is a deliberate
-        // decision about whether it belongs in a table nobody can prune.
+        // Explicit field list: adding a form column is a deliberate decision about auditing it.
         const changes = audit.diff(before, next, [
           "project_name",
           "status",

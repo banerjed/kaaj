@@ -12,8 +12,7 @@ import { constraintFailure } from "$lib/server/db/constraints"
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
-  // Filter state lives in the URL, not in component state (doc 03), so the
-  // view is shareable and survives a reload.
+  // Filter state lives in the URL so the view is shareable and survives a reload.
   const yearParam = url.searchParams.get("year")
   const year = yearParam ? Number(yearParam) : undefined
 
@@ -25,9 +24,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }))
 }
 
-/** What a reviewer would ask about. Not every column: a table nobody can
- *  prune should carry the fields that matter, and burying them among unchanged
- *  ones is the same as not recording them. */
+/** The fields a reviewer would ask about, not every column. */
 const AUDITED_FIELDS = [
   "holiday_name",
   "holiday_date",
@@ -77,8 +74,7 @@ export const actions: Actions = {
           })
         }
 
-        // Read what it was BEFORE writing, so the entry says what changed
-        // rather than only what it became.
+        // Read before writing, so the entry says what changed.
         const before = id
           ? ((await holidays.list(tx)).find((r) => r.id === id) ?? null)
           : null
@@ -86,7 +82,7 @@ export const actions: Actions = {
         if (id) await holidays.update(tx, id, input)
         else await holidays.create(tx, tenantId, input)
 
-        // SAME TRANSACTION. A public holiday decides whether a day is paid leave, and whether working it earns a premium.
+        // Same transaction — a holiday decides paid leave and premium pay.
         await audit.record(tx, contextFrom(locals)!, {
           action: id ? "update" : "create",
           entityType: "firm_holidays",

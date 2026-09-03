@@ -4,19 +4,14 @@ import { isNegative } from "$lib/decimal"
 /**
  * firm_benefit_items — what is actually in a package.
  *
- * `costs_by_currency` is JSONB keyed by ISO currency, the same shape and the
- * same reasoning as `firm_job_levels.salary_ranges`: a benefit costs what it
- * costs in each market, and deriving one figure from another at an exchange
- * rate would re-price everybody's payslip whenever the rate moved.
+ * `costs_by_currency` is JSONB keyed by ISO currency — a benefit costs what
+ * it costs in each market, never derived at an exchange rate:
  *
  *   { "USD": { "employee": 120, "employer": 480 },
  *     "INR": { "employee": 2500, "employer": 9000 } }
  */
 
-/**
- * Strings. These are money, and JSONB hands a JSON number back to JavaScript as
- * a float64 — see CLAUDE.md § Money.
- */
+/** Strings — JSONB money, per CLAUDE.md § Money. */
 export type BenefitCost = { employee: string; employer: string }
 export type CostsByCurrency = Record<string, BenefitCost>
 
@@ -38,9 +33,7 @@ export async function list(tx: Tx): Promise<BenefitItem[]> {
     SELECT id, benefits_package_id, benefit_type, benefit_name,
            benefit_name_i18n, carrier_name, carrier_varies_by_location,
            costs_by_currency,
-           -- The true cost of a benefit is employer + employee. Added here, as
-           -- NUMERIC, because that is where addition is exact: the component
-           -- adding two JSON numbers was arithmetic on money in JavaScript.
+           -- employer + employee, added here as NUMERIC — exact, unlike JS.
            (
              SELECT jsonb_object_agg(
                       cur,
@@ -107,15 +100,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<
     { id: string }[]
@@ -123,14 +108,7 @@ export async function archive(tx: Tx, id: string): Promise<boolean> {
   return rows.length > 0
 }
 
-/**
- * Costs that make no sense. Negative money is not a benefit, and the column is
- * JSONB so no CHECK constraint can reach it.
- *
- * CLAUDE.md is explicit that custom fields must never feed payroll; these are
- * modelled columns rather than custom fields precisely so they can, which puts
- * the burden of validating them here.
- */
+/** Costs that make no sense — negative money, unreachable by a CHECK since the column is JSONB. */
 export function invalidCosts(costs: CostsByCurrency): string[] {
   return Object.entries(costs)
     .filter(

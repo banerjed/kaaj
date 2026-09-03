@@ -2,40 +2,14 @@
 -- Kaaj — Unified Business Management Platform
 -- Supabase PostgreSQL Schema (AUTHORITATIVE)
 -- =============================================================================
--- Version:      7.0
--- Last Updated: 2026-08-27
+-- Merge history is in SCHEMA-RECONCILIATION.md — read that before changing
+-- anything here.
 --
--- Supersedes:
---   data-models.md                        (PostgreSQL, 43 tables, no employees)
---   data-models/d1-schema-clean.sql       (D1/SQLite, 52 tables, db-per-org)
---   data-models/critical-tables-addon.sql (D1/SQLite, 4 tables)
---
--- Every merge decision — including the eight capabilities the D1 "SMB
--- optimization" pass dropped and which were restored — is recorded in
--- SCHEMA-RECONCILIATION.md. Read that before changing anything here.
---
--- AMENDED BY MIGRATIONS. This file remains authoritative for INTENT — the tables,
--- types, indexes and policies below are what the system is meant to contain. It
--- is NOT a description of the deployed database. Four migrations correct defects
--- that only appeared when this file was applied to a real PostgreSQL and used as
--- a non-owner role; see ../api-surface.md for the findings table.
---
---   app/supabase/migrations/
---     ..._initial_schema.sql         this file, verbatim
---     ..._auth_and_grants.sql        adds every GRANT (this file has none, so
---                                    no role can read anything), the
---                                    custom_access_token_hook that ADR-008
---                                    assumes, a policy letting the hook read
---                                    tenant_users at token issue, FORCE RLS on
---                                    exchange_rates, security_invoker on
---                                    v_upcoming_celebrations
---     ..._audit_column_defaults.sql  DEFAULT now() on the 33 tables whose
---                                    created_at/updated_at are NOT NULL with no
---                                    default, and attaches app.set_updated_at()
---                                    which is defined below but wired to nothing
---     ..._harden_tenant_context.sql  app.current_tenant_id() below RAISES on an
---                                    empty or malformed claim; it should return
---                                    no tenant
+-- AMENDED BY MIGRATIONS: this file is authoritative for INTENT, not a
+-- description of the deployed database. supabase/migrations/ corrects defects
+-- found running this as a non-owner role — notably it adds every GRANT (this
+-- file has none), the custom_access_token_hook ADR-008 assumes, and DEFAULT
+-- now() on columns this file leaves without one. See ../api-surface.md.
 --
 -- Verify any change to this file with: packages/database/scripts/verify-migrations.sh
 --
@@ -63,30 +37,17 @@ CREATE EXTENSION IF NOT EXISTS "btree_gin";   -- composite GIN with tenant_id
 CREATE SCHEMA IF NOT EXISTS app;
 
 -- -----------------------------------------------------------------------------
--- Core enumerated types
+-- Core enumerated types (generated from enumerations.json)
 -- -----------------------------------------------------------------------------
--- Stable, system-defined values that customers cannot change. Tenant-customizable
--- values are reference TABLES instead — see ../06-customization-model.md Tier 1.
--- Values generated from enumerations.json.
--- NOTE: data-models.md referenced these types but never defined them.
-
-
--- -----------------------------------------------------------------------------
--- Enumerated types generated from enumerations.json (2026-08-27)
--- -----------------------------------------------------------------------------
--- Native Postgres enums, per https://supabase.com/docs/guides/database/postgres/enums
+-- Only STABLE, SYSTEM-DEFINED value sets are enums; tenant-customizable values
+-- are reference TABLES instead (../06-customization-model.md Tier 1). Postgres
+-- has no ALTER TYPE ... DROP VALUE, so an enum is a one-way door — adding is
+-- fine, removing is not.
 --
--- Only STABLE, SYSTEM-DEFINED value sets are enums. Postgres has no
--- ALTER TYPE ... DROP VALUE — removed values can persist in index pages — so an
--- enum is a one-way door. Adding is fine:
---     ALTER TYPE employment_status ADD VALUE 'sabbatical';
---
--- Deliberately NOT enums:
---   * tenant-customizable values (benefit_type, time_off_type, expense_type,
---     asset_type, training_type, feedback_type, account_subtype) — these are
---     Tier 1 reference-table candidates, see ../06-customization-model.md
---   * external standards that grow (currency, locale, timezone, country) —
---     ISO/IANA lists change without our involvement
+-- Deliberately NOT enums: tenant-customizable values (benefit_type,
+-- time_off_type, expense_type, asset_type, training_type, feedback_type,
+-- account_subtype) and external standards that grow (currency, locale,
+-- timezone, country).
 
 CREATE TYPE account_type AS ENUM (
     'asset',
@@ -411,17 +372,15 @@ CREATE TYPE premium_type AS ENUM (
 -- -----------------------------------------------------------------------------
 -- Tenant context
 -- -----------------------------------------------------------------------------
--- The application connects directly to Postgres (not via PostgREST), so it sets
--- the JWT claims itself, once per request, inside the transaction:
+-- The application connects directly to Postgres (not via PostgREST), so it
+-- sets the JWT claims itself, once per request, inside the transaction:
 --
 --   BEGIN;
 --   SET LOCAL request.jwt.claims = '{"sub":"...","app_metadata":{"tenant_id":"..."}}';
---   ...
 --   COMMIT;
 --
--- auth.jwt() reads current_setting('request.jwt.claims'), so policies written in
--- the Supabase idiom behave identically whether the query arrives via PostgREST
--- or via the application's own connection.
+-- auth.jwt() reads current_setting('request.jwt.claims'), so Supabase-idiom
+-- policies behave identically via PostgREST or the app's own connection.
 
 CREATE OR REPLACE FUNCTION app.current_tenant_id()
 RETURNS UUID
@@ -1902,10 +1861,8 @@ CREATE TABLE payroll_run_employees (
     UNIQUE (tenant_id, run_employee_id)
 );
 
--- NOTE: pay_period_id was removed (2026-08-27). It referenced a `pay_periods`
--- table that exists in neither source schema. Pay periods are currently derived
--- from payroll_pay_schedules + period_start/period_end. Revisit if explicit pay
--- period records are needed.
+-- pay_period_id was removed: no `pay_periods` table exists. Pay periods are
+-- derived from payroll_pay_schedules + period_start/period_end.
 CREATE TABLE payroll_runs (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id),
@@ -2646,10 +2603,9 @@ CREATE TABLE vendors (
 -- ../06-customization-model.md
 -- =============================================================================
 
--- Tenant membership. Supabase Auth owns identity (auth.users); this table owns
--- which tenants a user belongs to and in what role. A user may belong to more
--- than one tenant, so an active tenant is tracked and switching re-issues the
--- JWT. This is unpleasant to retrofit, hence its presence from day one.
+-- Supabase Auth owns identity (auth.users); this table owns which tenants a
+-- user belongs to and in what role. A user may belong to more than one
+-- tenant; switching re-issues the JWT.
 CREATE TABLE tenant_users (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -2791,10 +2747,8 @@ CREATE INDEX idx_cml_target
 -- source. Each carried real capability. See SCHEMA-RECONCILIATION.md §Restored.
 -- =============================================================================
 
--- RESTORED: hr_time_off_balances
--- D1 inlined this to employees.pto_balances (JSONB), losing per-policy accrual,
--- carryover and expiry tracking. Leave balances are a balance-sheet liability
--- and a common source of dispute; they need a ledger, not a mutable blob.
+-- Leave balances are a balance-sheet liability and a common source of
+-- dispute; they need a ledger, not a mutable JSONB blob.
 -- employees.pto_balances is retained as a display cache only.
 CREATE TABLE hr_time_off_balances (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2891,12 +2845,9 @@ CREATE INDEX idx_tthr_lookup
 -- -----------------------------------------------------------------------------
 -- Employee bank accounts — module-payroll.md FR-PAY-005, US-PAY-010
 -- -----------------------------------------------------------------------------
--- Gap: the schema had no employee banking at all. bank_accounts holds the
--- COMPANY's accounts (accounting module) and vendors holds vendor banking, so
--- payroll had no way to pay anyone.
---
--- Supports ACH (US), NEFT/RTGS (India) and SEPA, plus split deposits across
--- multiple accounts by percentage or fixed amount.
+-- bank_accounts holds the COMPANY's accounts; this is the employee side, so
+-- payroll has somewhere to pay. Supports ACH/NEFT/RTGS/SEPA and split
+-- deposits across accounts.
 CREATE TABLE employee_bank_accounts (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -2958,13 +2909,10 @@ CREATE INDEX idx_emp_bank_employee
 -- -----------------------------------------------------------------------------
 -- Employment history — module-hr.md US-HR-007/008/010/011, FR-HR-003
 -- -----------------------------------------------------------------------------
--- Gap: compensation_base gave effective-dated SALARY history, but job title,
--- level, department, manager and location existed only as current values on
--- employees. "Record a job change (promotion, transfer, department change)"
--- and "view my full employment history" had no storage.
---
--- One row per change, holding both sides so the record stays readable even if
--- a department or title is later renamed.
+-- compensation_base gave effective-dated SALARY history, but job title,
+-- level, department, manager and location existed only as current values.
+-- One row per change, holding both sides so the record stays readable even
+-- if a department or title is later renamed.
 CREATE TABLE hr_employment_history (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -3023,9 +2971,8 @@ CREATE INDEX idx_emp_history_type
 -- -----------------------------------------------------------------------------
 -- Onboarding templates — module-hr.md FR-HR-009
 -- -----------------------------------------------------------------------------
--- Gap: hr_onboarding_tasks.template_data held a per-employee COPY of whatever
+-- hr_onboarding_tasks.template_data held a per-employee COPY of whatever
 -- template was applied, so templates could not be maintained centrally.
--- "Onboarding tasks auto-created from template on hire" needs a definition.
 CREATE TABLE hr_onboarding_templates (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -3092,10 +3039,8 @@ CREATE INDEX idx_onboarding_tmpl_tasks
 -- -----------------------------------------------------------------------------
 -- Company news — module-hr.md FR-HR-011 (Company News Feed widget)
 -- -----------------------------------------------------------------------------
--- Note: birthdays and work anniversaries are DERIVED from employees.birth_date
--- and employees.start_date and need no table — see v_upcoming_celebrations
--- below. Privacy controls already live in employees.celebration_preferences.
--- What genuinely had no home was announcements and recognition posts.
+-- Birthdays/anniversaries are DERIVED (see v_upcoming_celebrations below) and
+-- need no table here; this covers announcements and recognition posts only.
 CREATE TABLE hr_company_news (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -3143,13 +3088,11 @@ CREATE INDEX idx_company_news_feed
 -- =============================================================================
 -- Isolation is enforced by the database, not by remembering to filter.
 --
--- FORCE is essential: without it, RLS is silently bypassed by the table owner,
--- which is exactly how a system that "has RLS" turns out not to. The
--- application must connect as a NON-OWNER role.
+-- FORCE is essential: without it, RLS is silently bypassed by the table
+-- owner. The application must connect as a NON-OWNER role:
 --
 --   CREATE ROLE app_user LOGIN PASSWORD '...';
 --   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
---
 
 ALTER TABLE firm_locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE firm_locations FORCE ROW LEVEL SECURITY;
@@ -4078,16 +4021,10 @@ CREATE INDEX idx_time_tracking_hourly_rates_created ON time_tracking_hourly_rate
 -- =============================================================================
 -- SECTION 7 — FULL-TEXT SEARCH (ADR-002)
 -- =============================================================================
--- Replaces the D1 schema's FTS5 virtual tables (tickets_fts, updates_fts) and
--- their six sync triggers.
+-- Replaces the D1 schema's FTS5 virtual tables and their six sync triggers.
 --
--- Note: the D1 definitions carried a latent bug — they declared
--- content='tickets' and content='ticket_updates', but the real tables are named
--- ticketing_tickets and ticketing_updates. The external-content configuration
--- pointed at tables that do not exist. Corrected here.
---
--- tenant_id is part of every search predicate. Search is the most likely place
--- for a cross-tenant leak to reach a user's screen.
+-- tenant_id is part of every search predicate — search is the most likely
+-- place for a cross-tenant leak to reach a user's screen.
 
 ALTER TABLE ticketing_tickets  ADD COLUMN search_vector tsvector;
 ALTER TABLE ticketing_updates  ADD COLUMN search_vector tsvector;
@@ -4133,9 +4070,9 @@ CREATE INDEX idx_projects_custom_fields  ON projects  USING GIN (custom_fields j
 -- -----------------------------------------------------------------------------
 -- Tenant-scoped uniqueness corrections
 -- -----------------------------------------------------------------------------
--- These three were GLOBALLY unique in the D1 schema, which assumed one database
--- per organization. Under shared tenancy the first was a hard failure: only one
--- tenant in the entire system could have a headquarters.
+-- These three were GLOBALLY unique in the D1 schema (one database per
+-- organization). Under shared tenancy the first was a hard failure: only one
+-- tenant in the whole system could have a headquarters.
 
 CREATE UNIQUE INDEX idx_firm_locations_hq
     ON firm_locations (tenant_id) WHERE is_headquarters;

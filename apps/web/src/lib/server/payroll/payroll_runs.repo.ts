@@ -1,18 +1,9 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * payroll_runs — a pay period, and what each person was paid in it.
- *
- * **Every figure is a string, and every sum happens in SQL.** These columns are
- * `numeric(15,2)`; the JSONB breakdowns hold strings deliberately
- * (20260831140000), because a JSON number is exact in Postgres and a float64
- * the moment a driver reads it. Adding them up in JavaScript would be the
- * float round trip this codebase exists to avoid — and once the fields are
- * correctly typed as strings it becomes silent concatenation instead, with no
- * type error.
- *
- * Row visibility is the database's job: an employee sees only their own line
- * (20260831110000). This repository does not filter by person.
+ * payroll_runs — a pay period, and what each person was paid in it. Every
+ * figure is a string and every sum happens in SQL, including the JSONB
+ * breakdowns. Row visibility is RLS's job; this repository never filters by person.
  */
 
 export type PayrollRun = {
@@ -120,10 +111,7 @@ const LINE_SELECT = `
          pe.total_taxes::text               AS total_taxes,
          pe.total_pretax_deductions::text   AS total_pretax_deductions,
          pe.total_posttax_deductions::text  AS total_posttax_deductions,
-         -- Summed HERE, in NUMERIC, because a payslip shows one Deductions
-         -- subtotal. Adding the two strings in JavaScript is the float64 round
-         -- trip, and once they are correctly typed as strings it is silent
-         -- concatenation instead, with no type error.
+         -- Summed here, in NUMERIC — a payslip shows one Deductions subtotal.
          (pe.total_pretax_deductions + pe.total_posttax_deductions)::text
            AS total_deductions,
          pe.net_pay::text                   AS net_pay,
@@ -140,7 +128,6 @@ export async function linesFor(tx: Tx, runId: string): Promise<PayslipLine[]> {
   `
 }
 
-/** Every line for one person, newest pay date first — their payslip history. */
 /** A line plus the run context a payslip has to show on its own. */
 export type Payslip = PayslipLine & {
   pay_date: string
@@ -149,19 +136,14 @@ export type Payslip = PayslipLine & {
 }
 
 /**
- * One person's payslip history, newest first.
- *
- * The three run-level columns are selected explicitly rather than inherited
- * from the join. `LINE_SELECT` names only `pe.*`, so a widened return type over
- * it describes a shape the query does not produce — and the page then renders
- * `undefined` beside a real amount, with no error anywhere (L45).
+ * One person's payslip history, newest first. Run-level columns are selected
+ * explicitly rather than inherited — a widened type over LINE_SELECT's own
+ * columns would render `undefined` beside a real amount (L45).
  */
 export async function forEmployee(
   tx: Tx,
   employeeId: string,
 ): Promise<Payslip[]> {
-  // LINE_SELECT ends its own select list, so the run columns are added by
-  // wrapping it rather than by appending to it.
   return tx<Payslip[]>`
     SELECT line.*,
            to_char(r.pay_date,'YYYY-MM-DD') AS pay_date,
@@ -176,13 +158,8 @@ export async function forEmployee(
 }
 
 /**
- * Lines whose own figures do not add up.
- *
- *   net = gross - taxes - pretax deductions - posttax deductions
- *
- * Nothing enforces it, and this is the number that reaches a bank. A line that
- * drifts is invisible until someone is paid the wrong amount — and by then the
- * payment has left.
+ * Lines whose own figures do not add up: net = gross - taxes - deductions.
+ * Nothing enforces this and it's the number that reaches a bank.
  */
 export async function inconsistentLines(
   tx: Tx,
@@ -206,14 +183,7 @@ export async function inconsistentLines(
   `
 }
 
-/**
- * Runs whose header totals disagree with the lines beneath them.
- *
- * The header is what a finance lead reads and what gets reported; the lines are
- * what people are actually paid. A run claiming an employee it has no line for
- * says it paid someone it cannot name — which the fixture did, until
- * 20260831140000.
- */
+/** Runs whose header totals disagree with the lines beneath them. */
 export async function inconsistentRuns(tx: Tx): Promise<
   {
     run_id: string | null
@@ -241,29 +211,14 @@ export async function inconsistentRuns(tx: Tx): Promise<
 // Writes — the run LIFECYCLE, deliberately not the calculation
 // ---------------------------------------------------------------------------
 //
-// **What this does not do: compute anybody's pay.** Gross, taxes and net per
-// person need per-jurisdiction tax tables that do not exist in this database,
-// and inventing them would produce a correct-LOOKING number on a payslip —
-// the exact failure mode this codebase keeps being bitten by. `payroll_tax_rates`
-// is unpopulated and the India structures are untouched; until they are real,
-// the lines come from the fixture and nothing here writes one.
+// This does not compute anybody's pay — no per-jurisdiction tax tables exist
+// yet, so lines come from the fixture only. This owns the state a run moves
+// through and its header totals.
 //
-// What this DOES own is the state a run moves through and the header totals
-// that describe it. Both are things a person is later asked to justify, and
-// both were previously unwritable.
-//
-// Three CHECK constraints back these writes, and each was observed refusing a
-// bad write before being relied on (20260831140000, 20260902040128):
-//
-//   payroll_runs_status_is_known            the vocabulary is closed
-//   payroll_runs_stages_have_timestamps     a stage implies its timestamps
-//   payroll_runs_calculator_is_not_approver one person cannot do both
-//   payroll_runs_status_columns_agree       run_status and status move together
-//
-// What no CHECK gives is DIRECTION — `payroll_runs_status_is_known` is equally
-// happy with finalized → draft — nor the case where `calculated_by` is NULL,
-// which slips past separation of duties because that constraint only fires
-// when both columns are set. Both are enforced below.
+// Four CHECK constraints back these writes (status vocabulary, stage
+// timestamps, calculator != approver, run_status/status agreement). They
+// don't enforce transition DIRECTION or catch a NULL calculated_by bypassing
+// separation of duties — both are enforced below.
 
 export const RUN_STATUSES = [
   "draft",
@@ -277,18 +232,12 @@ export const RUN_STATUSES = [
 export type RunStatus = (typeof RUN_STATUSES)[number]
 
 /**
- * Where a run may go from where it is. One way, and cancellation stops.
- *
- * A pay run that can go backwards can be un-approved after someone has been
- * paid, and the trail then describes a state the money does not agree with.
+ * Where a run may go from where it is. One way — a run that could go
+ * backwards could be un-approved after someone was already paid.
  */
 const NEXT: Record<RunStatus, readonly RunStatus[]> = {
-  // draft goes straight to `calculated` because the calculation here is
-  // synchronous — the header is recomputed from the lines in the same
-  // transaction. `calculating` is the state a background job would occupy and
-  // nothing enters it today; it stays in the map because the column's
-  // vocabulary has it and a job runner will, and because a status that exists
-  // in the database but not in this map is a run nothing can move.
+  // draft -> calculated directly since calculation here is synchronous.
+  // `calculating` stays in the map for a future background job.
   draft: ["calculating", "calculated", "cancelled"],
   calculating: ["calculated", "cancelled"],
   calculated: ["approved", "cancelled"],
@@ -315,21 +264,9 @@ export class RunRefused extends Error {
 }
 
 /**
- * Recompute the header from the lines beneath it.
- *
- * `employee_count` and the four totals are the denormalised half of this
- * table; `payroll_run_employees` is the truth. Recomputed rather than
- * incremented, for the reason in CLAUDE.md and L58 — a header that has already
- * drifted is repaired by the next write instead of carried forward. The
- * fixture shipped a run claiming an employee it had no line for.
- *
- * Every sum is NUMERIC in Postgres. Adding these in JavaScript is the float64
- * round trip, and once the columns are correctly typed as strings it becomes
- * silent concatenation with no type error.
- *
- * `total_deductions` is pre-tax PLUS post-tax, which is the same definition
- * `LINE_SELECT` uses for a payslip's Deductions subtotal. Two definitions of a
- * total is one definition that will disagree.
+ * Recompute the header from the lines beneath it — recomputed, not
+ * incremented (L58). `total_deductions` uses the same pre-tax + post-tax
+ * definition as LINE_SELECT's payslip subtotal, to avoid two totals disagreeing.
  */
 export async function refreshRunTotals(tx: Tx, runId: string): Promise<void> {
   await tx`
@@ -389,14 +326,7 @@ function requireTransition(from: RunStatus, to: RunStatus): void {
   }
 }
 
-/**
- * Move a run to `calculated`: the lines are in, and the header now describes
- * them.
- *
- * Refused with no lines. A run calculated over nothing reports zero gross and
- * looks like a finished pay period in which nobody happened to be paid — which
- * is indistinguishable, on the page, from one where the lines failed to load.
- */
+/** Move a run to `calculated`. Refused with no lines — zero gross would look like a finished, empty period. */
 export async function markCalculated(
   tx: Tx,
   runId: string,
@@ -406,8 +336,7 @@ export async function markCalculated(
   requireTransition(current.run_status, "calculated")
   if (current.line_count === 0) throw new RunRefused("no_lines")
 
-  // The header BEFORE the status moves, so the CHECK that a calculated run has
-  // totals is satisfied by figures that describe the lines.
+  // Header refreshed before the status moves, so the CHECK sees real totals.
   await refreshRunTotals(tx, runId)
   await tx`
     UPDATE payroll_runs
@@ -422,17 +351,10 @@ export async function markCalculated(
 }
 
 /**
- * Approve a run. The money is committed from here.
- *
- * Two refusals the database cannot make on its own:
- *
- * - **Self-approval where nobody calculated.**
- *   `payroll_runs_calculator_is_not_approver` fires only when BOTH columns are
- *   set, so approving a run with a NULL `calculated_by` passes it. That is the
- *   hole this closes — an approval with no calculation behind it is one person
- *   doing the whole thing, which is what separation of duties exists to stop.
- * - **Self-approval where somebody did.** The CHECK catches it, but as a 500
- *   with a constraint name in it. Refused here so the page can say why.
+ * Approve a run — the money is committed from here. Refuses a NULL
+ * `calculated_by` (the CHECK only fires when both columns are set, so this
+ * closes the one-person-does-everything hole) and self-approval, with a
+ * usable message instead of a bare constraint failure.
  */
 export async function approve(
   tx: Tx,
@@ -479,13 +401,7 @@ export async function finalize(
   return { from: current.run_status }
 }
 
-/**
- * Cancel a run before it is finalized.
- *
- * There is no route back from `finalized` or `paid`, and none from `cancelled`
- * either: a cancelled run is corrected by raising another, the same way an
- * audit entry is corrected by a new row rather than an edit.
- */
+/** Cancel a run before it is finalized. No route back — a cancelled run is corrected by raising another. */
 export async function cancel(
   tx: Tx,
   runId: string,
@@ -495,11 +411,7 @@ export async function cancel(
   const current = await currentRun(tx, runId)
   requireTransition(current.run_status, "cancelled")
 
-  // `notes` is APPENDED to, not replaced: it already carries whatever the run
-  // was opened with, and overwriting it destroys that to record something the
-  // audit entry holds anyway. `processed_by` is deliberately left alone — it
-  // means "who processed this run", and a cancellation is the opposite of
-  // processing; who cancelled it is in the trail, which is the durable record.
+  // Appended to notes, not replaced — preserves whatever it was opened with.
   await tx`
     UPDATE payroll_runs
        SET run_status = 'cancelled',
@@ -523,13 +435,9 @@ export type NewRun = {
 }
 
 /**
- * Open a draft run for a period.
- *
- * The run number follows the fixture's shape — `PR-YYYY-MM-<COUNTRY>` — so a
- * person reading a bank file can tell which period and which country it
- * belongs to without opening anything. A second run for the same period and
- * country collides on `UNIQUE (tenant_id, run_id)`, which is the right answer:
- * two runs for one period is how somebody gets paid twice.
+ * Open a draft run for a period. Run number is `PR-YYYY-MM-<COUNTRY>`; a
+ * second run for the same period/country collides on the UNIQUE constraint —
+ * the right answer, since that's how somebody gets paid twice.
  */
 export async function createRun(
   tx: Tx,

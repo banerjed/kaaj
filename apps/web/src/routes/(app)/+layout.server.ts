@@ -5,11 +5,7 @@ import { toSafeAuthSession } from "$lib/server/auth_session"
 import { contextFrom } from "$lib/server/auth/can"
 import { permissionsFor } from "@kaaj/authz"
 
-/**
- * The gate for every page in the product. The two failures differ: no session
- * means not signed in; a session with no tenantId means a valid user with no
- * active membership, which would otherwise render every page blank (L21).
- */
+/** The gate for every page: no session vs. a session with no active tenant membership are distinct failures (L21). */
 /** The tenant settings every screen formats against. */
 export type TenantSettings = {
   id: string
@@ -34,13 +30,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     redirect(303, "/account?no_tenant=1")
   }
 
-  // Loaded once in the layout, not per page: it is on every screen.
-  //
-  // TYPED, deliberately. An untyped `tx` query returns a loose row, so every
-  // `data.tenant?.x` downstream is effectively `any` — and `any` satisfies any
-  // parameter. That is how `instant(value, tenantZone, tenantLocale)` reached
-  // a page: the function takes a FormatContext OBJECT second, the string went
-  // in unchallenged, and the sync time rendered with no date at all (L53).
+  // Loaded once here since it's needed on every screen. Typed deliberately — an untyped row is `any` downstream (L53).
   const tenant = await withTenant(actorFrom(locals), async (tx) => {
     const [row] = await tx<TenantSettings[]>`
       SELECT id,

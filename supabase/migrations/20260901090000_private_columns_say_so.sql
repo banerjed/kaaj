@@ -1,41 +1,18 @@
 -- ============================================================================
 -- Sensitive columns on `employees` carry a `_pvt` suffix.
 --
--- `employees` is a staff directory: every colleague can read the row, so
--- row-level security cannot defend any column on it. That asymmetry is the
--- root of L47 — `base_amount` sat next to `first_name` and looked equally
--- ordinary, and a COALESCE onto it disclosed every salary in the firm.
+-- employees is a staff directory readable by every colleague, so RLS can't
+-- defend any single column on it — the root of L47, where base_amount sat
+-- next to first_name looking equally ordinary. The suffix makes a restricted
+-- column visible at the call site; `./check` enforces the name AGREES with
+-- the disclosure matrix (source of truth), in both directions.
 --
--- The suffix makes the distinction visible at every call site. A reviewer
--- reading `COALESCE(cp.amount, e.base_amount_pvt)` sees the problem in the
--- diff; with `e.base_amount` there was nothing to see.
+-- `_ct` = ciphertext (only $lib/server/pii opens it); `_pvt` = restricted
+-- plaintext. A column with neither is directory data, by construction.
 --
--- WHY A NAME, WHEN NAMES ARE A BAD ORACLE
---
--- `verify-matrix-complete.mjs` deliberately does NOT infer sensitivity from
--- column names: a regex misses a renamed column, anything inside a JSONB
--- document, and PII with an innocuous name. This is the inverse operation.
--- The disclosure matrix remains the source of truth and the name is made to
--- AGREE with it — enforced in both directions, so a restricted column without
--- the suffix and a suffixed column that is not restricted both fail the build.
--- The name is then provable rather than a convention people drift from.
---
--- Two suffixes now partition the sensitive columns on this table:
---
---   _ct   ciphertext at rest; only $lib/server/pii opens it
---   _pvt  plaintext, restricted; must never reach a projection
---
--- and a column on `employees` carrying NEITHER is directory data, by
--- construction. That property is the point.
---
--- SCOPE. Only `employees`. On `compensation_*` the row policy defends every
--- column at once and the table name already says what it holds; suffixing
--- fifty columns there would add noise without adding information. Per-column
--- marking belongs exactly where per-column defense does — on a row that must
--- be broadly visible.
---
--- Forward-only, like every migration here: a mistake is corrected by another
--- migration, never by rolling back.
+-- Scope: only employees. Elsewhere (compensation_*) a row policy already
+-- defends the whole row, so per-column marking would add noise, not
+-- information.
 -- ============================================================================
 
 ALTER TABLE employees RENAME COLUMN base_amount           TO base_amount_pvt;

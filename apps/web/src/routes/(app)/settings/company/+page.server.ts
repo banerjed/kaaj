@@ -19,11 +19,7 @@ import {
 } from "$lib/firm-profile/regional"
 import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 
-/**
- * /settings/company — module-firm-profile.md § Company Profile Page.
- *
- * One load, one transaction, one query (doc 03).
- */
+/** /settings/company — module-firm-profile.md § Company Profile Page. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
@@ -63,8 +59,7 @@ export const actions: Actions = {
     const supportedCurrencies = formList(data, "supported_currencies")
     const defaultTimezone = formString(data, "default_timezone")
 
-    // The record as stored, so validation can accept locales already on the
-    // tenant that are not in the launch list (see localeOptions).
+    // So validation accepts locales already on the tenant, even off the launch list.
     const existing = await withTenant(actorFrom(locals), (tx) =>
       tenants.getCurrent(tx),
     )
@@ -78,17 +73,14 @@ export const actions: Actions = {
       existing_locales: existing?.supported_locales ?? null,
     })
 
-    // Both drive display formatting for the whole tenant, and both were
-    // written straight through from the form (L34).
+    // Both drive display formatting for the whole tenant (L34).
     const dateFormat = f.choice("date_format", DATE_FORMATS, {
       fallback: "MM/DD/YYYY",
     })
     const timeFormat = f.choice("time_format", TIME_FORMATS, {
       fallback: "12h",
     })
-    // Read before the gate, not inline in the update below: the argument object
-    // is evaluated after it, so a rejection there would never be reported and
-    // the field would save as NULL (L33).
+    // Every reader above the `if (!f.ok)` gate (L33).
     const legalEntityName = f.text("legal_entity_name", { max: 255 })
     const industry = f.text("industry", { max: 100 })
     const companySize = f.choice("company_size", COMPANY_SIZES)
@@ -96,9 +88,7 @@ export const actions: Actions = {
 
     errorFields.push(...f.errorFields)
 
-    // Country-specific formats come from @kaaj/validation, never a regex here:
-    // maintaining these rules twice is how a wrong tax identifier reaches a
-    // payslip. Both fields are optional, so only non-empty values are checked.
+    // Validation comes from @kaaj/validation, never a regex here. Both fields are optional.
     const rawEmail = formString(data, "primary_contact_email").trim()
     let contactEmail: string | null = null
     if (rawEmail !== "") {
@@ -115,9 +105,7 @@ export const actions: Actions = {
       else errorFields.push("primary_contact_phone")
     }
 
-    // Per-locale company names, kept only where the tenant actually supports
-    // the locale — otherwise a translation lingers after a locale is dropped
-    // and reappears if it is ever re-enabled.
+    // Kept only for locales the tenant still supports, so a dropped locale's translation doesn't linger.
     const nameI18n: Record<string, string> = {}
     for (const locale of supportedLocales) {
       const value = formString(data, `company_name_i18n.${locale}`).trim()
@@ -149,8 +137,7 @@ export const actions: Actions = {
 
     try {
       const saved = await withTenant(actorFrom(locals), async (tx) => {
-        // Read before writing. These settings format every figure in the
-        // product, and the timezone moves the boundary of a working day.
+        // Read before writing, so the audit entry says what changed.
         const before = await tenants.getCurrent(tx)
         const row = await tenants.update(tx, input)
 

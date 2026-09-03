@@ -18,24 +18,17 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const company = $derived(form?.company ?? data.company)
 
   const zonesByRegion = timezoneOptions()
 
-  // Offered lists include anything this tenant already holds that is not in the
-  // launch set, so an unrecognised value cannot be dropped by a save that never
-  // rendered a control for it.
+  // Offered lists include anything the tenant already holds, even off the launch set.
   const locales = $derived(localeOptions(company.supported_locales))
   const currencies = $derived(currencyOptions(company.supported_currencies))
 
-  // Live state for the preview, which has to reflect what is on SCREEN rather
-  // than what is in the database — that is the point of showing it beside the
-  // form. `untrack` says the initial read is deliberate; the effect below is
-  // what keeps it honest afterwards.
+  // Preview state mirrors the form, not the database; `untrack` marks the initial read deliberate.
   let locale = $state(untrack(() => data.company.default_locale))
   let currency = $state(untrack(() => data.company.default_currency))
   let timezone = $state(untrack(() => data.company.default_timezone))
@@ -46,10 +39,7 @@
     ),
   )
 
-  // Adopt the saved record whenever it changes — which is exactly once per
-  // successful save, when the action returns and load re-runs. Without this the
-  // mirrored values stay at their pre-save state, so the selects and the
-  // preview would show the old settings while the database holds the new ones.
+  // Re-adopt the saved record after a successful save, or the preview would show stale values.
   $effect(() => {
     locale = company.default_locale
     currency = company.default_currency
@@ -89,9 +79,7 @@
       "—",
     ),
   )
-  // Through the shared formatter, not raw Intl. This panel exists to show what
-  // the rest of the product will look like, so formatting it differently from
-  // the rest of the product defeats its only purpose.
+  // Through the shared formatter, not raw Intl — this panel previews the real product formatting.
   const previewCurrency = $derived(money("1234.56", currency, locale))
   const previewNumber = $derived(number(1234567.89, locale))
   const previewCompact = $derived(approxMoney("18123432", currency, locale))
@@ -164,10 +152,7 @@
               company name above.
             </p>
             <div class="grid gap-2 sm:grid-cols-2">
-              <!-- A plain stacked label, not daisyUI's `floating-label`: that
-                   only reveals the label once the field has content or focus,
-                   so every empty translation rendered unlabelled and there was
-                   no way to tell which language it was for. -->
+              <!-- Plain stacked label, not `floating-label` — an empty field would render unlabelled. -->
               {#each selectedLocales as code (code)}
                 <label class="form-control">
                   <span class="label text-base-content/70 text-xs">{code}</span>

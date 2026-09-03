@@ -21,9 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   }))
 }
 
-/** What a reviewer would ask about. Not every column: a table nobody can
- *  prune should carry the fields that matter, and burying them among unchanged
- *  ones is the same as not recording them. */
+/** The fields a reviewer would ask about, not every column. */
 const AUDITED_FIELDS = [
   "location_id",
   "overtime_rules",
@@ -45,10 +43,7 @@ export const actions: Actions = {
     // The select always submits one; 0 (Sunday) only if a crafted POST omits it.
     const startDay = f.integer("workweek_start_day", { min: 0, max: 6 }) ?? 0
 
-    // Hours and multipliers stay strings: they are the numeric(18,4) family,
-    // and a blank one means "not set", which is not the same as zero. Anything
-    // unparseable is REFUSED here — dropping it wrote a policy with no
-    // multiplier at all, answered 200, and left overtime computing at 1x (L33).
+    // Unparseable is refused, not dropped — a silently missing multiplier left overtime at 1x (L33).
     const daily = f.decimal("daily_threshold_hours", {
       scale: 4,
       min: 0,
@@ -103,8 +98,7 @@ export const actions: Actions = {
 
     try {
       await withTenant(actorFrom(locals), async (tx) => {
-        // Read what it was BEFORE writing, so the entry says what changed
-        // rather than only what it became.
+        // Read before writing, so the entry says what changed.
         const before = id
           ? ((await policies.list(tx)).find((r) => r.id === id) ?? null)
           : null
@@ -112,7 +106,7 @@ export const actions: Actions = {
         if (id) await policies.update(tx, id, input)
         else await policies.create(tx, tenantId, input)
 
-        // SAME TRANSACTION. Overtime thresholds, multipliers and rounding. If someone's overtime drops, this is the change that did it.
+        // Same transaction — this is the change to check if someone's overtime drops.
         await audit.record(tx, contextFrom(locals)!, {
           action: id ? "update" : "create",
           entityType: "firm_payroll_policies",

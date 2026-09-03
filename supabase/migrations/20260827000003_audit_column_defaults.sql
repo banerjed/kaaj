@@ -1,26 +1,12 @@
 -- =============================================================================
 -- Kaaj — make the audit columns actually usable
 -- =============================================================================
--- Found by applying 20260827000001 to a real Postgres 17 and trying to INSERT.
--- Two defects, both invisible to reading the DDL and both fatal on first write.
+-- Fixes two defects invisible in the DDL: some created_at/updated_at columns
+-- are NOT NULL with no DEFAULT (every INSERT fails), and app.set_updated_at()
+-- was defined but never attached to a trigger anywhere.
 --
--- 1. 33 of the 90 tables carrying created_at/updated_at declare them
---    NOT NULL with no DEFAULT, while the other 57 default to now(). Every
---    INSERT into those 33 fails:
---        null value in column "created_at" violates not-null constraint
---    The split is an oversight, not a design decision — nothing distinguishes
---    the two groups.
---
--- 2. app.set_updated_at() is defined in the schema and attached to NOTHING.
---    The database has exactly two triggers, both for ticketing search vectors.
---    So updated_at never updates on its own anywhere, on any of the 82 tables
---    that have the column.
---
--- Minimum PostgreSQL: 14, for CREATE OR REPLACE TRIGGER. Supabase provisions 15
--- or 17 depending on when the project was created; both are fine.
---
--- Both are fixed generically rather than by listing tables, so a table added by
--- a later migration cannot reintroduce them silently.
+-- Both are fixed generically (via information_schema), not by listing tables,
+-- so a later migration can't silently reintroduce them.
 -- =============================================================================
 
 
@@ -74,18 +60,13 @@ BEGIN
 END
 $$;
 
--- The trigger function lives in `app`, so every role that writes needs USAGE on
--- that schema. app_user already has it from 20260827000002.
+-- The trigger function lives in `app`; app_user already has USAGE on it from
+-- 20260827000002.
 
 
 -- -----------------------------------------------------------------------------
 -- 3. created_by is left alone, deliberately
 -- -----------------------------------------------------------------------------
--- 15 tables declare created_by NOT NULL with no default. That is defensible —
--- an audit trail wants an author — but it means the application must supply it
--- on every insert, and system-generated rows (jobs, imports, the UC-1.1
--- onboarding cascade) need a designated system actor rather than NULL.
---
--- Not changed here because the answer is a product decision, not a migration:
--- either relax the constraint, or define the system principal. Tracked so it is
--- not discovered again at the first background write.
+-- Some tables declare created_by NOT NULL with no default. Left alone because
+-- the fix (relax the constraint, or define a system principal for
+-- system-generated rows) is a product decision, not a migration.

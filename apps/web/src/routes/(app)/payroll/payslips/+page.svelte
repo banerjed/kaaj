@@ -8,11 +8,7 @@
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  /**
-   * A payslip is read in the market that issued it, and the figure is never
-   * converted (BR-FP-003) — so the locale follows the run's currency, not the
-   * viewer's browser.
-   */
+  /** Locale follows the run's currency, never converted (BR-FP-003). */
   const localeFor = (currency: string) =>
     localeForCurrency(data.locations, currency, tenantLocale)
 
@@ -114,9 +110,7 @@
                   </div>
                 {/each}
 
-                <!-- Deductions carry their own subtotal. Listed under the
-                     Taxes heading they read as taxes, and the Taxes subtotal
-                     then visibly fails to equal its own children (L46). -->
+                <!-- Own subtotal — under Taxes it'd break that subtotal's total (L46). -->
                 {#if p.total_deductions && Number(p.total_deductions) !== 0}
                   <div
                     class="border-base-200 mt-2 flex justify-between border-t pt-2 font-medium"
@@ -158,9 +152,7 @@
                 </div>
 
                 {#if p.ytd_gross}
-                  <!-- Gross only. There is no ytd_net column, and deriving
-                       one by subtracting this slip's deductions would be a
-                       guess presented as a figure. -->
+                  <!-- Gross only — no ytd_net column; deriving one would be a guess. -->
                   <p class="text-base-content/70 mt-2 text-xs">
                     Gross year to date: {money(p.ytd_gross, p.currency, locale)}
                   </p>

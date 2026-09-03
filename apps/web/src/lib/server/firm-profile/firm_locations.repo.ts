@@ -1,14 +1,9 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * firm_locations — the firm's offices.
- *
- * One repository per table, at the path docs/api-surface.md § Surface B
- * enumerates. First of nine for the firm profile; the pattern for the rest.
- *
- * No `tenant_id` parameter: a `Tx` can only come from `withTenant`, which has
- * already set the tenant, and RLS applies it. A second source of truth could
- * disagree with the first, and the loser would be the one enforcing isolation.
+ * firm_locations — the firm's offices. One repository per table
+ * (docs/api-surface.md § Surface B). No `tenant_id` parameter — `Tx` already
+ * carries it via `withTenant` and RLS, so there's one source of truth for isolation.
  */
 
 export type FirmLocation = {
@@ -33,13 +28,7 @@ export type FirmLocation = {
   location_code: string | null
 }
 
-/**
- * All locations for the current tenant, headquarters first.
- *
- * `includeArchived` exists because deactivating a location is not deletion:
- * employees and holidays reference it by `location_code`, so rows persist with
- * `is_active = false`.
- */
+/** All locations for the current tenant, headquarters first. `includeArchived` covers deactivated-but-still-referenced rows. */
 export async function list(
   tx: Tx,
   { includeArchived = false }: { includeArchived?: boolean } = {},
@@ -67,8 +56,7 @@ export async function getById(
       FROM firm_locations
      WHERE id = ${id}
   `
-  // Another tenant's row does not exist here rather than being forbidden — a
-  // 403 would confirm the id is real.
+  // Another tenant's row doesn't exist here rather than being forbidden — a 403 would confirm the id is real.
   return row ?? null
 }
 
@@ -141,17 +129,8 @@ export async function update(
 }
 
 /**
- * Demote every other headquarters. MUST run BEFORE promoting one.
- *
- * The database enforces this already:
- *
- *   CREATE UNIQUE INDEX idx_firm_locations_hq ON firm_locations (tenant_id)
- *     WHERE is_headquarters
- *
- * so a second HQ raises `duplicate key value violates unique constraint`
- * immediately — promoting first and demoting after fails on the promotion.
- * Doing both in one transaction means there is never an instant with two,
- * which a check-then-write from the action could not guarantee anyway.
+ * Demote every other headquarters. MUST run BEFORE promoting one — a partial
+ * unique index on `is_headquarters` means promoting first fails outright.
  */
 export async function clearOtherHeadquarters(
   tx: Tx,
@@ -165,15 +144,7 @@ export async function clearOtherHeadquarters(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<{ id: string }[]>`
     UPDATE firm_locations SET is_active = FALSE, updated_at = now()

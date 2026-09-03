@@ -1,22 +1,12 @@
 #!/usr/bin/env node
 /**
- * gen-api-surface.mjs — derive the API surface from schema.sql + the module specs.
+ * Derives the API surface from schema.sql + the module specs: (A) the
+ * Supabase Data API reflected from the schema, and (B) the SvelteKit route
+ * surface — one canonical route per table plus non-CRUD ops harvested from
+ * the specs. Not interchangeable (ADR-004, ADR-008).
  *
- * Two surfaces are emitted, because this repository has two and they are not
- * interchangeable (05-architecture-decisions.md, ADR-004 and ADR-008):
- *
- *   A. The Supabase Data API (PostgREST) reflected from the schema.
- *      Mechanically complete: whatever is in the schema is the whole surface.
- *      ADR-008 scopes it to "simple administrative reads only."
- *
- *   B. The SvelteKit route surface — +page.server.ts loads/actions and
- *      +server.ts endpoints — which is what application code actually calls.
- *      Derived here as one canonical route per table, plus every operation
- *      harvested from the module specifications that is not plain CRUD.
- *
- * Usage:  node scripts/gen-api-surface.mjs [--out docs/api-surface.md]
- *
- * Re-run this after any schema change. Do not hand-edit the generated file.
+ * Usage: node scripts/gen-api-surface.mjs [--out docs/api-surface.md]
+ * Re-run after any schema change. Do not hand-edit the output.
  */
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
@@ -113,11 +103,8 @@ function parseEnums(src) {
 // ---------------------------------------------------------------------------
 // 1b. Derive the Auth and Storage surfaces from the repository
 // ---------------------------------------------------------------------------
-// ADR-008 adopted three Supabase capabilities: Postgres, Auth and Storage. The
-// Data API is the one it rejected. Auth and Storage are therefore where the
-// SvelteKit code will actually spend its Supabase calls, so they are derived
-// here rather than recited from memory: the auth methods come from calls that
-// already exist in app/src, the buckets from columns that hold file references.
+// Derived from actual usage (ADR-008 rejected the Data API): auth methods from
+// calls in app/src, buckets from columns that hold file references.
 
 const APP_SRC = join(ROOT, 'app', 'src');
 
@@ -178,9 +165,7 @@ const storageTables = tables
 
 const hookPresent = /custom_access_token_hook/.test(sql);
 
-// Findings are reported against the migrations too, not just schema.sql: a
-// defect fixed in a migration is no longer open, and saying otherwise sends
-// someone to fix it twice.
+// Check migrations too — a fix already in a migration shouldn't reopen.
 const MIGRATIONS_DIR = join(ROOT, 'app', 'supabase', 'migrations');
 let migrationSql = '';
 let migrationFiles = [];
@@ -269,10 +254,8 @@ function normalisePath(p) {
 
 function harvestEndpoints() {
   const found = new Map(); // "METHOD path" -> Set(source files)
-  // Every markdown file in docs/, not a curated subset: accounting-gap-analysis.md
-  // and architecture-technical.md carry endpoint declarations too, and a name-prefix
-  // filter silently understates the surface. PLACEHOLDERS/NON_TABLE below do the
-  // real filtering, on the endpoints themselves rather than on filenames.
+  // Scan every markdown file, not a curated subset — a filename filter would
+  // understate the surface. PLACEHOLDERS/NON_TABLE filter the endpoints instead.
   const files = readdirSync(DOCS)
     .filter((f) => /\.md$/.test(f))
     .filter((f) => join(DOCS, f) !== OUT);   // never harvest our own output

@@ -1,16 +1,9 @@
--- Money held inside JSONB becomes text.
+-- Money held inside JSONB becomes text (CLAUDE.md § Money: money is a string
+-- end to end, since a JSON number round-trips through JS as a float64).
 --
--- `firm_job_levels.salary_ranges` and `firm_benefit_items.costs_by_currency`
--- stored their amounts as JSON numbers. Postgres itself keeps a jsonb number as
--- `numeric`, so nothing was lost in the database — the loss is on the way out:
--- every driver hands a JSON number to JavaScript as a float64, and CLAUDE.md's
--- rule is that money is a string end to end for exactly that reason.
---
--- `::numeric::text` rather than a plain cast, so 95000 becomes '95000' and not
--- '95000.0', and so a value that was already text is left alone.
---
--- A side that is absent stays absent. Writing `null` in its place would look
--- harmless and then reach the validators, which expect a string.
+-- `::numeric::text`, not a plain cast, so 95000 becomes '95000' not '95000.0',
+-- and a value already text is left alone. An absent side stays absent —
+-- writing `null` would reach validators that expect a string.
 
 UPDATE firm_job_levels
    SET salary_ranges = (

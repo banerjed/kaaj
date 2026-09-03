@@ -27,13 +27,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   }))
 }
 
-/**
- * What a hire record is, minus the personal detail.
- *
- * Deliberately not every field: date of birth and contact details are personal
- * data, and copying them into a table that can never be deleted from would
- * defeat the erasure the PII layer exists to make possible.
- */
+/** Hire facts only — no PII, which would defeat erasure in an undeletable table. */
 const HIRE_FIELDS = [
   "employee_id",
   "first_name",
@@ -70,9 +64,7 @@ export const actions: Actions = {
       created = await withTenant(actorFrom(locals), async (tx) => {
         const row = await employees.create(tx, tenantId, parsed.input, actorId)
 
-        // The start of an employment relationship, and the creation of a
-        // person's record under GDPR. `from` is null throughout because the
-        // person did not exist a moment ago.
+        // `from` is null throughout — the person did not exist a moment ago.
         await audit.record(tx, contextFrom(locals)!, {
           action: "create",
           entityType: "employees",
@@ -83,16 +75,12 @@ export const actions: Actions = {
         return row
       })
     } catch (e) {
-      // The unique employee_id this file's own comment predicts. It was an
-      // "Internal Error" page, with the whole hire form lost.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e
     }
 
-    // Redirect to the record rather than re-rendering the form: the person now
-    // exists, and leaving a populated create form on screen invites a second
-    // submission that would fail on the unique employee_id.
+    // Redirect rather than re-render — avoids a duplicate submission on the unique employee_id.
     redirect(303, `/employees/${created.id}`)
   },
 }

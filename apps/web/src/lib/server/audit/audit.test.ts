@@ -3,16 +3,10 @@ import { withTenant, type Tx } from "../db/tenant"
 import type { AuthContext } from "../auth/can"
 import * as audit from "./audit.repo"
 
-/**
- * The audit trail. Every case rolls back.
- */
+/** The audit trail. Every case rolls back. */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an actor who reads everything; visibility has its own tests in row-visibility.test.ts. */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -67,15 +61,7 @@ describe("writing to the trail", () => {
   })
 
   it("stamps the time itself rather than trusting the caller", async () => {
-    // occurred_at is what an auditor sorts and filters by. A row claiming to
-    // have happened last year would sit quietly in the middle of the history.
-    //
-    // Compared against the DATABASE's clock, not this process's. The column
-    // defaults to now(), so the only honest comparison is to the clock that
-    // produced it — and the two clocks are on different machines here, with
-    // Postgres in a VM whose time drifts across a host sleep. Comparing to
-    // Date.now() made this fail for a reason that had nothing to do with
-    // auditing (L43).
+    // Compared against the DATABASE's clock, not this process's (L43).
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, { action: "update", entityType: "test" })
       const [r] = await tx<{ drift_seconds: string; is_default: boolean }[]>`
@@ -93,9 +79,6 @@ describe("writing to the trail", () => {
   })
 
   it("redacts what must never be logged, but records that it changed", async () => {
-    // "Someone changed the bank details" is the fact an auditor needs. The
-    // number is not — and this table is deliberately impossible to delete
-    // from, so anything written here is written forever.
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
         action: "update",
@@ -118,9 +101,7 @@ describe("writing to the trail", () => {
     })
     expect(row.changes).toEqual({
       job_title: { from: "Engineering Manager", to: "Engineering Director" },
-      // BOTH sides replaced. Redacting only the new value would leave the old
-      // one — which for a rotated account number is the number that was
-      // actually in use.
+      // Both sides redacted, not just the new value.
       ssn_tax_id_ct: { from: "[redacted]", to: "[redacted]" },
       account_number_ct: { from: "[redacted]", to: "[redacted]" },
     })
@@ -149,8 +130,6 @@ describe("writing to the trail", () => {
 
 describe("the trail cannot be rewritten", () => {
   it("refuses an UPDATE from the application role", async () => {
-    // An audit log whose entries can be edited answers "what happened?" with
-    // whatever the last writer preferred.
     await expect(
       inRollback((tx) => tx`UPDATE audit_log SET action = 'tampered'`),
     ).rejects.toThrow(/permission denied/i)
@@ -189,8 +168,6 @@ describe("reading the trail", () => {
 
 describe("the change record's shape", () => {
   it("keeps the OLD value, not only the new one", async () => {
-    // The half an auditor actually asks about. A flat {amount: "148000"}
-    // records what a value became and loses what it was.
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
         action: "pay_change",
@@ -207,9 +184,7 @@ describe("the change record's shape", () => {
   })
 
   it("stores money as a STRING, so no digit is lost", async () => {
-    // A JSON number in JSONB comes back to JavaScript as a float64. Everywhere
-    // else that is a bug to fix; here it cannot be fixed, because the table
-    // holds INSERT and SELECT only (L41).
+    // A JSON number in JSONB round-trips through JS as a float64 (L41).
     const value = "9007199254740993.00" // > 2^53: a float64 cannot hold it
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
@@ -222,7 +197,7 @@ describe("the change record's shape", () => {
       return r
     })
     expect(row.changes!.amount.to).toBe(value)
-    // The proof it matters: through a float it would not survive.
+    // Through a float it would not survive.
     expect(String(Number(value))).not.toBe(value)
   })
 
@@ -241,9 +216,7 @@ describe("the change record's shape", () => {
   })
 
   it("keeps the reason, and keeps it out of the values", async () => {
-    // Prose has a home, but never mixed with values: the redaction set matches
-    // field NAMES, so a sentence carrying an account number would go straight
-    // past it into a table that cannot be deleted from.
+    // Redaction matches field NAMES, so reason prose bypasses it entirely.
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
         action: "pay_change",
@@ -257,13 +230,10 @@ describe("the change record's shape", () => {
     })
     const changes = row.changes as unknown as Record<string, unknown>
     expect(changes._reason).toBe("backdated per the offer letter")
-    // Still a well-formed change beside it.
     expect(changes.amount).toEqual({ from: "1", to: "2" })
   })
 
   it("redacts BOTH sides of a protected field", async () => {
-    // Replacing only the new value would leave the old one — which for a
-    // rotated account number is the number that was actually in use.
     const row = await inRollback(async (tx) => {
       await audit.record(tx, ctx, {
         action: "update",
@@ -282,7 +252,7 @@ describe("the change record's shape", () => {
     expect(row.changes).toEqual({
       iban_ct: { from: "[redacted]", to: "[redacted]" },
     })
-    // And neither value survives anywhere in the row.
+    // Neither value survives anywhere in the row.
     expect(JSON.stringify(row)).not.toContain("NWBK")
     expect(JSON.stringify(row)).not.toContain("BARC")
   })
@@ -290,9 +260,6 @@ describe("the change record's shape", () => {
 
 describe("what must never reach the trail", () => {
   it("redacts every encrypted column the schema has", async () => {
-    // NEVER_LOGGED matches field NAMES, so a column it does not know about is
-    // one a caller can write in the clear. Ten were missing until the guard
-    // was added; this asserts the property from the application side too.
     const encrypted = await withTenant(
       AS_OWNER,
       (tx) =>
@@ -321,7 +288,6 @@ describe("what must never reach the trail", () => {
       return r
     })
 
-    // Not one of them survives, on either side.
     const asText = JSON.stringify(row)
     expect(asText).not.toContain("SECRET-BEFORE")
     expect(asText).not.toContain("SECRET-AFTER")
@@ -334,10 +300,7 @@ describe("what must never reach the trail", () => {
   })
 
   it("the trail itself is not readable by a plain employee", async () => {
-    // Auditing a value COPIES it. Pay changes record
-    // {amount: {from, to}}, so a trail every employee could read was a second
-    // route to the disclosure L47 describes — and it existed until the row
-    // policy landed.
+    // Auditing a value COPIES it — the trail needs its own row policy (L55).
     const [employee, hr] = await Promise.all([
       countAudit({ employeeId: MARCUS, role: "employee", functionalRoles: [] }),
       countAudit({
@@ -360,8 +323,7 @@ describe("what must never reach the trail", () => {
   })
 
   it("shows a person the entries about them", async () => {
-    // GDPR Art. 15 is an access right: a trail of decisions affecting someone
-    // that they may never see is a worse answer than one they can.
+    // GDPR Art. 15 access right.
     const n = await withTenant(
       {
         tenantId: NORTHWIND,

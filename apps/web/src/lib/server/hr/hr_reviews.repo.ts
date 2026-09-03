@@ -3,17 +3,9 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_reviews — performance reviews, and who may read which half of one.
  *
- * **The manager's assessment is hidden from its subject until it is submitted.**
- * A review row carries `self_assessment` and `manager_assessment` side by side
- * with a `status` of draft / submitted / acknowledged. An employee opening
- * their own review while the manager is still drafting would read an unfinished
- * judgement of themselves — which poisons the self-assessment the process
- * depends on, and is a real harm rather than a leak of technical interest.
- *
- * Nothing in the database prevents it: RLS filters by tenant, both halves live
- * in one row, and `employee.read.self` says nothing about status. This
- * repository is the only control, which is why the redaction happens HERE and
- * not in a page — a second read path would have to remember, and would not.
+ * The manager's assessment is hidden from its subject until submitted — RLS
+ * doesn't enforce this (both halves live in one row), so redaction happens
+ * here, once, rather than in a page that would have to remember it.
  */
 
 export type ReviewAssessment = Record<string, string>
@@ -67,12 +59,9 @@ export type ReviewReader = {
 }
 
 /**
- * Redaction, applied to every row on the way out.
- *
- * The reviewer and anyone with `performance.read.all` see the draft; the
- * subject does not. `manager_assessment_withheld` is returned separately so a
- * page can say "your manager has not finished" rather than silently showing
- * nothing — an empty section reads as "they wrote nothing about me".
+ * Redaction, applied to every row on the way out. The reviewer and HR see the
+ * draft; the subject does not. `manager_assessment_withheld` lets a page say
+ * "not finished yet" rather than reading as "they wrote nothing about me".
  */
 function redactFor(row: Review, reader: ReviewReader): Review {
   const hasManagerHalf = row.manager_assessment !== null
@@ -95,14 +84,7 @@ function redactFor(row: Review, reader: ReviewReader): Review {
   return { ...row, manager_assessment_withheld: false }
 }
 
-/**
- * Reviews this reader may see at all.
- *
- * Visibility is three cases and they are different questions: your own
- * (whatever the status), ones you are writing, and — with the grant —
- * everyone's. A peer sees none, which is what `SEC-EMP-026` in the spec suite
- * asserts independently.
- */
+/** Reviews this reader may see: their own, ones they're writing, or (with the grant) everyone's. A peer sees none (SEC-EMP-026). */
 export async function visibleTo(
   tx: Tx,
   reader: ReviewReader,
@@ -168,13 +150,7 @@ export async function cycles(tx: Tx): Promise<ReviewCycle[]> {
   `
 }
 
-/**
- * How far through a cycle each person's review is.
- *
- * Counted in SQL rather than by reducing over the rows, so the totals do not
- * depend on what the caller was permitted to read — a completion figure that
- * shrinks because the viewer is not HR is worse than no figure.
- */
+/** How far through a cycle each person's review is — counted in SQL so the total doesn't depend on what the caller may read. */
 export async function cycleProgress(
   tx: Tx,
   cycleCode: string,
@@ -191,15 +167,8 @@ export async function cycleProgress(
 // -----------------------------------------------------------------------------
 
 /**
- * The status sequence, and it only runs one way.
- *
- * draft -> submitted -> acknowledged
- *
- * Backwards is refused rather than allowed-and-audited. Un-submitting a review
- * would retract something the subject has already read, and un-acknowledging
- * one would erase the only evidence that they read it — which is the fact that
- * matters in a dispute about a performance process. A CHECK constraint cannot
- * express this, because it cannot see the row's previous value.
+ * draft -> submitted -> acknowledged, one way only. Backwards is refused, not
+ * audited — a CHECK can't see the row's previous value to enforce direction.
  */
 const NEXT: Record<string, string[]> = {
   draft: ["submitted"],
@@ -237,14 +206,7 @@ async function current(tx: Tx, id: string): Promise<Current> {
   return row
 }
 
-/**
- * Write one half of a review.
- *
- * Only while the review is a draft: once submitted it is the record, and the
- * subject has already read it. Each author writes their own half — a reviewer
- * cannot edit a self-assessment, which would put words in someone's mouth in a
- * document they later acknowledge.
- */
+/** Write one half of a review — only while draft. Each author writes only their own half. */
 export async function saveAssessment(
   tx: Tx,
   id: string,
@@ -276,12 +238,7 @@ export async function saveAssessment(
   }
 }
 
-/**
- * Submit — the reviewer is finished, and the subject may now read their half.
- *
- * This is the moment the redaction in `redactFor` stops applying, so it is the
- * one transition a subject can observe without being told.
- */
+/** Submit — the reviewer is finished; this is when `redactFor` stops withholding the manager's half from the subject. */
 export async function submit(
   tx: Tx,
   id: string,
@@ -294,8 +251,6 @@ export async function submit(
       row.status === "draft" ? "wrong_status" : "backwards",
     )
   }
-  // Submitting an empty review would release nothing and still tell the subject
-  // their review is ready.
   if (row.manager_assessment === null) {
     throw new ReviewRefused("nothing_to_submit")
   }
@@ -305,12 +260,7 @@ export async function submit(
   `
 }
 
-/**
- * Acknowledge — the subject confirms they have read it. Terminal.
- *
- * Only the subject, and only they: an acknowledgement entered by anyone else
- * is a record that a person saw something when nobody knows whether they did.
- */
+/** Acknowledge — the subject confirms they've read it. Terminal, and only the subject may do it. */
 export async function acknowledge(
   tx: Tx,
   id: string,

@@ -1,16 +1,11 @@
 -- =============================================================================
 -- Kaaj — did the migrations land, and is the mock data there?
 -- =============================================================================
--- READ-ONLY. Paste into the Supabase dashboard SQL Editor and run.
+-- READ-ONLY. Paste into the Supabase dashboard SQL Editor (no password needed).
 --
--- This exists so you do not need the database password to check your work. The
--- SQL Editor authenticates with your dashboard session, so there is nothing to
--- look up and nothing to reset.
---
--- It runs as `postgres`, which BYPASSES RLS. Every structural check below is
--- valid from that role; tenant isolation is NOT, and is deliberately reported
--- as "not testable here" rather than given a passing tick. To verify isolation
--- you need a connection as app_user:
+-- Runs as `postgres`, which BYPASSES RLS — structural checks are valid, but
+-- tenant isolation is reported as "not testable here" rather than passed. For
+-- that, connect as app_user:
 --     ./scripts/verify-remote.sh "postgresql://app_user:<pw>@db.<ref>.supabase.co:5432/postgres"
 -- =============================================================================
 

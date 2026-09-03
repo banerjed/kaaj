@@ -72,11 +72,8 @@ function refusal(e: AccountingRefused) {
         field: "invoice",
       }
     case "overpayment":
-      // The raw figure is deliberately NOT interpolated here. `e.detail` is a
-      // NUMERIC string with no currency attached, and a bare "2443.75" beside
-      // a page that renders every other figure through `money()` is exactly
-      // the drift CLAUDE.md forbids — a number without its currency is not a
-      // number. The reloaded page shows Outstanding, formatted, directly below.
+      // No raw figure here — e.detail has no currency attached; the reloaded
+      // page shows Outstanding, formatted, right below.
       return {
         message: "That is more than is outstanding on this invoice.",
         field: "amount",
@@ -87,13 +84,7 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
-  /**
-   * Issue the invoice, and recognise the revenue in the same transaction.
-   *
-   * Audited as `send`: it is the moment a customer is told they owe money, and
-   * the moment revenue enters the ledger. Both are things somebody is later
-   * asked to justify.
-   */
+  /** Issue the invoice and recognise revenue in the same transaction. */
   issue: async ({ locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
@@ -135,11 +126,7 @@ export const actions: Actions = {
     requireCan(ctx, "accounting.write")
 
     const f = new FormReader(await request.formData())
-    // Every reader above the gate (L33). `decimal` keeps the amount a string
-    // from the browser to Postgres — the one number here that must not round.
-    // `min` matters: `ck_payments_positive_amounts` refuses a zero or negative
-    // payment, and without a bound here that CHECK was the validator — which
-    // answers with a 500 rather than a field error (L66).
+    // `min` here keeps the zero/negative case a field error, not a CHECK 500 (L66).
     const amount = f.decimal("amount", {
       scale: 2,
       required: true,
@@ -194,13 +181,7 @@ export const actions: Actions = {
     }
   },
 
-  /**
-   * Void a draft.
-   *
-   * Draft only: once issued, the revenue is in the ledger and removing it is a
-   * credit note — a new document reversing the first — not an edit to the
-   * original.
-   */
+  /** Void a draft only — once issued, reversing it needs a credit note, not an edit. */
   voidInvoice: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

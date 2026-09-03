@@ -2,40 +2,20 @@ import type { Tx } from "../db/tenant"
 import type { AuthContext } from "../auth/can"
 
 /**
- * The audit trail.
+ * The audit trail. Written in the SAME transaction as the change it describes,
+ * so the record can't diverge from what actually happened. Append-only —
+ * `app_user` holds INSERT/SELECT only; a correction is a new row.
  *
- * **Written in the same transaction as the change it describes.** That is the
- * whole design. A trail written afterwards, or from a job, or best-effort with
- * a swallowed error, records what the application *believed* happened — and the
- * two diverge exactly when it matters, because the interesting failures are the
- * ones where the write succeeded and something else did not. Here the change
- * and its record commit together or neither does.
- *
- * The table is append-only: `app_user` holds INSERT and SELECT and nothing else
- * (20260830200000). A correction is a new row describing the correction, the
- * way a ledger works and the way this repository's own migrations work.
- *
- * **What goes in `changes` is a decision, not a dump.** Serialising a whole row
- * would put encrypted PII, and anything later added to that table, into a log
- * that is deliberately impossible to delete from. Callers pass the fields that
- * changed, and `redact` names the ones that must never appear.
+ * `changes` is a decision, not a row dump — see `redact` for what's excluded.
  */
 
 /**
- * Fields that must never reach the trail, whatever a caller passes.
+ * Fields that must never reach the trail — every encrypted column plus the
+ * unencrypted values that are equally private. `verify-audit-coverage.mjs`
+ * fails if a `_ct`/`_encrypted` column exists and isn't listed here.
  *
- * **Every encrypted column in the schema is here**, plus the cleartext names
- * they replaced and the few unencrypted values that are equally private. Ten
- * of these were missing — `address_ct`, `email_ct`, `phone_primary_ct`,
- * `tax_id_ct` and the rest — which meant a caller passing one would have
- * written it into a table that can never be deleted from.
- *
- * `verify-audit-coverage.mjs` now fails when a `_ct` or `_encrypted` column
- * exists in the schema and is absent here, so the list cannot fall behind the
- * schema again.
- *
- * Redaction matches the KEY. That is why `reason` carries prose and never
- * values: a sentence containing an account number has no field name to match.
+ * Redaction matches the KEY, which is why `reason` carries prose and never
+ * values — a sentence has no field name to match.
  */
 const NEVER_LOGGED = new Set([
   // Cleartext names, kept for callers that predate encryption.
@@ -62,34 +42,21 @@ const NEVER_LOGGED = new Set([
   "swift_code_ct",
   "tax_id_ct",
 
-  // Not encrypted, and equally not a diff. A review's prose is withheld from
-  // its own subject until it is submitted; copying it here would route around
-  // that (L39).
+  // Withheld from its own subject until submitted (L39); not a diff either.
   "self_assessment",
   "manager_assessment",
 ])
 /**
- * One field that changed, as STRINGS.
- *
- * Strings, not the value's own type, for a reason this table makes permanent:
- * a JSON *number* inside JSONB is stored exactly by Postgres and handed back to
- * JavaScript as a float64, so a pay change of 148000 comes back as a float and
- * a larger one loses digits (L41). Everywhere else that is a bug to fix; here
- * it is a bug that cannot be fixed, because `audit_log` holds INSERT and SELECT
- * only and a correction is a new row rather than an edit.
- *
- * `null` means the field had no value — a field being SET for the first time is
- * `{ from: null, to: "..." }`, and being cleared is the reverse.
+ * One field that changed, as STRINGS — a JSON number in JSONB round-trips
+ * through JS as a float64 (L41), and this table can't be corrected after the
+ * fact. `null` means no value; SET-first-time is `{from: null, to: "..."}`.
  */
 export type FieldChange = {
   from: string | null
   to: string | null
 }
 
-/**
- * What was done. A closed set rather than free text, so the trail can be
- * filtered and counted; an action nobody listed is a decision nobody made.
- */
+/** What was done. A closed set, so the trail can be filtered and counted. */
 export const AUDIT_ACTIONS = [
   "create",
   "update",
@@ -117,39 +84,17 @@ export type AuditEntry = {
   entityType: string
   entityId?: string | null
   module?: string
-  /**
-   * The fields that changed, each with its OLD and NEW value.
-   *
-   * Typed as `FieldChange` rather than `unknown` on purpose: a flat
-   * `{ amount: "148000" }` records what a value became and loses what it was,
-   * which is the half an auditor actually asks about. The type now refuses it.
-   *
-   * Not a row dump — see the note at the top of this file.
-   */
+  /** Fields that changed, with OLD and NEW value each. Not a row dump. */
   changes?: Record<string, FieldChange> | null
   /**
-   * WHY, in prose, when there is a why worth keeping: "corrected a typo",
-   * "backdated per the offer letter".
-   *
-   * Deliberately separate from `changes`. **Values never go in here** — the
-   * redaction set matches field NAMES, so a sentence containing an account
-   * number would carry it straight past `NEVER_LOGGED` into a table that
-   * cannot be deleted from.
-   *
-   * This is the one path redaction cannot defend, and it is defended by not
-   * putting values in it rather than by code. Where the prose is typed by a
-   * person — a change reason on a pay record — that is a UI and training
-   * matter, not something a filter can catch without also mangling legitimate
-   * text. Keep it short, and keep it about WHY.
+   * WHY, in prose ("corrected a typo"). Never put values here — redaction
+   * matches field NAMES in `changes`, so prose bypasses it entirely.
    */
   reason?: string | null
 }
 
-/**
- * Values that must not be logged are replaced rather than dropped, so the trail
- * still records THAT the field was touched. "Someone changed the bank details"
- * is the fact an auditor needs; the number is not.
- */
+/** Redacted values are replaced, not dropped, so the trail still shows that
+ * the field was touched — without the value. */
 function redact(changes: Record<string, FieldChange> | null | undefined) {
   if (!changes) return null
   const out: Record<string, FieldChange> = {}
@@ -161,10 +106,7 @@ function redact(changes: Record<string, FieldChange> | null | undefined) {
   return out
 }
 
-/**
- * Record one entry. Takes the transaction, so the caller cannot accidentally
- * write it outside the change it describes.
- */
+/** Record one entry. Takes the transaction so it commits with the change it describes. */
 export async function record(
   tx: Tx,
   ctx: AuthContext,
@@ -178,12 +120,7 @@ export async function record(
       ${ctx.tenantId}, ${ctx.userId}, ${ctx.employeeId},
       ${entry.action}, ${entry.entityType}, ${entry.entityId ?? null},
       ${entry.module ?? null},
-      -- The reason rides inside the changes document under a reserved key
-      -- rather than in a new column: audit_log is append-only and adding a
-      -- column to it is a migration against a table nobody may rewrite. The
-      -- key is namespaced with an underscore so it cannot collide with a
-      -- field name. (No backticks in here: this is a JS template literal, and
-      -- a backtick would end the string — L52, hit twice now.)
+      -- reason rides in changes under _reason (no new column; no backticks, this is a JS template literal — L52, hit before)
       ${tx.json({
         ...(redact(entry.changes) ?? {}),
         ...(entry.reason ? { _reason: entry.reason } : {}),
@@ -240,20 +177,8 @@ export async function recent(
 }
 
 /**
- * The fields that actually MOVED, as `{from, to}` pairs.
- *
- * Recording every field of a settings row would fill a table nobody can prune
- * with values that did not change — and burying the one field that did is the
- * same as not recording it. This compares before against after and keeps only
- * the difference.
- *
- * Everything is stringified because `FieldChange` is strings: a JSON number in
- * JSONB returns to JavaScript as a float64, and this table cannot be corrected
- * (L41). `null` survives as null, so "had no value" stays distinguishable from
- * the string "null".
- *
- * `before` is null for a creation, which yields `{from: null, to: ...}` for
- * every field — the correct shape for a row that did not exist.
+ * The fields that actually MOVED, as `{from, to}` pairs — not every field on
+ * the row. `before` null (a creation) yields `{from: null, to: ...}` for each.
  */
 export function diff(
   before: Record<string, unknown> | null | undefined,
@@ -276,8 +201,6 @@ function stringify(value: unknown): string | null {
   if (typeof value === "boolean" || typeof value === "number") {
     return String(value)
   }
-  // An object or array — a JSONB column such as name_i18n or salary_ranges.
-  // Serialised so a change to it is visible, rather than dropped for not being
-  // a scalar.
+  // JSONB column (e.g. name_i18n) — serialize so the change is visible.
   return JSON.stringify(value)
 }

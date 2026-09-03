@@ -1,23 +1,9 @@
 #!/usr/bin/env node
 /**
- * Every write is classified, and every audited one actually audits.
- *
- * CLAUDE.md required an audit entry for "a write someone may later be asked to
- * justify" and nothing enforced it: of 26 actions, 3 audited — not hiring
- * someone, not editing their employment record, not the payroll policy that
- * decides how overtime is computed. A rule that is prose is applied unevenly,
- * which is the same lesson the disclosure matrix taught (L48).
- *
- * Three checks, all bidirectional:
- *
- *  1. Every action in AUDITED_OPERATIONS calls `audit.record`.
- *  2. No action in NOT_AUDITED calls it — an entry drifting into auditing
- *     without moving lists means the register no longer describes the code.
- *  3. Every action that EXISTS appears on one list or the other. A new action
- *     fails the build until someone decides, rather than defaulting to silence.
- *
- * `audit_log` can never be deleted from, so over-auditing is permanent noise.
- * That is why the second and third checks matter as much as the first.
+ * Every write is classified as audited or not (L48), and every classification
+ * matches reality: audited actions call audit.record, not-audited ones don't,
+ * and every action appears on one list or the other. audit_log is append-only,
+ * so an unclassified or drifted action is permanent noise or a silent gap.
  */
 import { execFileSync } from "node:child_process"
 import { readdirSync, readFileSync, statSync } from "node:fs"
@@ -60,29 +46,19 @@ const notAudited = new Set(NOT_AUDITED)
 
 /**
  * Does every `audit.record` share the transaction of the write beside it?
- *
- * Presence was all this step used to prove, and presence is not the rule. The
- * rule (L40) is that the entry is written in the SAME transaction as the
- * change — written afterwards, or on a second connection, the trail records
- * what the application BELIEVED happened, and the two diverge exactly when it
- * matters. An `audit.record(sql, …)` next to a `withTenant(…)` block satisfies
- * a presence check and breaks the rule.
- *
- * So: find each `withTenant(…, async (P) => {` region by brace-matching, and
- * require every `audit.record(A, …)` to sit inside one with `A === P`.
- *
- * It is a lexical check and says so. It cannot follow a `tx` passed into a
- * helper — those show up as "outside any withTenant" and want a review, which
- * is the right answer for a call it cannot see into.
+ * (L40 — an entry written outside the transaction can diverge from what
+ * actually happened.) Finds each `withTenant(..., async (P) => {` region by
+ * brace-matching and requires `audit.record(A, ...)` inside it to use `A ===
+ * P`. A lexical check: a `tx` passed into a helper it can't see into is
+ * reported as "outside any withTenant" for review, not silently passed.
  */
 function auditTransactionProblems(body, key) {
   const problems = []
 
   // Every `withTenant(..., <async> (PARAM) => {` and the span it encloses.
   const regions = []
-  // NOT `[^)]*?` for the first argument: it is `actorFrom(locals)`, which
-  // contains parentheses, so that form matched nothing and the check reported
-  // all 31 audited actions as violations. Bounded look-ahead to the arrow.
+  // Bounded look-ahead, not `[^)]*?` — the first arg is `actorFrom(locals)`,
+  // which contains parens and would otherwise match nothing.
   const opener =
     /withTenant\s*\([\s\S]{0,200}?\(\s*([A-Za-z_$][\w$]*)\s*\)\s*=>\s*\{/g
   for (const m of body.matchAll(opener)) {
@@ -151,12 +127,8 @@ for (const file of routeFiles(ROUTES)) {
 }
 
 // -- Redaction keeps up with the schema -------------------------------------
-//
-// NEVER_LOGGED matches field NAMES, so a column it does not know about is a
-// column a caller can write in the clear. Ten encrypted columns were missing
-// from it — address_ct, email_ct, phone_primary_ct, tax_id_ct and others —
-// which is exactly the drift a committed list suffers when nothing compares it
-// to the schema.
+// NEVER_LOGGED matches field NAMES, so an encrypted column missing from it
+// can be written to the audit log in the clear.
 const unredacted = []
 if (process.env.DATABASE_URL) {
   const repo = readFileSync(

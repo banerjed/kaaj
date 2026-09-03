@@ -8,11 +8,7 @@ import * as attendance from "./hr_attendance.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an owner so RLS doesn't narrow what the test sees (see db/row-visibility.test.ts). */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -23,10 +19,7 @@ const TOM = "b9b84064-a67a-5048-8282-8fc048b4dbfb" // US-NYC, the evening shift
 
 describe("what the driver returns", () => {
   it("hands back a Date for timestamptz and a string for numeric", async () => {
-    // `types: {}` in client.ts adds handlers, it does not remove the built-in
-    // ones. Money stays a string because NUMERIC has no built-in parser; a
-    // timestamptz does, so it arrives already parsed. Declaring both as
-    // `string` type-checks and then fails at runtime.
+    // types: {} adds handlers, it doesn't remove the built-in ones (L36).
     const [row] = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, {
         employeeId: TOM,
@@ -41,15 +34,11 @@ describe("what the driver returns", () => {
 
 describe("attendance hours", () => {
   it("every row's stored hours agree with its own clock times", async () => {
-    // total = (out - in) - break, AND total = regular + overtime.
-    // Nothing enforces either, and payroll multiplies these by a rate.
     const bad = await withTenant(AS_OWNER, (tx) => attendance.inconsistent(tx))
     expect(bad).toEqual([])
   })
 
   it("keeps four decimals, because a timesheet compounds them", async () => {
-    // 09:34–17:00 less a 30-minute break is 6.9333h, not 6.93. Rounding to two
-    // before summing a fortnight loses most of an hour across a team.
     const rows = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, { status: "late" }),
     )
@@ -62,7 +51,6 @@ describe("attendance hours", () => {
     )
     expect(t.days).toBe(2) // the evening shift and the night shift
     expect(t.total_hours).toBe("16.0000")
-    // The one fixture row that splits into regular and overtime.
     expect(t.regular_hours).toBe("15.5000")
     expect(t.overtime_hours).toBe("0.5000")
   })
@@ -70,7 +58,6 @@ describe("attendance hours", () => {
 
 describe("attendance and the office timezone", () => {
   it("attendance_date is the LOCAL date on every row", async () => {
-    // The check a `::date` cast in a query would fail.
     const bad = await withTenant(AS_OWNER, (tx) =>
       attendance.misdatedForOffice(tx),
     )
@@ -78,8 +65,6 @@ describe("attendance and the office timezone", () => {
   })
 
   it("renders a shift in its own office's zone, not UTC", async () => {
-    // The same instant reads differently in Bangalore and New York, and the
-    // office's zone is the only one that makes a workday look like a workday.
     const rows = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, { from: "2026-01-06", to: "2026-01-06" }),
     )
@@ -96,8 +81,6 @@ describe("attendance and the office timezone", () => {
   })
 
   it("handles a shift that ends on the next UTC day", async () => {
-    // 14:00–23:00 in New York is 19:00Z to 04:00Z the following day. The row
-    // belongs to the 9th; only the UTC clock-out is on the 10th.
     const [shift] = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, {
         employeeId: TOM,
@@ -108,19 +91,14 @@ describe("attendance and the office timezone", () => {
     expect(shift.attendance_date).toBe("2026-01-09")
     expect(shift.clock_in_local).toBe("14:00")
     expect(shift.clock_out_local).toBe("23:00")
-    // Two UTC dates, ONE local day — so this is NOT an overnight shift, however
-    // much the UTC timestamps suggest otherwise.
+    // Two UTC dates, ONE local day — not an overnight shift.
     expect(shift.crosses_local_midnight).toBe(false)
     expect(shift.clock_out_time!.toISOString().slice(0, 10)).toBe("2026-01-10")
     expect(shift.attendance_date).toBe("2026-01-09")
   })
 
   it("flags a night shift by the office's day, not by UTC's", async () => {
-    // The inverse case, and the one that makes the rule concrete. 22:00-06:00
-    // in New York is 03:00Z-11:00Z — a SINGLE UTC date. Comparing UTC dates
-    // calls a genuine night shift a normal day, and calls an ordinary
-    // 09:00-17:30 in Auckland (UTC+13) an overnight one. Only the local dates
-    // describe the shift (L35).
+    // Comparing UTC dates alone would miss this — a single UTC date here (L35).
     const [night] = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, { from: "2026-01-12", to: "2026-01-12" }),
     )
@@ -135,7 +113,7 @@ describe("attendance and the office timezone", () => {
   })
 
   it("does not raise on a blank employee filter", async () => {
-    // '' is not a uuid and SQL does not short-circuit, so the cast runs anyway.
+    // '' is not a uuid, and SQL does not short-circuit the cast (L37).
     const rows = await withTenant(AS_OWNER, (tx) =>
       attendance.list(tx, { employeeId: "" }),
     )

@@ -43,8 +43,7 @@ describe("bills", () => {
   })
 
   it("has a bill carrying tax, so the tax path is exercised", async () => {
-    // Three of the four bills have zero tax. Without the fourth, "total equals
-    // subtotal plus tax" would pass on `x + 0 = x` every time.
+    // Otherwise "total = subtotal + tax" would pass on x + 0 = x every time.
     const rows = await withTenant(AS_OWNER, (tx) => pay.listBills(tx))
     expect(rows.some((b) => Number(b.tax_total) > 0)).toBe(true)
   })
@@ -85,7 +84,6 @@ describe("bills", () => {
   })
 
   it("lines carry an expense account", async () => {
-    // A bill line with no account cannot be posted to the ledger.
     const lines = await withTenant(AS_OWNER, async (tx) => {
       const [b] = await pay.listBills(tx)
       return pay.billLines(tx, b.id)
@@ -97,9 +95,6 @@ describe("bills", () => {
 
 describe("bank accounts", () => {
   it("keeps the bank's balance and the feed's balance as separate facts", async () => {
-    // They are different claims: one is what the bank reports, the other is
-    // derived from what has been imported. Collapsing them into one number
-    // would hide exactly the gap a reconciliation screen exists to show.
     const rows = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
     expect(rows.length).toBeGreaterThan(0)
 
@@ -115,8 +110,7 @@ describe("bank accounts", () => {
     )
     const noFeed = rows.filter((a) => a.feed_balance === null)
 
-    // All three states, so every branch of the page is rendered by the fixture
-    // rather than only the happy one.
+    // All three states, so every branch of the page is exercised.
     expect(agreeing.length, "no account agrees with its feed").toBeGreaterThan(
       0,
     )
@@ -131,8 +125,7 @@ describe("bank accounts", () => {
   })
 
   it("an account with no transactions reports no feed balance, not zero", async () => {
-    // Zero would read as "the account is empty", which is a different and much
-    // more alarming claim than "nothing has been imported".
+    // Zero would misleadingly claim "the account is empty".
     const rows = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
     for (const a of rows) {
       if (a.transaction_count === 0) expect(a.feed_balance).toBeNull()
@@ -140,9 +133,7 @@ describe("bank accounts", () => {
   })
 
   it("never returns an account number in any form", async () => {
-    // account_number_ct, iban_ct, routing_number_ct and swift_code_ct are
-    // ciphertext with no plaintext last-four beside them. The value stays out
-    // of the returned type entirely (L39).
+    // Ciphertext columns stay out of the returned type entirely (L39).
     const [a] = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
     for (const k of Object.keys(a)) {
       expect(k).not.toMatch(/account_number|iban|routing|swift/)

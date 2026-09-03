@@ -3,25 +3,14 @@ import { closeConnections } from "./client"
 import { withTenant } from "./tenant"
 
 /**
- * Proves tenant isolation through the path the APPLICATION uses.
- *
- * verify-rls.sql proves the 575 policies filter, driving the session itself.
- * What it cannot prove is that `withTenant` builds that session the same way —
- * and a mistake there does not raise, it returns either nothing or everything.
- * Both directions are asserted, because a test for one passes under the other.
- *
- * Needs the local stack up, which is already ./check's precondition. It does
- * not skip itself when the database is unreachable: a suite that quietly stops
- * testing is the failure mode CLAUDE.md warns about.
+ * Proves tenant isolation through the path the APPLICATION uses — `verify-rls.sql`
+ * proves the policies filter; this proves `withTenant` builds the session the
+ * same way. Asserts both directions, since a mistake here returns nothing or everything.
  */
 
 // Seeded by mock-data.sql, whose own verification block asserts these counts.
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an actor who reads everything; visibility has its own tests in row-visibility.test.ts. */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -45,9 +34,7 @@ describe("withTenant", () => {
   })
 
   it("gives a tenant-only claim NOTHING from a row-scoped table", async () => {
-    // A bare tenant id still isolates by tenant, but row-visibility policies
-    // key on the role and the person (docs/15). A claim carrying neither is
-    // denied — fail closed, which is why every request now passes an actor.
+    // Row-visibility keys on role/person too (docs/15) — a bare tenant id is denied. Fail closed.
     const [{ count }] = await withTenant(
       NORTHWIND,
       (tx) => tx`SELECT count(*)::int AS count FROM employees`,

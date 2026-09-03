@@ -1,19 +1,9 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * Bills and banking — module-accounting.md, the payables and cash half.
- *
- * The same discipline as invoices: money is a string, every sum happens in
- * SQL, and the stored totals are recomputed on read so a document that stopped
- * matching its own lines is visible rather than believed.
- *
- * **No account number is selected anywhere in this file.** `bank_accounts`
- * holds `account_number_ct`, `iban_ct`, `routing_number_ct` and `swift_code_ct`
- * — all ciphertext, all sealed to the tenant, and unlike
- * `employee_bank_accounts` there is no plaintext last-four beside them. A
- * banking screen does not need one, so the value stays out of the returned
- * type entirely: a repository that fetched and dropped it would still have put
- * it in a result set, a log line and a heap dump (L39).
+ * Bills and banking — payables and cash. Same discipline as invoices: money is
+ * a string, sums happen in SQL. No account number is ever selected here (L39);
+ * the ciphertext columns on bank_accounts stay out of the returned type entirely.
  */
 
 export type BillRow = {
@@ -55,8 +45,7 @@ const BILL_SELECT = `
            AS line_subtotal,
          (SELECT count(*)::int FROM bill_lines l WHERE l.bill_id = b.id)
            AS line_count,
-         -- A draft or voided bill is not owed, so it cannot be late — the same
-         -- correction the invoice list needed.
+         -- A draft or voided bill is not owed, so it cannot be late.
          (b.due_date < CURRENT_DATE
             AND b.amount_due > 0
             AND b.status NOT IN ('draft', 'void', 'cancelled')) AS is_overdue
@@ -158,13 +147,9 @@ export type BankAccountRow = {
 }
 
 /**
- * The firm's bank accounts.
- *
- * `current_balance` and `feed_balance` are DIFFERENT FACTS — one is what the
- * bank reports, the other is derived from the transactions imported so far.
- * They disagree whenever something has not been imported yet, which is
- * ordinary rather than an error, so both are returned and the page shows the
- * difference instead of picking one and hiding the other.
+ * The firm's bank accounts. `current_balance` (bank-reported) and
+ * `feed_balance` (derived from imported transactions) can legitimately
+ * disagree, so both are returned rather than one hiding the other.
  */
 export async function bankAccounts(tx: Tx): Promise<BankAccountRow[]> {
   return tx<BankAccountRow[]>`

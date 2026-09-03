@@ -16,14 +16,9 @@ export type Tx = TransactionSql<Record<string, never>>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Run `fn` inside a transaction scoped to `tenantId`. Commits on resolve,
- * rolls back on throw.
- */
-/**
- * Who is asking. A bare tenant id is still accepted and still isolates by
- * tenant — but row-visibility policies key on the ROLE and the PERSON
- * (docs/15-row-level-visibility.md), and a claim carrying neither is denied by
- * them. That is deliberate: fail closed. Pass the context wherever one exists.
+ * Who is asking. A bare tenant id still isolates by tenant, but a
+ * row-visibility policy keyed on role/person (docs/15-row-level-visibility.md)
+ * denies a claim carrying neither — fail closed. Pass full context where one exists.
  */
 export type Actor =
   | string
@@ -34,22 +29,19 @@ export type Actor =
       functionalRoles?: string[] | null
     }
 
+/** Run `fn` inside a transaction scoped to the actor's tenant. Commits on resolve, rolls back on throw. */
 export async function withTenant<T>(
   actor: Actor,
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   const tenantId = typeof actor === "string" ? actor : actor.tenantId
-  // Should never fire — the claim comes from a verified JWT. It is here because
-  // this value is the sole basis for isolation, so a malformed one must fail
-  // loudly rather than degrade into "no tenant".
+  // Should never fire (claim comes from a verified JWT) — fail loudly, not into "no tenant".
   if (!UUID.test(tenantId)) {
     throw new Error("withTenant called with a malformed tenant id")
   }
 
   const sql: Sql = getConnection(tenantId)
-  // The whole claim, not just the tenant. Row-visibility policies read
-  // app_metadata.role and app_metadata.employee_id, and an absent role means
-  // "no rows" rather than "every row".
+  // Whole claim, not just the tenant — row-visibility reads app_metadata.role/employee_id.
   const claims = JSON.stringify({
     app_metadata:
       typeof actor === "string"
@@ -70,13 +62,7 @@ export async function withTenant<T>(
   }) as Promise<T>
 }
 
-/**
- * The actor for a request, from `locals`.
- *
- * Every page and action uses this rather than `locals.tenantId` alone, so the
- * database knows WHO is asking and not only which firm. A claim with a tenant
- * and nothing else is denied by every row-visibility policy — fail closed.
- */
+/** The actor for a request, from `locals` — used instead of `locals.tenantId` alone so the database knows WHO is asking. */
 export function actorFrom(locals: App.Locals): Actor {
   if (!locals.tenantId) {
     throw new Error(

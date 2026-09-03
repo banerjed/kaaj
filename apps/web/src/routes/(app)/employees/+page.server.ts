@@ -7,12 +7,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 
 const PAGE_SIZE = 25
 
-/**
- * /employees — the directory.
- *
- * Filter and page state live in the URL (doc 03), so a filtered view is
- * shareable, survives a reload, and the back button behaves.
- */
+/** /employees — the directory. Filter/page state lives in the URL (doc 03). */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
 

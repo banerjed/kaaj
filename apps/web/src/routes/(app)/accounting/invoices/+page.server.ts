@@ -16,12 +16,7 @@ const STATUSES = [
   "void",
 ] as const
 
-/**
- * /accounting/invoices — accounts receivable.
- *
- * Gated: what the firm bills and what it is owed is not directory data. Anyone
- * who may read the ledger may read this.
- */
+/** /accounting/invoices — accounts receivable; gated to finance. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)

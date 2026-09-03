@@ -6,8 +6,7 @@ import { createClient, type User } from "@supabase/supabase-js"
 import type { Database } from "../DatabaseDefinitions"
 import handlebars from "handlebars"
 
-// Sends an email to the admin email address.
-// Does not throw errors, but logs them.
+// Sends to the admin email address. Logs errors rather than throwing.
 export const sendAdminEmail = async ({
   subject,
   body,
@@ -15,7 +14,6 @@ export const sendAdminEmail = async ({
   subject: string
   body: string
 }) => {
-  // Check admin email is setup
   if (!env.PRIVATE_ADMIN_EMAIL) {
     return
   }
@@ -56,8 +54,7 @@ export const sendUserEmail = async ({
     return
   }
 
-  // Check if the user email is verified using the full user object from service role
-  // Oauth uses email_verified, and email auth uses email_confirmed_at
+  // OAuth uses email_verified; email auth uses email_confirmed_at.
   const serverSupabase = createClient<Database>(
     PUBLIC_SUPABASE_URL,
     PRIVATE_SUPABASE_SERVICE_ROLE,
@@ -75,7 +72,6 @@ export const sendUserEmail = async ({
     return
   }
 
-  // Fetch user profile to check unsubscribed status
   const { data: profile, error: profileError } = await serverSupabase
     .from("profiles")
     .select("unsubscribed")
@@ -115,7 +111,7 @@ export const sendTemplatedEmail = async ({
   template_properties: Record<string, string>
 }) => {
   if (!env.PRIVATE_RESEND_API_KEY) {
-    // email not configured.  Emails are optional so no error is thrown
+    // Email is optional; no error if unconfigured.
     return
   }
 

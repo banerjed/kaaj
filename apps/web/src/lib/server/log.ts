@@ -1,20 +1,7 @@
 /**
- * One JSON object per line, on stdout.
- *
- * Deliberately not a logging library. `adapter-node` runs as a long-running
- * container ([docs/12-beta-deployment.md](../../../../docs/12-beta-deployment.md)),
- * and every host worth deploying it to captures stdout — so a line here is
- * already shippable to whatever collects logs, without the application knowing
- * which one that is. Choosing a vendor is a later decision this does not
- * foreclose.
- *
- * **Fields, never interpolated prose.** `"tenant abc had an error"` cannot be
- * filtered; `{"tenantId":"abc"}` can. The whole value of this file is that a
- * support ticket quoting an error id becomes one query.
- *
- * Everything that reaches here has already been through `safeError`
- * ([$lib/errors](../errors.ts)). Do not add a call site that logs a raw
- * `PostgresError`.
+ * One JSON object per line, on stdout — fields, never interpolated prose, so
+ * a support ticket's error id becomes one query. Everything here has already
+ * been through safeError ($lib/errors); never log a raw PostgresError.
  */
 
 type Level = "error" | "warn" | "info"

@@ -1,25 +1,14 @@
 -- =============================================================================
 -- Kaaj — Mock Data for a Test Organization
 -- =============================================================================
--- Version:      2.0
--- Last Updated: 2026-08-27
--- Target:       supabase/migrations/ (98 tables, Supabase PostgreSQL)
+-- Target: supabase/migrations/ (98 tables, Supabase PostgreSQL)
 --
--- Supersedes the v1 mock data, which targeted the D1/SQLite schema and its
--- natural keys (EMP-001, US-NYC, ENG). Those keys collide under shared-schema
--- tenancy and could not be reused.
---
--- THE TEST ORGANIZATION
---   Northwind Consulting — a 12-person professional services firm operating in
---   the US, UK and India. Chosen to exercise the parts of the schema that are
---   easy to get wrong:
---     * three currencies (USD/GBP/INR) and three timezones
---     * a manager hierarchy and a department tree (ENG -> ENG-BE, ENG-FE)
---     * effective-dated compensation, so historical payroll is reproducible
---     * per-client, effective-dated billing rates
---     * balanced double-entry journals
---     * jurisdiction-specific leave policies and accrual ledgers
---     * split direct deposit, and career-progression history with reasons
+-- Northwind Consulting — a 12-person professional services firm operating in
+-- the US, UK and India, chosen to exercise the parts of the schema that are
+-- easy to get wrong: three currencies/timezones, a manager hierarchy and
+-- department tree, effective-dated compensation and billing rates, balanced
+-- double-entry journals, jurisdiction-specific leave accrual, split direct
+-- deposit, and career-progression history.
 --
 -- UUIDs are deterministic (uuid5 over a fixed namespace), so regenerating this
 -- file produces identical identifiers and diffs stay readable.
@@ -30,7 +19,7 @@
 --
 -- RLS NOTE
 --   These INSERTs run as the table owner, for whom RLS is bypassed. To exercise
---   isolation, connect as the non-owner application role and set the tenant:
+--   isolation, connect as app_user and set the tenant:
 --     SET request.jwt.claims = '{"app_metadata":{"tenant_id":"<tenant uuid>"}}';
 --   The tenant id is printed by the verification block at the end of this file.
 -- =============================================================================
@@ -548,9 +537,8 @@ WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 INSERT INTO payroll_runs (id, tenant_id, run_id, run_number, pay_period_start, pay_period_end, pay_date, run_type, country, pay_schedule_id, currency, run_status, status, employee_count, total_gross_pay, total_net_pay, total_taxes, total_deductions, calculated_at, approved_at, finalized_at, calculated_by, approved_by) VALUES
     ('30da1814-aa14-5b7a-b970-d54897fb2a41', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PR-2026-01-BONUS-US', 'PR-2026-01-BONUS-US', '2026-01-15', '2026-01-15', '2026-01-19', 'off_cycle', 'US', 'b57b7e37-7192-5e00-ad55-4ef5ec240a74', 'USD', 'approved', 'approved', 1, 2500.00, 1750.00, 750.00, 0.00, '2026-01-15T16:00:00Z', '2026-01-15T17:00:00Z', NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '6d466aa9-e51a-5d52-9015-152600855932');
 
--- The off-cycle bonus run's line. Without it the run claimed one employee and
--- 2,500.00 gross with nothing behind it, while marked calculated AND approved
--- — a run that says it paid someone and cannot say whom.
+-- The off-cycle bonus run's line — without it the run is marked
+-- calculated/approved but claims a payee with nothing behind it.
 INSERT INTO payroll_run_employees (id, tenant_id, payroll_run_id, employee_id, status, work_country, work_state, regular_hours, earnings, gross_pay, taxable_wages, taxes, total_taxes, posttax_deductions, total_posttax_deductions, net_pay, payment_method, ytd_gross) VALUES
     ('a1c93f5e-2d47-5b81-9c06-3e8f7a2b4d19', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '30da1814-aa14-5b7a-b970-d54897fb2a41', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'calculated', 'US', 'NY', 0.0, '{"bonus": "2500.00"}'::jsonb, 2500.00, '"2500.00"'::jsonb, '{"income_tax": "437.50", "social": "155.00", "medicare": "36.25", "state": "121.25"}'::jsonb, 750.00, '{}'::jsonb, 0.00, 1750.00, 'direct_deposit', 2500.00);
 
@@ -603,13 +591,8 @@ INSERT INTO cross_module_links (id, tenant_id, source_module, source_entity_type
     ('88bc9e7b-e5aa-52fa-8a22-a49f0e0c3533', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'time_tracking', 'entry', '28a1b5e3-0d2e-57ba-a0db-5953f65e20f2', 'accounting', 'invoice', 'c72699f8-700c-5760-a8e8-19ae6dfd53c5', 'billed_on'),
     ('5af988bd-ab71-596d-b613-914f764fddec', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'hr', 'goal', 'ebd4d4ec-1e50-5901-9d53-110cf0314dda', 'project_management', 'objective', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'aligned_to');
 
--- Audit trail examples
--- The audit trail.
---
--- `entity_type` names the TABLE, so an entry can be joined back to the row it
--- describes. `changes` is {field: {from, to}} and every value is a STRING —
--- a JSON number inside JSONB returns to JavaScript as a float64, and this is
--- the one table where that cannot be corrected afterwards (L41).
+-- Audit trail examples. `entity_type` names the table; `changes` is
+-- {field: {from, to}} with STRING values, never JSON numbers (L41).
 INSERT INTO audit_log (tenant_id, actor_user_id, actor_employee_id, action, entity_type, entity_id, module, changes) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '6d466aa9-e51a-5d52-9015-152600855932', 'update', 'compensation_base', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'hr', '{"amount": {"from": "139000.00", "to": "148000.00"}}'::jsonb),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '48ccc5de-9ba7-5461-ab49-160a1146ed85', 'a87e0200-0849-53b6-a491-e882feace3f5', 'create', 'ticketing_tickets', 'a22f6d41-d654-5951-a043-e174f7e1a258', 'ticketing', NULL),
@@ -708,15 +691,10 @@ INSERT INTO hr_change_requests (id, tenant_id, request_id, requested_by, request
 
 -- Clock in/out attendance records (FR-HR)
 --
--- clock_in_time/clock_out_time are timestamptz: an INSTANT, not a wall clock.
--- These were originally written as '09:00:00Z' for a Bangalore employee, which
--- is 14:30 IST — a plausible-looking row that only reads wrong once a page
--- renders it in the office's zone. Times below are the real UTC instants of the
--- intended local times (IST +05:30, EST -05:00 in January).
---
--- Tom's 2026-01-09 row is deliberate: an evening shift whose clock_out lands on
--- the NEXT UTC day. attendance_date is the LOCAL date, and cannot be derived
--- from the UTC timestamp without the office's timezone.
+-- clock_in_time/clock_out_time are timestamptz — an INSTANT, not a wall clock.
+-- Times below are real UTC instants of the intended local times (IST +05:30,
+-- EST -05:00 in January). Tom's 2026-01-09 row deliberately has clock_out on
+-- the next UTC day; attendance_date is the LOCAL date (L35).
 INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in_time, clock_out_time, break_minutes, total_hours, regular_hours, overtime_hours, status, created_at, updated_at) VALUES
     ('cf64fb8a-ec72-5b98-942f-ab43e406d329', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-06', '2026-01-06T03:30:00Z', '2026-01-06T12:00:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('7474f042-c201-579c-ab38-40c9e2b92930', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07', '2026-01-07T03:31:00Z', '2026-01-07T12:01:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
@@ -726,9 +704,8 @@ INSERT INTO hr_attendance (id, tenant_id, employee_id, attendance_date, clock_in
     ('e2b2e36c-224e-5181-a638-a9a10b3b0a1e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-01-08', '2026-01-08T03:32:00Z', '2026-01-08T12:02:00Z', 45, 7.75, 7.75, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('e39d3de1-81f0-58d8-a050-d579c8b8549a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-08', '2026-01-08T14:34:00Z', '2026-01-08T22:00:00Z', 30, 6.9333, 6.9333, NULL, 'late', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('3f0c1d6e-9a44-5c2b-8e17-6b2f4d8a10c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-09', '2026-01-09T19:00:00Z', '2026-01-10T04:00:00Z', 30, 8.5, 8.0, 0.5, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    -- A real night shift: 22:00-06:00 in New York. Both instants land on ONE
-    -- UTC date, so comparing UTC dates calls this a normal day — the inverse
-    -- of the Auckland error. Only the LOCAL dates say what it is.
+    -- A night shift (22:00-06:00 NY) whose instants both land on one UTC date
+    -- — only the LOCAL dates reveal it spans a shift.
     ('7c41a92d-3b58-5e6f-9012-4a8de7c30b91', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '2026-01-12', '2026-01-13T03:00:00Z', '2026-01-13T11:00:00Z', 30, 7.5, 7.5, NULL, 'present', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Benefits enrolments with dependents and beneficiaries as queryable JSONB (FR-HR-008)
@@ -742,11 +719,7 @@ INSERT INTO hr_feedback (id, tenant_id, feedback_id, from_employee_id, to_employ
     ('51421c2a-17e8-573a-ad83-c60d4f036728', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-001', '6d466aa9-e51a-5d52-9015-152600855932', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'praise', 'Excellent work untangling the Acme data model.', FALSE, 'manager_only', '["technical"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('a88349a8-db1c-5492-a864-2adeca2ba609', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'praise', 'Client specifically called out your responsiveness.', FALSE, 'public', '["client", "communication"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('17fc284f-0a5d-530b-9123-a65483de7f5b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-003', '6d466aa9-e51a-5d52-9015-152600855932', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'constructive', 'Consider bringing the team in earlier on design decisions.', FALSE, 'private', '["collaboration"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
-    -- The anonymous case. Without it the promise "we will not show who wrote
-    -- this" is untestable, and a page that rendered from_employee_id would
-    -- pass every check while breaking it for real. Marked anonymous but WITH a
-    -- source recorded, which is exactly the shape that goes wrong: the column
-    -- is populated and correct, and must never be returned.
+    -- Anonymous case: source IS recorded but must never be returned (L39).
     ('c4a2f3e1-8b6d-5a47-9e02-1f5c8d3b7a90', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'FB-004', 'bf17b1af-963b-53ef-9083-21506fb34e9c', '6d466aa9-e51a-5d52-9015-152600855932', 'constructive', 'Sprint planning often runs long; a tighter agenda would help.', TRUE, 'private', '["process"]'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Pulse surveys with questions as JSONB
@@ -775,14 +748,10 @@ INSERT INTO compensation_equity (id, tenant_id, employee_id, grant_type, equity_
     ('111d5707-3d5a-5a90-a6cd-04c88efc7e6c', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'nso', 'nso', 'GRANT-E004', '2025-01-06', 18000, 18000, 4500, 1.25, 1.25, 'USD', 'cliff_then_monthly', '2025-01-06', 12, 48, '{"cliff_months": 12, "total_months": 48, "frequency": "monthly"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('2a6f5c81-93b7-5d04-bc2e-7f18a94e6053', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'rsu', 'rsu', 'GRANT-E007', '2025-06-02', 9000, 9000, 2250, NULL, NULL, 'USD', 'cliff_then_monthly', '2025-06-02', 12, 48, '{"cliff_months": 12, "total_months": 48, "frequency": "monthly"}'::jsonb, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
--- Shift and on-call premiums.
---
--- compensation_premiums held ZERO rows, so every "a colleague cannot see this"
--- assertion against it passed without anything to hide — the vacuous pass this
--- codebase keeps rediscovering (L41, L47). A policy with no fixture row has
--- never been tested. James Reid also gets a row in every other
--- compensation_* table for the same reason: the disclosure matrix uses one
--- subject across all of them, so a missing row silently weakens every case.
+-- Shift and on-call premiums. Was zero rows, so visibility assertions passed
+-- vacuously (L41, L47). James Reid also has a row in every other
+-- compensation_* table, since the disclosure matrix uses one subject across
+-- all of them.
 INSERT INTO compensation_premiums (id, tenant_id, employee_id, premium_type, premium_name, effective_from, calculation_method, premium_amount, premium_percentage, currency, rate_multiplier, amount, status, created_at, updated_at, created_by) VALUES
     ('3f2b91c4-7d5a-5e88-9c31-4a7e2b6f0d13', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'on_call', 'On-call rota', '2026-01-01', 'fixed_amount', 450.00, NULL, 'GBP', NULL, 450.00, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('8c14d7e2-b306-5a49-81f7-25d9e3c84b60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '18503470-ba5c-5450-bc3e-b0a2454d757f', 'shift_differential', 'Night shift differential', '2026-01-01', 'multiplier', NULL, NULL, 'GBP', 1.2500, NULL, 'active', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
@@ -998,19 +967,13 @@ UPDATE ticketing_tickets SET
                                      resolved_at IS NOT NULL AND resolved_at > sla_due_at)
 WHERE sla_due_at IS NOT NULL;
 
--- tenant_users — membership linking Supabase auth identities to employees.
--- This is the table custom_access_token_hook() reads at token issue to stamp
--- app_metadata.tenant_id, so it is load-bearing for login. It had no fixture,
--- which meant its RLS was never exercised; packages/database/tests/verify-rls.sql flags that.
--- user_id values are deterministic uuid5 stand-ins for auth.users rows.
--- One BASE role, plus any number of FUNCTIONAL roles (docs/14-access-control.md).
---
--- `manager` is deliberately absent: it is derived from employees.manager_id,
--- and Aisha (E005) has reports, so she IS a manager without being granted one.
---
--- E010 holds hr_admin and E001 holds payroll_admin, never the same person —
--- whoever sets pay must not approve the run that pays it. A CHECK constraint
--- refuses the combination, so this fixture is also the demonstration.
+-- tenant_users — membership linking Supabase auth identities to employees;
+-- custom_access_token_hook() reads it to stamp app_metadata.tenant_id, so
+-- it's load-bearing for login. user_id values are deterministic uuid5
+-- stand-ins for auth.users rows. One BASE role plus any number of FUNCTIONAL
+-- roles (docs/14-access-control.md); `manager` is derived from
+-- employees.manager_id, not granted. E010/E001 hold hr_admin/payroll_admin
+-- separately — a CHECK constraint refuses the same person holding both.
 INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role,
                           functional_roles, is_active, is_default_tenant,
                           accepted_at)
@@ -1030,10 +993,8 @@ SELECT
     END,
     TRUE, TRUE, '2026-01-01T09:00:00Z'
 FROM employees e
--- E003 (Priya) is here for a specific reason: she is the subject of the one
--- review still in `draft`, so she is the only login that exercises the rule
--- that a manager's unfinished assessment is withheld from the person it is
--- about. Without her that path is testable only in unit tests.
+-- E003 (Priya) is the subject of the one review still in `draft` — the only
+-- login that exercises "a manager's unfinished assessment is withheld".
 WHERE e.employee_id IN ('E001','E002','E003','E004','E005','E010');
 
 
@@ -1182,12 +1143,10 @@ UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":
 UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"IM8fNL7t1UqkKzp5","ct":"aIi4bb3BW3WDnA==","tag":"hc0ZtxkKMKxFrwWRoD+vcQ=="}' WHERE id = 'd8944f60-d19c-5f8f-b0e3-133a26453b16';
 UPDATE employee_bank_accounts SET account_number_encrypted = '{"v":1,"k":1,"iv":"hGH0/KB+A1mFBq6/","ct":"aaf3Fn+3Nv8Y4g==","tag":"N2ydHXzEeQ9VbwleGtzZTA=="}' WHERE id = 'fb7bc54b-4f47-5429-9747-eede693b51c4';
 
--- The remaining PII, sealed. Bank identifiers, emergency contacts,
--- certification numbers and counterparty tax and bank details.
---
--- Two kinds of subject: an EMPLOYEE for their own data, and the TENANT for the
--- firm's own banking and its counterparties' details — those belong to the
--- firm, not to a person, so erasing an employee must not take them.
+-- The remaining PII, sealed: bank identifiers, emergency contacts,
+-- certification numbers, counterparty tax/bank details. Two kinds of
+-- subject: EMPLOYEE for their own data, TENANT for the firm's own banking
+-- and counterparties' — erasing an employee must not take those.
 INSERT INTO pii_keys (tenant_id, subject_type, subject_id, key_label, kek_version, wrapped_dek) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'tenant', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'NORTHWIN-1064', 1, '{"v":1,"k":1,"iv":"SjMCazN8V0Xs6g/0","ct":"ADFNMYAnbHSbPO0VmzdvyKQIi5eUeh9QPO+RcO48lZ2wj87VSL1idoY8EwU=","tag":"IorIzaQXNOO9j+nKUh+JWw=="}')
 ON CONFLICT (tenant_id, subject_type, subject_id) DO NOTHING;
@@ -1211,24 +1170,14 @@ UPDATE hr_emergency_contacts SET phone_primary_ct = '{"v":1,"k":1,"iv":"4Uloh4TK
 -- ============================================================================
 -- Fixture completeness
 --
--- Every column on a personal-data table carries a value here, because an EMPTY
--- column is a column nothing tests. `compensation_premiums` held zero rows and
--- every "a colleague cannot read this" assertion against it passed with
--- nothing to hide; the JSONB compensation columns on `employees` were `{}`, so
--- any visibility assertion over them would have passed while they were
--- protected by nothing at all (L48).
+-- Every column on a personal-data table carries a value here — an empty
+-- column is a column nothing tests, and a NULL-subject test passes vacuously
+-- rather than failing (L48). `scripts/verify-fixture-coverage.mjs` fails the
+-- build on any column here that goes back to empty. Written as UPDATEs rather
+-- than folded into the INSERTs above, so those stay readable as "who works
+-- here" and this stays readable as "and nothing is untested".
 --
--- A test whose subject is NULL does not fail. It passes, and reports the
--- absence of data as the absence of a problem.
---
--- `scripts/verify-fixture-coverage.mjs` fails the build on any column here
--- that goes back to empty. Written as UPDATEs against the rows above rather
--- than folded into their INSERTs: the INSERTs stay readable as "who works
--- here", and this section stays readable as "and nothing is untested".
---
--- MONEY INSIDE JSONB IS A STRING, never a JSON number — Postgres stores a JSON
--- number exactly and hands it to JavaScript as a float64 on the way back out,
--- so the loss happens on read where nothing looks wrong (L41).
+-- MONEY INSIDE JSONB IS A STRING, never a JSON number (L41).
 -- ============================================================================
 
 -- Profile detail people fill in themselves. Deliberately varied: a fixture
@@ -1291,11 +1240,9 @@ UPDATE employees SET
         'medical', 'employee_plus_spouse', 'dental', 'employee_only',
         'retirement_pct', '6');
 
--- Payroll lines. The pension deduction was entirely post-tax while
--- `pretax_deductions` sat empty, so the pre-tax path was never exercised by
--- any test. Splitting the SAME total into a pre-tax retirement contribution
--- and a smaller post-tax pension leaves gross, taxes, net and every run header
--- untouched — the identities still hold, and the empty column now has data.
+-- Payroll lines: split the pension total into a pre-tax retirement
+-- contribution plus a smaller post-tax pension, so pretax_deductions is no
+-- longer empty while gross/taxes/net still reconcile.
 UPDATE payroll_run_employees SET
     pretax_deductions = jsonb_build_object(
         CASE work_country WHEN 'US' THEN 'retirement_401k'
@@ -1320,9 +1267,8 @@ UPDATE payroll_run_employees SET
     resident_state = CASE work_country WHEN 'US' THEN work_state ELSE NULL END,
     overtime_hours = 0, double_time_hours = 0, pto_hours = 8;
 
--- Year to date. These are January runs, so YTD equals the period itself —
--- internally consistent rather than invented, which matters because a YTD that
--- disagrees with its own payslip is exactly the kind of figure nobody spots.
+-- Year to date. January runs, so YTD equals the period itself — internally
+-- consistent, not invented.
 UPDATE payroll_run_employees SET
     ytd_federal_wages  = CASE work_country WHEN 'US' THEN gross_pay END,
     ytd_federal_tax    = CASE work_country WHEN 'US' THEN (taxes->>'income_tax')::numeric END,
@@ -1339,10 +1285,9 @@ UPDATE payroll_run_employees SET
     ytd_esi_employee   = CASE work_country WHEN 'IN' THEN round(gross_pay * 0.0075, 2) END,
     ytd_esi_employer   = CASE work_country WHEN 'IN' THEN round(gross_pay * 0.0325, 2) END;
 
--- Compensation records: the detail that makes each row a complete one.
--- `effective_to` is set on exactly ONE row per table — a superseded record.
--- Setting it everywhere would say every arrangement has ended; leaving it NULL
--- everywhere leaves the "this was superseded" path untested.
+-- `effective_to` is set on exactly ONE row per table — a superseded record,
+-- so the "this was superseded" path is exercised without saying every
+-- arrangement has ended.
 UPDATE compensation_base SET
     standard_hours_per_day = CASE WHEN currency = 'GBP' THEN 7.5 ELSE 8 END,
     standard_days_per_week = 5,
@@ -1376,9 +1321,8 @@ UPDATE compensation_premiums SET
 UPDATE compensation_premiums SET effective_to = '2026-09-30'
  WHERE id = (SELECT id FROM compensation_premiums ORDER BY id LIMIT 1);
 
--- Equity. fair_market_value differs from grant/strike price on purpose: a
--- grant priced at the last round and marked to a later valuation is the normal
--- case, and the gap is the whole point of the record.
+-- Equity: fair_market_value deliberately differs from grant/strike price —
+-- that gap is the point of the record.
 UPDATE compensation_equity SET
     equity_id = 'EQ-' || upper(substr(replace(id::text, '-', ''), 1, 8)),
     grant_price = COALESCE(strike_price, 1.25),
@@ -1473,13 +1417,9 @@ UPDATE hr_employment_history SET previous_manager_id = '11f31511-ad53-59c7-9e90-
    AND id = (SELECT id FROM hr_employment_history
               WHERE employee_id <> '11f31511-ad53-59c7-9e90-8ee3b553489b' ORDER BY id LIMIT 1);
 
--- Encrypted next-of-kin and banking detail.
---
--- Generated through the real sealing pipeline (`sealField`), not hand-written:
--- every envelope binds tenant | table | column | row as AAD, so a value cannot
--- be moved between rows or columns and one copied from elsewhere simply fails
--- to open. The per-employee keys these were sealed under are the ones seeded
--- in `pii_keys` above — reseal after changing those, or these stop decrypting.
+-- Encrypted next-of-kin and banking detail, generated through the real
+-- sealing pipeline (`sealField`), not hand-written. Sealed under the
+-- per-employee keys seeded in `pii_keys` above — reseal after changing those.
 UPDATE hr_emergency_contacts SET address_ct = '{"v":1,"k":1,"iv":"8sLYH4JKdJcf1M8x","ct":"9QhKJg1rXHmYLE1/XuuMssbki5k=","tag":"B9HQG8pGPnawwZcCO3+lgg=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
 UPDATE hr_emergency_contacts SET email_ct = '{"v":1,"k":1,"iv":"J9dcT6vlGFb9886W","ct":"39XNr08vuOEVYa2EoTzDpYRA3SeK","tag":"PwuWLuTYJ/UZQU6cDdHrPw=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
 UPDATE hr_emergency_contacts SET phone_secondary_ct = '{"v":1,"k":1,"iv":"pIkFtfU9DLsN+/DM","ct":"6oE4z8rxbcQGZP8ddBgy","tag":"KkHReIRhFB9AKVO2me8yHw=="}' WHERE id = 'a5291a83-e115-5c77-8e35-41b9c64c6f23';
@@ -1500,35 +1440,22 @@ UPDATE employee_bank_accounts SET bic_swift_ct = '{"v":1,"k":1,"iv":"vBG2k11MyCB
 -- ============================================================================
 -- FIXTURE COMPLETENESS — every remaining column
 --
--- An empty column is a column nothing tests. Completing the personal-data
--- tables alone exposed `PAY-math`, a specification check that had omitted
--- pre-tax deductions from the payroll identity and passed for months because
--- every row happened to have none (L50). This section extends that to the rest
--- of the schema.
---
--- Values are chosen to be plausible rather than merely well-typed: foreign
--- keys point at real rows, enums use labels the type permits, and identifiers
--- that carry a UNIQUE constraint derive from the row's own id so they stay
--- distinct across reseeds. A random uuid satisfies the type and describes
--- nothing, which is the failure this exercise exists to remove.
+-- An empty column is a column nothing tests (L50) — this extends the earlier
+-- personal-data completeness pass to the rest of the schema. Values are
+-- plausible, not merely well-typed: FKs point at real rows, UNIQUE
+-- identifiers derive from the row's own id.
 --
 -- MONEY INSIDE JSONB IS A STRING (L41).
 -- ============================================================================
 
 -- ============================================================================
--- The eight tables that held no rows at all.
---
--- A table with no rows is a table whose every constraint, policy and query is
--- untested: `compensation_premiums` was in exactly this state, and its
--- row-visibility policy had never once been exercised (L48/L50). These are
--- seeded so that stops being true of anything.
+-- The eight tables that held no rows at all — a table with no rows means
+-- every constraint, policy and query on it is untested (L48/L50).
 --
 -- MONEY INSIDE JSONB IS A STRING (L41).
 -- ============================================================================
 
--- Benefits: a package holds items, and plans are the carrier-level products.
--- Modelled per the module spec: costs vary by currency because a firm with US,
--- UK and India offices buys three different products.
+-- Benefits: a package holds items; costs vary by currency (US/UK/India).
 INSERT INTO firm_benefits_packages (id, tenant_id, name, name_i18n, description, description_i18n, eligibility_rules, is_active, created_at, updated_at, created_by, updated_by) VALUES
   ('b1a7c9e4-3d52-5f81-9a6c-2e4f7b013d58', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Standard Staff Package',
    '{"en-US": "Standard Staff Package", "fr-FR": "Forfait personnel standard"}'::jsonb,
@@ -1695,16 +1622,11 @@ UPDATE firm_locations SET email = 'fixture@northwind.example' WHERE email IS NUL
 UPDATE firm_locations SET holiday_calendar_id = 'Holiday Calendar Id 1' WHERE holiday_calendar_id IS NULL OR holiday_calendar_id = '';
 UPDATE firm_locations SET phone = '+1-212-555-0150' WHERE phone IS NULL OR phone = '';
 UPDATE firm_locations SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
--- Payroll policies, one per office.
+-- Payroll policies, one per office — overtime rules and rounding differ by
+-- jurisdiction, so a single firm-wide policy would be wrong for two of three.
 --
--- The table had NO INSERT anywhere in this fixture — only the generated
--- UPDATEs below, which quietly did nothing against zero rows. Overtime rules
--- and rounding differ per jurisdiction by law, so a single firm-wide policy
--- would be wrong in at least two of these three countries.
---
--- workweek_start_day is 0=Sunday .. 6=Saturday. The US week starts Sunday; the
--- UK and India start Monday, and a payroll week that starts on the wrong day
--- puts overtime in the wrong period.
+-- workweek_start_day is 0=Sunday..6=Saturday. US starts Sunday; UK/India
+-- start Monday, and a wrong start day puts overtime in the wrong period.
 INSERT INTO firm_payroll_policies (id, tenant_id, location_id, overtime_rules, time_rounding, workweek_start_day, require_time_tracking, is_active, created_at, updated_at, created_by, updated_by) VALUES
   ('1a4d7b60-2c93-5e07-8f41-6b02d5931ca7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '12c07799-28b4-55df-b8cf-df96df0bf40f',
    '{"daily_threshold_hours": "8", "weekly_threshold_hours": "40", "multiplier": "1.5", "double_time_after_hours": "12"}'::jsonb,
@@ -1752,15 +1674,9 @@ UPDATE hr_goals SET goal_title_i18n = '{"note": "seeded for fixture completeness
 UPDATE hr_goals SET unit = 'Unit 1' WHERE unit IS NULL OR unit = '';
 UPDATE hr_onboarding_template_tasks SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
 UPDATE hr_onboarding_template_tasks SET task_config = '{"note": "seeded for fixture completeness"}'::jsonb WHERE task_config IS NULL OR task_config::text IN ('{}','[]','null');
--- NULL here means "applies to every location", which is what makes a template
--- the DEFAULT one. The generator filled it on every row, which deleted the
--- default and broke most-specific-wins selection outright.
---
--- Constraining an existing template would have been the smaller edit and the
--- wrong one — it narrows a template the tests rely on. A THIRD template
--- carries the location instead, so the column has data AND all three
--- specificity levels are exercised: default (neither), department (2),
--- location (1).
+-- NULL here means "applies to every location" — the DEFAULT template. A
+-- THIRD template carries the location instead of narrowing an existing one,
+-- so all three specificity levels are exercised: default, department, location.
 INSERT INTO hr_onboarding_templates (id, tenant_id, template_code, template_name, template_name_i18n, description, applies_to_department_code, applies_to_location_code, applies_to_employment_types, is_default, is_active, created_at, updated_at, created_by) VALUES
   ('4d7a2e93-5fc6-513b-b285-9e46a1c72fd0', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1',
    'LONDON', 'London Office New Hire',
@@ -1976,9 +1892,8 @@ UPDATE hr_review_cycles SET review_meetings_due = GREATEST(
     COALESCE(self_assessment_due, start_date)) + INTERVAL '7 days'
  WHERE review_meetings_due IS NULL;
 
--- Soft references: uuid columns with no FK constraint, pointed at real rows.
--- A random uuid here would satisfy the type and describe nothing, which is the
--- failure mode this whole exercise exists to remove.
+-- Soft references: uuid columns with no FK constraint, pointed at real rows
+-- rather than a random uuid that satisfies the type and describes nothing.
 
 UPDATE hr_time_off_policies p SET template_id =
   (SELECT id FROM hr_time_off_policies o WHERE o.id <> p.id ORDER BY o.id LIMIT 1)
@@ -2045,17 +1960,10 @@ UPDATE pm_task_attachments SET is_latest_version = FALSE
  WHERE id <> '9e2b4c17-5a06-513a-b274-9e35a8c64f10'
    AND task_id = (SELECT task_id FROM pm_task_attachments WHERE id = '9e2b4c17-5a06-513a-b274-9e35a8c64f10');
 
--- The FIRM's own banking, and its counterparties' identifiers.
---
--- Sealed to the TENANT subject, not to an employee: one leaver's erasure must
--- not take the company's bank details or every client's tax identifier with
--- it. Generated through `sealField`, so the AAD binding is real.
---
--- These five columns were EMPTY until the fixture was completed, which means
--- `pii/ciphertext-is-sealed` and `pii/encrypted-name-is-honest` had never once
--- examined them — two invariants passing over nothing. Filling them with
--- plaintext made both fail immediately, which is the guards working and the
--- reason this exercise was worth doing (L50).
+-- The FIRM's own banking, and its counterparties' identifiers — sealed to the
+-- TENANT subject, not an employee, so one leaver's erasure can't take them.
+-- Generated through `sealField`. These five columns were empty until now, so
+-- the pii/* invariants had never examined them (L50).
 UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"TYgohcaDDt3xhLCV","ct":"mueggGQDpXGqt4SyFgwMsF+XMPowYA==","tag":"vvaeQfMfFIVUr/31A6Gqjg=="}' WHERE id = '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc';
 UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"gqucYAgPWMgypxpC","ct":"8jzXkX+i5FJSRX/mXHP1BHoSQMx7CA==","tag":"yCIOiuWXoEBAOsGGGeUozQ=="}' WHERE id = '7585ab47-4908-5830-a959-65711784fc61';
 UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"wFf30MNsfFZrDdAp","ct":"cBs/HGRMRTvzIWZy9ZjH5T8BPIrWjg==","tag":"/kTeyOBhE0OWUXyrMbpUuQ=="}' WHERE id = 'd189279d-45d2-5e98-85bf-e03f3dbe04e3';
@@ -2075,14 +1983,10 @@ UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"hESomH0MKQiWo+el
 UPDATE vendors SET bank_routing_number_ct = '{"v":1,"k":1,"iv":"ag36V29FDOkWduGI","ct":"Vp7wwgO8Sj8j","tag":"P1KkN6jore07UWD2PZLikA=="}' WHERE id = 'e7b05d84-68ef-584f-beb7-69a4f4c34bd1';
 
 -- ---------------------------------------------------------------------------
--- Project management: make the fixture say something true.
---
--- The generated pass filled these columns so nothing was empty, but filled
--- them FLATLY — every task `medium` priority and due the same day, every
--- project 35% and on_track, and `task_count` = 3 on all four projects when
--- three of them have one or two tasks. A uniform fixture tests one shape N
--- times, and a counter that disagrees with the rows it counts is the
--- `payroll_runs.employee_count` trap in another module (L50/L51).
+-- Project management: the generated pass filled columns flatly (every task
+-- `medium`, same due date; task_count = 3 everywhere regardless of actual
+-- rows) — a uniform fixture tests one shape N times, and a counter that
+-- disagrees with its own rows is the payroll employee_count trap (L50/L51).
 -- ---------------------------------------------------------------------------
 
 -- Task priority and dates vary, so ordering, filtering and the overdue badge
@@ -2135,17 +2039,9 @@ UPDATE projects p SET
  WHERE c.id = p.id;
 
 -- ---------------------------------------------------------------------------
--- Soft-delete markers are SPARSE, not filled.
---
--- `archived_at`, `deleted_at` and `closed_at` are state: NULL means the row is
--- live, and a timestamp means it is not. The generated pass filled them
--- everywhere, which archived every project, closed every ticket and deleted
--- every comment — so `WHERE archived_at IS NULL` returned nothing and the
--- Projects module had no data at all.
---
--- Same class as `applies_to_location_code` (L51): a column where NULL carries
--- meaning must never be filled blindly. Set on ONE row per table, so both
--- paths are exercised and the live rows outnumber the dead ones.
+-- Soft-delete markers are SPARSE, not filled: `archived_at`/`deleted_at`/
+-- `closed_at` are state (NULL = live). Filling them everywhere archived every
+-- project and left the module with no data. Set on ONE row per table (L51).
 -- ---------------------------------------------------------------------------
 
 UPDATE projects SET archived_at = NULL;
@@ -2162,12 +2058,8 @@ UPDATE ticketing_tickets SET closed_at = NULL, status = 'open';
 UPDATE ticketing_tickets SET closed_at = '2026-04-02T14:20:00Z', status = 'closed'
  WHERE id IN (SELECT id FROM ticketing_tickets ORDER BY id LIMIT 2);
 
--- A second objective, archived.
---
--- With one row, `archived_at` could be live or archived but not both — and
--- setting it left the only objective archived, which is how the coverage guard
--- caught it. Two rows make the column non-empty AND keep a live objective for
--- the module to read: the archived path and the ordinary path both exist.
+-- A second objective, archived — with only one row, setting `archived_at`
+-- would leave no live objective for the module to read.
 INSERT INTO pm_objectives (id, tenant_id, objective_number, objective_name, objective_type, status, health_status, archived_at, created_at, updated_at, created_by)
 SELECT '7c3e9f21-6b48-5d0a-9e37-1f582a4b60d9',
        o.tenant_id, 'OBJ-002', 'Retire the legacy billing stack',
@@ -2181,13 +2073,8 @@ ON CONFLICT (id) DO NOTHING;
 -- Bank balances, and the three states a reconciliation screen has to show.
 --
 -- `current_balance` is what the BANK says; the running `balance` on the last
--- imported transaction is what the FEED says. They are different facts and can
--- legitimately disagree — a charge that has not been imported yet is the
--- ordinary reason. The fixture shipped them disagreeing with no story: the USD
--- account stated 248,500.00 while its transactions ran to 248,201.00, which is
--- exactly the JetBrains debit, so the stated figure was simply stale.
---
--- Now all three states exist, deliberately:
+-- imported transaction is what the FEED says — they can legitimately
+-- disagree (an unimported charge). All three states now exist, deliberately:
 --   Operating USD  — agrees with the feed
 --   Operating GBP  — a 35.00 bank charge not yet imported, so it differs
 --   Payroll        — no transactions imported at all

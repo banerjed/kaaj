@@ -1,21 +1,7 @@
 /**
- * Which writes must record an audit entry.
- *
- * CLAUDE.md says "a write that someone may later be asked to justify records an
- * audit entry in the SAME transaction". That was prose with nothing enforcing
- * it, and it showed: of 26 actions, 3 audited — including neither hiring
- * someone nor editing their employment record.
- *
- * The test applied to each: **would someone, months later, ask "who changed
- * this, when, and what was it before?" — and would the answer affect a person's
- * money, employment, rights, or a regulator's question?**
- *
- * Both lists are committed literals with reasons, and `./check` fails on an
- * action that appears in neither. Adding an action therefore forces the
- * decision rather than defaulting to silence.
- *
- * `audit_log` can never be deleted from, so over-auditing is permanent noise
- * that buries the entries that matter. That is why a line exists at all.
+ * Which writes must record an audit entry (see CLAUDE.md § Tenancy, audit and
+ * disclosure). Both lists below are committed literals with reasons; `./check`
+ * fails on any action in neither, so adding one forces the decision.
  */
 
 export type AuditedOperation = {
@@ -196,13 +182,7 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   },
 ]
 
-/**
- * Writes that deliberately do NOT audit, with the reason.
- *
- * Not "we did not get round to it" — that is what the register exists to
- * prevent. Each of these changes a label rather than an outcome, and the row
- * itself carries `updated_at` and `updated_by` for the rare case someone asks.
- */
+/** Writes that deliberately do NOT audit, each with a reason — not "not got round to it". */
 export const NOT_AUDITED: AuditedOperation[] = [
   {
     route: "settings/departments",

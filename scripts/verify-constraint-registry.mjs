@@ -1,24 +1,9 @@
 #!/usr/bin/env node
 /**
- * Every constraint a FORM can trip has a sentence to answer it with.
- *
- * `FormReader` checks the shape of a value; it cannot know that this office
- * code is already taken or that this firm already has a headquarters. Those
- * arrive as a `PostgresError` out of the transaction, and an uncaught one is
- * an "Internal Error" crash page with the form's contents gone. Measured, not
- * assumed: duplicate `location_code`, `department_code`, `holiday_id` and
- * `employee_id` were four separate HTTP 500s, and so were an off-list
- * `company_size` and a stale benefits-package reference (L66).
- *
- * So the registry in `constraints.ts` is the answer, and this is the step that
- * keeps it honest: a new UNIQUE, CHECK or FK on a table a form writes to fails
- * here until somebody decides what the person should be told. That is the
- * lesson this codebase has already paid for twice — a rule written only in
- * prose is applied unevenly (the audit requirement was prose for months and 3
- * of 26 writes followed it), so it is a committed register plus a check.
- *
- * It deliberately does NOT verify the wording. Prose cannot be asserted; the
- * point is that a decision was made and written down.
+ * Every constraint a form can trip has a registered message (constraints.ts),
+ * so a UNIQUE/CHECK/FK violation is a field error, not an uncaught 500 (L66).
+ * A new constraint on a form-written table fails here until registered. Does
+ * not verify the wording, only that a decision was made.
  */
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
@@ -26,11 +11,7 @@ import { readFileSync } from "node:fs"
 const ROOT = new URL("..", import.meta.url).pathname
 const REGISTRY = "apps/web/src/lib/server/db/constraints.ts"
 
-/**
- * Tables a form action writes to. A committed literal, like every other list
- * here: adding a form that writes somewhere new is a deliberate line, and a
- * `NOT IN` pattern would silently absorb exactly the case this exists to catch.
- */
+/** Tables a form action writes to. A committed list, not a NOT IN pattern that would silently absorb new cases. */
 const FORM_WRITTEN = [
   "employees",
   "firm_locations",
@@ -79,10 +60,6 @@ const CANNOT_BE_TRIPPED = new Map([
   ["payroll_pay_schedules_tenant_id_fkey", "tenant_id comes from the session"],
   ["projects_tenant_id_fkey", "tenant_id comes from the session"],
 
-  // Answered, but by the repository rather than this registry: projects.repo
-  // catches 23505 on the generated number and raises ProjectWriteRefused, so
-  // the page can say "another project took that number, try again". Two
-  // implementations of the same refusal would be one that drifts.
   ["hr_reviews_tenant_id_fkey", "tenant_id comes from the session"],
   ["hr_time_off_requests_tenant_id_fkey", "tenant_id comes from the session"],
   ["hr_time_off_balances_tenant_id_fkey", "tenant_id comes from the session"],
@@ -92,9 +69,7 @@ const CANNOT_BE_TRIPPED = new Map([
   ["invoices_tenant_id_fkey", "tenant_id comes from the session"],
   ["payments_tenant_id_fkey", "tenant_id comes from the session"],
 
-  // Answered by the repository, ahead of the constraint, with a domain error
-  // the page turns into a sentence. Two implementations of one refusal would
-  // be one that drifts, so these stay where they are.
+  // Answered by the repository, ahead of the constraint, with a domain error.
   [
     "idx_projects_number",
     "projects.repo raises ProjectWriteRefused for this one",

@@ -17,16 +17,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   return withTenant(actorFrom(locals), async (tx) => ({
     schedules: await schedules.list(tx),
-    // Pay dates are flagged when they collide with a holiday, so the calendar
-    // is needed to render the projection.
+    // Needed to flag a pay date colliding with a holiday.
     holidays: await holidaysRepo.list(tx),
     locations: await locationsRepo.list(tx),
   }))
 }
 
-/** What a reviewer would ask about. Not every column: a table nobody can
- *  prune should carry the fields that matter, and burying them among unchanged
- *  ones is the same as not recording them. */
+/** The fields a reviewer would ask about, not every column. */
 const AUDITED_FIELDS = [
   "schedule_name",
   "pay_frequency",
@@ -43,20 +40,13 @@ export const actions: Actions = {
     const tenantId = locals.tenantId
     const data = await request.formData()
 
-    // Every field through the reader. This action used to read all six with
-    // `formString` and check them by hand, which meant `id` was never checked
-    // for uuid shape, `name` had no length cap, `currency` was only checked
-    // for emptiness, and `anchor_date` was a bare shape regex. Five crafted
-    // POSTs produced five HTTP 500s, and the shape regex accepted 2026-02-31
-    // (L67). The column types are the LAST line of defence, not the first
-    // (L34).
+    // Every field through FormReader, not hand-checked formString (L34, L67).
     const f = new FormReader(data)
     const id = f.uuid("id")
     const name = f.text("name", { required: true, max: 255 })
     const frequency = f.choice("frequency", FREQUENCIES, { required: true })
     const anchorDate = f.date("anchor_date", { required: true })
-    // A schedule's timezone decides which calendar day a pay date falls on, so
-    // an unreal zone would silently shift every payment.
+    // The timezone decides which calendar day a pay date falls on.
     const timezone = f.timezone("timezone", { required: true })
     const currency = f.currency("currency", { required: true })
 
@@ -84,8 +74,7 @@ export const actions: Actions = {
 
     try {
       await withTenant(actorFrom(locals), async (tx) => {
-        // Read what it was BEFORE writing, so the entry says what changed
-        // rather than only what it became.
+        // Read before writing, so the entry says what changed.
         const before = id
           ? ((await schedules.list(tx)).find((r) => r.id === id) ?? null)
           : null
@@ -93,7 +82,7 @@ export const actions: Actions = {
         if (id) await schedules.update(tx, id, input)
         else await schedules.create(tx, tenantId, input)
 
-        // SAME TRANSACTION. When people are paid. A moved pay date is a question somebody asks the same week.
+        // Same transaction — a moved pay date is a question someone asks the same week.
         await audit.record(tx, contextFrom(locals)!, {
           action: id ? "update" : "create",
           entityType: "payroll_pay_schedules",

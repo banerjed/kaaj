@@ -17,17 +17,11 @@ const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
 
 describe("the figures add up", () => {
   it("net = gross − taxes − pretax − posttax, on every line", async () => {
-    // The number that reaches a bank. Nothing enforces it, and a line that
-    // drifts is invisible until someone is paid the wrong amount — by which
-    // point the payment has left.
     const bad = await withTenant(AS_OWNER, (tx) => runs.inconsistentLines(tx))
     expect(bad).toEqual([])
   })
 
   it("every run's header agrees with the lines beneath it", async () => {
-    // The header is what a finance lead reads and reports; the lines are what
-    // people are paid. The fixture had a run claiming one employee with no
-    // line at all — it said it paid someone it could not name.
     const bad = await withTenant(AS_OWNER, (tx) => runs.inconsistentRuns(tx))
     expect(bad).toEqual([])
   })
@@ -53,8 +47,6 @@ describe("money stays a string, and the breakdowns are not JSON numbers", () => 
   })
 
   it("holds strings inside the JSONB breakdowns too", async () => {
-    // A JSON number is exact in Postgres and a float64 the moment a driver
-    // reads it, so the loss happens on READ where nothing looks wrong.
     const [line] = await withTenant(AS_OWNER, async (tx) => {
       const [run] = await runs.list(tx, { country: "US" })
       return runs.linesFor(tx, run.id)
@@ -68,7 +60,6 @@ describe("money stays a string, and the breakdowns are not JSON numbers", () => 
   })
 
   it("keeps a figure exact that a float64 would lose", async () => {
-    // 216000.27 survives; the point is it is never parsed on the way through.
     const lines = await withTenant(AS_OWNER, async (tx) => {
       const [run] = await runs.list(tx, { country: "IN" })
       return runs.linesFor(tx, run.id)
@@ -103,8 +94,7 @@ describe("runs across jurisdictions", () => {
   })
 
   it("names who calculated and who approved, and they differ", async () => {
-    // Separation of duties, visible on the page rather than only enforced by a
-    // CHECK: whoever calculated a run must not be the one who approved it.
+    // Separation of duties, visible here and not only enforced by a CHECK.
     const all = await withTenant(AS_OWNER, (tx) => runs.list(tx))
     for (const r of all) {
       expect(r.calculated_by_name).toBeTruthy()
@@ -129,18 +119,12 @@ describe("runs across jurisdictions", () => {
 
 describe("a person's payslip history", () => {
   it("carries every field a payslip has to print", async () => {
-    // The run columns come from a JOIN, not from LINE_SELECT. When the return
-    // type claimed them and the query did not select them, the page rendered
-    // "undefined 216000.27" as a take-home figure and nothing failed — the
-    // ordering test below mapped pay_date to a column of `undefined`, and
-    // [undefined, undefined].sort() equals itself (L45).
+    // Run columns come from a JOIN, not LINE_SELECT — a claimed-but-unselected
+    // field rendered "undefined 216000.27" with nothing failing (L45).
     const [slip] = await withTenant(AS_OWNER, (tx) =>
       runs.forEmployee(tx, MARCUS),
     )
-    // These seven, and only these. `forEmployee` wraps LINE_SELECT in a
-    // subquery and asserts the row type over it, so anything added to
-    // PayslipLine later is unguarded again — the same shape as L45, one layer
-    // out. Add the field here when you add it there.
+    // Add a field here when it's added to PayslipLine — this is unguarded otherwise.
     for (const field of [
       "pay_date",
       "currency",
@@ -152,7 +136,6 @@ describe("a person's payslip history", () => {
     ] as const) {
       expect(slip[field], `${field} is missing from forEmployee`).toBeDefined()
     }
-    // A currency is what money() formats with; undefined prints the word.
     expect(slip.currency).toMatch(/^[A-Z]{3}$/)
     expect(slip.pay_date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
@@ -163,8 +146,6 @@ describe("a person's payslip history", () => {
     )
     expect(mine.length).toBeGreaterThan(0)
     const dates = mine.map((l) => l.pay_date)
-    // Every date is real, so the ordering assertion cannot pass on a column
-    // of undefined.
     expect(dates.every((d) => typeof d === "string" && d.length === 10)).toBe(
       true,
     )

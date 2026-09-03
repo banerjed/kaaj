@@ -1,19 +1,8 @@
 #!/usr/bin/env node
 /**
- * The product name is spelled ONCE, in `apps/web/src/config.ts`.
- *
- * It was not. `WebsiteName` sat at the CMSaasStarter default long after the
- * fork, so the public site served `<title>SaaS Starter</title>` and put that
- * name in its nav, while the application area wrote "Kaaj" by hand in
- * thirty-one places — twenty-eight of them `<title>X · Kaaj</title>`. The
- * product shipped under two names and the wrong one was the public one.
- *
- * A rename is the moment that bites, and it is also the moment nobody greps
- * for. So this is a check rather than a note: a new literal fails here, and
- * whoever adds it is told where the constant lives.
- *
- * It reads the name FROM the config rather than holding its own copy, so
- * renaming the product does not require editing this file too.
+ * The product name is spelled ONCE, in apps/web/src/config.ts. A new literal
+ * elsewhere fails here, so a rename is one edit, not thirty-one. Reads the
+ * name from config rather than holding its own copy.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -32,15 +21,7 @@ if (!name) {
 /** Files allowed to contain the literal, each with a reason. */
 const PERMITTED = new Map([[CONFIG, "defines it"]])
 
-/**
- * Comments are stripped before scanning.
- *
- * Prose legitimately names the product — "Kaaj carries two themes", "Kaaj
- * addition" — and flagging that would make the check noise, which is how a
- * check stops being read. Commenting a violation OUT is not an escape either:
- * uncommenting it puts the literal back into code, where the next run catches
- * it.
- */
+/** Comments stripped before scanning — prose legitimately names the product; code must not. */
 function code(src) {
   return src
     .replace(/<!--[\s\S]*?-->/g, "")

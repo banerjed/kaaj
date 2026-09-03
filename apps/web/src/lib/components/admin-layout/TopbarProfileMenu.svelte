@@ -10,15 +10,7 @@
 
   const { changeTheme } = useConfig()
 
-  /**
-   * Theme selection lives here, not in the right-hand panel.
-   *
-   * That panel is now the assistant. The Topbar's ThemeToggle cycles light and
-   * dark only, so without this `system` — the DEFAULT, and the only value that
-   * follows the OS — would be unreachable once a person had chosen either
-   * explicitly. A setting you can leave but never return to is worse than one
-   * that was never offered.
-   */
+  /** Theme selection lives here, not the right-hand panel — ThemeToggle only cycles light/dark, so `system` needs a way back. */
   const themeOptions: {
     value: IConfig["theme"]
     label: string
@@ -26,8 +18,7 @@
     selectedClass: string
   }[] = [
     {
-      // The VALUE is daisyUI's built-in theme name and reaches `data-theme`;
-      // the LABEL is what a person reads. They are deliberately different.
+      // value is daisyUI's theme name (-> data-theme); label is what's shown.
       value: "nord",
       label: "Light",
       icon: "lucide--sun",
@@ -65,10 +56,7 @@
         </div>
         <div class="text-start max-sm:hidden">
           <p class="text-sm/none">{displayName}</p>
-          <!-- No /70 here. On `neutral` the 70% alpha measures 3.58:1, below
-               the 4.5 floor — the neutral pair has less headroom than the base
-               pair L22 was written against. The role is already smaller and
-               lighter-weight than the name, so size carries the hierarchy. -->
+          <!-- No /70 here: fails AA against neutral (L22). Size carries the hierarchy instead. -->
           <p class="text-neutral-content mt-0.5 text-xs/none capitalize">
             {user?.role ?? ""}
           </p>

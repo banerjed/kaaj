@@ -10,8 +10,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -24,14 +22,11 @@
     ],
   )
 
-  // Each band reads in the locale of the office that pays it, so INR groups in
-  // lakhs and GBP in thousands, on the same row.
+  // Each band reads in the locale of the office that pays it (INR lakhs, GBP thousands, same row).
   const bandLocale = (currency: string) =>
     localeForCurrency(data.locations, currency, locale)
 
-  // Grouped ONCE, not re-filtered per title. `levelsFor` is called inside the
-  // titles loop, so a filter here is a full scan of every level for every
-  // title — fine at fixture size, quadratic at a real firm's.
+  // Grouped once into a Map so levelsFor() in the loop below is O(1), not O(n·m).
   const levelsByTitle = $derived(
     data.jobLevels.reduce<Map<string, typeof data.jobLevels>>((m, l) => {
       const bucket = m.get(l.job_title_id)
@@ -155,11 +150,7 @@
                   <thead>
                     <tr>
                       <th>Level</th>
-                      <!--
-                        One column per enabled currency. Each band is what the
-                        firm pays in that market, independently set — not a
-                        conversion of the others (BR-FP-006).
-                      -->
+                      <!-- One column per currency; bands are independently set, not converted (BR-FP-006). -->
                       {#each currencies as c (c)}
                         <th>{c} band</th>
                       {/each}

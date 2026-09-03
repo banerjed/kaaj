@@ -1,11 +1,8 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * payroll_pay_schedules — when people are paid.
- *
- * Under $lib/server/payroll per docs/api-surface.md, even though the page for
- * it lives under /settings: the repository layer follows the table's module,
- * the route tree follows the page.
+ * payroll_pay_schedules — when people are paid. Lives under $lib/server/payroll
+ * per docs/api-surface.md even though its page is under /settings.
  */
 
 export type PaySchedule = {
@@ -82,15 +79,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<{ id: string }[]>`
     UPDATE payroll_pay_schedules SET is_active = FALSE, updated_at = now()

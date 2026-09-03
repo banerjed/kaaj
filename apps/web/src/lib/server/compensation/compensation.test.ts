@@ -4,12 +4,8 @@ import { withTenant } from "../db/tenant"
 import * as base from "./compensation_base.repo"
 
 /**
- * The compensation page's own query, under the claims that matter.
- *
- * The query is IDENTICAL in every case; only the claim changes. What comes
- * back is decided by the row policy, which is the whole design — so this
- * asserts the design rather than an application filter, and it would fail if
- * anyone added one.
+ * The compensation page's own query, run as different claims — the row
+ * policy decides what comes back, not an application filter.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -48,15 +44,12 @@ describe("current pay, as different people", () => {
       ),
       withTenant(actor(SARAH, "owner", []), (tx) => base.currentForAll(tx)),
     ])
-    // Both halves: a policy too tight blanks the page rather than erroring
-    // (L21), so "an employee sees one row" is only evidence alongside this.
+    // Both halves — a too-tight policy blanks the page silently (L21).
     expect(hr.length).toBeGreaterThan(1)
     expect(owner.length).toBe(hr.length)
   })
 
   it("refuses finance and IT, who are powerful elsewhere", async () => {
-    // The limit nobody thinks to test. A finance admin runs the ledger and an
-    // IT admin administers accounts; neither administers anyone's salary.
     for (const role of ["finance_admin", "it_admin", "legal_admin"]) {
       const rows = await withTenant(actor(MARCUS, "employee", [role]), (tx) =>
         base.currentForAll(tx),
@@ -77,8 +70,6 @@ describe("current pay, as different people", () => {
   })
 
   it("returns exactly one open record per person", async () => {
-    // Two open rows means an overlapping history, which is what addRaise
-    // refuses to create. If this ever fails, someone wrote around it.
     const rows = await withTenant(actor(SARAH, "owner", []), (tx) =>
       base.currentForAll(tx),
     )
@@ -93,10 +84,7 @@ describe("current pay, as different people", () => {
   })
 
   it("never reads the unprotected cache column", async () => {
-    // employees.base_amount_pvt is a copy of this figure on a row every
-    // colleague can read. The build guard forbids querying it; this asserts
-    // the value we return comes from compensation_base by checking it against
-    // the authoritative table directly.
+    // Checks the returned value against compensation_base directly.
     const result = await withTenant(actor(SARAH, "owner", []), async (tx) => {
       const rows = await base.currentForAll(tx)
       const [check] = await tx<{ amount: string }[]>`

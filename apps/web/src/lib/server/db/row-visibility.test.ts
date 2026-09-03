@@ -3,16 +3,10 @@ import postgres from "postgres"
 import { can, type AuthContext } from "../auth/can"
 
 /**
- * Row-level visibility — docs/15-row-level-visibility.md.
- *
- * These connect as `app_user` directly rather than through `withTenant`,
- * because the point is what the DATABASE returns for a given claim. Going
- * through the application would test the application.
- *
- * **Every case asserts what a role CAN see, not only what it cannot.** A
- * RESTRICTIVE policy that is too tight blanks a page rather than erroring
- * (L21), which is this codebase's default failure mode — so "returns nothing"
- * is never on its own evidence that a policy is right.
+ * Row-level visibility — docs/15-row-level-visibility.md. Connects as
+ * `app_user` directly (not through `withTenant`), since the point is what the
+ * DATABASE returns. Every case asserts what a role CAN see too — a too-tight
+ * RESTRICTIVE policy blanks a page rather than erroring (L21).
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -64,8 +58,6 @@ const counts = (who: Who) =>
 
 describe("the staff directory", () => {
   it("is visible to an employee — colleagues need to find each other", async () => {
-    // The directory is not a secret. Sensitive fields on a record are gated by
-    // pii.read / pii.reveal, not by hiding the row.
     const c = await counts({ employeeId: MARCUS, role: "employee" })
     expect(c.employees).toBe(12)
   })
@@ -76,15 +68,13 @@ describe("the staff directory", () => {
   })
 
   it("shows nothing at all without a claim", async () => {
-    // Fails closed. A token minted before the claim existed, or a malformed
-    // one, must mean "no rows", never "every row".
+    // Fails closed — a malformed claim means "no rows", never "every row".
     const c = await counts({ employeeId: null, role: "" })
     expect(c.employees).toBe(0)
     expect(c.pay).toBe(0)
   })
 
   it("treats an unrecognised role as the floor", async () => {
-    // Not an escalation, and not a blank page for someone who has a record.
     const c = await counts({ employeeId: MARCUS, role: "superuser" })
     expect(c.employees).toBe(1)
   })
@@ -116,8 +106,6 @@ describe("pay", () => {
   })
 
   it("shows it_admin the directory and NOT the pay", async () => {
-    // The separation rule, now holding at the row level as well as in can():
-    // IT administers systems, not salaries.
     const c = await counts({
       employeeId: MARCUS,
       role: "employee",
@@ -136,9 +124,7 @@ describe("pay", () => {
 })
 
 describe("RLS and can() agree", () => {
-  // The divergence problem again — a policy and application code enforcing the
-  // same rule. Not merged: asserted to agree, the same answer used for the two
-  // test suites.
+  // Policy and application code enforcing the same rule — not merged, asserted to agree.
   const ctx = (role: string, functionalRoles: string[] = []): AuthContext => ({
     tenantId: NORTHWIND,
     userId: "00000000-0000-0000-0000-000000000001",
@@ -196,8 +182,6 @@ describe("RLS and can() agree", () => {
 
 describe("tenant isolation still holds underneath", () => {
   it("shows nothing for another tenant, whatever the role", async () => {
-    // RESTRICTIVE is AND-ed with tenant_isolation, so it can only narrow —
-    // but a policy that accidentally widened would show here.
     const c = await counts({
       employeeId: MARCUS,
       role: "owner",
@@ -214,15 +198,8 @@ describe("tenant isolation still holds underneath", () => {
 
 /**
  * What each role should see in each table, as row counts against the fixture.
- *
- * Table-driven because the interesting property is the SHAPE of the matrix —
- * that payroll_admin reads every salary and no review, that it_admin reads
- * neither, that everyone reads their own. Written out per table, those facts
- * scroll past; side by side they are checkable.
- *
- * Every number is what the role CAN see. A RESTRICTIVE policy that is too
- * tight blanks a page rather than erroring (L21), so "0" as a universal
- * expectation would pass while the app was broken.
+ * Table-driven so the shape of the matrix is checkable side by side, and every
+ * number is what a role CAN see — "0" everywhere would pass a broken app (L21).
  */
 const TIER1: {
   table: string
@@ -245,9 +222,6 @@ const TIER1: {
     readsAll: ["hr_admin", "payroll_admin", "auditor"],
   },
   {
-    // Absent from this list until the fixture gained rows: with zero rows the
-    // suite had nothing to assert, so a policy that was never exercised looked
-    // indistinguishable from one that passed.
     table: "compensation_premiums",
     total: 2,
     own: 0,
@@ -335,7 +309,6 @@ describe("Tier 1: every role sees what it should", () => {
       })
 
       it("shows it_admin only their own — IT administers systems, not people", async () => {
-        // The separation rule, in the database rather than only in can().
         expect(
           await countOf(
             {
@@ -355,9 +328,6 @@ describe("Tier 1: every role sees what it should", () => {
       })
 
       it(`grants the whole table to exactly ${spec.readsAll.join(", ")}`, async () => {
-        // Both directions: the named grants see all of it, and every other
-        // functional role sees only their own. A policy that granted too widely
-        // would pass a "denies a stranger" test and fail this one.
         for (const role of spec.readsAll) {
           expect(
             await countOf(
@@ -391,8 +361,7 @@ describe("Tier 1: every role sees what it should", () => {
 
 describe("feedback visibility is its own shape", () => {
   it("shows a public note to everyone, and private ones only to the two people", async () => {
-    // Not in the table above because `own` is not the right idea here: a note
-    // has an author AND a recipient, and public ones belong to the firm.
+    // Not in TIER1: a note has an author AND a recipient, not just an owner.
     const asStranger = await countOf(
       { employeeId: NADIA, role: "employee" },
       "hr_feedback",
@@ -406,8 +375,7 @@ describe("feedback visibility is its own shape", () => {
   })
 
   it("lets an author see their own anonymous note", async () => {
-    // The one place the author of an anonymous note is legitimately known,
-    // because it is them. PRIYA wrote FB-004 anonymously.
+    // PRIYA wrote FB-004 anonymously — the one place its author is legitimately known.
     const rows = await asRole(
       { employeeId: PRIYA, role: "employee" },
       (tx) =>
@@ -428,8 +396,6 @@ describe("feedback visibility is its own shape", () => {
 
 describe("a reviewer reads the reviews they are writing", () => {
   it("without holding a performance grant", async () => {
-    // Sarah reviews three people and holds no functional role beyond owner in
-    // the fixture; as a plain employee she must still reach her own drafts.
     const n = await countOf(
       { employeeId: SARAH, role: "employee" },
       "hr_reviews",
@@ -439,16 +405,9 @@ describe("a reviewer reads the reviews they are writing", () => {
 })
 
 /**
- * Accounting — the firm's money, not the tenant's noticeboard.
- *
- * Fifteen accounting tables carried `tenant_isolation` and nothing else, so
- * every member of a firm could read every invoice, payment and bank account it
- * holds. The application already refused — `accounting.*` is granted to
- * `finance_admin` alone — but RLS did not, which makes one missed guard on one
- * new query path a full disclosure of the firm's finances.
- *
- * `docs/15-row-level-visibility.md` used to place these in Tier 3 and say they
- * should stay there. They were moved, and this is the test that says so.
+ * Accounting — the firm's money, not the tenant's noticeboard. These tables
+ * once carried only `tenant_isolation`; the application already refused
+ * non-finance roles, but RLS didn't, so one missed guard disclosed everything.
  */
 const ACCOUNTING = [
   "invoices",
@@ -460,8 +419,7 @@ const ACCOUNTING = [
 ] as const
 
 describe("accounting is visible to the finance function, and to nobody else", () => {
-  // Fixture rows must exist, or every assertion below passes over NULL and
-  // reports the absence of data as the absence of a problem (L50).
+  // Fixture rows must exist, or these assertions pass vacuously over NULL (L50).
   for (const table of ACCOUNTING) {
     it(`${table}: finance_admin sees rows, and there ARE rows`, async () => {
       const n = await countOf(
@@ -477,8 +435,6 @@ describe("accounting is visible to the finance function, and to nobody else", ()
     })
 
     it(`${table}: a powerful role from ANOTHER function sees none`, async () => {
-      // The roles nobody tests: powerful somewhere else, and therefore the
-      // ones most likely to be assumed harmless here.
       for (const fr of ["hr_admin", "it_admin", "payroll_admin"]) {
         expect(
           await countOf({ role: "employee", functionalRoles: [fr] }, table),
@@ -495,8 +451,7 @@ describe("accounting is visible to the finance function, and to nobody else", ()
     const auditor = { role: "employee", functionalRoles: ["auditor"] }
     expect(await countOf(auditor, "invoices")).toBeGreaterThan(0)
 
-    // A RESTRICTIVE policy on UPDATE filters rows rather than raising, so the
-    // refusal is a zero-row result. Asserting "no error" would pass vacuously.
+    // RESTRICTIVE on UPDATE filters rows rather than raising — the refusal is a zero-row result.
     const updated = await asRole(auditor, async (tx) => {
       const rows = await tx<{ id: string }[]>`
         UPDATE invoices SET notes = 'probe' RETURNING id

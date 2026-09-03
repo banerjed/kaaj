@@ -11,16 +11,8 @@ import { ReviewRefused } from "$lib/server/hr/hr_reviews.repo"
 
 /**
  * /performance — module-hr.md § Performance Management.
- *
- * Submitting and acknowledging a review both write an audit entry in the same
- * transaction as the change. Acknowledgement in particular is the ONLY evidence
- * that a person read their review, which is the fact that matters in a dispute
- * about a performance process — inferring it from a status column alone would
- * leave nobody able to say when, or who recorded it.
- *
- * The repository, not this page, decides what a reader may see. A manager's
- * draft assessment is withheld from its subject there, so a second read path
- * cannot forget.
+ * Submit/acknowledge audit in the same transaction as the change. The repository,
+ * not this page, decides visibility — a manager's draft is withheld there.
  */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -34,10 +26,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const visible = await reviews.visibleTo(tx, reader)
 
-    // Who this person manages, for the `manager_only` feedback rule. Resolved
-    // here rather than in the repository so the repository stays a pure
-    // question of visibility, and so this is one query rather than one per
-    // note.
+    // Who this person manages, for the `manager_only` feedback rule — one query, not one per note.
     const manages = reader.employeeId
       ? (
           await tx<{ id: string }[]>`
@@ -51,8 +40,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         ).map((r) => r.id)
       : []
 
-    // Goals for exactly the people whose reviews this reader may see, so the
-    // two halves of the page cannot disagree about who exists.
+    // Goals only for subjects whose reviews are visible, so the page's two halves agree.
     const subjects = [...new Set(visible.map((r) => r.employee_id))]
 
     return {

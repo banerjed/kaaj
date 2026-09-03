@@ -1,21 +1,7 @@
 /**
- * The authorization vocabulary, and which role bundles grant what.
- *
- * A WORKSPACE PACKAGE, not application code, and deliberately so. Two suites
- * assert authorization: `apps/web` tests the deployed enforcement, and
- * `packages/spec-tests` tests the spec-derived requirement matrix. They were
- * each carrying their OWN implementation and disagreed on live rules while
- * both stayed green — a payroll admin could read a full bank number in one and
- * a masked one in the other. Both now evaluate against this file, so a
- * divergence is a type error rather than two passing suites.
- *
- * Framework-agnostic per CLAUDE.md: plain TS, no Svelte, no database.
- *
- * `resource.verb`, so a role is a BUNDLE rather than a column, and adding a
- * role does not mean adding a boolean to every table.
- *
- * Client-safe: no database, no environment. `can.ts` uses it on the server and
- * a page can use it to decide whether to render a control.
+ * Authorization vocabulary: which role bundles grant what.
+ * Framework-agnostic (plain TS, no Svelte, no DB), so also client-safe.
+ * `resource.verb` permissions, so a role is a bundle, not a per-table column.
  */
 
 export const PERMISSIONS = [
@@ -55,10 +41,7 @@ export const PERMISSIONS = [
   "performance.read.reports",
   "performance.read.all",
   "performance.write",
-  // Two levels, because "may see that an account exists" and "may read the
-  // number" are different questions. `pii.read` returns the MASKED form —
-  // **** 9012 — which is what a person needs to recognise an account.
-  // `pii.reveal` returns the value itself.
+  // pii.read: masked form (**** 9012). pii.reveal: the value itself.
   "pii.read",
   "pii.reveal",
   "pii.erase",
@@ -110,9 +93,8 @@ const BASE: Record<BaseRole, Permission[]> = {
       p !== "pii.erase",
   ),
   employee: [...EVERYONE],
-  // Engaged, not employed. Identical to `employee` today; separate because the
-  // directory and colleague profiles are gated on the base role rather than on
-  // a permission, and that is where the two will diverge.
+  // Same grants as employee today; kept separate because directory/profile
+  // gating uses base role, not a permission, and that's where they'll diverge.
   contractor: [...EVERYONE],
 }
 
@@ -133,10 +115,10 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "firm.settings.read",
     "firm.settings.write",
     "legal.documents.write",
-    // Reveals, because HR is who corrects a mistyped account at onboarding.
+    // HR reveals: they correct a mistyped account at onboarding.
     "pii.read",
     "pii.reveal",
-    // Deliberately NOT payroll.approve — see the separation rule below.
+    // No payroll.approve — see FORBIDDEN_COMBINATIONS below.
   ],
   payroll_admin: [
     "employee.read.all",
@@ -146,10 +128,9 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "attendance.read.all",
     "attendance.approve",
     "firm.settings.read",
-    // MASKED only. The payment run uses the full number; no screen shows it to
-    // a person. Verifying an account is recognising it, not reading it.
+    // Masked only — the payment run itself uses the full number, no screen does.
     "pii.read",
-    // Deliberately NOT compensation.write, and NOT pii.reveal.
+    // No compensation.write, no pii.reveal.
   ],
   finance_admin: ["accounting.read", "accounting.write", "firm.settings.read"],
   sales_admin: ["crm.read", "crm.write"],
@@ -170,11 +151,7 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
   ),
 }
 
-/**
- * Two pairs the database also refuses (`tenant_users` CHECK constraints).
- * Duplicated here so a grant UI can explain the refusal before submitting, and
- * so the rule is visible where the bundles are.
- */
+/** Mirrors the `tenant_users` CHECK constraints, so a grant UI can explain the refusal before submitting. */
 export const FORBIDDEN_COMBINATIONS: {
   roles: FunctionalRole[]
   because: string
@@ -208,17 +185,13 @@ export const isBaseRole = (v: string): v is BaseRole =>
   (BASE_ROLES as readonly string[]).includes(v)
 
 /**
- * The masked form of an account number or identifier: last four, nothing else.
- *
- * What `pii.read` returns. Enough to recognise an account, useless to anyone
- * who steals a session. Lives here rather than in a formatter because it is an
- * authorization outcome, not a presentation choice — a caller that formats the
- * full value itself has bypassed the permission.
+ * Masks to last-four. Lives here, not in a formatter — masking is an
+ * authorization outcome, not a presentation choice.
  */
 export function maskIdentifier(value: string | null | undefined): string {
   if (!value) return "—"
   const trimmed = value.replace(/\s+/g, "")
-  // Fewer than five characters cannot be masked without revealing most of it.
+  // 4 chars or fewer: slice(-4) would reveal the whole value.
   if (trimmed.length < 5) return "••••"
   return `•••• ${trimmed.slice(-4)}`
 }

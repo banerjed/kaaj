@@ -4,22 +4,14 @@ import { compareDecimal, isNegative } from "$lib/decimal"
 /**
  * firm_job_levels — the bands within a job title.
  *
- * `salary_ranges` is JSONB keyed by ISO currency:
+ * `salary_ranges` is JSONB keyed by ISO currency, each an independent,
+ * authoritative band — never derived from another at an exchange rate (BR-FP-006):
  *
  *   { "USD": { "min": 95000, "max": 130000 },
  *     "INR": { "min": 1800000, "max": 2600000 } }
- *
- * Each currency is an independent, authoritative band — NOT a conversion of the
- * others. BR-FP-006: a band is what the firm actually pays in that market, and
- * deriving one from another at an exchange rate would silently re-price people
- * every time the rate moved.
  */
 
-/**
- * Strings. A band is money, and JSONB hands a JSON number back to JavaScript as
- * a float64 — see CLAUDE.md § Money. Postgres itself stores jsonb numbers as
- * `numeric` and would keep them exact; the loss is on the way out.
- */
+/** Strings — JSONB money, per CLAUDE.md § Money. */
 export type SalaryRange = { min: string; max: string }
 export type SalaryRanges = Record<string, SalaryRange>
 
@@ -85,15 +77,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<
     { id: string }[]
@@ -108,8 +92,7 @@ export async function archive(tx: Tx, id: string): Promise<boolean> {
 export function invalidCurrencies(ranges: SalaryRanges): string[] {
   return Object.entries(ranges)
     .filter(
-      // A side can be missing on a row written before the form refused one.
-      // `compareDecimal` expects a string, so guard rather than throw.
+      // Guard rather than throw — a side can be missing on an older row.
       ([, r]) =>
         typeof r?.min !== "string" ||
         typeof r?.max !== "string" ||

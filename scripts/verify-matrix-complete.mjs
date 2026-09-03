@@ -1,29 +1,9 @@
 #!/usr/bin/env node
 /**
- * Every sensitive column is classified. A value nobody decided about cannot ship.
- *
- * This is the part of the disclosure work that catches the CLASS rather than
- * the instances. `disclosure.test.ts` proves the fields in the matrix are held
- * the way the matrix says; nothing there can notice a column that was never
- * added. And that is how every disclosure bug in this codebase happened —
- * `employees.base_amount_pvt` (L47), and the five JSONB compensation columns
- * beside it, were not mis-classified, they were unclassified.
- *
- * So: for the tables the matrix covers, every column is either
- *
- *   - listed in `SENSITIVE_FIELDS`, or
- *   - listed in NOT_SENSITIVE below, with a reason
- *
- * and a new column is a build failure until someone decides which. That is the
- * same standing convention as every other harness here: a committed literal,
- * never a filter, so both adding a violation and removing a justified
- * exemption require a reviewed edit.
- *
- * Deliberately NOT a regex over column names. The 130-column sweep that found
- * L47's neighbours matched on names, and a name-based oracle misses a renamed
- * column, anything inside a JSONB document (L41), and PII with an innocuous
- * name. Enumerating the schema and demanding a decision per column has no such
- * blind spot.
+ * Every column on a matrix-covered table must be in SENSITIVE_FIELDS or
+ * NOT_SENSITIVE, with a reason — a new column fails until classified (L47).
+ * Enumerates the schema rather than regexing column names, which would miss
+ * a rename, a JSONB interior (L41), or innocuously-named PII.
  */
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
@@ -100,22 +80,14 @@ const declared = new Set(
   [...matrixSrc.matchAll(/id:\s*"([^"]+)"/g)].map((m) => m[1]),
 )
 
-/**
- * Those declared `open` — deliberately colleague-readable, so they carry no
- * suffix and must not be required to.
- */
+/** Declared `open` — deliberately colleague-readable, so no `_pvt`/`_ct` suffix required. */
 const openFields = new Set(
   [...matrixSrc.matchAll(/id:\s*"([^"]+)"[\s\S]{0,400}?defense:\s*"(\w+)"/g)]
     .filter((m) => m[2] === "open")
     .map((m) => m[1]),
 )
 
-/**
- * Tables whose whole row is policy-scoped. Every column on one of these is
- * classified by that single declaration — the defense is row-level, so it
- * covers all of them at once, and thirty per-column entries would be thirty
- * restatements of one fact.
- */
+/** Tables whose whole row is policy-scoped — one declaration classifies every column on it. */
 const wholeRow = new Set(
   [...matrixSrc.matchAll(/^ {2}([a-z_]+):\s*\{\n\s*defense:\s*"rls"/gm)].map(
     (m) => m[1],
@@ -157,17 +129,9 @@ const rows = execFileSync(
   .map((l) => l.split("\t"))
 
 /**
- * The suffix and the classification must AGREE, in both directions.
- *
- * `_ct` means ciphertext; `_pvt` means plaintext-but-restricted. Together they
- * give `employees` a property worth having: a column with NEITHER suffix is
- * directory data, by construction.
- *
- * This is the inverse of inferring sensitivity from a name — which this script
- * deliberately refuses to do, because a regex misses a renamed column, JSONB
- * interiors and innocuously-named PII. Here the MATRIX decides and the name is
- * required to match it. Checked both ways, so neither a restricted column
- * without the suffix nor a suffixed column nobody restricted can ship.
+ * `_ct` (ciphertext) / `_pvt` (restricted plaintext) suffix must agree with
+ * the matrix's classification, in both directions — a column with neither
+ * suffix is directory data, by construction.
  */
 const SUFFIXED = /_(pvt|ct)$/
 const mismatched = []

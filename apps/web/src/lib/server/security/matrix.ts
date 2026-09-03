@@ -1,25 +1,10 @@
 /**
- * The disclosure matrix — every sensitive value, and what actually holds it.
- *
- * Written after a plain employee turned out to be able to read every
- * colleague's salary from the directory page (L47). The bug was not a missing
- * check; it was that the codebase had no place where the question "who may
- * read THIS VALUE, and by what mechanism" was written down. Protection was
- * applied per mechanism — a policy on a table, `can()` on an action — while
- * disclosure happens per value, and nothing compared the two.
- *
- * **`defense` is the spine, not `audience`.** For a row that must be broadly
- * visible — `employees` is a staff directory, so every colleague can read the
- * row — RLS *cannot* hide a column, and "the test saw NULL" proves nothing
- * when the fixture happens to be empty. That is the vacuous pass this codebase
- * keeps rediscovering (L41, and five empty JSONB columns on `employees` this
- * morning). So each field declares the mechanism that holds it, and
- * `disclosure.test.ts` asserts THAT MECHANISM IS IN FORCE.
- *
- * Adding a sensitive column means adding a row here. `./check` runs
- * `verify-matrix-complete.mjs`, which fails when a column in the schema is
- * neither listed here nor in its committed not-sensitive list — so a value
- * nobody classified cannot ship.
+ * The disclosure matrix — every sensitive value, and what actually holds it
+ * (L47). `defense` is the spine, not `audience`: on a broadly-visible row
+ * (e.g. `employees`) RLS cannot hide a column, so a NULL fixture value proves
+ * nothing (L41) — each field names its own mechanism, and `disclosure.test.ts`
+ * asserts it's in force. `./check`'s `verify-matrix-complete.mjs` fails on
+ * any column neither listed here nor on the not-sensitive list.
  */
 
 /** How a value is actually held away from someone who may not read it. */
@@ -28,12 +13,7 @@ export type Defense =
   | "rls"
   /** Ciphertext at rest; only `$lib/server/pii` opens it. */
   | "encrypted"
-  /**
-   * The row is visible but the value must never reach a projection. Enforced
-   * by `verify-no-unprotected-fallback.mjs`, which fails on any qualified read.
-   * This is the only defense available on a broadly-visible row short of a
-   * column-level REVOKE.
-   */
+  /** Row is visible, but the value must never reach a projection — enforced by `verify-no-unprotected-fallback.mjs`. */
   | "projection"
   /** Deliberately readable by colleagues. Requires a reason, like any exemption. */
   | "open"
@@ -50,18 +30,10 @@ export type Audience =
   | "hr+payroll"
 
 /**
- * Tables whose ENTIRE ROW is scoped by a row-visibility policy.
- *
- * The defense here is row-level, so it applies uniformly to every column: if
- * the policy refuses you the row, it refuses you all thirty of its columns at
- * once. Declaring those columns one by one would be thirty restatements of a
- * single fact, and thirty places to get it wrong.
- *
- * **Per-column declarations are only needed where the row is broadly
- * visible** — which, today, means `employees` and nothing else. That is the
- * whole asymmetry: a staff directory row must be readable by colleagues, so
- * RLS cannot defend any column on it, and each value has to name its own
- * mechanism. Everywhere else the row policy is the mechanism.
+ * Tables whose ENTIRE ROW is scoped by a row-visibility policy — declared
+ * once here rather than per column, since the policy defends all of them at
+ * once. Per-column declarations (`SENSITIVE_FIELDS`) are only needed where
+ * the row itself is broadly visible, e.g. `employees`.
  */
 export const PROTECTED_TABLES: Record<
   string,
@@ -96,33 +68,17 @@ export const PROTECTED_TABLES: Record<
 
 /**
  * Who may read a value about the FIRM's own business — a functional role,
- * not a relationship to an employee. `Audience` above answers "is this person
- * the subject, their manager, or HR"; that question does not apply to an
- * invoice. This is the different axis the top of this file used to defer.
+ * not a relationship to an employee (`Audience` above answers the latter).
  */
 export type FunctionalAudience =
-  /**
-   * `finance_admin` and `auditor` read; `finance_admin` and the base admin
-   * roles (`owner`, `firm_admin`) write, `auditor` does not. Mirrors
-   * `app.reads_all_accounting()` / `app.writes_accounting()` exactly —
-   * `supabase/migrations/20260903045821_accounting_row_visibility.sql`.
-   */
+  /** `finance_admin`/`auditor` read; `finance_admin`+base admins write. Mirrors `app.reads_all_accounting()`/`app.writes_accounting()`. */
   "finance"
 
 /**
- * The fifteen accounting tables, table-level, the same way `PROTECTED_TABLES`
- * covers `compensation_*` — the row is finance-function-only, so the policy
- * defends every column on it at once.
- *
- * Deliberately NOT a 130-row per-column matrix. `disclosure.test.ts`'s
- * generated-case model is built against `Audience` (self/manager/colleague/
- * hr/payroll) — a subject's relationship to their OWN data — which has no
- * meaning for a bank account or a journal entry, so reusing it here would be
- * the wrong tool wearing the right shape. The mechanism itself is measured
- * directly, both halves, in `row-visibility.test.ts`'s "accounting is visible
- * to the finance function, and to nobody else" — this declaration is what
- * lets `verify-matrix-complete.mjs` hold every column on these tables to
- * having been decided, the same guarantee `employees` gets.
+ * Accounting tables, table-level like `PROTECTED_TABLES` — the row is
+ * finance-function-only, so the policy defends every column at once. Not a
+ * per-column matrix: `Audience`'s self/manager/hr relationship has no meaning
+ * for a bank account. Measured directly in `row-visibility.test.ts`.
  */
 export const PROTECTED_BUSINESS_TABLES: Record<
   string,
@@ -221,14 +177,9 @@ export type SensitiveField = {
 }
 
 /**
- * `employees` and the five `compensation_*` tables, per column — the subject
- * relationship (self/manager/colleague/hr/payroll) that `Audience` encodes.
- *
- * Firm business data (invoices, journal entries, the firm's own bank
- * accounts) is `PROTECTED_BUSINESS_TABLES` above instead of more entries
- * here: its audience is a functional role, not a relationship to a subject —
- * a different axis, declared table-level rather than as a 130-row per-column
- * matrix that would have holes indistinguishable from correct entries.
+ * `employees` and the `compensation_*` tables, per column — the subject
+ * relationship `Audience` encodes. Firm business data is
+ * `PROTECTED_BUSINESS_TABLES` above instead (a different, functional-role axis).
  */
 export const SENSITIVE_FIELDS: SensitiveField[] = [
   // -- employees: one row, broadly visible, carrying values of three kinds ---

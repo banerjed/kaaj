@@ -1,22 +1,9 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * Invoices and the general ledger — module-accounting.md.
- *
- * **Every figure is a string and every sum happens in SQL.** These are
- * NUMERIC(15,2); adding them in JavaScript is the float64 round trip, and once
- * they are correctly typed as strings it becomes silent concatenation with no
- * type error. Nothing here is abbreviated on the way out either: approxMoney
- * belongs on a dashboard, never on an invoice line or a ledger row, because
- * those are reconciled against a bank statement.
- *
- * The reconciliation identities are enforced by the schema (four CHECK
- * constraints) and asserted by the harness (ACC-balance-per-entry,
- * ACC-invoice-lines, ACC-invoice-amounts and others). This repository computes
- * them AGAIN on read, and returns the computed value beside the stored one, so
- * a document whose stored total stopped matching its lines is visible on the
- * page rather than believed — the same treatment as payroll run headers and
- * project task counts.
+ * Invoices and the general ledger. Money stays a string and sums happen in SQL.
+ * Reconciliation totals are recomputed on read, not trusted from storage, so a
+ * drifted stored total is visible rather than believed.
  */
 
 export type InvoiceRow = {
@@ -35,13 +22,7 @@ export type InvoiceRow = {
   /** Summed from invoice_lines, so a stored subtotal that drifted is visible. */
   line_subtotal: string | null
   line_count: number
-  /**
-   * Past its due date, still owing, and ISSUED.
-   *
-   * A draft has not been sent to anyone and a void invoice is not owed, so
-   * neither can be late — the page flagged a draft as overdue until this said
-   * so. Decided against the DATABASE's date, not the viewer's.
-   */
+  /** Past due, still owing, and not draft/void — decided against the DB's date. */
   is_overdue: boolean
 }
 
@@ -205,15 +186,7 @@ export async function ledger(
   `
 }
 
-/**
- * Entries whose debits do not equal their credits.
- *
- * The schema forbids a line that is neither a debit nor a credit, and the
- * harness asserts every entry balances — but neither runs at request time
- * against a database someone may have written to another way. An unbalanced
- * entry means the books do not add up, which is the one thing a ledger exists
- * to make impossible to miss.
- */
+/** Entries whose debits don't equal their credits — checked at request time, not just by the schema/harness. */
 export async function unbalanced(
   tx: Tx,
 ): Promise<{ entry_number: string; debits: string; credits: string }[]> {
@@ -258,13 +231,7 @@ export async function ledgerLines(
   `
 }
 
-/**
- * Every line for a set of entries, in ONE query.
- *
- * The ledger page expands entries in place, so fetching lines per row would be
- * the N+1 doc 03 forbids — eight entries becoming nine round trips, and a
- * hundred becoming a hundred and one.
- */
+/** Every line for a set of entries, in one query — avoids N+1 as rows expand. */
 export async function ledgerLinesForEntries(
   tx: Tx,
   entryIds: string[],
@@ -295,29 +262,12 @@ export async function ledgerLinesForEntries(
 // Writes — the receivables cycle, posted to the ledger
 // ---------------------------------------------------------------------------
 //
-// An invoice that does not reach the general ledger is a document, not
-// accounting. Every write here that recognises revenue or receives cash posts
-// a BALANCED journal entry in the same transaction as the document it
-// describes — because `verify-stories.sql` asserts, over the live schema, that
-// every entry balances in both the transaction currency and the base currency,
-// and that an invoice's journal ties to its base total within 0.02.
+// Every write that recognises revenue or receives cash posts a BALANCED
+// journal entry in the same transaction as the document it describes.
+// A zero-amount line is never written: ck_journal_entry_lines_one_sided_positive
+// forbids it, so a tax-free invoice posts two lines, not three.
 //
-// Three constraints do the catching, and each was watched refusing a bad write
-// before being relied on:
-//
-//   ck_invoices_amounts_reconcile        total = subtotal + tax, due = total - paid,
-//                                        and the same again in base currency
-//   ck_journal_entry_lines_one_sided_positive
-//                                        a line is a debit or a credit, never
-//                                        both, never zero, never negative
-//   ck_payment_allocations_one_document  an allocation names exactly one of
-//                                        invoice_id / bill_id
-//
-// The middle one has a consequence worth stating: **a zero tax line cannot be
-// written at all.** An invoice with no tax posts two lines, not three, and code
-// that writes a 0.00 credit "for symmetry" fails at runtime.
-//
-// NOT built here: bills, banking and reconciliation still have no write path.
+// Bills, banking and reconciliation have no write path here yet.
 
 /**
  * What an invoice's status may be. Plain `varchar` with no CHECK behind it, so
@@ -349,9 +299,7 @@ export class AccountingRefused extends Error {
       | "no_such_account"
       | "wrong_status"
       | "no_lines"
-      // Distinct from `no_lines` deliberately. Both used to be `no_lines`,
-      // which meant `refusedBecause(..., "no_lines")` would have passed on a
-      // broken posting — L60 reappearing in the code written after it.
+      // Kept distinct from no_lines so a broken posting can't pass as it (L60).
       | "does_not_balance"
       | "period_closed"
       | "overpayment"
@@ -372,19 +320,9 @@ async function accountId(tx: Tx, code: string): Promise<string> {
 }
 
 /**
- * Recompute an invoice's ten money columns from its lines and its payments.
- *
- * Recomputed, never adjusted — the same rule as project task counts and
- * payroll run headers (L58). The lines and the allocations are the truth; the
- * header is a cache of them that `ck_invoices_amounts_reconcile` keeps
- * internally consistent but cannot keep TRUE.
- *
- * **The base-currency half is where the rounding lives.** `base_total` is the
- * sum of the two rounded parts, NOT `round(total * rate)`. Postgres rounds to
- * scale silently, so rounding the total independently can land a cent away
- * from `base_subtotal + base_tax_total` — and the CHECK requires them equal.
- * Round to the authoritative figures first, then derive (CLAUDE.md § Money,
- * L25).
+ * Recompute an invoice's money columns from its lines and payments — recomputed,
+ * never adjusted (L58). base_total sums the two rounded parts rather than
+ * rounding the total independently, so it stays equal to base_subtotal + base_tax_total (L25).
  */
 export async function recomputeInvoiceTotals(
   tx: Tx,
@@ -407,8 +345,7 @@ export async function recomputeInvoiceTotals(
            total       = lt.subtotal + lt.tax_total,
            amount_paid = p.amount_paid,
            amount_due  = (lt.subtotal + lt.tax_total) - p.amount_paid,
-           -- Each part rounded to the column's scale FIRST, then summed, so
-           -- base_total = base_subtotal + base_tax_total exactly.
+           -- Round each part first, then sum, so base_total stays exact.
            base_subtotal    = round(lt.subtotal  * i.exchange_rate, 2),
            base_tax_total   = round(lt.tax_total * i.exchange_rate, 2),
            base_total       = round(lt.subtotal  * i.exchange_rate, 2)
@@ -442,16 +379,10 @@ type JournalLine = {
 }
 
 /**
- * Write a balanced journal entry.
- *
- * The caller supplies the lines; this refuses to write anything that does not
- * balance, rather than letting the harness find it later over a table that
- * nobody prunes. A zero-amount line is dropped before insert, because
- * `ck_journal_entry_lines_one_sided_positive` refuses it — an invoice with no
- * tax posts two lines, not three.
- *
- * Every amount stays a STRING and every sum happens in SQL. `base_*` is
- * derived with the same round-then-sum discipline as the invoice header.
+ * Write a balanced journal entry; refuses anything that doesn't balance.
+ * Zero-amount lines are dropped before insert (a tax-free invoice posts two
+ * lines, not three). Amounts stay strings; base_* uses the same round-then-sum
+ * discipline as the invoice header.
  */
 async function postJournal(
   tx: Tx,
@@ -472,21 +403,8 @@ async function postJournal(
     (l) => Number(l.debit ?? 0) !== 0 || Number(l.credit ?? 0) !== 0,
   )
 
-  // **A closed period does not accept new postings.**
-  //
-  // `accounting_periods` records the state, and the fixture has January 2026
-  // `closed` and December 2025 `locked` — so this is not hypothetical: every
-  // invoice in the fixture but one is dated inside a closed period.
-  //
-  // `packages/spec-tests` asserts this rule (INV-ACC-002) against its own
-  // implementation, and nothing connected it to the deployed path. Two suites
-  // green while contradicting each other is the exact shape CLAUDE.md warns
-  // about, and it is why the check lives here rather than only in the spec.
-  //
-  // A date in NO period is allowed: periods are opened as a year is set up,
-  // and refusing a posting because nobody has created next month yet would
-  // stop work for a reason nobody could act on. Only an explicit non-open
-  // period refuses.
+  // A closed/locked accounting period refuses new postings (INV-ACC-002). A
+  // date in no period at all is allowed — nothing to refuse against.
   const [period] = await tx<{ period_name: string; status: string }[]>`
     SELECT period_name, status
       FROM accounting_periods
@@ -541,9 +459,7 @@ async function postJournal(
     `
   }
 
-  // Balance is asserted HERE, against what was actually written, rather than
-  // against what the caller intended. A rounding difference in the base
-  // currency is invisible until a period close otherwise.
+  // Asserted against what was actually written, not what was intended.
   const [check] = await tx<{ d: string; c: string; bd: string; bc: string }[]>`
     SELECT coalesce(sum(debit_amount),0)::text       AS d,
            coalesce(sum(credit_amount),0)::text      AS c,
@@ -595,15 +511,13 @@ async function invoiceState(tx: Tx, id: string): Promise<InvoiceState> {
 }
 
 /**
- * Issue a draft invoice, and recognise the revenue.
+ * Issue a draft invoice and recognise the revenue.
  *
  *   DR Accounts Receivable   total
  *     CR Revenue                    subtotal
- *     CR Sales Tax Payable          tax        (omitted when it is zero)
+ *     CR Sales Tax Payable          tax        (omitted when zero)
  *
- * Refused with no lines: an invoice for nothing is a document that says a
- * customer owes zero, and it looks exactly like one whose lines failed to
- * load.
+ * Refused with no lines.
  */
 export async function issueInvoice(
   tx: Tx,
@@ -617,8 +531,7 @@ export async function issueInvoice(
   }
   if (before.line_count === 0) throw new AccountingRefused("no_lines")
 
-  // Recompute FIRST, so the journal posts the figures the lines support rather
-  // than whatever the header happened to hold.
+  // Recompute first so the journal posts figures the lines actually support.
   await recomputeInvoiceTotals(tx, invoiceId)
   const current = await invoiceState(tx, invoiceId)
 
@@ -677,11 +590,8 @@ export async function issueInvoice(
  *   DR Cash at Bank            amount
  *     CR Accounts Receivable          amount
  *
- * Refused if it would pay more than is owed. Nothing in the schema stops an
- * over-allocation — `ck_invoices_amounts_reconcile` is happy with a negative
- * `amount_due` right up until it is not, because the CHECK also requires every
- * figure to be `>= 0`, so the failure would arrive as a constraint violation
- * with no useful message rather than as "that is more than is outstanding".
+ * Refused if it would overpay — checked here so the message is useful rather
+ * than a bare CHECK-constraint failure.
  */
 export async function recordPayment(
   tx: Tx,
@@ -703,8 +613,7 @@ export async function recordPayment(
       `${before.status} cannot receive a payment`,
     )
   }
-  // Compared in SQL, in NUMERIC. `Number(amount) > Number(due)` is the float64
-  // round trip on the one comparison that decides whether money is refused.
+  // Compared in SQL/NUMERIC, not JS float, since this decides a refusal.
   const [room] = await tx<{ too_much: boolean }[]>`
     SELECT ${input.amount}::numeric > ${before.amount_due}::numeric AS too_much
   `
@@ -781,7 +690,6 @@ export async function recordPayment(
     )
   `
 
-  // The header is a cache of the allocations. Recomputed, never adjusted.
   await recomputeInvoiceTotals(tx, input.invoiceId)
 
   const [settled] = await tx<{ due: string }[]>`
@@ -805,12 +713,8 @@ export async function recordPayment(
 }
 
 /**
- * Void a draft invoice.
- *
- * Draft only, and deliberately. Once an invoice is issued its revenue is in
- * the ledger, and removing it is a credit note — a new document that reverses
- * the first — not an edit to the original. `journal_entries` is append-only in
- * spirit for the same reason `audit_log` is: a correction is another row.
+ * Void a draft invoice. Draft only — once issued, reversing revenue is a
+ * credit note (a new row), not an edit to the original.
  */
 export async function voidInvoice(
   tx: Tx,

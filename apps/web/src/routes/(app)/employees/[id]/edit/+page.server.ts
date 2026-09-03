@@ -35,14 +35,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return result
 }
 
-/**
- * Employment history, not personal detail.
- *
- * Job title, manager, department, location and status are the facts someone
- * later asks about. Date of birth, phone and address are personal data, and
- * copying them into a table that can never be deleted from would defeat the
- * erasure the PII layer exists to make possible.
- */
+/** Employment facts only — no PII, which would defeat erasure in an undeletable table. */
 const EMPLOYMENT_FIELDS = [
   "job_title",
   "job_level",
@@ -82,9 +75,7 @@ export const actions: Actions = {
         ) {
           return true
         }
-        // Read before writing, so the entry says what the job title, manager
-        // or department WAS. "Who moved me under this manager, and when" is the
-        // question this exists to answer.
+        // Read before writing so the audit entry captures the prior value.
         const before = await employees.getById(tx, params.id)
         await employees.update(tx, params.id, parsed.input)
 

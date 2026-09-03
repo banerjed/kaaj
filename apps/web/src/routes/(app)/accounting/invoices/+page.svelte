@@ -13,9 +13,7 @@
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
 
-  // `overdue` is a real status in this column and was missing here, so an
-  // overdue invoice showed a grey badge beside a red "overdue" tag on the same
-  // row. The list omitting a value the column actually holds is L57's shape.
+  // `overdue` must stay in this list — an omitted status is L57's shape.
   const statusTone = (s: string | null): Tone =>
     s === "paid"
       ? "positive"
@@ -91,9 +89,7 @@
                   <a class="link" href={`/accounting/invoices/${i.id}`}>
                     {i.invoice_number}
                   </a>
-                  <!-- Shown only when the stored subtotal has drifted from the
-                       lines behind it. A total nobody recomputes is a total
-                       that can quietly stop matching its own invoice. -->
+                  <!-- Flags when the stored subtotal drifts from its lines. -->
                   {#if i.line_subtotal !== null && Number(i.line_subtotal) !== Number(i.subtotal)}
                     <span
                       class="badge badge-error badge-sm ms-1"

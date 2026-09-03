@@ -5,24 +5,10 @@ import { KEY_BYTES } from "./envelope"
 /**
  * The master key (KEK), and only the master key.
  *
- * **The specification's key derivation is not implemented, deliberately.**
- * `docs/module-employee-profile.md` § Encryption Key Generation says:
- *
- *     encryption_key = DERIVE_KEY(org_prefix + org_4digit_code)
- *
- * That is not a key. `org_prefix` is a public identifier and `org_4digit_code`
- * has ten thousand possible values, so an attacker holding a ciphertext tries
- * every candidate in seconds — roughly 13 bits of entropy, and no key
- * derivation function repairs a search space that small. Worse, both inputs are
- * stored in the very database the encryption is meant to protect, so anyone who
- * can read the ciphertext can already read the recipe.
- *
- * What the spec appears to want is a stable key *identifier* per organisation,
- * and that is honoured: `{org_prefix}-{4digit_code}` is the label recorded on
- * the key row. The key *material* is 32 random bytes, never derived from
- * anything guessable, wrapped by this master key, which lives outside Postgres.
- *
- * See docs/13-pii-encryption.md.
+ * The spec's `DERIVE_KEY(org_prefix + org_4digit_code)` is deliberately NOT
+ * implemented — ~13 bits of entropy, and both inputs live in the database it
+ * would protect. Key material is 32 random bytes instead; `{org_prefix}-{4digit_code}`
+ * survives only as the key row's label. See docs/13-pii-encryption.md.
  */
 
 /**
@@ -30,18 +16,10 @@ import { KEY_BYTES } from "./envelope"
  *
  *     PRIVATE_PII_KEK="1:<base64-32-bytes>,2:<base64-32-bytes>"
  *
- * Every version can decrypt; the highest encrypts. That is what makes rotation
- * possible without a flag day: add a version, re-wrap in the background, drop
- * the old one when nothing references it.
+ * Every version decrypts; the highest encrypts — rotation is add a version,
+ * re-wrap in the background, drop the old one.
  */
-/**
- * The development key that ships in `.env.example`, and therefore in the public
- * repository. Refusing it outside dev is the one guard that matters here: the
- * likeliest way this design fails is not cryptanalysis, it is someone copying
- * the example file onto a server. Everything else about the setup would look
- * correct — the column would hold real AES-256-GCM ciphertext, `./check` would
- * be green — and anyone with the repository could decrypt it.
- */
+/** The dev key published in `.env.example` — refused outside dev, the guard that actually matters here. */
 const PUBLISHED_DEV_KEY = "xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
 
 export type KeyRing = {
@@ -124,9 +102,7 @@ export function keyRing(): KeyRing {
 export function kekForVersion(version: number): Buffer {
   const key = keyRing().byVersion.get(version)
   if (!key) {
-    // A row wrapped under a key that is no longer configured. Surfaced loudly:
-    // silently treating it as "no value" would look like data loss and would
-    // hide a botched rotation.
+    // Surfaced loudly — treating it as "no value" would mask a botched rotation.
     throw new Error(
       `No PII master key configured for version ${version}. A key was removed ` +
         `from PRIVATE_PII_KEK while rows still reference it — restore it, or ` +
@@ -141,11 +117,7 @@ export const _resetKeyRing = () => {
   cached = null
 }
 
-/**
- * Tests only. `$env/dynamic/private` does not observe a later `process.env`
- * mutation, so a rotation test cannot get a second key in by that route — and
- * rotation is the one procedure that is untestable with a single key.
- */
+/** Tests only — `$env/dynamic/private` doesn't observe a later `process.env` mutation. */
 export const _useKeyRingForTest = (raw: string) => {
   cached = null
   const saved = env.PRIVATE_PII_KEK

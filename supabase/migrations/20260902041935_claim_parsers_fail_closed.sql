@@ -1,30 +1,12 @@
--- A malformed JWT claim must return "no", never raise.
+-- A malformed JWT claim must return "no", never raise (L62). Three claim
+-- parsers were missing the EXCEPTION handler their siblings already had:
+-- reads_all_employees(), reads_all_compensation(), reads_all_audit(). Without
+-- it, a corrupted token turns "no rows" into a 500 — intermittently, since it
+-- depends on whether the planner evaluates that arm of the policy.
 --
--- `app.current_tenant_id()` and `app.current_employee_id()` both wrap their
--- claim parsing in an EXCEPTION handler, the second with the comment "a
--- malformed claim means 'no employee', never 'every employee'". Three of their
--- siblings from 20260831090000 and 20260901120000 do not:
---
---   app.reads_all_employees()
---   app.reads_all_compensation()
---   app.reads_all_audit()
---
--- `claims := nullif(current_setting(...), '')::jsonb` raises
--- `invalid input syntax for type json` on any claim that is not JSON. Inside a
--- row policy that is an ERROR rather than an empty result, so a request with a
--- corrupted token gets a 500 instead of a page with nothing on it — and which
--- of the two happens depends on whether the planner evaluates this arm of the
--- policy at all, so it appears and disappears with the query plan. It sat
--- latent in `./check` and then began failing without the function changing.
---
--- The safety property was never lost: no rows leak either way. What was lost
--- is fail-CLOSED-quietly, which is the behaviour the harness asserts and the
--- one an application can render.
---
--- This is the same lesson as L54: a rule applied by hand is applied unevenly.
--- Four of seven claim parsers had the guard. `verify-invariants.sql` now calls
--- every one of them with a malformed claim and fails if any raises, so the
--- eighth cannot be written without it.
+-- Same lesson as L54: a rule applied by hand is applied unevenly.
+-- verify-invariants.sql now calls every claim parser with a malformed claim
+-- and fails if any raises.
 
 CREATE OR REPLACE FUNCTION app.reads_all_employees()
 RETURNS boolean
@@ -84,22 +66,11 @@ EXCEPTION WHEN OTHERS THEN
     RETURN false;
 END $function$;
 
--- The same cast, written INLINE into a row policy, where no function-level
--- handler can reach it.
---
--- `employees.employee_visibility` ends with
---
---     (nullif(current_setting('request.jwt.claims', true), '')::jsonb
---        #>> '{app_metadata,role}') = ANY (ARRAY['employee','firm_admin','owner'])
---
--- so guarding the three functions above fixed nothing: the policy raises
--- before any of them is consulted. This is the more dangerous shape of the
--- same bug, because a policy expression cannot carry an EXCEPTION handler at
--- all — the only fix is to move the parsing into a function that can.
---
--- `app.claim_role()` is that function. It is the single place a role claim is
--- read, so the next policy that needs one cannot reintroduce the cast by
--- copying this line.
+-- The same cast also appeared INLINE in employee_visibility's policy
+-- expression, where a function-level handler can't reach it — a policy
+-- expression cannot carry an EXCEPTION handler at all. app.claim_role() moves
+-- the parsing into a function that can, and becomes the one place a role
+-- claim is read.
 CREATE OR REPLACE FUNCTION app.claim_role()
 RETURNS text
 LANGUAGE plpgsql
@@ -122,16 +93,9 @@ COMMENT ON FUNCTION app.claim_role() IS
     'a policy expression cannot carry an EXCEPTION handler, so an inline cast '
     'turns a corrupted token into a 500 instead of an empty page.';
 
--- **AS RESTRICTIVE, and that word is the whole policy.**
---
--- Postgres defaults a policy to PERMISSIVE, and permissive policies on the
--- same command are OR-ed together. `employees` also carries
--- `tenant_isolation`, so recreating this one without RESTRICTIVE makes the two
--- alternatives instead of both: any row satisfying `employee_visibility` comes
--- back regardless of its tenant. Dropping and recreating the policy without
--- re-stating the word did exactly that, and `verify-rls.sql` reported
--- "LEAK: 12 foreign rows visible" on the next run — which is the entire reason
--- phase C exists.
+-- AS RESTRICTIVE must be restated (L63): Postgres defaults to PERMISSIVE, and
+-- permissive policies OR together, so omitting it here would make
+-- employee_visibility an alternative to tenant_isolation rather than an AND.
 DROP POLICY IF EXISTS employee_visibility ON employees;
 CREATE POLICY employee_visibility ON employees AS RESTRICTIVE FOR SELECT
 USING (

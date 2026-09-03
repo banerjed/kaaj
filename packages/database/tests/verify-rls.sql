@@ -1,31 +1,22 @@
 -- =============================================================================
 -- Kaaj — Tenant isolation verification (ALL tables, data-driven)
 -- =============================================================================
--- WHAT THIS PROVES, that nothing else does
---   packages/database/scripts/verify-migrations.sh checks isolation behaviourally but only against
---   `employees` — 1 of 98 tables. packages/database/tests/verify-stories.sql checks RLS
---   only as metadata (pg_class.relrowsecurity), so a policy of USING(true) passes
---   it. This file proves every table's policy actually filters.
+-- Other checks stop short of this: verify-migrations.sh only exercises
+-- `employees`, and verify-stories.sql checks RLS as metadata only (USING(true)
+-- would pass it). This proves every table's policy actually filters.
 --
 -- PRECONDITIONS
 --   * migrations applied (supabase/migrations/*.sql, NOT docs/.../schema.sql)
 --   * packages/database/fixtures/mock-data.sql loaded — every fixture row is tenant A
---   * connected as a role that BYPASSES RLS (setup must not be subject to the
---     thing under test); `app_user` must exist and must NOT bypass
+--   * connected as a role that BYPASSES RLS; `app_user` must exist and must NOT
 --
 -- USAGE
 --   psql "$DATABASE_URL" -v strict=1 -f scripts/verify-rls.sql
 --
--- DESIGN NOTE — why the loop is data-driven
---   98 hand-written per-table tests would be copy-pasted wrong and the 99th
---   table would be forgotten. Driving from pg_class means a table added
---   tomorrow is covered without anyone remembering. The cost is that
---   exemptions must be explicit, which is the next note.
---
--- DESIGN NOTE — exemptions are committed literals, never filters
---   Each exempt table is named below with a reason. A NEW violation fails; so
---   does removing a justified one. Both require a reviewed edit. A `NOT IN`
---   filter that silently absorbs future violations is how suites die.
+-- The loop is data-driven from pg_class so a new table is covered without
+-- anyone remembering to add a test. Exemptions are committed literals with
+-- reasons, never a filter — a `NOT IN` pattern would silently absorb future
+-- violations.
 -- =============================================================================
 
 \set ON_ERROR_STOP on
@@ -57,14 +48,9 @@ BEGIN
         RAISE EXCEPTION 'app_user has BYPASSRLS/SUPERUSER — every isolation test below would pass vacuously';
     END IF;
 
-    -- The probes below SET ROLE app_user. On Supabase (local and hosted) the
-    -- `postgres` role is NOT superuser — it is BYPASSRLS — and a non-superuser
-    -- may only SET ROLE to a role it belongs to.
-    --
-    -- PostgreSQL 16 split role membership into three options. Plain membership
-    -- (`MEMBER`) is NOT sufficient for SET ROLE: that needs set_option = true,
-    -- granted explicitly with `WITH SET TRUE`. pg_has_role(...,'MEMBER') returns
-    -- true either way, so checking membership alone is misleading here.
+    -- The probes below SET ROLE app_user, which requires membership WITH SET
+    -- TRUE (PG16). Plain MEMBER membership is not sufficient, and
+    -- pg_has_role(...,'MEMBER') returns true either way — so check set_option.
     IF NOT EXISTS (
         SELECT 1 FROM pg_auth_members m
           JOIN pg_roles g ON g.oid = m.roleid
@@ -98,16 +84,12 @@ GRANT SELECT ON _baseline TO app_user;
 -- -----------------------------------------------------------------------------
 -- WHY THE CLAIM CARRIES role=owner
 --
--- This file asks a TENANT question: can tenant A reach tenant B's rows. Some
--- tables now also carry RESTRICTIVE row-visibility policies keyed to the
--- acting person's role (docs/15-row-level-visibility.md), and a claim with a
--- tenant and nothing else is correctly denied by those — which showed up here
--- as "owner saw 0 of 12" and looked exactly like a leak test failing.
---
--- `owner` reads everything, so it neutralises the row layer and leaves the
--- tenant layer as the only thing under test. Row visibility has its own tests
--- in apps/web/src/lib/server/db/row-visibility.test.ts, which assert per role
--- that the right rows DO come back — the half that a leak test cannot check.
+-- This file asks a TENANT question, not a row-visibility one. Some tables
+-- also carry RESTRICTIVE row-visibility policies keyed to role
+-- (docs/15-row-level-visibility.md); `owner` reads everything, so it
+-- neutralises that layer and leaves tenant isolation as the only thing under
+-- test. Row visibility itself is asserted in
+-- apps/web/src/lib/server/db/row-visibility.test.ts.
 
 -- Exemption literals
 -- -----------------------------------------------------------------------------
@@ -119,10 +101,7 @@ GRANT SELECT ON _exempt TO app_user;
 INSERT INTO _exempt VALUES
   ('tenants',        true,  'the registry itself; isolates on id = app.current_tenant_id()'),
   ('exchange_rates', true,  'global reference data, no tenant_id, FOR SELECT USING (true)'),
-  -- CMSaasStarter leftovers. Not part of the 98-table Kaaj schema; they carry no
-  -- tenant_id and are isolated per-user (auth.uid() = id), not per-tenant. They
-  -- are listed rather than filtered so that removing them is a deliberate act —
-  -- see docs/07-app-provenance.md, which plans exactly that.
+  -- CMSaasStarter leftovers, isolated per-user not per-tenant (docs/07-app-provenance.md).
   ('profiles',         false, 'CMSaasStarter leftover; per-user RLS, pending removal'),
   ('stripe_customers', false, 'CMSaasStarter leftover; per-user RLS, pending removal'),
   ('contact_requests', false, 'CMSaasStarter leftover; no tenancy, pending removal');
@@ -181,9 +160,8 @@ ON CONFLICT (id) DO NOTHING;
 -- =============================================================================
 -- PHASE A — every table has RLS on, is FORCEd, and HAS FIXTURE ROWS
 -- =============================================================================
--- The fixture check is the one that stops this whole file from degrading into a
--- vacuous pass. Without it, a table with no rows satisfies "tenant B sees 0"
--- trivially — and every table added from now on starts empty.
+-- Without the fixture check, a table with no rows satisfies "tenant B sees 0"
+-- trivially, degrading this whole file into a vacuous pass.
 DO $$
 DECLARE r RECORD; n BIGINT;
 BEGIN
@@ -316,13 +294,12 @@ COMMIT;
 -- PHASE F — the global-row tables cannot be used as a cross-tenant write channel
 -- =============================================================================
 -- HIGHEST SEVERITY CHECK IN THIS FILE.
--- payroll_tax_rates and translations use
+-- payroll_tax_rates and translations deliberately use an ASYMMETRIC policy:
 --     USING      (tenant_id IS NULL OR tenant_id = app.current_tenant_id())
 --     WITH CHECK (tenant_id = app.current_tenant_id())
--- The asymmetry is deliberate and load-bearing: any tenant may READ platform
--- rows, but none may WRITE one. If a well-meaning refactor makes WITH CHECK
--- match USING "for consistency", any tenant can insert a row visible to EVERY
--- tenant — a statutory tax rate, or a translation shown to all customers.
+-- any tenant may READ platform rows, none may WRITE one. Making WITH CHECK
+-- match USING "for consistency" would let any tenant write a row visible to
+-- every other tenant.
 BEGIN;
   SET LOCAL ROLE app_user;
   SET LOCAL request.jwt.claims = '{"app_metadata":{"tenant_id":"07fb03f8-1521-5ef4-9c2d-25fcfa297ac1","role":"owner","functional_roles":[]}}';
@@ -396,16 +373,9 @@ COMMIT;
 -- PHASE H — every FOR ALL policy has a WITH CHECK
 -- =============================================================================
 -- A policy with USING but no WITH CHECK filters reads while leaving writes
--- unconstrained.
---
--- This applies to policies that GOVERN WRITES. Postgres refuses `WITH CHECK` on
--- a FOR SELECT or FOR DELETE policy outright — "WITH CHECK cannot be applied to
--- SELECT or DELETE" — so demanding one from those is demanding something the
--- database will not accept, and it made every read-only policy an exemption to
--- be remembered. Filtering on `cmd` is the rule the prose already described.
---
--- The two remaining named exemptions are FOR ALL policies that legitimately
--- lack one.
+-- unconstrained. Applies only to ALL/INSERT/UPDATE — Postgres refuses WITH
+-- CHECK on SELECT/DELETE outright, so those are out of scope, not exemptions.
+-- The remaining named exemption is a FOR ALL policy that legitimately lacks one.
 DO $$
 DECLARE missing TEXT[];
 BEGIN

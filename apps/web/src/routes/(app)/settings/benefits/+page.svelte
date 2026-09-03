@@ -10,8 +10,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -26,8 +24,7 @@
   const costLocale = (currency: string) =>
     localeForCurrency(data.locations, currency, locale)
 
-  // Grouped ONCE — see the note in settings/job-titles. `itemsFor` runs inside
-  // the packages loop, so filtering per call is packages x items.
+  // Grouped once into a Map so itemsFor() in the loop below is O(1), not O(n·m).
   const itemsByPackage = $derived(
     data.items.reduce<Map<string, typeof data.items>>((m, i) => {
       const bucket = m.get(i.benefits_package_id)
@@ -48,12 +45,7 @@
     packageId: string
   } | null>(null)
 
-  /**
-   * Employer + employee, so the true cost of a benefit is visible. Summed in
-   * SQL, not here: these are money, they arrive as strings, and adding them in
-   * JavaScript was both a float64 round trip and — once they became strings —
-   * string concatenation that TypeScript would not have caught.
-   */
+  /** Employer + employee total; summed in SQL, not JS — money is a string here. */
   const totalCost = (item: BenefitItem, currency: string) =>
     item.total_by_currency?.[currency] ?? null
 </script>

@@ -1,11 +1,4 @@
-/**
- * Types for the enumeration source of truth.
- *
- * Hand-written, like @kaaj/validation's: the package is plain ESM so that it
- * loads in a browser, on the server and under any future mobile runtime
- * (CLAUDE.md — packages stay framework-agnostic), which rules out emitting
- * declarations from a build step.
- */
+/** Hand-written types for the enumeration source of truth (plain ESM, no build step — see @kaaj/validation's index.d.ts). */
 
 export interface EnumerationNode {
   values?: string[]

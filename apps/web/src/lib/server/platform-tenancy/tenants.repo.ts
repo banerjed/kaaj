@@ -62,11 +62,8 @@ export type TenantUpdate = {
 }
 
 /**
- * `subdomain` is deliberately absent: the spec marks it immutable, and it is
- * the tenant's routing key under ADR-009. Changing it would strand every
- * existing link. No WHERE clause either — RLS restricts this to one row, and
- * adding a predicate would introduce a second source of truth for which tenant
- * we are (L3).
+ * `subdomain` is deliberately absent (immutable routing key, ADR-009). No
+ * WHERE clause either — RLS already restricts this to one row (L3).
  */
 export async function update(tx: Tx, patch: TenantUpdate): Promise<Tenant> {
   const [row] = await tx<Tenant[]>`

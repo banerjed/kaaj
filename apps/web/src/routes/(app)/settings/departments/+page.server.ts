@@ -7,13 +7,7 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
-/**
- * /settings/departments — module-firm-profile.md § Departments Page.
- *
- * One transaction, two queries: the departments and the locations they can be
- * assigned to. Both are needed to render the page at all, so splitting them
- * across loads would be a waterfall (doc 03).
- */
+/** /settings/departments — module-firm-profile.md § Departments Page. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
 
@@ -33,8 +27,7 @@ async function readForm(
 ) {
   const name = f.text("name", { required: true, max: 255 })
 
-  // Uppercased because the column is UNIQUE (tenant_id, department_code) and
-  // "eng" and "ENG" would otherwise be two departments that read as one.
+  // Uppercased: department_code is UNIQUE, and "eng"/"ENG" would else read as different departments.
   const code = f.text("department_code", {
     required: true,
     max: 50,
@@ -92,8 +85,7 @@ export const actions: Actions = {
         return { saved: true }
       })
     } catch (e) {
-      // A duplicate department code, or a parent that was archived while the
-      // form sat open. Both were an "Internal Error" page before.
+      // Duplicate code, or a parent archived while the form was open.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

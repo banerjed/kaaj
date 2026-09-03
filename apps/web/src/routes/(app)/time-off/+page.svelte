@@ -12,8 +12,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -39,8 +37,7 @@
   const statusTone = (s: string): Tone =>
     s === "approved" ? "positive" : s === "denied" ? "critical" : "caution"
 
-  // A balance that has gone negative is a real state — an adjustment, or leave
-  // taken in advance — and it should be visible rather than clamped to zero.
+  // Negative is a real state (advance leave, an adjustment) — shown, not clamped to zero.
   const balanceClass = (v: string) =>
     Number(v) < 0 ? "text-error" : Number(v) < 2 ? "text-warning" : ""
 </script>

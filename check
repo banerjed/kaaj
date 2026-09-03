@@ -30,10 +30,7 @@ case "${1:-}" in
   --db)    RUN_APP=0 ;;
   --app)   RUN_DB=0 ;;
   --quick) RUN_BUILD=0 ;;
-  # e2e is OUT of the default run on purpose: it needs a dev server and a
-  # browser, and it turns a 25-second loop into a ~90-second one. That trade is
-  # right for the pre-push check and wrong for a release, so it gets a flag
-  # rather than an argument every time.
+  # e2e needs a browser and turns a 25s loop into ~90s — opt-in via --all.
   --all)   RUN_E2E=1 ;;
   --help|-h)
     sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
@@ -138,19 +135,12 @@ if [ "$RUN_APP" = 1 ]; then
   step "format"     pnpm turbo run format:check
   step "lint"       pnpm turbo run lint
   step "typecheck"  pnpm turbo run check-types
-  # Listed separately although `turbo run test` also covers it. The 0.6s of
-  # duplicate execution buys a line you can point at in an audit: without it,
-  # 346 authorization, PII and tenant-isolation cases are invisible inside a
-  # single "unit tests" number. It spans BOTH halves — the requirement model in
-  # @kaaj/spec-tests and the deployed enforcement in @kaaj/web — because a
-  # security line covering only the model would be the more misleading of the
-  # two.
+  # Also covered by `test`, but broken out so 346 authz/PII/isolation cases
+  # have their own auditable line instead of hiding inside "unit tests".
   step "security"   pnpm test:security
   step "unit tests" pnpm turbo run test
   [ "$RUN_BUILD" = 1 ] && step "build" pnpm turbo run build
-  # The only steps that load a URL. Everything above proves the schema, the
-  # policies, the classifications and the units; none of it renders anything,
-  # which is the shape of most of docs/10-lessons-learned.md.
+  # The only steps that actually render a page.
   [ "$RUN_E2E" = 1 ] && step "end-to-end" pnpm --filter @kaaj/web e2e
   echo ""
 fi

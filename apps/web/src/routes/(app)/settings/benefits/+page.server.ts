@@ -37,13 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 /**
  * Costs arrive as `cost.<CUR>.employee` / `.employer`. A currency with both
- * blank is omitted rather than stored as zeros — "not offered in that market"
- * and "free in that market" are different statements.
- */
-/**
- * Benefit costs, as strings (CLAUDE.md § Money). A blank side reads as zero —
- * "the employer pays none of it" is a real answer here, unlike a blank salary
- * band — but anything unparseable is refused rather than silently becoming 0.
+ * blank is omitted, not stored as zero: "not offered" and "free" differ.
  */
 function readCosts(data: FormData, f: FormReader): CostsByCurrency {
   const costs: CostsByCurrency = {}
@@ -198,7 +192,7 @@ export const actions: Actions = {
         if (id) await items.update(tx, id, input)
         else await items.create(tx, tenantId, input)
 
-        // SAME TRANSACTION. costs_by_currency is the employer/employee split, which reaches payroll as a deduction.
+        // Same transaction — costs_by_currency reaches payroll as a deduction.
         await audit.record(tx, contextFrom(locals)!, {
           action: id ? "update" : "create",
           entityType: "firm_benefit_items",

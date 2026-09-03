@@ -10,11 +10,7 @@ import {
 } from "@kaaj/authz"
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an actor who reads everything; visibility has its own tests in row-visibility.test.ts. */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -48,7 +44,6 @@ describe("the floor", () => {
   })
 
   it("an unrecognised role reads as the floor, never as an escalation", () => {
-    // A token minted before the vocabulary changed, or a tampered claim.
     const rogue = { ...ctx("employee"), role: "superuser" as never }
     expect(can(rogue, "compensation.write")).toBe(false)
     expect(can(rogue, "employee.read.self")).toBe(true)
@@ -67,8 +62,6 @@ describe("separation of duties", () => {
   })
 
   it("payroll_admin approves the run and cannot set pay", () => {
-    // The whole point: one person raising their own salary and then approving
-    // their own payment is the oldest fraud in payroll.
     const pay = ctx("employee", ["payroll_admin"])
     expect(can(pay, "payroll.approve")).toBe(true)
     expect(can(pay, "compensation.write")).toBe(false)
@@ -92,8 +85,6 @@ describe("separation of duties", () => {
   })
 
   it("the database refuses the combinations the bundles describe", () => {
-    // Documented in one place, enforced in another. If these drift, a grant UI
-    // explains a rule the database does not have, or the reverse.
     expect(FORBIDDEN_COMBINATIONS.map((c) => c.roles)).toEqual([
       ["hr_admin", "payroll_admin"],
       ["auditor"],
@@ -133,7 +124,6 @@ describe("managers are derived, not granted", () => {
   })
 
   it("does not make someone their own manager", async () => {
-    // Otherwise the reporting-line check would let anyone approve their own.
     const self = await withTenant(AS_OWNER, (tx) =>
       managesEmployee(tx, ctx("employee", [], SARAH), SARAH),
     )
@@ -167,8 +157,7 @@ describe("managers are derived, not granted", () => {
         await canReadEmployee(tx, ctx("employee", ["hr_admin"], MARCUS), NADIA),
       ],
     )
-    // `employee.read.reports` is not in any bundle yet, so a plain manager
-    // reads a report only through their own record or an explicit grant.
+    // `employee.read.reports` is not in any bundle yet.
     expect(managerReadsReport).toBe(false)
     expect(peerReadsPeer).toBe(false)
     expect(hrReadsAnyone).toBe(true)
@@ -184,7 +173,6 @@ describe("managers are derived, not granted", () => {
 
 describe("bundles compose", () => {
   it("adds up, because a person wears several hats", () => {
-    // The office manager who runs HR and orders the laptops.
     const both = permissionsFor("employee", ["hr_admin", "it_admin"])
     expect(both.has("employee.write")).toBe(true)
     expect(both.has("it.assets.write")).toBe(true)
@@ -201,12 +189,8 @@ describe("bundles compose", () => {
 
 describe("what separation of duties cannot do", () => {
   it("does not bind the owner, and that is not a bug to fix", () => {
-    // The owner holds every permission, including both halves of the payroll
-    // rule. No constraint can bind them: the owner also grants and removes
-    // roles, so any rule they hit they can remove first. Asserting it here so
-    // the limit is stated rather than assumed — the compensating control is
-    // the audit trail, and the advice is to keep Owner to people already
-    // trusted with the company bank account.
+    // Owner can grant/remove roles, so no rule can bind them; the compensating
+    // control is the audit trail.
     const owner = ctx("owner", ["payroll_admin"])
     expect(can(owner, "compensation.write")).toBe(true)
     expect(can(owner, "payroll.approve")).toBe(true)
@@ -214,12 +198,9 @@ describe("what separation of duties cannot do", () => {
   })
 
   it("does bind everyone else, which is the case that matters", () => {
-    // firm_admin is the most powerful role that is NOT the owner, and it also
-    // cannot grant itself out of trouble — tenant.members.manage is withheld.
     const admin = ctx("firm_admin")
     expect(can(admin, "tenant.members.manage")).toBe(false)
-    // And the two functional roles cannot be combined at all; the database
-    // refuses it, so this pairing is unreachable rather than merely unwise.
+    // hr_admin + payroll_admin is refused by the database, not just unwise.
     const hr = ctx("employee", ["hr_admin"])
     const payroll = ctx("employee", ["payroll_admin"])
     expect(can(hr, "payroll.approve")).toBe(false)
@@ -229,9 +210,6 @@ describe("what separation of duties cannot do", () => {
 
 describe("reading a sensitive value versus revealing it", () => {
   it("hr_admin reveals; payroll_admin only sees the last four", () => {
-    // The rule the two test suites disagreed on, now expressed once in
-    // @kaaj/authz and asserted from both sides. A payroll admin verifies an
-    // account before paying it; recognising an account is not reading it.
     const hr = permissionsFor("employee", ["hr_admin"])
     const payroll = permissionsFor("employee", ["payroll_admin"])
 

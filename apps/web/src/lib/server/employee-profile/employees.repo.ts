@@ -1,13 +1,6 @@
 import type { Tx } from "../db/tenant"
 
-/**
- * employees — the directory and one person's record.
- *
- * docs/api-surface.md names the directory join as its worked example:
- * `employees` + `firm_departments` + `compensation_base` in ONE query. Doc 03's
- * rule is one page, one query — a per-row lookup for the department name and
- * another for pay would be 25 queries for a 12-person firm.
- */
+/** employees — the directory and one person's record. One page, one query — see docs/api-surface.md. */
 
 export type EmployeeRow = {
   id: string
@@ -45,15 +38,10 @@ export type ListFilters = {
 }
 
 /**
- * The directory page.
- *
- * Compensation is taken from the effective-dated `compensation_base` — the row
- * whose window covers today — falling back to the denormalised column on
- * `employees` when no row is current. Taking the newest row regardless of dates
- * would show a future raise that has not started, or a lapsed rate.
- *
- * The count comes back on every row rather than from a second query, so the
- * pagination total and the page itself can never disagree.
+ * The directory page. Compensation is taken from the effective-dated
+ * `compensation_base` row covering today, falling back to the denormalised
+ * cache on `employees`. Count comes back on every row, not a second query,
+ * so the pagination total can't disagree with the page.
  */
 export async function list(
   tx: Tx,
@@ -225,10 +213,7 @@ export type EmployeeInput = {
   introduction: string | null
 }
 
-/**
- * `created_by` is NOT NULL with no default on this table, so it must be
- * supplied. It takes the acting user's id — the audit trail is the point.
- */
+/** `created_by` is NOT NULL with no default — takes the acting user's id for the audit trail. */
 export async function create(
   tx: Tx,
   tenantId: string,
@@ -314,11 +299,7 @@ export async function managerOptions(
   `
 }
 
-/**
- * Would setting `managerId` as this employee's manager create a reporting
- * cycle? Same shape of problem as the department tree: the FK cannot express
- * acyclicity, and a loop makes any "walk up the chain" query non-terminating.
- */
+/** Would setting `managerId` create a reporting cycle? Same shape as the department tree — a self-referencing FK can't express acyclicity. */
 export async function wouldReportToSelf(
   tx: Tx,
   employeeId: string,

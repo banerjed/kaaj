@@ -3,16 +3,10 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_goals — objectives, and how far along they are.
  *
- * `progress_percentage` is STORED and also DERIVABLE from
- * `current_value / target_value`. Both are `numeric(18,4)`/`numeric(5,2)` and
- * nothing keeps them in step, so the stored figure can drift from the numbers
- * it claims to summarise — which is the shape that has bitten this codebase
- * before with `total_hours` and with time-off balances. `inconsistent()` is how
- * that becomes answerable.
- *
- * `weight` is NOT a share of 100. Verified against the fixture: four employees
- * hold one goal each at 20, 30, 40 and 50. It is a per-goal importance, so
- * summing it and expecting 100 would encode a rule the data does not have.
+ * `progress_percentage` is stored but also derivable from
+ * `current_value / target_value`; nothing keeps them in step, so
+ * `inconsistent()` checks for drift. `weight` is a per-goal importance, not a
+ * share of 100 — do not expect it to sum to 100.
  */
 
 export type Goal = {
@@ -80,14 +74,7 @@ export async function forEmployees(
   `
 }
 
-/**
- * Goals whose stored progress disagrees with their own numbers.
- *
- * A goal reading "62% complete" beside "31 of 100" is worse than either alone:
- * it is the number a manager quotes in a review, and nothing recomputes it.
- * Only rows with a numeric measurement are checked — a qualitative goal has no
- * target to divide by.
- */
+/** Goals whose stored progress disagrees with current/target — a number managers quote in reviews. */
 export async function inconsistent(
   tx: Tx,
 ): Promise<

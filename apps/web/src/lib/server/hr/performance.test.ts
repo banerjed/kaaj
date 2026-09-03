@@ -9,11 +9,7 @@ import * as feedback from "./hr_feedback.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an owner so RLS doesn't narrow what the test sees (see db/row-visibility.test.ts). */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -32,18 +28,12 @@ const reader = (employeeId: string | null, readsAll = false) => ({
 
 describe("a manager's assessment is hidden from its subject until submitted", () => {
   it("withholds the draft from the person being reviewed", async () => {
-    // The harm this prevents: reading an unfinished judgement of yourself, and
-    // writing your self-assessment against it. Nothing in the database stops
-    // it — both halves are one row and RLS filters by tenant.
     const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(PRIYA), { employeeId: PRIYA }),
     )
     expect(review.status).toBe("draft")
     expect(review.manager_assessment).toBeNull()
-    // Said explicitly, so a page can distinguish "not finished" from "nothing
-    // was written about me".
     expect(review.manager_assessment_withheld).toBe(true)
-    // Their own half is theirs whatever the status — they wrote it.
     expect(review.self_assessment).not.toBeNull()
   })
 
@@ -64,7 +54,6 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
   })
 
   it("releases it to the subject once submitted", async () => {
-    // REV-E002 is acknowledged, so Marcus sees his manager's half.
     const [review] = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(MARCUS), { employeeId: MARCUS }),
     )
@@ -74,7 +63,6 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
   })
 
   it("redacts on the single-row path too, not only the list", async () => {
-    // Two read paths, one rule. A detail page that forgot would be the leak.
     const redacted = await withTenant(AS_OWNER, async (tx) => {
       const [row] = await reviews.visibleTo(tx, reader(SARAH), {
         employeeId: PRIYA,
@@ -88,8 +76,7 @@ describe("a manager's assessment is hidden from its subject until submitted", ()
 
 describe("who sees which reviews at all", () => {
   it("shows a peer nothing", async () => {
-    // Marcus is neither Priya's subject nor her reviewer. Asserted
-    // independently by SEC-EMP-026 in the spec suite.
+    // Also asserted independently by SEC-EMP-026 in the spec suite.
     const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(MARCUS), { employeeId: PRIYA }),
     )
@@ -114,8 +101,7 @@ describe("who sees which reviews at all", () => {
   })
 
   it("does not raise for a reader who is not an employee", async () => {
-    // A tenant member without an employee record. `null` must not become
-    // ''::uuid — SQL does not short-circuit (L37).
+    // null must not become ''::uuid (L37).
     const rows = await withTenant(AS_OWNER, (tx) =>
       reviews.visibleTo(tx, reader(null)),
     )
@@ -132,8 +118,6 @@ describe("who sees which reviews at all", () => {
 
 describe("the cycle", () => {
   it("has deadlines in order, as dates rather than text", async () => {
-    // They were TEXT and sorted correctly only because ISO strings sort
-    // lexically — an accident that holds until someone types 15/06/2026.
     const [cycle] = await withTenant(AS_OWNER, (tx) => reviews.cycles(tx))
     expect(cycle.start_date).toBe("2026-05-31")
     expect(cycle.self_assessment_due).toBe("2026-06-15")
@@ -163,8 +147,6 @@ describe("the cycle", () => {
 
 describe("goals", () => {
   it("stored progress agrees with the numbers it summarises", async () => {
-    // 62% beside "31 of 100" is the number a manager quotes in a review, and
-    // nothing recomputes it.
     const bad = await withTenant(AS_OWNER, (tx) => goals.inconsistent(tx))
     expect(bad).toEqual([])
   })
@@ -184,9 +166,6 @@ describe("goals", () => {
   })
 
   it("does not treat weight as a share of 100", async () => {
-    // Four employees hold one goal each at 20, 30, 40 and 50. Weight is a
-    // per-goal importance; asserting it sums to 100 would encode a rule the
-    // data does not have.
     const rows = await withTenant(
       NORTHWIND,
       (tx) => tx<{ total: string }[]>`
@@ -204,10 +183,8 @@ describe("goals", () => {
 })
 
 describe("the page's own load, not just the repository", () => {
-  // The redaction lives in the repository so a second read path cannot forget
-  // it — but "the page uses that path" is itself an assumption worth testing.
-  // This calls the real load() with a synthetic locals, which is what the
-  // route actually runs.
+  // Calls the real load() with a synthetic locals — checks the page actually
+  // uses the repository's redacting path, not just that the path exists.
   const localsFor = (employeeId: string, functionalRoles: string[] = []) =>
     ({
       tenantId: NORTHWIND,
@@ -233,10 +210,8 @@ describe("the page's own load, not just the repository", () => {
     expect(own.status).toBe("draft")
     expect(own.manager_assessment).toBeNull()
     expect(own.manager_assessment_withheld).toBe(true)
-    // And nothing else leaks in alongside it.
     expect(data.reviews).toHaveLength(1)
     expect(data.readsAll).toBe(false)
-    // Cycle completion is HR's view; a subject does not get the roll-up.
     expect(data.progress).toEqual([])
   })
 
@@ -264,16 +239,12 @@ describe("feedback anonymity", () => {
   ) => ({ employeeId, readsAll, manages })
 
   it("never returns the author of an anonymous note — not even to HR", async () => {
-    // The column is populated and correct. That is the trap: a page that
-    // joined to employees and rendered the author would break the promise
-    // without erroring and without failing a type check.
     const all = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA, true)),
     )
     const anon = all.find((f) => f.feedback_id === "FB-004")!
     expect(anon.is_anonymous).toBe(true)
     expect(anon.from_name).toBeNull()
-    // And no field carries the id, so it cannot be rendered by mistake.
     expect(Object.keys(anon)).not.toContain("from_employee_id")
   })
 
@@ -287,8 +258,6 @@ describe("feedback anonymity", () => {
   })
 
   it("keeps the author's id out of the query result entirely", async () => {
-    // Not fetched-then-dropped: a repository that dropped it in TypeScript
-    // would still have put it in a result set, a log line and a heap dump.
     const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(NADIA, true)),
     )
@@ -314,9 +283,6 @@ describe("who may read which feedback", () => {
   })
 
   it("withholds a manager_only note from its own subject", async () => {
-    // FB-001 is about Marcus, written for whoever manages him. Showing it to
-    // Marcus would turn every such note into a message to its subject, which
-    // is not what the author chose.
     const rows = await withTenant(AS_OWNER, (tx) =>
       feedback.visibleTo(tx, fbReader(MARCUS)),
     )
@@ -391,7 +357,6 @@ describe("writing a review", () => {
   })
 
   it("refuses a reviewer editing someone's self-assessment", async () => {
-    // Putting words in someone's mouth in a document they later acknowledge.
     await expect(
       inRollback(async (tx) => {
         const id = await draftId(tx)
@@ -426,7 +391,6 @@ describe("writing a review", () => {
   })
 
   it("releases the manager's half to its subject on submit", async () => {
-    // The one transition a subject can observe without being told.
     const [before, after] = await inRollback(async (tx) => {
       const id = await draftId(tx)
       const b = await reviews.byId(tx, reader(PRIYA), id)
@@ -440,7 +404,6 @@ describe("writing a review", () => {
   })
 
   it("refuses to submit a review with nothing in it", async () => {
-    // Otherwise the subject is told their review is ready and finds it empty.
     await expect(
       inRollback(async (tx) => {
         const id = await draftId(tx)
@@ -460,8 +423,6 @@ describe("writing a review", () => {
   })
 
   it("lets only the subject acknowledge, and only once", async () => {
-    // An acknowledgement entered by anyone else records that a person saw
-    // something when nobody knows whether they did.
     await expect(
       inRollback(async (tx) => {
         const id = await draftId(tx)
@@ -489,7 +450,6 @@ describe("writing a review", () => {
   })
 
   it("refuses moving backwards from acknowledged", async () => {
-    // Un-acknowledging erases the only evidence that the person read it.
     await expect(
       inRollback(async (tx) => {
         const [ack] = await reviews.visibleTo(tx, reader(MARCUS), {

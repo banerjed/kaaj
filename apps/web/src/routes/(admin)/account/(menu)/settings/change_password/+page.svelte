@@ -11,9 +11,7 @@
   let user = $derived(data.user)
   let supabase: BrowserSupabaseClient | null = $state(null)
 
-  // True if definitely has a password, but can be false if they
-  // logged in with oAuth or email link
-  // Supabase does not maintain an AMR typedef so we cast through any
+  // True only if they definitely have a password (oAuth/email-link users won't). No AMR typedef from Supabase, hence the cast.
   let amr: { method: string }[] | undefined = $derived(data.amr ?? undefined)
   let hasPassword = $derived(
     amr?.find((x) => x.method === "password") ? true : false,

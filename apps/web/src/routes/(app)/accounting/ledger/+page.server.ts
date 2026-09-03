@@ -20,9 +20,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     params.append(k, url.searchParams.get(k) ?? "")
   }
   const f = new FormReader(params)
-  // Read every field BEFORE the gate: a reader called inside the object built
-  // afterwards runs after `f.ok` has already been checked, so its rejection is
-  // raised too late to report (CLAUDE.md, L33).
+  // Read above the gate — inside the object it'd be reported too late (L33).
   const from = f.date("from")
   const to = f.date("to")
   const status = f.choice("status", STATUSES) ?? ""
@@ -36,8 +34,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     })
     return {
       entries,
-      // One query for every line on the page, keyed by entry. Fetching them
-      // per expanded row would be the N+1 doc 03 forbids.
+      // One query for all lines, keyed by entry — avoids per-row N+1.
       lines: await acc.ledgerLinesForEntries(
         tx,
         entries.map((e) => e.id),

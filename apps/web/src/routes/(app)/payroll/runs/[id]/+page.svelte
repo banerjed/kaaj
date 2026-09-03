@@ -8,26 +8,17 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   let cancelling = $state(false)
 
-  /**
-   * What this run may do next, mirroring NEXT in payroll_runs.repo.ts.
-   *
-   * A button the action would refuse is worse than no button: it reads as a
-   * broken page rather than as a rule. The repository refuses regardless —
-   * this only decides what is offered.
-   */
+  /** What this run may do next — mirrors NEXT in payroll_runs.repo.ts. */
   const may = $derived({
     calculate: data.mayRun && data.run.run_status === "draft",
     approve:
       data.mayApprove &&
       data.run.run_status === "calculated" &&
-      // Whoever calculated it cannot approve it. The database refuses this
-      // too, but as a constraint violation rather than a sentence.
+      // The calculator cannot approve their own run (DB-enforced too).
       data.run.calculated_by_name !== null,
     finalize: data.mayApprove && data.run.run_status === "approved",
     cancel:
@@ -89,10 +80,7 @@
         <span class="badge badge-sm capitalize">{data.run.run_status}</span>
       </div>
 
-      <!-- The lifecycle ---------------------------------------------------
-           Each step is a POST, never a link: they move money, and a link that
-           writes is a link a crawler can pull. Every one of them writes an
-           audit entry in the same transaction as the change. -->
+      <!-- Each step is a POST, never a link, and audited in the same transaction. -->
       {#if may.calculate || may.approve || may.finalize || may.cancel}
         <div
           class="border-base-200 flex flex-wrap items-center gap-2 border-t pt-3"
@@ -152,8 +140,7 @@
         {/each}
       </dl>
 
-      <!-- Who did what. Separation of duties is enforced by a CHECK; showing
-           it is how a person can see that it held. -->
+      <!-- Separation of duties is a CHECK constraint; this shows it held. -->
       <p class="text-base-content/70 border-base-200 border-t pt-2 text-xs">
         Prepared by {data.run.calculated_by_name ?? "—"} · approved by {data.run
           .approved_by_name ?? "not yet approved"} · paid {calendarDate(
@@ -201,10 +188,7 @@
               </div>
             {/each}
 
-            <!-- Taxes and deductions each carry their own subtotal. Run
-                 together under one heading, a pension deduction reads as a tax
-                 and the tax subtotal visibly fails to equal its own children
-                 (L46). -->
+            <!-- Own subtotal — merged with taxes it'd break that total (L46). -->
             <div class="flex justify-between">
               <dt class="text-base-content/70">Taxes</dt>
               <dd class="text-error tabular-nums">

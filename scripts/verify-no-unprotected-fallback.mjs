@@ -1,32 +1,11 @@
 #!/usr/bin/env node
 /**
- * No query may READ a row-protected value from an unprotected copy of it.
- *
- * `compensation_base` carries a row-visibility policy; `employees.base_amount_pvt`
- * is a denormalised cache of the same figure and carries none. A query written
- * as `COALESCE(cp.amount, e.base_amount_pvt)` therefore reads correctly to whoever
- * writes it and, for anyone the policy restricts, silently substitutes the
- * unprotected copy. Every employee could read every colleague's salary from
- * the directory page, with no error anywhere (L47).
- *
- * TWO rules, because one of them is easy to slip past:
- *
- *  1. **No qualified READ of a cache column.** `e.base_amount_pvt` in a select
- *     list, a WHERE, a CASE — any of it. The cache is written by `syncCache`
- *     and has no legitimate reader, so a qualified reference is the bug
- *     regardless of the construct around it. Writes are unqualified
- *     (`SET base_amount_pvt = …`, an INSERT column list) and are untouched.
- *  2. **No COALESCE onto an unprotected copy**, for the general class beyond
- *     these three columns. Arguments are split on balanced parentheses: a
- *     regex stopping at the first `)` misses
- *     `COALESCE(round(cp.amount, 2), e.base_amount_pvt)`, and `syncCache` already
- *     writes `round(c.amount, 2)` on this very column pair.
- *
- * SQL comments are stripped first, so the rule can be explained at the call
- * site without tripping itself.
- *
- * Exemptions are committed literals with reasons, never a filter — the same
- * standing rule as every other harness here.
+ * No query may read a row-protected value from an unprotected copy of it —
+ * e.g. `COALESCE(cp.amount, e.base_amount_pvt)` silently falls back to the
+ * unprotected cache for anyone the policy restricts (L47). Two rules: no
+ * qualified read of a cache column at all, and no COALESCE onto one (matched
+ * on balanced parens, since a naive regex misses a nested call). SQL comments
+ * are stripped first so this rule doesn't trip on itself.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -34,24 +13,13 @@ import { join, relative } from "node:path"
 const ROOT = new URL("..", import.meta.url).pathname
 const DIRS = ["apps/web/src/routes", "apps/web/src/lib/server"]
 
-/**
- * The disclosure matrix NAMES these columns in order to declare them
- * protected. It issues no queries, so scanning it reports the register itself
- * as nine violations — the guard tripping on its own rulebook.
- */
+/** The disclosure matrix names these columns to declare them protected; it issues no queries, so exclude it from the scan. */
 const NOT_QUERY_CODE = ["apps/web/src/lib/server/security/matrix.ts"]
 
 /**
- * Columns on a BROADLY-VISIBLE row that must never reach a projection.
- *
- * `employees` is a staff directory: every colleague can read the row, so RLS
- * cannot hide any column on it and this list is the only thing standing
- * between these values and everyone in the firm.
- *
- * Kept in step with `defense: "projection"` in
- * `apps/web/src/lib/server/security/matrix.ts` — `disclosure.test.ts` fails if
- * the two diverge, so a field declared protected there but absent here is
- * caught rather than silently unheld.
+ * Columns on the broadly-visible `employees` row that must never reach a
+ * projection — RLS can't hide them, so this list is the only defense. Kept
+ * in step with `defense: "projection"` in matrix.ts by disclosure.test.ts.
  */
 const CACHE_COLUMNS = [
   "base_amount_pvt",

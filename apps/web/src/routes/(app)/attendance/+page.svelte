@@ -12,11 +12,7 @@
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const timeFormat = $derived(data.tenant?.time_format ?? null)
 
-  /**
-   * A shift is shown in the office's own zone and locale — never the viewer's.
-   * The same instant is 09:00 in Bangalore and 22:30 in New York, and only one
-   * of those is a workday (L35).
-   */
+  /** Shown in the office's own zone and locale, never the viewer's (L35). */
   const inOffice = (
     value: Date | null,
     row: { timezone: string | null; locale: string | null },
@@ -110,8 +106,7 @@
       timezone
     </p>
 
-    <!-- Mobile. `md:hidden` is on the wrapper, not on `.list`, which sets
-         display (L10). -->
+    <!-- Mobile. `md:hidden` is on the wrapper, not `.list`, which sets display (L10). -->
     <div class="mt-2 md:hidden">
       <ul class="list bg-base-100 rounded-box shadow">
         {#each data.days as d (d.id)}
@@ -172,9 +167,7 @@
                 <td class="text-sm tabular-nums">
                   {inOffice(d.clock_out_time, d)}
                   {#if d.crosses_local_midnight}
-                    <!-- Ended on a later day in the OFFICE. Comparing the UTC
-                         dates instead would flag an ordinary Auckland day and
-                         miss a real New York night shift (L35). -->
+                    <!-- Ended on a later day in the OFFICE, not UTC (L35). -->
                     <span
                       class="badge badge-ghost badge-xs ms-1"
                       title="Ended the following day in this office"

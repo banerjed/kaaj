@@ -1,22 +1,8 @@
 <script lang="ts">
-  // The right-hand panel, repurposed from Nexus's appearance settings to the
-  // AI assistant. Theme selection moved to the profile drawer, because that
-  // panel is where a person's own preferences already live and `system` has to
-  // stay reachable.
-  //
-  // **Deliberately not built yet, and deliberately not faked.** There is no
-  // message list and no input box: a text field that accepts a question and
-  // does nothing is the "convincing shell over hardcoded data" this codebase
-  // deleted four of on the way in (L15, 07-app-provenance.md). The empty state
-  // says what the panel is for and that it is not ready, which is the honest
-  // version of the same screen.
-  //
-  // What it becomes is an open design question, recorded rather than assumed:
-  // whether the assistant may call the application's repositories — inheriting
-  // `can()` and row-level visibility as the acting user — or whether it only
-  // reads what the current page already holds. The first is far more useful
-  // and makes every authorization guard answerable to a caller that is not a
-  // form action.
+  // The right-hand panel: was Nexus's appearance settings, repurposed for the
+  // AI assistant (theme selection moved to the profile drawer). Deliberately
+  // not built yet and not faked — no message list, no dead input box (L15,
+  // 07-app-provenance.md).
 </script>
 
 <div class="drawer drawer-end">
@@ -31,10 +17,7 @@
       class="bg-base-100 text-base-content flex h-full w-72 flex-col sm:w-96"
     >
       <div class="bg-base-200 flex items-center justify-between px-5 py-4">
-        <!-- A heading, not a styled <p> — the same mistake L64 records, made
-             again in this file the day it was written. The panel is a landmark
-             a screen reader user navigates to; without a heading it is an
-             unnamed region. -->
+        <!-- A heading, not a styled <p> — see L64. -->
         <h2 class="text-lg font-medium">Assistant</h2>
         <label
           for="layout-rightbar-drawer"

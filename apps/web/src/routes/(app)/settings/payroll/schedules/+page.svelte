@@ -15,8 +15,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -155,12 +153,7 @@
             </div>
 
             {#if expanded === s.id}
-              <!--
-                The spec asks for the projection in two timezones: the
-                schedule's own, and the viewer's. A pay date is a calendar day
-                in the office that pays it, so the second column states what
-                that day is called where the reader sits.
-              -->
+              <!-- Two timezones: the schedule's own, and what that day is called where the viewer sits. -->
               <div class="overflow-x-auto">
                 <table class="table table-sm">
                   <thead>

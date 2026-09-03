@@ -14,8 +14,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const supportedLocales = $derived(
@@ -41,14 +39,10 @@
     previewZone = current?.timezone ?? data.tenant?.default_timezone ?? "UTC"
   })
 
-  // Intl bound to the TENANT's locale, not the browser's: two people in
-  // different countries must read the same schedule the same way.
+  // Bound to the tenant's locale, not the browser's, so everyone reads the same schedule the same way.
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  // The clock has to tick. `currentTimeAt` reads `new Date()`, which is not a
-  // reactive dependency, so without this the column freezes at page load and
-  // then quietly drifts — a wrong time that looks live. Half a minute is finer
-  // than the minutes it displays. $effect cleans the interval up on unmount.
+  // Ticks the clock: `new Date()` isn't a reactive dependency, so without this the column freezes.
   let now = $state(new Date())
   $effect(() => {
     const id = setInterval(() => (now = new Date()), 30_000)
@@ -141,8 +135,7 @@
       </div>
     </div>
   {:else}
-    <!-- Same rows, two shapes: daisyUI `list` below md, table above (doc 04).
-         `md:hidden` is on the wrapper, not on `.list`, which sets display (L10). -->
+    <!-- Two shapes: `list` below md, table above. `md:hidden` is on the wrapper, not `.list` (L10). -->
     <div class="mt-4 md:hidden">
       <ul class="list bg-base-100 rounded-box shadow">
         {#each data.locations as location (location.id)}
@@ -288,11 +281,7 @@
           {/each}
         </div>
 
-        <!--
-          Every tab stays MOUNTED, hidden with CSS rather than {#if}. A field in
-          an unmounted tab posts nothing, so switching tabs before saving would
-          silently blank whatever the user could not see.
-        -->
+        <!-- Every tab stays mounted, hidden with CSS: an {#if} tab would post nothing. -->
         <div class:hidden={modalTab !== "Basic"}>
           <div class="grid gap-4">
             <div class="grid gap-4 sm:grid-cols-2">

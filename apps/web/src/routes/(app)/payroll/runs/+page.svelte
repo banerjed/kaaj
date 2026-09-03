@@ -11,16 +11,11 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   let opening = $state(false)
 
-  /**
-   * A run's figures are shown in the market they belong to — a UK payroll in
-   * en-GB, an Indian one in en-IN. Never converted (BR-FP-003).
-   */
+  /** Figures shown in the run's own market locale, never converted (BR-FP-003). */
   const localeFor = (country: string | null) =>
     country === "GB" ? "en-GB" : country === "IN" ? "en-IN" : "en-US"
 
@@ -133,9 +128,7 @@
                 <td class="text-right text-sm tabular-nums">
                   {r.line_count}
                   {#if r.line_count !== r.employee_count}
-                    <!-- The header and the lines disagree. Worth showing:
-                         a run claiming people it has no line for says it paid
-                         someone it cannot name. -->
+                    <!-- Header and lines disagree — worth flagging. -->
                     <span
                       class="badge badge-error badge-sm ms-1"
                       title={`Header claims ${r.employee_count}`}
@@ -170,10 +163,7 @@
   {/if}
 </div>
 
-<!-- Open a run ------------------------------------------------------------
-     The header only. Lines are per-person pay, and computing those needs
-     per-jurisdiction tax tables this database does not have — inventing them
-     would put a correct-LOOKING number on a payslip. -->
+<!-- Open a run: header only — line computation needs tax tables not in this database. -->
 {#if opening}
   <div class="modal modal-open" role="dialog" aria-label="Open a pay run">
     <div class="modal-box max-w-2xl">

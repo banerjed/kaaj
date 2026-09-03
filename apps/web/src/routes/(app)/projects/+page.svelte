@@ -11,8 +11,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   /** The create dialog. Closed unless the last submit failed on a field. */
@@ -186,11 +184,7 @@
 </div>
 
 <!-- Create a project ----------------------------------------------------- -->
-<!--
-  Rendered only for someone who may submit it. That is a convenience, not a
-  control: `create` calls requireCan("projects.write") regardless, because a
-  hidden form is still a form anyone can POST.
--->
+<!-- Rendered only for someone who may submit; the action re-checks requireCan regardless. -->
 {#if creating}
   <div class="modal modal-open" role="dialog" aria-label="New project">
     <div class="modal-box max-w-2xl">
@@ -328,10 +322,7 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Budget</legend>
-          <!--
-            inputmode, never type="number": the latter round-trips the value
-            through a float in the browser before the server ever sees it.
-          -->
+          <!-- inputmode, never type="number", which round-trips through a float. -->
           <input
             name="budget"
             aria-invalid={err.aria("budget")}

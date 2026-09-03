@@ -24,11 +24,8 @@ export type FirmDepartment = {
 }
 
 /**
- * Every department, with its head's name and headcount.
- *
- * One query, not one per row (doc 03). The headcount subquery joins on
- * `department_code` because that is what `employees` carries — the fixture and
- * the schema both use the natural key there, not the uuid.
+ * Every department, with its head's name and headcount — one query, not one
+ * per row. Headcount joins on `department_code`, which is what `employees` carries.
  */
 export async function list(
   tx: Tx,
@@ -76,9 +73,6 @@ export async function create(
   tenantId: string,
   input: DepartmentInput,
 ): Promise<{ id: string }> {
-  // tenant_id must be supplied because the column is NOT NULL; RLS's WITH CHECK
-  // verifies it matches the session's, so a mismatched value is rejected rather
-  // than written.
   const [row] = await tx<{ id: string }[]>`
     INSERT INTO firm_departments (
       tenant_id, name, name_i18n, description, department_code,
@@ -119,15 +113,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<{ id: string }[]>`
     UPDATE firm_departments
@@ -137,14 +123,7 @@ export async function archive(tx: Tx, id: string): Promise<boolean> {
   return rows.length > 0
 }
 
-/**
- * Would making `childCode` a child of `parentCode` create a cycle?
- *
- * A department that is its own ancestor makes the tree render infinitely and
- * every recursive query non-terminating. The database has no constraint for
- * this — a self-referencing FK cannot express acyclicity — so it is checked
- * here, walking up from the proposed parent.
- */
+/** Would making `childCode` a child of `parentCode` create a cycle? A self-referencing FK can't express acyclicity, so this walks up manually. */
 export async function wouldCycle(
   tx: Tx,
   childCode: string,

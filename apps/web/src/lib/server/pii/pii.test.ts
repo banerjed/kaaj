@@ -22,11 +22,7 @@ import { _resetKeyRing, _useKeyRingForTest, keyRing } from "./keys"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an actor who reads everything; visibility has its own tests in row-visibility.test.ts. */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -35,10 +31,9 @@ const AS_OWNER = {
 }
 const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
 const MARCUS = "db1f1f2b-b140-5948-a34e-1c998ed98757"
-/** Deliberately holds no PII and no key: the "first use" and "nothing to
- *  erase" subject. Priya has a bank account, so she has a key. */
+/** No key, no PII, and an erasure record: the "nothing to erase" subject. */
 const NADIA = "385f5ae5-e567-5fb6-98f8-b45007099ff8"
-/** No key, no PII, and no erasure record: the "first use" subject. */
+/** No key, no PII, no erasure record: the "first use" subject. */
 const LENA = "18503470-ba5c-5450-bc3e-b0a2454d757f"
 
 const subject = (id: string, tenantId = NORTHWIND): pii.Subject => ({
@@ -81,8 +76,6 @@ describe("the envelope", () => {
   })
 
   it("never repeats a ciphertext for the same plaintext", () => {
-    // A deterministic scheme would let anyone with read access group employees
-    // by equal tax identifier without decrypting anything.
     const a = encrypt("123-45-6789", key, 1, binding)
     const b = encrypt("123-45-6789", key, 1, binding)
     expect(a.ct).not.toBe(b.ct)
@@ -90,9 +83,6 @@ describe("the envelope", () => {
   })
 
   it("refuses a ciphertext moved to another ROW", () => {
-    // Without AAD binding, `UPDATE employees SET ssn_ct = (SELECT ssn_ct FROM
-    // employees WHERE ...)` would silently graft one person's tax identifier
-    // onto another and decrypt cleanly.
     const e = encrypt("123-45-6789", key, 1, binding)
     expect(() => decrypt(e, key, { ...binding, rowId: MARCUS })).toThrow(
       DecryptionFailed,
@@ -144,7 +134,6 @@ describe("the envelope", () => {
   it("reports a malformed envelope rather than treating it as empty", () => {
     expect(() => parseEnvelope("not json")).toThrow(DecryptionFailed)
     expect(() => parseEnvelope('{"v":99}')).toThrow(DecryptionFailed)
-    // A genuinely absent value is not malformed.
     expect(parseEnvelope(null)).toBeNull()
     expect(parseEnvelope("")).toBeNull()
   })
@@ -154,7 +143,6 @@ describe("the envelope", () => {
     const dek = newDataKey()
     const wrapped = wrapKey(dek, kek, 1, NORTHWIND, SARAH)
     expect(sameKey(unwrapKey(wrapped, kek, NORTHWIND, SARAH), dek)).toBe(true)
-    // A wrapped key lifted onto another employee must not open.
     expect(() => unwrapKey(wrapped, kek, NORTHWIND, MARCUS)).toThrow(
       DecryptionFailed,
     )
@@ -167,7 +155,6 @@ describe("the stored fixture", () => {
   })
 
   it("holds ciphertext, not tax identifiers", async () => {
-    // The point of the whole exercise: a database dump is inert.
     const rows = await withTenant(
       AS_OWNER,
       (tx) => tx<{ ssn_tax_id_ct: string }[]>`
@@ -194,8 +181,6 @@ describe("the stored fixture", () => {
   })
 
   it("has no index over the plaintext either", async () => {
-    // An index would have kept every identifier readable in its pages, and
-    // dropping the column does not scrub them.
     const [idx] = (await withTenant(
       NORTHWIND,
       (tx) => tx`
@@ -222,7 +207,6 @@ describe("the stored fixture", () => {
   })
 
   it("labels the key the way the specification asks, without deriving from it", async () => {
-    // {org_prefix}-{4digit_code} is an IDENTIFIER. The key material is random.
     const [row] = (await withTenant(
       NORTHWIND,
       (tx) => tx`
@@ -235,7 +219,6 @@ describe("the stored fixture", () => {
 
 describe("writing an encrypted field", () => {
   it("mints a key on first use and reads back what was written", async () => {
-    // LENA, not LENA: LENA carries an erasure record and sealField refuses.
     const result = await inRollback(async (tx) => {
       const before = await tx<
         { n: number }[]
@@ -295,7 +278,7 @@ describe("erasure — GDPR Article 17", () => {
         subjectLabel: "E001",
       })
 
-      // The ciphertext as it would still exist in yesterday's backup.
+      // As it would still exist in yesterday's backup.
       const afterErasure = await pii.openField(
         tx,
         subject(SARAH),
@@ -319,15 +302,14 @@ describe("erasure — GDPR Article 17", () => {
 
     expect(result.opened.value).toBe("123-45-6789")
     expect(result.erased.keyDestroyed).toBe(true)
-    // The backup's ciphertext is now unreadable — this is the load-bearing part.
+    // Load-bearing: the backup's ciphertext is now unreadable too.
     expect(result.afterErasure).toEqual({ value: null, erased: true })
     expect(result.live).toBeNull()
     expect(result.audit).toBe(1)
   })
 
   it("erases one person without touching anyone else", async () => {
-    // The reason keys are per-subject rather than per-tenant: Article 17 is an
-    // individual right, and a tenant-wide key cannot answer it.
+    // Keys are per-subject: Art. 17 is an individual right.
     const other = await inRollback(async (tx) => {
       await pii.eraseSubject(tx, subject(SARAH), {
         reason: "Data subject request",
@@ -359,9 +341,8 @@ describe("erasure — GDPR Article 17", () => {
   })
 
   it("does not mint a fresh key for an erased subject on read", async () => {
-    // The trap: `dataKey` creates on miss, so an unguarded read path would
-    // resurrect a key, fail to decrypt, and report corruption instead of an
-    // erasure that was correctly honoured.
+    // dataKey() creates on miss; an unguarded read would resurrect a key and
+    // report corruption instead of an honoured erasure.
     const result = await inRollback(async (tx) => {
       const [row] = await tx<{ ssn_tax_id_ct: string }[]>`
         SELECT ssn_tax_id_ct FROM employees WHERE id = ${SARAH}
@@ -385,9 +366,6 @@ describe("erasure — GDPR Article 17", () => {
 
 describe("key rotation", () => {
   it("rotates the master key without re-encrypting a single field", async () => {
-    // The envelope's whole purpose: field ciphertext is under the data key,
-    // which never changes. Rotating the master re-wraps one small row per
-    // subject instead of rewriting every encrypted column in the database.
     const result = await inRollback(async (tx) => {
       const [before] = await tx<{ wrapped_dek: string; kek_version: number }[]>`
         SELECT wrapped_dek, kek_version FROM pii_keys WHERE subject_id = ${SARAH}
@@ -398,10 +376,8 @@ describe("key rotation", () => {
       const pending = await pii.needsRewrap(tx)
       return { before, ciphertext: emp.ssn_tax_id_ct, pending }
     })
-    // Only one master key is configured locally, so nothing is pending.
     expect(result.pending).toEqual([])
     expect(result.before.kek_version).toBe(1)
-    // And the field ciphertext records the key version it was written under.
     expect(parseEnvelope(result.ciphertext)!.k).toBe(1)
   })
 
@@ -419,9 +395,7 @@ describe("key rotation", () => {
 })
 
 describe("rotating the master key", () => {
-  // The claim the whole envelope design rests on: rotating the KEK re-wraps one
-  // small row per subject and leaves every field ciphertext untouched. Asserted
-  // with two versions configured, because with one it is trivially true.
+  // Two versions configured — with one, the claim is trivially true.
   const twoVersions = async <T>(fn: () => Promise<T>): Promise<T> => {
     const v1 = keyRing().byVersion.get(1)!.toString("base64")
     _useKeyRingForTest(`1:${v1},2:${newDataKey().toString("base64")}`)
@@ -461,12 +435,11 @@ describe("rotating the master key", () => {
       }),
     )
 
-    // Everything was written under version 1, so everything is pending.
     expect(result.pending.length).toBeGreaterThan(0)
     expect(result.before.kek_version).toBe(1)
     expect(result.after.kek_version).toBe(2)
     expect(result.after.wrapped_dek).not.toBe(result.before.wrapped_dek)
-    // The point: not one byte of field ciphertext changed.
+    // Not one byte of field ciphertext changed.
     expect(result.empAfter.ssn_tax_id_ct).toBe(result.emp.ssn_tax_id_ct)
     expect(result.opened).toEqual({ value: "123-45-6789", erased: false })
   })
@@ -489,9 +462,6 @@ describe("rotating the master key", () => {
   })
 
   it("refuses to read a row wrapped under a key that has been removed", async () => {
-    // Dropping a version while rows still reference it must be loud. Silently
-    // reading it as "no value" would look like data loss and hide a botched
-    // rotation.
     await expect(
       inRollback(async (tx) => {
         await tx`UPDATE pii_keys SET kek_version = 99 WHERE subject_id = ${SARAH}`
@@ -511,8 +481,6 @@ describe("rotating the master key", () => {
 
 describe("an erased subject", () => {
   it("does not silently acquire new PII", async () => {
-    // A fresh key minted beside a standing erasure record is either a mistake
-    // or a re-hire. Both deserve a deliberate decision.
     await expect(
       inRollback((tx) =>
         pii.sealField(tx, subject(NADIA), taxField(NADIA), "123-45-6789"),
@@ -523,9 +491,7 @@ describe("an erased subject", () => {
 
 describe("the published development key", () => {
   it("is the one in .env.example, and the guard names it exactly", async () => {
-    // If this ever fails, .env.example was regenerated and the guard in keys.ts
-    // no longer recognises the key it is meant to refuse — which would fail
-    // open, in production, silently.
+    // If this fails, keys.ts's guard no longer recognises the key it must refuse — silent fail-open in production.
     const source = await readFile(
       new URL("../../../../.env.example", import.meta.url),
       "utf8",
@@ -538,10 +504,7 @@ describe("the published development key", () => {
 
 describe("two kinds of subject", () => {
   it("erasing an employee does not touch the firm's own data", async () => {
-    // bank_accounts.* and clients.tax_id belong to the FIRM, not to any
-    // employee. Keying them to a person would mean one leaver's erasure
-    // request destroyed the company's banking details — silently, and
-    // unrecoverably, since destroying a key reaches backups too.
+    // bank_accounts.* belongs to the FIRM, not any employee — keyed separately.
     const result = await inRollback(async (tx) => {
       const [firm] = await tx<{ id: string; account_number_ct: string }[]>`
         SELECT id, account_number_ct FROM bank_accounts
@@ -570,14 +533,11 @@ describe("two kinds of subject", () => {
 
     expect(result.before).toBeTruthy()
     expect(result.after).toBe(result.before)
-    // Still readable: the tenant's key was not the one destroyed.
     expect(result.opened?.erased).toBe(false)
     expect(result.opened?.value).toBeTruthy()
   })
 
   it("refuses a subject type nobody defined", async () => {
-    // An unrecognised subject_type would mint a key nothing could ever find
-    // again, so the ciphertext under it would be unopenable.
     await expect(
       inRollback(
         (tx) => tx`
@@ -591,20 +551,9 @@ describe("two kinds of subject", () => {
 
 describe("the fixture's own ciphertext", () => {
   it("opens — every sealed column, every row", async () => {
-    // The fixture ships pre-computed envelopes. They bind
-    // tenant | table | column | row as AAD and are wrapped by the per-employee
-    // keys seeded in `pii_keys`, so any of these drifting apart — a reseeded
-    // key, a copied envelope, a renamed column — makes them undecryptable.
-    //
-    // That failure is silent in the worst way: the ciphertext is still THERE,
-    // the column still looks populated, and `verify-fixture-coverage.mjs` is
-    // satisfied. Only opening it proves the fixture is real (L48).
-    // [table, column, the column naming the SUBJECT, subject type]
-    //
-    // The tenant-subject rows are the firm's own banking and its
-    // counterparties' identifiers. They are keyed to the FIRM so that one
-    // leaver's erasure cannot destroy the company's bank details — a different
-    // key, and therefore a separate case, not a variation of the ones above.
+    // A copied envelope or reseeded key still looks populated but won't open —
+    // only opening it proves the fixture is real (L48).
+    // [table, column, subject column, subject type]
     const SEALED: [string, string, string, "employee" | "tenant"][] = [
       ["employees", "ssn_tax_id_ct", "id", "employee"],
       ["hr_emergency_contacts", "address_ct", "employee_id", "employee"],

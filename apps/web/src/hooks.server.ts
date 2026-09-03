@@ -17,11 +17,7 @@ export const supabase: Handle = async ({ event, resolve }) => {
     {
       cookies: {
         getAll: () => event.cookies.getAll(),
-        /**
-         * SvelteKit's cookies API requires `path` to be explicitly set in
-         * the cookie options. Setting `path` to `/` replicates previous/
-         * standard behavior.
-         */
+        /** SvelteKit requires an explicit `path`; "/" replicates prior default behavior. */
         setAll: (
           cookiesToSet: {
             name: string
@@ -47,11 +43,7 @@ export const supabase: Handle = async ({ event, resolve }) => {
     )
   }
 
-  /**
-   * Unlike `supabase.auth.getSession()`, which returns the session _without_
-   * validating the JWT, this function also calls `getUser()` to validate the
-   * JWT before returning the session.
-   */
+  /** Unlike `getSession()` alone, also calls `getUser()` to validate the JWT. */
   let authResult:
     | Promise<{
         session: import("@supabase/supabase-js").Session | null
@@ -95,16 +87,13 @@ export const supabase: Handle = async ({ event, resolve }) => {
   })
 }
 
-// Not called for prerendered marketing pages so generally okay to call on ever server request
-// Next-page CSR will mean relatively minimal calls to this hook
 const authGuard: Handle = async ({ event, resolve }) => {
   const { session, user } = await event.locals.safeGetSession()
   event.locals.session = session
   event.locals.user = user
   event.locals.amr = null
 
-  // ADR-003 rule 5: tenant context is resolved ONCE, here. No membership means
-  // no claim means no tenant — which fails closed to zero rows, not an error.
+  // Tenant context resolved once, here (ADR-003 rule 5). No claim = no tenant, fails closed.
   const claims = appMetadataFromToken(session?.access_token)
   event.locals.tenantId = claims.tenantId
   event.locals.tenantRole = claims.role
@@ -115,11 +104,9 @@ const authGuard: Handle = async ({ event, resolve }) => {
 }
 
 /**
- * Read `app_metadata` out of the ACCESS TOKEN, not out of `user.app_metadata`
- * — which is the obvious place and is always empty of these claims (L4).
- *
- * Decoding without verifying is safe here only because `safeGetSession` has
- * already validated this exact token through `getUser()`.
+ * Reads `app_metadata` from the ACCESS TOKEN, not `user.app_metadata` (always
+ * empty of these claims, L4). Decoding without verifying is safe only because
+ * `safeGetSession` already validated this token via `getUser()`.
  */
 function appMetadataFromToken(accessToken?: string): {
   tenantId: string | null
@@ -155,8 +142,7 @@ function appMetadataFromToken(accessToken?: string): {
     return {
       tenantId: typeof tenantId === "string" && tenantId ? tenantId : null,
       role: typeof role === "string" && role ? role : null,
-      // A token minted before the claim existed has none. Absent reads as the
-      // floor — no functional roles — never as an escalation.
+      // Absent claim (older token) reads as no functional roles, never escalation.
       functionalRoles: Array.isArray(meta?.functional_roles)
         ? meta.functional_roles.filter(
             (r): r is string => typeof r === "string",
@@ -173,22 +159,11 @@ function appMetadataFromToken(accessToken?: string): {
 export const handle: Handle = sequence(supabase, authGuard)
 
 /**
- * Every unexpected error gets an id, and that id reaches both the log and the
- * page.
- *
- * SvelteKit replaces an unexpected error's message with the literal string
- * "Internal Error" before it reaches the browser, which is correct — the real
- * one can carry a query or a row. The cost is that a person reporting a
- * problem has nothing to quote and we have nothing to search. The id is the
- * whole fix: one line on the error page, one field in the log.
- *
- * Only UNEXPECTED errors arrive here. Anything raised with `error()` — a 403
- * with no tenant, a 404 for a missing employee — is a decision the application
- * made on purpose and is not a bug to investigate. After the form work in
- * L66-L68, what remains here is by construction the class nobody predicted.
- *
- * `locals` is populated by the handles above, but this hook also runs when one
- * of THEM throws, so every field is read defensively.
+ * Every unexpected error gets an id, logged and returned to the page, since
+ * SvelteKit replaces the real message with "Internal Error" in the browser.
+ * Only unexpected errors reach here — `error()` calls are deliberate, not
+ * bugs. `locals` is read defensively since this hook also runs when an
+ * earlier handle throws.
  */
 export const handleError: HandleServerError = ({
   error,
@@ -207,8 +182,6 @@ export const handleError: HandleServerError = ({
       status,
       route: event.route?.id ?? event.url.pathname,
       method: event.request?.method,
-      // The actor, which `locals` already carries for every request that got
-      // past the auth handle. Who it happened to is most of the question.
       tenantId: event.locals?.tenantId ?? null,
       tenantRole: event.locals?.tenantRole ?? null,
       functionalRoles: event.locals?.functionalRoles ?? [],

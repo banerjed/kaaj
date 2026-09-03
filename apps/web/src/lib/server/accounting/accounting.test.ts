@@ -17,10 +17,7 @@ describe("the general ledger", () => {
   })
 
   it("every entry balances — debits equal credits", async () => {
-    // The rule the whole of double-entry rests on. The schema forbids a line
-    // that is neither debit nor credit and the harness asserts this too; this
-    // is the third place, and the only one that runs against the database the
-    // app is actually talking to.
+    // Asserted against the live database, not just schema/harness.
     const bad = await withTenant(AS_OWNER, (tx) => acc.unbalanced(tx))
     expect(bad).toEqual([])
   })
@@ -31,8 +28,7 @@ describe("the general ledger", () => {
     for (const e of rows) {
       expect(e.balances, `${e.entry_number} does not balance`).toBe(true)
       expect(Number(e.debits)).toBe(Number(e.credits))
-      // An entry with no lines would "balance" at 0 = 0, which is not a
-      // balanced entry, it is an empty one.
+      // 0 = 0 is not a balanced entry, it's an empty one.
       expect(e.line_count, `${e.entry_number} has no lines`).toBeGreaterThan(1)
     }
   })
@@ -44,9 +40,7 @@ describe("the general ledger", () => {
   })
 
   it("filters by date without passing '' to a cast", async () => {
-    // `'' = '' OR d >= ''::date` still evaluates the cast, and postgres.js
-    // raises RangeError in the driver before the query is sent (L37). The
-    // empty filter must therefore be NULL, and this proves both paths run.
+    // Empty filter must be NULL, not '' (L37) — proves both paths run.
     const [all, ranged] = await withTenant(AS_OWNER, async (tx) => [
       await acc.ledger(tx, {}),
       await acc.ledger(tx, { from: "2026-01-01", to: "2026-12-31" }),
@@ -57,9 +51,7 @@ describe("the general ledger", () => {
   })
 
   it("lines carry an account, and each is one-sided", async () => {
-    // A line is a debit or a credit, never both — the schema constraint
-    // ck_journal_entry_lines_one_sided_positive. Asserted here because a
-    // two-sided line would still sum correctly and be meaningless.
+    // A two-sided line would still sum correctly, so check both are exclusive.
     const lines = await withTenant(AS_OWNER, async (tx) => {
       const [e] = await acc.ledger(tx)
       return acc.ledgerLines(tx, e.id)
@@ -80,8 +72,6 @@ describe("the general ledger", () => {
 
 describe("invoices", () => {
   it("stored subtotal equals the sum of its lines", async () => {
-    // Denormalised totals drift. This computes the sum on read and compares,
-    // the same treatment as payroll run headers and project task counts.
     const rows = await withTenant(AS_OWNER, (tx) => acc.listInvoices(tx))
     expect(rows.length).toBeGreaterThan(0)
     for (const i of rows) {
@@ -115,7 +105,6 @@ describe("invoices", () => {
   })
 
   it("payments received never exceed the invoice total", async () => {
-    // Over-allocation is how a customer ends up credited twice.
     const result = await withTenant(AS_OWNER, async (tx) => {
       const rows = await acc.listInvoices(tx)
       const out = []
@@ -136,14 +125,12 @@ describe("invoices", () => {
         r.received,
         `${r.n}: allocations exceed the total`,
       ).toBeLessThanOrEqual(r.total + 0.01)
-      // And the stored amount_paid agrees with the allocations behind it.
       expect(r.received).toBeCloseTo(r.paid, 2)
     }
   })
 
   it("flags an overdue invoice, and does not flag a settled one", async () => {
     const rows = await withTenant(AS_OWNER, (tx) => acc.listInvoices(tx))
-    // Both halves: a fixture where nothing is overdue never renders the badge.
     expect(rows.some((i) => i.is_overdue)).toBe(true)
     for (const i of rows) {
       if (Number(i.amount_due) === 0) {
@@ -155,9 +142,6 @@ describe("invoices", () => {
   })
 
   it("never calls a draft or a void invoice overdue", async () => {
-    // A draft has not been sent to anyone and a void invoice is not owed, so
-    // neither can be late. The list page flagged a draft with a past due date
-    // as overdue until the rule said so — visible only by looking at it.
     const rows = await withTenant(AS_OWNER, (tx) => acc.listInvoices(tx))
     const unissued = rows.filter(
       (i) => i.status === "draft" || i.status === "void",

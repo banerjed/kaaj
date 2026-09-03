@@ -2,19 +2,7 @@
   import "../app.css"
   import { page } from "$app/state"
 
-  /**
-   * The reference an unexpected error leaves behind.
-   *
-   * This page used to render `page.error.message`, which in production is the
-   * literal string "Internal Error" for every bug in the application — so it
-   * said "There was an error: Internal Error" and the person had nothing to
-   * quote. `handleError` mints an id and logs the real error against it; this
-   * is where that id becomes reachable.
-   *
-   * Expected errors (403, 404) carry no id, and get the plain message: there
-   * is nothing to investigate, and a reference nobody can look up is worse
-   * than none.
-   */
+  // Unexpected errors carry an id minted by handleError; expected ones (403, 404) don't and get the plain message.
   const id = $derived(page.error?.id)
   const message = $derived(page.error?.message ?? "Something went wrong.")
 
@@ -26,8 +14,7 @@
       copied = true
       setTimeout(() => (copied = false), 2000)
     } catch {
-      // Clipboard access is permission-gated and blocked outright in some
-      // contexts. The id is selectable text regardless, so this is cosmetic.
+      // Clipboard access can be blocked; the id is still selectable text.
     }
   }
 </script>

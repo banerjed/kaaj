@@ -2,21 +2,14 @@ import { allEnumerations } from "@kaaj/enums"
 import { compareDecimal } from "$lib/decimal"
 
 /**
- * Reading and validating form fields.
- *
- * Every action writes through this. The reason is L34: `required`, `maxlength`
- * and `type` are browser UX and vanish on a crafted POST, and the column type
- * is not a validator — `varchar(n)`, `uuid` and Postgres enums answer bad input
- * with an exception, which SvelteKit renders as a 500 rather than putting the
- * user back in the form.
- *
- * A reader accumulates the fields that failed, so a call site reads as a list
- * of declarations and one `if (!f.ok)`:
+ * Reading and validating form fields. Every action writes through this — the
+ * column type is not a validator; a crafted POST bypassing `required`/`type`
+ * hits it as an unhandled 500 instead (L34). Accumulates failed fields so a
+ * call site is a list of declarations and one `if (!f.ok)`:
  *
  * ```ts
  * const f = new FormReader(data)
  * const name = f.text("name", { required: true, max: 255 })
- * const code = f.text("code", { required: true, max: 50, upper: true, pattern: CODE })
  * if (!f.ok) return fail(400, f.problem())
  * ```
  */
@@ -45,19 +38,11 @@ type NumberOpts = Base & { min?: number; max?: number }
 /** `scale` is the column's, so a value the column would silently round is refused. */
 type DecimalOpts = NumberOpts & { scale: number; integerDigits?: number }
 
-/**
- * A field name as a person would read it.
- *
- * `location_code` is "Location code"; the dotted names — `range.USD.max`,
- * `name_i18n.en-GB` — keep their qualifier, because "Maximum" alone does not
- * say WHICH salary band is wrong when a form carries one per currency.
- */
+/** A field name as a person would read it — dotted names keep their qualifier, e.g. `range.USD.max` -> "Maximum (USD)". */
 function labelFor(field: string): string {
   const parts = field.split(".")
   const last = parts[parts.length - 1].replace(/_/g, " ")
   const label = last.charAt(0).toUpperCase() + last.slice(1)
-  // `range.USD.max` -> "Maximum (USD)". The middle segment is the currency or
-  // locale the field belongs to.
   return parts.length > 2 ? `${label} (${parts[1]})` : label
 }
 
@@ -85,15 +70,7 @@ export class FormReader {
     return [...this.failures]
   }
 
-  /**
-   * Ready to spread into `fail(400, …)`.
-   *
-   * The default message NAMES the fields. "Some fields need attention." is
-   * true of every rejection and actionable in none of them, and only three
-   * pages in the product render `errorFields` as a highlight — so on the rest
-   * the person was told something was wrong and not what. The names come from
-   * the same `errorFields` the highlight uses, so the two cannot disagree.
-   */
+  /** Ready to spread into `fail(400, …)`. Default message names the fields, never a bare "something is wrong". */
   problem(message?: string) {
     return {
       errorFields: this.errorFields,
@@ -187,15 +164,9 @@ export class FormReader {
   }
 
   /**
-   * A fixed set on a plain `varchar` column, where there is no Postgres enum.
-   *
-   * Generic over the allowed values, so a `readonly ["todo", "done"]` returns
-   * `"todo" | "done"` rather than `string`. That matters: the repository
-   * function it is handed to declares the union, and a plain `string` there
-   * would either need a cast — which asserts what `choice` has ALREADY
-   * checked, in a second place that can drift — or would widen the repository
-   * to accept anything. A call site passing `string[]` still infers `string`,
-   * so nothing existing changes.
+   * A fixed set on a plain `varchar` column with no Postgres enum. Generic
+   * over the allowed values, so `["todo", "done"]` returns that union rather
+   * than widening to `string`.
    */
   choice<T extends string>(
     name: string,
@@ -227,25 +198,16 @@ export class FormReader {
     return value ?? opts.fallback ?? null
   }
 
-  /**
-   * Money and rates, kept as a STRING all the way to Postgres. Parsing here
-   * would be the one place precision is lost — `Number("9007199254740993.00")`
-   * is `9007199254740992`, silently. See CLAUDE.md § Money.
-   */
+  /** Money and rates, kept as a STRING end to end — parsing here is where precision would be lost. See CLAUDE.md § Money. */
   decimal(name: string, opts: DecimalOpts & { required: true }): string
   decimal(name: string, opts: DecimalOpts): string | null
   decimal(name: string, opts: DecimalOpts): string | null {
     const digits = opts.integerDigits ?? 15
     const shape = new RegExp(`^-?\\d{1,${digits}}(\\.\\d{1,${opts.scale}})?$`)
     const value = this.read(name, opts.required ?? false, (raw) => {
-      // Refused, not rounded: the column rounds to scale silently (L25), and
-      // the person who typed the third decimal is never told it went.
+      // Refused, not rounded — the column would round silently instead (L25).
       if (!shape.test(raw)) return undefined
-      // Bounds compared as DECIMALS, not through `Number()`. The value is a
-      // string precisely because a float64 cannot hold `numeric(15,2)` at
-      // crore scale exactly, and a bound check that parses it reintroduces the
-      // rounding the string exists to avoid — quietly, on the one comparison
-      // that decides whether the figure is accepted at all.
+      // Compared as decimals, not via Number() — see the class-level note.
       if (opts.min !== undefined && compareDecimal(raw, String(opts.min)) < 0) {
         return undefined
       }
@@ -289,11 +251,7 @@ export class FormReader {
     return formString(this.data, name) === "on"
   }
 
-  /**
-   * A BCP-47 tag Intl will actually accept. `en_US` — the POSIX spelling, and
-   * the likeliest typo — throws `RangeError`, and this column is the locale
-   * every figure for that office is formatted in (L24).
-   */
+  /** A BCP-47 tag Intl accepts — `en_US` (POSIX spelling) throws RangeError on every figure formatted for that office (L24). */
   locale(name: string, opts: Base & { required: true }): string
   locale(name: string, opts?: Base): string | null
   locale(name: string, opts: Base = {}): string | null {

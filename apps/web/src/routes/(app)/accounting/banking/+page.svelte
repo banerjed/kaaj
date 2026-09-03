@@ -23,11 +23,7 @@
           ? "neutral"
           : "progress"
 
-  /**
-   * The gap between what the bank says and what has been imported. Null when
-   * nothing has been imported at all, which is a different statement from a
-   * gap of zero.
-   */
+  /** Bank vs. imported balance; null means nothing imported yet, not a zero gap. */
   const gap = (a: {
     current_balance: string | null
     feed_balance: string | null
@@ -48,9 +44,7 @@
     ]}
   />
 
-  <!-- Accounts. No account number appears anywhere: the four identifier
-       columns are ciphertext with no plaintext last-four beside them, and a
-       reconciliation screen does not need one. -->
+  <!-- No account number shown anywhere; identifier columns are ciphertext. -->
   <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
     {#each data.accounts as a (a.id)}
       {@const locale = localeFor(a.currency)}
@@ -76,17 +70,12 @@
           </p>
 
           {#if a.transaction_count === 0}
-            <!-- Not the same claim as a zero balance, and must not read like
-                 one: nothing has been imported for this account yet. -->
+            <!-- Distinct from a zero balance: nothing imported yet. -->
             <p class="text-base-content/70 text-xs">
               No transactions imported yet.
             </p>
           {:else if g !== null && g !== 0}
-            <!-- Say what the difference MEANS rather than which number is
-                 larger. The bank reporting LESS than the imports means it has
-                 applied something the feed has not caught up with — a charge,
-                 typically. The reverse means money arrived after the last
-                 import. Both are ordinary; neither is an error. -->
+            <!-- State what the gap means, not just which side is bigger. -->
             <p class="text-warning text-xs">
               {money(String(Math.abs(g)), a.currency, locale)}
               {g < 0

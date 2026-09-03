@@ -1,42 +1,27 @@
 -- =============================================================================
 -- Kaaj — Specification Verification Harness
 -- =============================================================================
--- Version:      1.0
--- Last Updated: 2026-08-27
---
--- WHAT THIS IS
---   Every check below is a user story or functional requirement from a
---   module-*.md specification, expressed as SQL. If the query runs and its
---   assertion holds, the schema supports that requirement and (for DATA checks)
---   the mock data demonstrates it.
---
---   This is deliberately not a field-name diff. Comparing spec field names to
---   schema columns produces mostly noise: spec JSON examples mix persisted
---   fields with computed values, config keys and map keys, and nothing
---   mechanical separates them. An executable query either works or it does not.
+-- Each check is a user story or functional requirement from a module-*.md
+-- spec, expressed as an executable SQL assertion — deliberately not a
+-- field-name diff, which would be mostly noise against spec JSON examples.
 --
 -- TWO KINDS OF CHECK
 --   SCHEMA  the structure supports the requirement. A failure is a DESIGN GAP.
---   DATA    the mock data demonstrates it. A failure is a MOCK DATA GAP —
---           the feature may be buildable but cannot be shown or tested.
+--   DATA    the mock data demonstrates it. A failure is a MOCK DATA GAP.
 --
 -- USAGE
 --   for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
 --   psql "$DATABASE_URL" -f packages/database/fixtures/mock-data.sql
 --   psql "$DATABASE_URL" -v strict=1 -f packages/database/tests/verify-stories.sql
 --
---   Build from supabase/migrations/, NOT from packages/database/reference/schema.sql.
---   schema.sql is the design document: it issues no GRANTs (so no role can read
---   anything) and defines app.set_updated_at() without wiring it to any trigger.
---   Only the migrations produce a working database.
+--   Build from supabase/migrations/, never packages/database/reference/schema.sql
+--   (the design document — no GRANTs, no trigger wiring).
 --
---   Exit code is 0 even when checks fail; read the summary. To make CI fail on
---   regressions, run with:  -v strict=1
+--   Exit code is 0 even when checks fail; read the summary, or pass -v strict=1.
 --
 -- MAINTAINING
---   When you add a module feature, add its check here. When a check fails and
---   the requirement has legitimately changed, update the spec and the check
---   together — never silence a check on its own.
+--   New module feature: add its check here. Failing check + legitimately
+--   changed requirement: update spec and check together, never silence alone.
 -- =============================================================================
 
 \set ON_ERROR_STOP off
@@ -48,13 +33,9 @@ BEGIN;
 -- -----------------------------------------------------------------------------
 -- PRECONDITION: this harness must run as a role that BYPASSES RLS.
 -- -----------------------------------------------------------------------------
--- Most checks below read tenant tables directly. Every table has RLS ENABLEd and
--- FORCEd, and FORCE removes the *owner's* exemption too — so only a superuser or
--- a rolbypassrls role sees rows. Run this as anything else and all DATA checks
--- return 0 rows and fail for a reason that has nothing to do with the schema.
---
--- This is the mirror image of the guard in packages/database/scripts/verify-migrations.sh, which
--- asserts the opposite for its isolation probes.
+-- FORCE RLS removes even the table owner's exemption, so a non-bypassing role
+-- gets 0 rows on every DATA check — a failure unrelated to the schema. Mirror
+-- image of the guard in verify-migrations.sh, which asserts the opposite.
 DO $precheck$
 DECLARE bypasses BOOLEAN;
 BEGIN
@@ -327,9 +308,7 @@ SELECT _check('FR-PAY-005-primary','SCHEMA','payroll',
   'Exactly one primary account per employee is enforced',
   $$SELECT bool_and(n<=1) FROM (SELECT count(*) n FROM employee_bank_accounts
       WHERE is_primary AND is_active GROUP BY employee_id) x$$);
--- The rails are still asked about; the identifiers are now ciphertext
--- (20260830140000_pii_fanout.sql), so presence is what is checkable and
--- presence is what the requirement needs.
+-- Identifiers are now ciphertext, so presence is what's checkable.
 SELECT _check('FR-PAY-005-intl','DATA','payroll',
   'Non-US payment rails represented (IFSC / IBAN / sort code)',
   $$SELECT count(*)>0 FROM employee_bank_accounts
@@ -341,12 +320,8 @@ SELECT _check('PAY-run','DATA','payroll',
 SELECT _check('US-PAY-003','DATA','payroll',
   'Off-cycle payroll runs exist for bonuses or corrections',
   $$SELECT count(*)>0 FROM payroll_runs WHERE run_type='off_cycle'$$);
--- PRE-tax deductions belong in this identity and were missing from it. The
--- check passed for years because every fixture row had
--- total_pretax_deductions = 0.00, so it was asserting a special case rather
--- than the rule — and it only surfaced when the fixture was completed. A
--- payslip with a 401(k) or an EPF contribution would have reconciled wrongly
--- with nothing failing (L48).
+-- pretax_deductions was missing from this identity; passed vacuously for
+-- years since every fixture row had total_pretax_deductions = 0.00 (L48).
 SELECT _check('PAY-math','DATA','payroll',
   'gross = net + taxes + pretax + posttax deductions, for every payroll line',
   $$SELECT bool_and(abs(gross_pay-(net_pay+total_taxes
@@ -746,10 +721,8 @@ SELECT _check('UG-roles','DATA','user-groups',
 -- =============================================================================
 -- CROSS-CUTTING  (product-specification.md, ADRs)
 -- =============================================================================
--- NOTE: the next two are METADATA checks. They prove RLS is switched on, NOT
--- that any policy actually filters — a policy of USING(true) passes both.
--- Behavioural proof lives in packages/database/tests/verify-rls.sql; policy EXPRESSIONS are
--- pinned by db/snapshot/04-policies.txt. Do not read these as isolation tests.
+-- NOTE: the next two are METADATA checks — USING(true) passes both. Real
+-- isolation proof is verify-rls.sql; don't read these as isolation tests.
 SELECT _check('X-rls-all','SCHEMA','cross-cutting',
   'RLS switched on for every table (metadata only — see verify-rls.sh)',
   $$SELECT count(*)=0

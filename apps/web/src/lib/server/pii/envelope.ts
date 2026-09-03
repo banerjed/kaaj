@@ -6,24 +6,13 @@ import {
 } from "node:crypto"
 
 /**
- * AES-256-GCM field encryption.
+ * AES-256-GCM field encryption. Pure and dependency-free — no DB, no env, no
+ * key management (those live in `keys.ts`/`pii.repo.ts`) — encrypted in the
+ * application so plaintext and key never touch Postgres (not `pgcrypto`).
  *
- * Pure and dependency-free on purpose: no database, no environment, no key
- * management. Those live in `keys.ts` and `pii.repo.ts`, so this file can be
- * reasoned about and tested on its own.
- *
- * **Why this is not `pgcrypto`.** Encrypting in Postgres puts the plaintext and
- * the key into the server's memory, its statement log, and `pg_stat_statements`
- * — which is installed on this database. It also means a database compromise
- * yields both halves. Encrypting in the application keeps the key out of
- * Postgres entirely, so a dump, a replica, or a stolen backup is inert.
- * (`pgsodium` is not an option either: Supabase has deprecated it.)
- *
- * **Every ciphertext is bound to where it lives.** The AAD is
- * `tenant | table | column | row`, so a ciphertext lifted from one row and
- * pasted into another fails to authenticate rather than decrypting into the
- * wrong person's record. Without it, a `UPDATE ... SET ssn_ct = (SELECT ...)`
- * would silently move someone's tax identifier onto another employee.
+ * Every ciphertext is bound to `tenant | table | column | row` via AAD, so a
+ * ciphertext moved to another row fails to authenticate rather than decrypting
+ * into the wrong person's record.
  */
 
 /** 96 bits is the GCM-specified nonce size; anything else weakens the mode. */
@@ -32,15 +21,10 @@ const TAG_BYTES = 16
 export const KEY_BYTES = 32
 
 /**
- * The stored shape.
- *
- * `v` is the envelope format. `k` records which MASTER key version was current
- * when the value was written — it is provenance, not a lookup: the field is
- * encrypted with the subject's data key, and `decrypt` never reads `k`. After a
- * master rotation `pii_keys.kek_version` moves to 2 while existing fields still
- * say `k: 1`, and that is correct: nothing about the field changed. There is no
- * data-key version, because rotating a DEK means re-encrypting the fields and
- * would be a different operation entirely.
+ * The stored shape. `k` is the MASTER key version active at write time —
+ * provenance, not a lookup; `decrypt` never reads it, since the field is
+ * encrypted with the subject's data key. No DEK version: rotating a DEK means
+ * re-encrypting the field, a different operation.
  */
 export type Envelope = {
   v: 1

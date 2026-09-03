@@ -24,11 +24,7 @@
     `${(e.preferred_name || e.first_name)[0] ?? ""}${e.last_name[0] ?? ""}`.toUpperCase(),
   )
 
-  /**
-   * Tenure in whole months, from the start date to today or the leaving date.
-   * Calendar arithmetic, not days/30 — "1 year 2 months" has to match what a
-   * person would say.
-   */
+  /** Tenure in whole months via calendar arithmetic, not days/30. */
   const tenure = $derived.by(() => {
     if (!e.start_date) return "—"
     const start = new Date(`${e.start_date}T00:00:00Z`)
@@ -177,9 +173,7 @@
             A raise is a new dated record, never an edit — the history is what
             makes a past payroll reproducible.
           </p>
-          <!-- One place records a pay change: /compensation/[employeeId].
-               This page used to carry a second form doing the same write,
-               which meant two places to keep the audit entry correct. -->
+          <!-- Pay changes are recorded only at /compensation/[employeeId]. -->
           <a
             class="btn btn-primary btn-sm gap-2"
             href={`/compensation/${data.employee.id}`}
@@ -195,10 +189,7 @@
           No effective-dated compensation recorded.
         </p>
       {:else if tab === "Compensation"}
-        <!--
-            History, newest first. Amounts read in this person's own market:
-            an India salary in lakhs even when a New York manager is looking.
-          -->
+        <!-- History, newest first; amounts read in this person's own market. -->
         <div class="overflow-x-auto">
           <table class="table table-sm">
             <thead>
@@ -238,13 +229,7 @@
       {/if}
 
       {#if tab === "Compensation"}
-        <!--
-          The rest of total compensation. Every figure is in the currency it is
-          paid in and formatted in that market's locale — an Indian HRA reads as
-          ₹45,000 whoever is looking (L24). Nothing here is summed into a single
-          "total": adding INR to GBP would require an exchange rate the product
-          deliberately does not invent (BR-FP-003).
-        -->
+        <!-- Never summed to a total — that would need an exchange rate (BR-FP-003). -->
         {#if data.allowances.length > 0}
           <div>
             <h3 class="mt-2 text-sm font-medium">Allowances</h3>

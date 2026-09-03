@@ -1,34 +1,15 @@
 -- =============================================================================
 -- Kaaj — payroll money out of JSON numbers, and a run's state made coherent
 -- =============================================================================
--- Four defects, all found by asking the fixture rather than reading the schema.
+-- Two fixes:
 --
--- 1. MONEY IN JSONB AS JSON NUMBERS, on the largest money surface in the
---    product. `earnings`, `taxes`, `employer_taxes`, `pretax_deductions`,
---    `posttax_deductions` and `taxable_wages` all hold JSON numbers.
+-- 1. earnings/taxes/deductions/taxable_wages held JSON numbers, in violation
+--    of CLAUDE.md § Money (money inside JSONB is a string) — the loss happens
+--    on read, as a float64. money/numeric-not-float can't catch this since it
+--    only reads information_schema.columns; see money/jsonb-is-text instead.
 --
---    Postgres stores a jsonb number exactly, as `numeric`. Every driver then
---    hands it to JavaScript as a float64 — so the loss happens on READ, where
---    nothing looks wrong. CLAUDE.md § Money already says money inside JSONB is
---    a string; this is the rule being broken where it matters most.
---
---    And `earnings.base` EQUALS `gross_pay` on every row: the same money in two
---    places, one exact and one not. That makes it a live precision bug rather
---    than only a rule violation.
---
--- 2. `money/numeric-not-float` could never have caught it. It reads
---    `information_schema.columns`, so a JSONB column is invisible to it by
---    construction. A new invariant walks the registered paths instead —
---    verify-invariants.sql, `money/jsonb-is-text`.
---
--- 3. A RUN THAT PAID NOBODY. PR-2026-01-BONUS-US says employee_count = 1 and
---    total_gross_pay = 2500.00, is marked calculated AND approved, and has zero
---    line rows. Not a mid-creation state — the timestamps are set. The fixture
---    is corrected and an identity added.
---
--- 4. `run_status = 'finalized'` on two runs whose `finalized_at` is NULL. The
---    same shape as onboarding's completed-with-no-date: the status says the
---    money went out and nothing records when.
+-- 2. run_status had no constraint despite gating whether money moves, and two
+--    finalized runs had a NULL finalized_at.
 -- =============================================================================
 
 
@@ -71,17 +52,14 @@ UPDATE payroll_india_salary_structure
 -- 2. A run's state must be coherent
 -- -----------------------------------------------------------------------------
 
--- `run_status` had no constraint while gating whether money moves. An
--- unrecognised value falls through every branch — and the safe-looking default
--- (do nothing) silently skips a payroll.
+-- run_status gates whether money moves; an unrecognised value silently falls
+-- through every branch.
 ALTER TABLE payroll_runs
     ADD CONSTRAINT payroll_runs_status_is_known
     CHECK (run_status IN ('draft', 'calculating', 'calculated', 'approved',
                           'finalized', 'paid', 'cancelled'));
 
--- A status that claims a stage must carry the timestamp for it. Two runs said
--- `finalized` with a NULL finalized_at: the status says the money went out and
--- nothing records when — which is the question an auditor asks first.
+-- A status claiming a stage must carry the timestamp for it.
 UPDATE payroll_runs SET finalized_at = approved_at
  WHERE run_status IN ('finalized', 'paid') AND finalized_at IS NULL;
 
@@ -94,9 +72,7 @@ ALTER TABLE payroll_runs
     AND (run_status NOT IN ('finalized','paid') OR finalized_at IS NOT NULL)
     );
 
--- Separation of duties, at the row rather than the grant. tenant_users already
--- refuses one person holding both hr_admin and payroll_admin; this refuses the
--- other route to the same place — the person who calculated a run approving it.
+-- Separation of duties at the row level: the calculator cannot also approve.
 ALTER TABLE payroll_runs
     ADD CONSTRAINT payroll_runs_calculator_is_not_approver
     CHECK (calculated_by IS NULL OR approved_by IS NULL

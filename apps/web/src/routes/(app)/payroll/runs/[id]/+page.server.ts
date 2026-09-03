@@ -21,10 +21,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     return {
       run,
       lines: await runs.linesFor(tx, run.id),
-      // Two permissions, not one. Whoever calculates a run must not be the
-      // person who approves it — enforced in the database by
-      // payroll_runs_calculator_is_not_approver, and shown here so the page
-      // does not offer a button the action will refuse.
+      // Calculator and approver are separate permissions (DB-enforced too).
       mayRun: can(ctx, "payroll.run"),
       mayApprove: can(ctx, "payroll.approve"),
       // The person who calculated it cannot approve it, whatever they hold.
@@ -66,14 +63,7 @@ function refusal(e: RunRefused) {
   }
 }
 
-/**
- * The change-set every transition records.
- *
- * The header totals are recomputed inside the repository, in the same
- * transaction, so these figures describe the LINES rather than whatever the
- * header claimed before. Money stays a string: a JSON number returns from
- * JSONB as a float64 and this table cannot be corrected (L41).
- */
+/** Change-set for a transition; totals are recomputed from the lines, money as strings (L41). */
 function movement(
   from: runs.RunStatus,
   to: runs.RunStatus,
@@ -87,15 +77,8 @@ function movement(
   }
 }
 
-/**
- * Each action writes its own audit entry, in its own body.
- *
- * Not through a shared helper — `verify-audit-coverage.mjs` reads each
- * action's body separately on purpose, so that one audited action in a file
- * cannot vouch for its neighbours. Delegating the call would satisfy a reader
- * and not the check, which is the right way round: the repetition is the
- * evidence.
- */
+// Each action writes its own audit entry inline — not via a shared helper,
+// since verify-audit-coverage.mjs checks each action's body separately.
 export const actions: Actions = {
   /** The lines are in; the header now describes them. */
   calculate: async ({ locals, params }) => {
@@ -184,11 +167,7 @@ export const actions: Actions = {
     }
   },
 
-  /**
-   * Cancel before finalisation. There is no route back: a cancelled run is
-   * corrected by raising another, the same way an audit entry is corrected by
-   * a new row rather than an edit.
-   */
+  /** Cancel before finalisation — no route back; corrected by raising another run. */
   cancel: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

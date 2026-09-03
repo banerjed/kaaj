@@ -8,15 +8,9 @@ import {
 } from "@kaaj/authz"
 
 /**
- * The authorization check every write action calls.
- *
- * docs/14-access-control.md splits enforcement by question: RLS answers "do
- * these rows exist for me at all", this answers "may I do this to this row".
- * Neither substitutes for the other — a `42501` is a useless error for a form,
- * and an application check has no backstop when a module forgets it.
- *
- * `./check` runs `authz/actions-are-guarded`, which fails any action that
- * writes without calling `can` or `requireCan` first.
+ * The authorization check every write action calls. RLS answers "do these
+ * rows exist for me"; this answers "may I do this to this row" — see
+ * docs/14-access-control.md. `./check` fails any write action that skips it.
  */
 
 export type AuthContext = {

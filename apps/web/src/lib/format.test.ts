@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-/**
- * Intl separates a currency code from the number with a NON-BREAKING space
- * (U+00A0), not U+0020, so a literal " " in an expectation fails with two
- * strings that look identical in the diff. Normalise before comparing.
- */
+/** Intl uses a non-breaking space (U+00A0) before the currency; normalise before comparing. */
 const norm = (s: string) => s.replace(/\u00a0/g, " ")
 import {
   approxMoney,
@@ -17,14 +13,7 @@ import {
   hours,
 } from "./format"
 
-/**
- * Internationalisation, exercised with the three countries the Northwind
- * fixture actually operates in — US, UK and India — using its real values.
- *
- * The India cases are the ones that catch mistakes: the lakh/crore grouping
- * (₹32,00,000, not ₹3,200,000) is wrong under every other locale, and the
- * salaries are large enough that a float64 would start losing precision.
- */
+/** Exercised with the fixture's real US/UK/India values; India catches lakh/crore grouping and float64 precision bugs. */
 
 const US = { locale: "en-US", currency: "USD", timezone: "America/New_York" }
 const UK = { locale: "en-GB", currency: "GBP", timezone: "Europe/London" }
@@ -32,21 +21,17 @@ const IN = { locale: "en-IN", currency: "INR", timezone: "Asia/Kolkata" }
 
 describe("money", () => {
   it("formats each country's real fixture salary in its own currency", () => {
-    // Sarah Johnson, E001
     expect(norm(money("185000.0000", US.currency, US.locale))).toBe(
       "$185,000.00",
     )
-    // James Reid, E006
     expect(norm(money("88000.0000", UK.currency, UK.locale))).toBe("£88,000.00")
-    // Marcus Chen, E002 — Indian grouping puts the separators differently
     const inr = money("3200000.0000", IN.currency, IN.locale)
     expect(inr).toContain("32,00,000")
     expect(inr).toContain("₹")
   })
 
   it("keeps the currency of record when the viewer's locale differs", () => {
-    // A London manager opening an India salary sees rupees, not pounds.
-    // Converting here would invent an exchange rate; BR-FP-003 forbids it.
+    // Never converted — BR-FP-003.
     const asSeenInLondon = money("3200000.0000", IN.currency, UK.locale)
     expect(asSeenInLondon).toContain("₹")
     expect(asSeenInLondon).not.toContain("£")
@@ -58,30 +43,22 @@ describe("money", () => {
   })
 
   it("does not lose precision on values Postgres returns as strings", () => {
-    // numeric(18,4) exceeds float64's exact integer range; the point of
-    // carrying these as strings is that they survive to the formatter.
     expect(money("9007199254740993.00", "USD", "en-US")).toContain(
       "9,007,199,254,740,99",
     )
   })
 
   it("shows an unrecognised currency code instead of a wrong symbol", () => {
-    // Intl accepts any well-formed 3-letter code and uses it verbatim as the
-    // symbol, so this does not throw — which is the behaviour we want: the
-    // unknown code stays visible rather than being rendered as dollars.
     expect(norm(money("100", "XYZ", "en-US"))).toBe("XYZ 100.00")
   })
 
   it("renders absent amounts as a dash, not as zero", () => {
-    // A missing salary and a zero salary mean very different things.
     expect(money(null, "USD", "en-US")).toBe("—")
     expect(money("", "USD", "en-US")).toBe("—")
     expect(money("0", "USD", "en-US")).toBe("$0.00")
   })
   it("refuses a missing currency rather than printing the word", () => {
-    // This rendered `undefined 216000.27` as a take-home figure. An unknown
-    // 3-letter code must still pass through verbatim — that fallback is
-    // deliberate — so the two cases are distinguished, not merged (L45).
+    // Rendered "undefined 216000.27" on a payslip before (L45).
     expect(() =>
       money("216000.27", undefined as unknown as string, "en-IN"),
     ).toThrow(/3-letter currency/)
@@ -91,32 +68,24 @@ describe("money", () => {
 
 describe("money — compact", () => {
   it("abbreviates by each locale's own convention, not a hardcoded scale", () => {
-    // No lakh/crore code exists anywhere in the product; Intl already knows.
     expect(norm(approxMoney("18123432", "USD", "en-US"))).toBe("$18.12M")
     expect(norm(approxMoney("1423323", "INR", "en-IN"))).toBe("₹14.23L")
     expect(norm(approxMoney("18123432", "INR", "en-IN"))).toBe("₹1.81Cr")
   })
 
   it("caps decimals rather than forcing them", () => {
-    // A minimum of 2 would render $950 as "$950.00" and ₹45,000 as "₹45.00K".
-    // `minimumFractionDigits: 0` is set explicitly in format.ts because the
-    // ICU default for compact currency changed between Node 22 and 25 — this
-    // case passed locally and failed in CI on the same commit (L71).
+    // minimumFractionDigits: 0 is explicit — ICU's compact default drifted between Node versions (L71).
     expect(norm(approxMoney("950", "USD", "en-US"))).toBe("$950")
     expect(norm(approxMoney("45000", "INR", "en-IN"))).toBe("₹45K")
   })
 
   it("keeps the currency of record when abbreviating", () => {
-    // Same rule as the full form: a London reader still sees rupees, and still
-    // sees them abbreviated the Indian way.
     const asSeenInLondon = approxMoney("18123432", "INR", "en-IN")
     expect(asSeenInLondon).toContain("Cr")
     expect(asSeenInLondon).toContain("₹")
   })
 
   it("is never used where an exact figure is needed", () => {
-    // Documentation as much as assertion: compact is lossy on purpose.
-    // ₹14.23L is not a number anyone can be paid.
     expect(approxMoney("1423323", "INR", "en-IN")).not.toBe(
       money("1423323", "INR", "en-IN"),
     )
@@ -125,8 +94,6 @@ describe("money — compact", () => {
 
 describe("calendarDate", () => {
   it("formats a DATE column the same calendar day in every timezone", () => {
-    // Marcus Chen started 2024-12-17. Formatted with a local zone instead of
-    // UTC this slips to the 16th for a US viewer — the classic off-by-one.
     for (const locale of [US.locale, UK.locale, IN.locale]) {
       expect(calendarDate("2024-12-17", locale)).toContain("2024")
       expect(calendarDate("2024-12-17", locale)).toMatch(/17/)
@@ -148,14 +115,12 @@ describe("instant", () => {
       "10:00 AM",
     )
     expect(instant(moment, { ...UK, timeFormat: "24h" }, "time")).toBe("15:00")
-    // India is UTC+5:30 — the half-hour offset catches zone maths that assumes
-    // whole hours.
+    // India's UTC+5:30 offset catches zone maths that assumes whole hours.
     expect(instant(moment, { ...IN, timeFormat: "24h" }, "time")).toBe("19:30")
   })
 
   it("honours the tenant's 12/24-hour preference", () => {
     const moment = new Date("2026-08-29T14:00:00Z")
-    // en-GB zero-pads the hour even in 12-hour mode; en-US does not.
     expect(norm(instant(moment, { ...UK, timeFormat: "12h" }, "time"))).toBe(
       "03:00 pm",
     )
@@ -183,7 +148,6 @@ describe("localised", () => {
   })
 
   it("falls back to the same language before giving up (BR-FP-009)", () => {
-    // en-GB has no entry; en-US is closer than the untranslated column.
     expect(localised(i18n, "fallback", "en-GB")).toBe("Northwind Consulting")
   })
 
@@ -206,9 +170,7 @@ describe("number", () => {
 
 describe("a stored locale Intl rejects", () => {
   it("degrades instead of throwing, in every formatter", () => {
-    // firm_locations.locale is written by a form. Before it was validated,
-    // `en_US` — the POSIX spelling — could land there, and RangeError from
-    // Intl would take down every page formatting a figure for that office.
+    // e.g. a stored POSIX-spelled locale like "en_US".
     expect(() => number("1234.5", "en_US")).not.toThrow()
     expect(() => calendarDate("2026-03-07", "en_US")).not.toThrow()
     expect(() => money("1234.50", "USD", "en_US")).not.toThrow()
@@ -226,9 +188,6 @@ describe("hours", () => {
   })
 
   it("does not lose the fourth decimal the way a printed decimal does", () => {
-    // Intl caps fraction digits at 3 by default, so `number()` renders the
-    // stored 6.9333 as "6.933" — neither the stored value nor a recognisable
-    // number. 6.9333h is 6h 56m.
     expect(hours("6.9333", "en-US")).toBe("6h 56m")
     expect(number("6.9333", "en-US")).toBe("6.933")
   })

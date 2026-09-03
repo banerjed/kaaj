@@ -1,12 +1,7 @@
 /**
- * Enumerated values shared by the database, the API and every client.
- *
- * Framework-agnostic on purpose: this must load in a browser, on the server,
- * and under any future mobile runtime.
- *
- * `enumerations.json` is the source of truth. The database is checked against
- * it by verify-invariants.sql, via the SQL fixture that `pnpm build` emits into
- * dist/ — so a value added here and not to a migration fails CI, and vice versa.
+ * Enumerated values shared by the database, API and every client.
+ * `enumerations.json` is the source of truth; `./check` keeps the DB's SQL
+ * fixture (built into dist/) in step with it.
  */
 import enumerations from "./enumerations.json" with { type: "json" }
 

@@ -1,38 +1,14 @@
 -- =============================================================================
 -- Kaaj — row-level visibility for the audit trail
 -- =============================================================================
--- docs/15-row-level-visibility.md.
+-- docs/15-row-level-visibility.md. audit_log carried only tenant isolation, so
+-- any employee could read every entry — including pay changes, once those
+-- started being audited (L47: auditing a value copies it, and the copy needs
+-- the same protection as the original).
 --
--- WHY THIS EXISTS
---
--- `audit_log` carried tenant isolation and nothing else, so every employee
--- could read every entry in the firm. That was tolerable while the trail held
--- leave approvals. It stopped being tolerable the moment pay changes were
--- audited: the entry records
---
---     {"amount": {"from": "139000.00", "to": "148000.00"}}
---
--- and a plain employee could read it for anyone. This is exactly the
--- disclosure L47 describes — a protected value reachable through an
--- unprotected path — arriving by a route nobody had looked at, because the
--- trail was designed as a write and never as a read.
---
--- The lesson generalises: AUDITING A VALUE COPIES IT. Whatever protects the
--- original has to protect the copy, or the trail becomes the leak.
---
--- WHO MAY READ IT
---
---   * Those whose job is to ask the question — HR, payroll, an auditor, and
---     the owner or firm administrator.
---   * The subject themselves: entries ABOUT you, and entries recording what
---     YOU did. GDPR Art. 15 is an access right, and a trail of decisions
---     affecting someone that they may never see is a worse answer than one
---     they can.
---
--- Everyone else sees nothing, which for a table nobody may delete from is the
--- safe default.
---
--- RESTRICTIVE, so it AND-s with tenant isolation rather than widening it.
+-- Readable by HR/payroll/auditor/owner/firm_admin, plus the subject of an
+-- entry and its actor (GDPR Art. 15). Everyone else sees nothing.
+-- RESTRICTIVE, so it narrows tenant isolation rather than widening it.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION app.reads_all_audit() RETURNS BOOLEAN
@@ -56,10 +32,8 @@ GRANT EXECUTE ON FUNCTION app.reads_all_audit() TO app_user;
 CREATE POLICY audit_visibility ON audit_log AS RESTRICTIVE FOR SELECT
 USING (
     (SELECT app.reads_all_audit())
-    -- Entries about you, and entries recording what you did. `entity_id` holds
-    -- the employee id for person-scoped entries; for a location or a policy it
-    -- holds that row's id, which no employee id will match, so those simply do
-    -- not appear.
+    -- entity_id holds the employee id for person-scoped entries; for other
+    -- entities it holds that row's id, which simply won't match.
     OR entity_id = (SELECT app.current_employee_id())
     OR actor_employee_id = (SELECT app.current_employee_id())
 );

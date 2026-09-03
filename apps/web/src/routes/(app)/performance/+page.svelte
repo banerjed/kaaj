@@ -118,8 +118,7 @@
           {/if}
 
           {#if r.manager_assessment_withheld}
-            <!-- Said, not left blank. An empty section reads as "they wrote
-                 nothing about me", which is a different and worse message. -->
+            <!-- Said explicitly, not left blank — an empty section reads as "nothing written". -->
             <div role="status" class="alert alert-info">
               <span class="iconify lucide--lock size-5"></span>
               <span>
@@ -218,8 +217,7 @@
               <p class="text-base-content/70 mt-1 text-xs">
                 For {f.to_name} ·
                 {#if f.is_anonymous}
-                  <!-- Never the author. The repository does not return it, so
-                       there is nothing here to render by mistake. -->
+                  <!-- Repository never returns the author, so there's nothing to leak here. -->
                   <span class="italic">anonymous</span>
                 {:else}
                   {f.from_name ?? "—"}

@@ -9,8 +9,6 @@
 
   let { data, form } = $props()
 
-  // Which field to put the highlight on. The action names them in
-  // `errorFields`; colour alone is not enough, so `aria-invalid` goes with it.
   const err = $derived(fieldErrors(form))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -19,13 +17,9 @@
   )
 
   /**
-   * Flatten the forest into rows carrying their depth, so the table can indent
-   * without nesting tables — a nested <table> per level is unreadable to a
-   * screen reader and impossible to align.
-   *
-   * Roots are anything whose parent is missing from the set, not just anything
-   * with a null parent: a department whose parent was archived still has to
-   * appear, or it vanishes from the page entirely.
+   * Flatten the forest into rows carrying depth, so the table can indent without
+   * nesting tables. A department whose parent code isn't in the set is treated
+   * as a root, so an archived parent doesn't make it vanish from the page.
    */
   type Row = FirmDepartment & { depth: number }
 

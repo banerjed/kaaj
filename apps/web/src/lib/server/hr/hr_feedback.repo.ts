@@ -3,27 +3,13 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_feedback — 360-degree feedback, and the promise not to say who wrote it.
  *
- * **`from_employee_id` is never returned for an anonymous note. To anyone.**
- * The column is populated and correct — that is the whole trap. A page that
- * joins to `employees` and renders the author un-anonymises every anonymous
- * note without erroring, without failing a type check, and without anyone
- * noticing until the person who wrote it finds out. No constraint can express
- * "do not SELECT this column", so it is expressed here, once, and the column
- * is not part of the returned type at all.
+ * `from_employee_id` is never returned for an anonymous note, to anyone —
+ * not even HR. It's excluded from the returned type entirely, not filtered
+ * after fetch, since no constraint can express "do not SELECT this column".
  *
- * Not even HR. An anonymity promise with an exception is a promise the person
- * making it cannot keep, and "HR can see it for abuse investigations" is how
- * every such promise dies. If that capability is ever needed it should be a
- * separate, audited, deliberately-named path — not a field that happens to be
- * present on the ordinary read.
- *
- * `visibility` decides who may read the note at all, and it is a different
- * question from anonymity:
- *
- *   private       the recipient, and HR
- *   manager_only  the recipient's manager, and HR — NOT the recipient. This is
- *                 feedback ABOUT someone, FOR the person who manages them
- *   public        anyone in the firm
+ * `visibility` is a separate question from anonymity: `private` is the
+ * recipient + HR; `manager_only` is the recipient's MANAGER + HR, not the
+ * recipient; `public` is everyone.
  */
 
 export type Feedback = {
@@ -41,13 +27,7 @@ export type Feedback = {
   feedback_date: string | null
 }
 
-/**
- * The author's name, resolved in SQL and NULL for an anonymous note.
- *
- * Done in the query rather than after it so the id never leaves the database.
- * A repository that fetched the id and dropped it in TypeScript would still
- * have put it in a query result, a log line and a heap dump.
- */
+/** The author's name, resolved in SQL and NULL for an anonymous note — the id never leaves the database. */
 const SELECT = `
   SELECT f.id, f.feedback_id, f.to_employee_id,
          te.first_name || ' ' || te.last_name AS to_name,
@@ -88,13 +68,7 @@ export async function visibleTo(
   `
 }
 
-/**
- * Notes this person has received and may see.
- *
- * `manager_only` is excluded even though it is about them: it was written for
- * whoever manages them, and showing it here would make every such note a
- * message to its subject — which is not what the author chose.
- */
+/** Notes this person has received and may see — excludes `manager_only`, which was written for their manager, not them. */
 export async function receivedBy(
   tx: Tx,
   employeeId: string,

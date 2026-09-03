@@ -8,16 +8,9 @@ import { allEnumerations } from "@kaaj/enums"
 import type { EmployeeInput } from "./employees.repo"
 
 /**
- * Reading and validating the employee form.
- *
- * Shared by the create and edit actions because the rules are identical, and
- * two copies would drift — one of them would end up accepting something the
- * other rejects, which is how a record becomes unsaveable in one place and
- * unreadable in another.
- *
- * Enum values come from @kaaj/enums, which ./check verifies against the
- * Postgres types. A hand-typed list here would pass review and then fail at the
- * INSERT with `invalid input value for enum`.
+ * Reading and validating the employee form. Shared by create and edit so the
+ * rules can't drift into disagreement. Enum values come from @kaaj/enums,
+ * kept in step with Postgres by `./check`.
  */
 const enums = allEnumerations()
 const valuesOf = (name: string) => enums.get(name) ?? []
@@ -46,14 +39,8 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
   const errorFields: string[] = []
   const f = new FormReader(data)
 
-  // These columns are `text`, so Postgres will not stop a pasted megabyte.
-  // The caps are generous; the point is that there is one (L34).
-  //
-  // Every one of these is read HERE, not inline in the returned object: the
-  // object is built after the gate below, so a rejection raised there would
-  // arrive too late to be reported and the field would save as NULL with a
-  // 303. That is L33's failure mode, and it is easy to reintroduce by writing
-  // `f.text(...)` at the point of use.
+  // Caps are generous; the point is that there is one (L34). Read here, not
+  // inline in the returned object, or a rejection arrives too late to report (L33).
   const shortText = { max: 100 } as const
   const managerId = f.uuid("manager_id")
   const middleName = f.text("middle_name", shortText)
@@ -65,8 +52,7 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
   const timezone = f.timezone("timezone")
   const introduction = f.text("introduction", { max: 5000 })
 
-  // Names go through @kaaj/validation rather than a trim: it handles the
-  // apostrophes, hyphens and non-Latin scripts that a naive check rejects.
+  // @kaaj/validation, not a trim — handles apostrophes, hyphens, non-Latin scripts.
   const firstResult = sanitizeName(formString(data, "first_name"))
   if (!firstResult.valid) errorFields.push("first_name")
   const lastResult = sanitizeName(formString(data, "last_name"))
@@ -86,16 +72,11 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
   const employeeId = formString(data, "employee_id").trim().toUpperCase()
   if (!/^[A-Z0-9-]{1,50}$/.test(employeeId)) errorFields.push("employee_id")
 
-  // Through the reader, never a regex. `/^\d{4}-\d{2}-\d{2}$/` is a SHAPE
-  // check, and 2026-02-31 has the right shape — postgres.js then serialises it
-  // through a JS Date, which rolls it forward and stores 2026-03-03 with no
-  // error and a 303. Measured, not assumed (L67). `f.date` round-trips the
-  // parse, so the day has to be a day that exists.
+  // f.date, never a shape regex — a regex accepts 2026-02-31 (L67).
   const startDate = f.date("start_date", { required: true })
   const endDate = f.date("end_date")
   if (endDate && startDate && endDate < startDate) {
-    // Leaving before starting is not a typo the database will catch: both are
-    // valid DATEs and there is no CHECK across the pair.
+    // No CHECK across the pair — both are valid DATEs individually.
     errorFields.push("end_date")
   }
 
@@ -109,8 +90,6 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
     errorFields.push("employment_type")
   }
 
-  // A leaver needs a leaving date, or the directory shows someone inactive
-  // with no record of when they went.
   const gone = status === "terminated" || status === "retired"
   if (gone && !endDate) errorFields.push("end_date")
 
@@ -178,8 +157,6 @@ export function parseEmployeeForm(data: FormData): ParsedEmployeeForm {
       job_level: jobLevel,
       location_code: locationCode,
       timezone,
-      // uuid: an arbitrary string here was `invalid input syntax for type
-      // uuid`, i.e. an unhandled 500 rather than a field error.
       manager_id: managerId,
       pay_frequency: payFrequency,
       introduction,

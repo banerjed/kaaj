@@ -1,23 +1,12 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * projects + tasks — module-project-management-v2.md.
+ * projects + tasks — money is a string and sums happen in SQL. `task_count`
+ * and `completed_task_count` are denormalised counters; this repository also
+ * counts the tasks directly, so a drifted counter is visible, not believed.
  *
- * **Money is a string and every sum happens in SQL.** `budget`, `actual_cost`,
- * `total_billed` and `hourly_rate` are NUMERIC; adding them in JavaScript is
- * the float64 round trip, and once they are correctly typed as strings it
- * becomes silent concatenation with no type error.
- *
- * `task_count` and `completed_task_count` are DENORMALISED counters kept on
- * the project row. This repository reads them AND counts the tasks, so a
- * project claiming more tasks than it has is visible rather than believed —
- * the same shape as `payroll_runs.employee_count` against its lines. A counter
- * nobody checks drifts, and it drifts into a progress bar that looks fine.
- *
- * These tables carry no row-visibility policy: a project is firm business
- * data, not data about a person, and every employee may see the board. The
- * `client_visible` flag is a DIFFERENT boundary — it governs what a client
- * sees through the portal, which is not built. See `clientVisibleOnly` below.
+ * No row-visibility policy — a project is firm business, every employee may
+ * see the board. `client_visible` is a different boundary; see `clientVisibleOnly`.
  */
 
 export type ProjectRow = {
@@ -72,8 +61,7 @@ const SELECT = `
          (SELECT count(*)::int FROM tasks t
            WHERE t.project_id = p.id AND t.status = 'done')
            AS actual_completed_count,
-         -- Overdue means past its date AND not finished. A done task with a
-         -- date in the past is simply a task that was delivered.
+         -- Past due AND not finished — a done task past its date was just delivered.
          (SELECT count(*)::int FROM tasks t
            WHERE t.project_id = p.id
              AND t.due_date < CURRENT_DATE
@@ -89,9 +77,7 @@ export async function list(
   filters: { status?: string; health?: string; clientId?: string } = {},
 ): Promise<ProjectRow[]> {
   const { status = "", health = "" } = filters
-  // NULL rather than '' for the uuid: SQL does not short-circuit, so
-  // `'' = '' OR id = ''::uuid` evaluates the cast anyway and raises
-  // `invalid input syntax for type uuid` (L37).
+  // NULL rather than '' for the uuid cast (L37).
   const clientId = filters.clientId || null
   return tx<ProjectRow[]>`
     ${tx.unsafe(SELECT)}
@@ -153,19 +139,11 @@ export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
            t.actual_hours::text        AS actual_hours,
            t.progress_percentage::text AS progress_percentage,
            t.is_billable,
-           -- Decided in SQL, against the DATABASE's date. Computing it in the
-           -- browser would use the viewer's clock, so the same task would be
-           -- overdue in Auckland and not in New York.
+           -- Decided against the DATABASE's date, not the viewer's clock.
            (t.due_date < CURRENT_DATE AND t.status <> 'done') AS is_overdue
       FROM tasks t
-      -- tasks.assigned_to is TEXT holding a uuid, not a uuid column, and it
-      -- carries no foreign key. Casting employees.id to text rather than
-      -- assigned_to to uuid keeps a malformed value from raising
-      -- 'invalid input syntax for type uuid' and taking the whole board down;
-      -- it simply matches nothing, and the task shows as unassigned.
-      --
-      -- (No backticks in SQL comments here: this is inside a JS template
-      -- literal, where a backtick ends the string.)
+      -- assigned_to is TEXT with no FK; cast employees.id to text (not the
+      -- reverse) so a malformed value just matches nothing instead of raising.
       LEFT JOIN employees e ON e.id::text = t.assigned_to
      WHERE t.project_id = ${projectId}::uuid
      ORDER BY t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number
@@ -173,14 +151,8 @@ export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
 }
 
 /**
- * The client-facing slice, filtered in SQL.
- *
- * Not used yet — the Client Portal is not built — but written here so the
- * boundary exists before a caller needs it. `client_visible` governs
- * disclosure, so it is resolved WHERE THE DATA IS READ and never handed to a
- * page to honour: a repository that fetches everything and filters afterwards
- * has already put the private rows in a result set, a log line and a heap
- * dump (L39).
+ * The client-facing slice, filtered in SQL — not used yet (no Client Portal),
+ * but the boundary is resolved here where the data is read, not left to a page (L39).
  */
 export async function clientVisibleOnly(
   tx: Tx,
@@ -199,11 +171,8 @@ export async function clientVisibleOnly(
 // Writes
 // ---------------------------------------------------------------------------
 //
-// `projects` and `tasks` are plain `text` for status, priority and health —
-// no enum, no CHECK constraint. The database will accept any string at all, so
-// these lists are the only thing standing between a crafted POST and a board
-// column nobody can render. They are exported so the pages read them from here
-// rather than keeping a second copy that drifts.
+// status/priority/health are plain `text`, no enum or CHECK — these lists ARE
+// the constraint. Exported so pages import them rather than keeping a second copy.
 
 /** The values `tasks.status` may hold. `done` is what "completed" counts. */
 export const TASK_STATUSES = [
@@ -217,14 +186,7 @@ export type TaskStatus = (typeof TASK_STATUSES)[number]
 
 export const TASK_PRIORITIES = ["low", "medium", "high", "urgent"] as const
 
-/**
- * The values `projects.status` may hold.
- *
- * `draft` is here because it is the COLUMN DEFAULT, and a created project
- * lands on it. The filter list omitted it while nothing could create a
- * project, which was harmless right up until something could — a new project
- * would have been unreachable from every filter on the list page.
- */
+/** The values `projects.status` may hold. `draft` is the column default — omitting it made new projects unreachable from every filter (L57). */
 export const PROJECT_STATUSES = [
   "draft",
   "planning",
@@ -237,13 +199,7 @@ export const PROJECT_STATUSES = [
 export const PROJECT_HEALTHS = ["on_track", "at_risk", "off_track"] as const
 export const PROJECT_PRIORITIES = ["low", "medium", "high", "urgent"] as const
 
-/**
- * A write refused for a reason the page can put on a field.
- *
- * Same shape as `RaiseRefused` in compensation: a domain refusal is not an
- * exception the user should see as a 500, and it is not a validation failure
- * the FormReader could have caught either.
- */
+/** A write refused for a reason the page can put on a field — same shape as `RaiseRefused` in compensation. */
 export class ProjectWriteRefused extends Error {
   constructor(
     readonly reason:
@@ -255,23 +211,10 @@ export class ProjectWriteRefused extends Error {
 }
 
 /**
- * Bring `task_count` and `completed_task_count` back in line with the tasks.
- *
- * **Recomputed, never incremented.** An increment is correct only if every
- * writer remembers it and no write ever fails halfway; a recount is correct
- * whatever happened before it, so a counter that has already drifted is
- * repaired by the next write rather than carried forward. The cost is one
- * extra scan of a handful of rows per task write, which is nothing at SMB
- * scale and is the reason this cannot be the source of a wrong progress bar.
- *
- * `status = 'done'` must stay IDENTICAL to the definition of
- * `actual_completed_count` in `SELECT` above. If the two ever disagree the
- * page shows a project as both complete and not, and `staleCounters()` — which
- * is what `projects.test.ts` asserts is empty — is what catches it.
- *
- * Called inside the SAME transaction as the task write, always. Written
- * afterwards it is a second transaction that can be lost, and the counter is
- * then wrong until someone notices a progress bar that looks fine.
+ * Bring `task_count` and `completed_task_count` back in line with the tasks —
+ * recomputed, never incremented (L58). `status = 'done'` here must match
+ * `actual_completed_count` in SELECT above, or the two disagree silently
+ * (caught by `staleCounters()`). Always called in the same transaction as the task write.
  */
 async function refreshTaskCounters(tx: Tx, projectId: string): Promise<void> {
   await tx`
@@ -288,12 +231,9 @@ async function refreshTaskCounters(tx: Tx, projectId: string): Promise<void> {
 }
 
 /**
- * The next `T-nnn` / `PRJ-nnn`, from the numbers already in use.
- *
- * Two writers racing here both read the same maximum and the second INSERT
- * hits `UNIQUE (tenant_id, task_id)`. That is the right outcome — a refusal,
- * not two tasks sharing a number — and the caller turns it into
- * `number_taken` rather than a 500.
+ * The next `T-nnn` / `PRJ-nnn`, from the numbers already in use. A race
+ * between two writers hits the UNIQUE constraint — a refusal, not two tasks
+ * sharing a number — and the caller turns it into `number_taken`.
  */
 async function nextNumber(
   tx: Tx,
@@ -324,14 +264,7 @@ export type NewTask = {
   description: string | null
 }
 
-/**
- * Add a task to a project, and keep the project's counters true.
- *
- * `created_at` and `updated_at` are `NOT NULL` with **no DEFAULT** on this
- * table, so both are set explicitly. Omitting them is a null-violation at
- * runtime rather than a row with a sensible timestamp — worth knowing before
- * writing the next INSERT here.
- */
+/** Add a task to a project, and keep the project's counters true. `created_at`/`updated_at` have no DEFAULT — must be set explicitly. */
 export async function createTask(
   tx: Tx,
   tenantId: string,
@@ -374,14 +307,7 @@ export async function createTask(
   }
 }
 
-/**
- * Move a task to another status.
- *
- * The three fields that describe completion move TOGETHER — status, the date,
- * and the progress figure. Leaving `completed_date` set on a task pulled back
- * out of `done` is how a board ends up with a task that is open and finished
- * at once, and it is the sort of thing no error reports.
- */
+/** Move a task to another status — status, completed_date and progress move together, or a task can read as both open and finished. */
 export async function setTaskStatus(
   tx: Tx,
   taskId: string,
@@ -435,16 +361,7 @@ export type NewProject = {
   description: string | null
 }
 
-/**
- * Create a project.
- *
- * `budget` and `hourly_rate` arrive as STRINGS and are cast in SQL. They are
- * `numeric(18,4)`, they reach an invoice, and a float64 round trip on the way
- * in cannot be recovered downstream by any amount of rounding.
- *
- * Counters start at 0 and are then the business of `refreshTaskCounters`
- * alone — nothing else writes them.
- */
+/** Create a project. `budget`/`hourly_rate` arrive as strings, cast in SQL. Counters start at 0; only `refreshTaskCounters` writes them after. */
 export async function createProject(
   tx: Tx,
   tenantId: string,
@@ -496,14 +413,7 @@ export type ProjectEdit = {
   hourly_rate: string | null
 }
 
-/**
- * Update a project, returning what the audited fields WERE.
- *
- * The old values are read inside this transaction rather than by the caller
- * beforehand: a trail that records only what a value became has lost the half
- * an auditor asks about, and reading it in a separate query is a window in
- * which it can change.
- */
+/** Update a project, returning what the audited fields WERE — read inside this transaction, not by the caller beforehand, to avoid a race. */
 export async function updateProject(
   tx: Tx,
   id: string,

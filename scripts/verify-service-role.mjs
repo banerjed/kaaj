@@ -1,24 +1,9 @@
 #!/usr/bin/env node
 /**
- * The service-role client is reachable from a committed list of files, and
- * from nowhere else.
- *
- * `PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely — every policy in
- * `supabase/migrations/`, every tenant predicate, every row-visibility rule
- * added since. It was attached to `event.locals` on every request and declared
- * on `App.Locals`, which put it one destructure away from any handler in the
- * product and made `locals: { supabaseServiceRole }` look like ordinary
- * request state rather than the thing that turns tenant isolation off.
- *
- * It is now imported, and importing is a diff a reviewer sees. This step is
- * what keeps that true: a new importer fails until somebody adds it here with
- * a reason, and removing a justified one fails too. A committed literal, like
- * every other exemption register in this repo — a pattern-based rule would
- * silently absorb the next call site, which is exactly what it exists to stop.
- *
- * What it does NOT check: whether a permitted file uses the client correctly.
- * That is a review question. This proves only that the list of files able to
- * ask the question is the list somebody agreed to.
+ * `PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely and is reachable only
+ * from a committed list of files, each with a reason — a new importer fails
+ * until added here. Does not check whether a permitted file uses the client
+ * correctly, only that the list of who may ask is agreed on.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
@@ -28,12 +13,9 @@ const SCAN = ["apps/web/src"]
 const MODULE = "$lib/server/supabase_service_role"
 
 /**
- * Files allowed to reach past RLS, each with the reason.
- *
- * Every one of these is SaaS-starter billing and account plumbing that acts on
- * `auth.users` and Stripe records — rows that have no `tenant_id` and so no
- * policy to satisfy. No route under `(app)` is on this list, and a product
- * feature that thinks it needs to be is a modelling question first.
+ * Files allowed to reach past RLS. All billing/account plumbing acting on
+ * auth.users or Stripe (no tenant_id, so no policy to satisfy) — no (app)
+ * route belongs on this list.
  */
 const PERMITTED = new Map([
   [
@@ -58,13 +40,7 @@ const PERMITTED = new Map([
   ],
 ])
 
-/**
- * Comments stripped before scanning.
- *
- * Without this the rule matched its own explanation: the note on `App.Locals`
- * describing why the client is NOT there contains the identifier, and the
- * check reported the file that documents the rule as the file breaking it.
- */
+/** Comments stripped first, or a comment mentioning the identifier would trip the rule. */
 function code(src) {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, "")

@@ -84,9 +84,7 @@
         </table>
       </div>
 
-      <!-- The reconciliation, spelled out. Exact figures throughout: this is a
-           document someone checks against a bank statement, so nothing here
-           may be abbreviated. -->
+      <!-- Exact figures only — checked against a bank statement. -->
       <dl
         class="border-base-200 ms-auto grid w-full max-w-sm gap-1 border-t pt-3 text-sm"
       >

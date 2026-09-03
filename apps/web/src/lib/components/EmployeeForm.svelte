@@ -2,11 +2,7 @@
   import { timezoneOptions } from "$lib/firm-profile/regional"
   import { fieldErrors } from "$lib/form-errors"
 
-  /**
-   * One form for creating and editing. The alternative — two nearly-identical
-   * forms — drifts field by field until each accepts something the other does
-   * not, which is how a record becomes editable in one place and not the other.
-   */
+  /** One form for creating and editing, so the two paths cannot drift apart field by field. */
   let {
     employee = null,
     departments,
@@ -40,9 +36,7 @@
   const value = (key: string) => (employee?.[key] as string | null) ?? ""
   const label = (v: string) => v.replaceAll("_", " ")
 
-  // Choosing an office proposes its timezone. A person in the Bangalore office
-  // on America/New_York would have every timestamp read wrong, and nothing
-  // else in the product would flag it.
+  // Choosing an office proposes its timezone, so timestamps aren't read wrong.
   let locationCode = $state(value("location_code"))
   let timezone = $state(value("timezone"))
   const onLocationChange = (code: string) => {

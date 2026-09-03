@@ -9,12 +9,7 @@
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  /**
-   * Each person's pay and start date read in the locale of THEIR office, not
-   * the firm's — an INR salary in lakhs, a UK start date day-first. Same rule
-   * as the rest of the product (L24); it matters most here, where three
-   * countries appear in one table.
-   */
+  /** Pay and dates render in each person's OWN office locale, not the firm's (L24). */
   const officeLocale = (code: string | null) =>
     data.locations.find((l) => l.location_code === code)?.locale ?? tenantLocale
 

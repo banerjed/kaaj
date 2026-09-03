@@ -2,16 +2,8 @@ import { dev } from "$app/environment"
 
 /**
  * Locale-aware formatting, bound to the TENANT's settings rather than the
- * browser's.
- *
- * This is the whole of the product's i18n surface for numbers, money, dates and
- * times, and it lives in one file because the alternative — `toLocaleString()`
- * scattered through components — silently picks up the viewer's locale. A
- * London manager reviewing an India payslip must see the same figure the
- * employee sees, in the currency it was paid in. That is a correctness rule
- * (module-firm-profile.md § BR-FP-003/004/006), not a presentation preference.
- *
- * Client-safe: used by both `load` and components.
+ * browser's — the whole product's i18n surface for numbers, money, dates and
+ * times (BR-FP-003/004/006). Client-safe: used by both `load` and components.
  */
 
 export type FormatContext = {
@@ -37,18 +29,9 @@ function cached<T extends Intl.NumberFormat | Intl.DateTimeFormat>(
 }
 
 /**
- * Money, EXACT, in the currency it is denominated in — never converted.
- *
- * This is the default and should be the overwhelming majority of call sites.
- * For an abbreviated figure use `approxMoney`, which is a separate function on
- * purpose — see the note there.
- *
- * `amount` is a string because Postgres returns NUMERIC as one: the salaries
- * here run to 3,200,000.0000 and `numeric(18,4)` exceeds what a float64 holds
- * exactly. Parsing happens once, here, at the point of display.
- *
- * Fraction digits come from the currency itself, so JPY shows none and USD two,
- * without a table of special cases.
+ * Money, EXACT, in the currency it is denominated in — never converted. The
+ * default; use `approxMoney` for an abbreviated figure. `amount` is a string
+ * because Postgres NUMERIC exceeds float64 precision.
  */
 export function money(
   amount: string | number | null | undefined,
@@ -60,13 +43,8 @@ export function money(
   const value = typeof amount === "string" ? Number(amount) : amount
   if (!Number.isFinite(value)) return "—"
 
-  // A MISSING currency is a caller bug, not an unknown currency, and the two
-  // must not share a fallback: the fallback below is `${currency} ${value}`,
-  // which rendered the word "undefined" next to a real take-home figure on a
-  // payslip (L45). Loud in development so it is found on the page that shows
-  // it. In production the amount is still shown, but UNLABELLED — which
-  // contradicts "currency travels with the amount" (BR-FP-003) and is accepted
-  // only as the lesser failure against blanking the figure entirely.
+  // Missing currency is a caller bug, not an unknown one — throw loudly in
+  // dev rather than render "undefined" on a payslip (L45).
   if (typeof currency !== "string" || !/^[A-Za-z]{3}$/.test(currency)) {
     if (dev) {
       throw new Error(
@@ -88,47 +66,26 @@ export function money(
           ...(options.compact
             ? {
                 notation: "compact",
-                // A cap, not a minimum: 18,123,432 renders as $18.12M while
-                // 950 stays $950 rather than becoming $950.00.
+                // Cap, not a minimum, so 950 stays $950 not $950.00.
                 maximumFractionDigits: 2,
-                // Stated, not inherited. `style: "currency"` takes its MINIMUM
-                // from the currency (USD -> 2), and whether compact notation
-                // overrides that is an ICU judgement that has changed between
-                // versions: this rendered "$950" on Node 25 and "$950.00" on
-                // Node 22, so the suite passed locally and failed in CI on the
-                // same commit. Naming the minimum removes the dependence.
+                // Stated explicitly — ICU's inherited minimum differs across
+                // Node versions ("$950" vs "$950.00" for the same input).
                 minimumFractionDigits: 0,
               }
             : {}),
         }),
     ).format(value) as string
   } catch {
-    // Only a MALFORMED code throws — Intl accepts any well-formed 3-letter one
-    // and uses it verbatim as the symbol, which is what we want (an unknown
-    // code stays visible rather than being rendered as dollars).
+    // Only a malformed code throws; keep an unknown code visible.
     return `${currency} ${value}`
   }
 }
 
 /**
- * Money, ABBREVIATED, by the locale's own convention.
- *
- * There is no lakh/crore code anywhere in this file — Intl already knows:
- *
- *     en-US  18,123,432  ->  $18.12M
- *     en-IN   1,423,323  ->  ₹14.23L      (lakh)
- *     en-IN  18,123,432  ->  ₹1.81Cr      (crore)
- *     ja-JP  18,123,432  ->  ￥1812.34万   (man)
- *
- * FOR SCALE, NEVER FOR ACTION. Dashboards, chart axes, summary tiles, "total
- * headcount cost" — yes. Payslips, invoice lines, salary bands, tax figures,
- * anything reconciled against a bank statement or acted on — never.
- * `₹14.23L` is not a number you can pay someone.
- *
- * This exists as its own function rather than `money(..., { compact: true })`
- * so the choice is legible at the CALL SITE. `approxMoney` on a payslip line
- * reads wrong to a reviewer; a `compact: true` buried in an options object does
- * not. The rule is in CLAUDE.md § Money.
+ * Money, ABBREVIATED, by the locale's own convention (Intl handles lakh/crore
+ * etc. natively). For scale only — dashboards, chart axes — never for a
+ * payslip, invoice, or anything reconciled against a bank statement. See
+ * CLAUDE.md § Money.
  */
 export function approxMoney(
   amount: string | number | null | undefined,
@@ -147,24 +104,16 @@ export function number(value: number | string | null, locale: string): string {
       n,
     ) as string
   } catch {
-    // A stored locale Intl rejects — `en_US`, the POSIX spelling — is a
-    // RangeError, and one bad row would take down every page that formats a
-    // figure for that office. The form refuses these now; rows written before
-    // it did are still out there.
+    // A malformed stored locale (e.g. `en_US`) is a RangeError; degrade
+    // rather than take down the page.
     return String(n)
   }
 }
 
 /**
- * A duration held as decimal hours — `total_hours`, `overtime_hours`.
- *
- * Rendered as hours and minutes, which is the unit a timesheet is read in and
- * the unit a dispute is settled in. Printing the decimal instead invites
- * `Intl`'s default three-fraction-digit cap to quietly turn `6.9333` into
- * `6.933`, which is neither the stored value nor a number anyone recognises.
- *
- * The column is `numeric(18,4)`, so the value arrives as a string. It is parsed
- * once, here, at the point of display — never for arithmetic.
+ * A duration held as decimal hours — `total_hours`, `overtime_hours` —
+ * rendered as `7h 45m`. Printing the raw decimal lets Intl's fraction-digit
+ * cap turn `6.9333` into `6.933`, a number nobody recognises.
  */
 export function hours(
   value: string | number | null | undefined,
@@ -186,12 +135,8 @@ export function hours(
 }
 
 /**
- * A calendar date — `start_date`, `date` on a holiday.
- *
- * These columns are DATE, not TIMESTAMPTZ: they carry no time and no zone. A
- * hire date of 2025-03-07 is that day everywhere, so it is formatted in UTC.
- * Passing a local timezone here is the classic off-by-one, where a London user
- * sees an India hire date shift by a day.
+ * A calendar date — `start_date`, `date` on a holiday. DATE columns carry no
+ * zone, so this formats in UTC; a local timezone here off-by-ones the date.
  */
 export function calendarDate(
   value: string | Date | null | undefined,
@@ -208,8 +153,6 @@ export function calendarDate(
         new Intl.DateTimeFormat(locale, { dateStyle: style, timeZone: "UTC" }),
     ).format(date) as string
   } catch {
-    // Same guard as `number()`: ISO is wrong-looking but readable, and far
-    // better than a 500 on the whole page.
     return date.toISOString().slice(0, 10)
   }
 }
@@ -243,12 +186,8 @@ export function instant(
 }
 
 /**
- * The `*_i18n` JSONB columns, resolved against the viewer's locale.
- *
- * Falls back down the chain the spec describes (BR-FP-009): exact match, then
- * the base language, then the plain column. `en-GB` therefore reads an `en-US`
- * translation before giving up — better than showing a French name to a
- * British user because `en-GB` happened to be absent.
+ * The `*_i18n` JSONB columns, resolved against the viewer's locale: exact
+ * match, then base language, then the plain column fallback (BR-FP-009).
  */
 export function localised(
   i18n: Record<string, string> | null | undefined,
@@ -287,20 +226,8 @@ export function currentTimeIn(
 
 /**
  * The locale a given currency should be formatted in, taken from the office
- * that uses it.
- *
- * An INR band is what the Bangalore office pays, so it reads correctly only in
- * `en-IN`: ₹18,00,000 (lakh grouping), not ₹1,800,000. Formatting every
- * currency in the tenant's default locale gets the symbol right and the
- * grouping wrong, which looks fine to a reader who does not use that currency
- * and wrong to everyone who does.
- *
- * `firm_locations.locale` is the per-office override the schema already
- * carries. Falls back to the tenant default for a currency no office uses.
- *
- * NOTE: the spec says "formatted per USER's locale", but no per-user locale
- * column exists anywhere in the schema — see docs/10-lessons-learned.md L24.
- * Market locale is the closest correct thing until that gap is closed.
+ * that uses it — grouping (e.g. INR lakh) is wrong if formatted in the
+ * tenant's default locale instead. Falls back to the tenant default. See L24.
  */
 export function localeForCurrency(
   locations: { currency: string | null; locale: string | null }[],

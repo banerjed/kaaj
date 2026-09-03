@@ -5,11 +5,8 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 
 /**
- * /onboarding — module-hr.md § Onboarding.
- *
- * Read-only for this slice. Generating a plan for a hire is a write, and it
- * should record WHICH template was chosen and why — a plan whose provenance is
- * lost cannot be explained when someone asks why a hire missed a step.
+ * /onboarding — module-hr.md § Onboarding. Read-only for now; generating a plan
+ * is a future write and must record which template was chosen.
  */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")

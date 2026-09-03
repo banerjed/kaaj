@@ -1,27 +1,14 @@
 /**
- * The product's identity, in ONE place.
- *
- * `WebsiteName` was still the CMSaasStarter default long after the fork, so
- * the public site served `<title>SaaS Starter</title>` and put that name in
- * its nav — while the application area hardcoded "Kaaj" in thirty-one separate
- * files. Two names for one product, and the wrong one was the user-facing one.
- *
- * Nothing may spell the product name literally. `PageHead` composes every
- * document title from this, `Logo` and `Footer` render it, and `./check`'s
+ * The product's identity, in ONE place — nothing else may spell it literally.
+ * `PageHead`, `Logo` and `Footer` render from here; `./check`'s
  * `product name is not hardcoded` step fails on a new literal.
  */
 
 export const WebsiteName: string = "Kaaj"
 
 /**
- * Used by the sitemap, the marketing page's structured data, and the links in
- * transactional email.
- *
- * STILL THE TEMPLATE'S DOMAIN. It is a deployment fact rather than a naming
- * one — docs/12-beta-deployment.md has not chosen a host yet — and inventing a
- * plausible URL here would put a wrong link in a real email and a wrong origin
- * in a sitemap, which is worse than an obviously unset one. Set it when the
- * domain exists.
+ * Used by the sitemap, structured data, and transactional email links. Still
+ * the template's domain — no host chosen yet (docs/12-beta-deployment.md).
  */
 export const WebsiteBaseUrl: string = "https://saasstarter.work"
 

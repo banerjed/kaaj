@@ -44,9 +44,7 @@ export const actions = {
     if (!email || email === "") {
       validationError = "An email address is required"
     }
-    // Dead simple check -- there's no standard here (which is followed),
-    // and lots of errors will be missed until we actually email to verify, so
-    // just do that
+    // No real validation standard here; we verify by email anyway.
     else if (!email.includes("@")) {
       validationError = "A valid email address is required"
     }
@@ -58,8 +56,7 @@ export const actions = {
       })
     }
 
-    // Supabase does not change the email until the user verifies both
-    // if 'Secure email change' is enabled in the Supabase dashboard
+    // With 'Secure email change' enabled in Supabase, both old and new addresses must verify before this takes effect.
     const { error } = await supabase.auth.updateUser({ email: email })
 
     if (error) {
@@ -141,9 +138,7 @@ export const actions = {
       })
     }
 
-    // Check current password is correct before updating, but only if they didn't log in with "recover" link
-    // Note: to make this truly enforced you need to contact supabase. See: https://www.reddit.com/r/Supabase/comments/12iw7o1/updating_password_in_supabase_seems_insecure/
-    // However, having the UI accessible route still verify password is still helpful, and needed once you get the setting above enabled
+    // Verify current password first, unless this is a recovery-link session.
     if (!isRecoverySession) {
       const { error } = await supabase.auth.signInWithPassword({
         email: user?.email || "",
@@ -255,7 +250,6 @@ export const actions = {
       })
     }
 
-    // To check if created or updated, check if priorProfile exists
     const { data: priorProfile, error: priorProfileError } = await supabase
       .from("profiles")
       .select(`*`)
@@ -284,7 +278,6 @@ export const actions = {
       })
     }
 
-    // If the profile was just created, send an email to the user and admin
     const newProfile =
       priorProfile?.updated_at === null && priorProfileError === null
     if (newProfile) {
@@ -293,7 +286,6 @@ export const actions = {
         body: `Profile created by ${session.user.email}\nFull name: ${fullName}\nCompany name: ${companyName}\nWebsite: ${website}`,
       })
 
-      // Send welcome email
       await sendUserEmail({
         user: session.user,
         subject: "Welcome!",

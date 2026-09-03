@@ -2,14 +2,7 @@ import { describe, expect, it } from "vitest"
 import { getActivatedItemParentKeys, visibleMenuItems } from "./helpers"
 import type { ISidebarMenuItem } from "./SidebarMenuItem.svelte"
 
-/**
- * The sidebar helpers.
- *
- * `visibleMenuItems` shipped with no tests at all. It is NOT access control —
- * every load and action checks for itself — but it decides what the product
- * appears to contain, and getting it wrong either offers a link that answers
- * 403 or hides a page someone is entitled to.
- */
+/** The sidebar helpers. Not access control, but wrong output offers a 403 link or hides an entitled page. */
 
 const MENU: ISidebarMenuItem[] = [
   { id: "open", label: "Open" },
@@ -70,9 +63,7 @@ describe("visibleMenuItems", () => {
   })
 
   it("does not mutate the menu it was given", () => {
-    // The module-level appMenuItems array is shared across every request in
-    // the process. Mutating it would leak one viewer's permissions into the
-    // next viewer's sidebar — a cross-user leak from a nav helper.
+    // appMenuItems is a module-level array shared across requests.
     const before = JSON.stringify(MENU)
     visibleMenuItems(MENU, new Set(["accounting.read"]))
     visibleMenuItems(MENU, new Set())

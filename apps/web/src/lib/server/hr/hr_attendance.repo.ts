@@ -3,23 +3,13 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_attendance — clock in, clock out, and the hours that come out of it.
  *
- * Two things about this table are easy to get wrong, and both are silent.
+ * `clock_in_time`/`clock_out_time` are `timestamptz` instants — render in the
+ * OFFICE's timezone, never UTC or the viewer's (L35). `attendance_date` is the
+ * LOCAL date and can't be derived by casting a timestamp to `::date` — a night
+ * shift crosses UTC midnight without crossing local midnight; join to the
+ * office and use `AT TIME ZONE` first.
  *
- * **`clock_in_time`/`clock_out_time` are `timestamptz` — instants, not wall
- * clocks.** They must be rendered in the OFFICE's timezone, never the viewer's
- * and never UTC. The fixture originally stored 09:00 IST as `09:00:00Z`, which
- * is 14:30 in Bangalore; nothing errored, and the rows looked entirely
- * plausible until a page displayed them (L35).
- *
- * **`attendance_date` is the LOCAL date and cannot be derived from the
- * timestamps.** An evening shift ending 23:00 in New York is 04:00 UTC the
- * following day, so `clock_out_time::date` is legitimately a day ahead of the
- * date the shift belongs to. Casting either timestamp to `::date` in a query is
- * the bug this note exists to prevent — join to the office and use
- * `AT TIME ZONE` first.
- *
- * Hours are `numeric(18,4)` and travel as strings (CLAUDE.md § Money). Any
- * arithmetic on them happens in SQL.
+ * Hours are numeric(18,4) strings; arithmetic happens in SQL.
  */
 
 export type AttendanceDay = {
@@ -30,25 +20,13 @@ export type AttendanceDay = {
   timezone: string | null
   locale: string | null
   attendance_date: string
-  /**
-   * A `Date`, not a string. postgres.js's `types: {}` adds custom handlers, it
-   * does not remove the built-in ones — so `timestamptz` still arrives parsed
-   * while `NUMERIC` (which has no built-in parser) stays the string money
-   * requires. The two behave differently in the same row; declaring these as
-   * `string` type-checks and then fails at runtime on `.slice`.
-   */
+  /** A `Date`, not a string — postgres.js still parses timestamptz even with types: {} (L36). */
   clock_in_time: Date | null
   clock_out_time: Date | null
   /** HH:MM in the office's zone, formatted by Postgres so no cast is needed. */
   clock_in_local: string | null
   clock_out_local: string | null
-  /**
-   * True when the shift ended on a later day IN THE OFFICE — a genuine night
-   * shift. Compared after `AT TIME ZONE`, because comparing the UTC dates
-   * measures the office's offset rather than the shift: an ordinary 09:00-17:30
-   * day in Auckland (UTC+13) spans two UTC dates, and a New York 14:00-23:00
-   * spans two while ending the same local day (L35).
-   */
+  /** True when the shift ended on a later day IN THE OFFICE — compared after AT TIME ZONE, not on UTC dates (L35). */
   crosses_local_midnight: boolean
   break_minutes: number | null
   total_hours: string | null
@@ -93,14 +71,8 @@ export async function list(
   } = {},
 ): Promise<AttendanceDay[]> {
   const { status = "" } = filters
-  // NULL rather than '' for every CAST parameter — not only the uuid.
-  //
-  // Two separate mechanisms punish `''` here. SQL does not short-circuit, so
-  // `'' = '' OR x = ''::date` evaluates the cast regardless; and postgres.js
-  // reads the `::date` hint and serialises the parameter itself, so `''` is
-  // `new Date("").toISOString()` — a `RangeError: Invalid time value` thrown in
-  // the driver before the query is ever sent. A NULL parameter casts cleanly
-  // through both.
+  // NULL rather than '' for every CAST parameter (L37) — '' still hits the
+  // cast and postgres.js throws before the query is sent.
   const from = filters.from || null
   const to = filters.to || null
   const employee = filters.employeeId || null
@@ -141,14 +113,9 @@ export async function totals(
 }
 
 /**
- * Rows whose stored hours disagree with their own clock times.
- *
- *   total_hours = (clock_out - clock_in) - break
- *   total_hours = regular_hours + overtime_hours
- *
- * No constraint enforces either, and both are what payroll multiplies by a
- * rate. A row that drifts is not visible anywhere until someone is paid the
- * wrong amount, so it is worth being able to ask.
+ * Rows whose stored hours disagree with their own clock times:
+ *   total_hours = (clock_out - clock_in) - break = regular + overtime
+ * No constraint enforces this, and payroll multiplies these by a rate.
  */
 export async function inconsistent(
   tx: Tx,
@@ -165,8 +132,7 @@ export async function inconsistent(
            )::text AS computed
       FROM hr_attendance
      WHERE
-       -- The split holds on every row. An absent day has no clock times and
-       -- still must not claim hours it has not divided up.
+       -- Holds even on an absent day with no clock times.
        total_hours IS DISTINCT FROM regular_hours + coalesce(overtime_hours, 0)
        -- The clock identity only applies where there is a clock.
        OR (
@@ -181,12 +147,7 @@ export async function inconsistent(
   `
 }
 
-/**
- * Rows whose `attendance_date` is not the local date of the clock-in.
- *
- * This is the check a `::date` cast in a query would fail. It passes for every
- * fixture row including the evening shift that ends on the next UTC day.
- */
+/** Rows whose `attendance_date` is not the local date of the clock-in — what a `::date` cast would get wrong. */
 export async function misdatedForOffice(
   tx: Tx,
 ): Promise<{ id: string; attendance_date: string; local_date: string }[]> {

@@ -3,18 +3,9 @@ import type { Tx } from "../db/tenant"
 /**
  * hr_onboarding — templates, the tasks they generate, and a new hire's plan.
  *
- * **Template selection must be deterministic, and it is not obvious.** Two
- * templates match a full-time engineering hire in the fixture: STANDARD, which
- * is the default and matches everyone, and ENGINEERING, which names the
- * department. Without a defined rule the winner is whichever row the planner
- * happened to read first — so a hire's onboarding plan would depend on physical
- * row order, and would change silently after a VACUUM.
- *
- * The rule: **most specific wins.** Department and location together beat
- * department alone, which beats location alone, which beats the default. A tie
- * at the same specificity is broken by template_code, so the answer is stable
- * even if someone creates two equally-specific templates — a situation worth
- * reporting rather than silently resolving, which `ambiguousFor` does.
+ * Template selection is deterministic: most specific wins (dept+location >
+ * dept > location > default), tie broken by template_code so row order never
+ * decides it. `ambiguousFor` reports a real tie rather than resolving it silently.
  */
 
 export type OnboardingTemplate = {
@@ -51,11 +42,7 @@ export async function templates(tx: Tx): Promise<OnboardingTemplate[]> {
   `
 }
 
-/**
- * Which template a hire gets. Null only if nothing matches, including no
- * default — which is a configuration gap worth showing rather than papering
- * over with an empty plan.
- */
+/** Which template a hire gets. Null only if nothing matches, including no default — a configuration gap worth surfacing. */
 export async function templateFor(
   tx: Tx,
   hire: {
@@ -67,15 +54,12 @@ export async function templateFor(
   const [row] = await tx<OnboardingTemplate[]>`
     ${tx.unsafe(TEMPLATE_SELECT)}
      WHERE t.is_active
-       -- A template that names a department applies only to that department;
-       -- one that names none applies to any.
+       -- Named department applies only there; unnamed applies to any.
        AND (t.applies_to_department_code IS NULL
             OR t.applies_to_department_code = ${hire.departmentCode})
        AND (t.applies_to_location_code IS NULL
             OR t.applies_to_location_code = ${hire.locationCode})
-       -- Employment type is a filter, never a specificity dimension: every
-       -- template in practice lists the same types, so counting it would make
-       -- specificity meaningless.
+       -- Employment type filters; it is not a specificity dimension.
        AND (t.applies_to_employment_types IS NULL
             OR t.applies_to_employment_types @> to_jsonb(${hire.employmentType}::text))
      ORDER BY specificity DESC, t.template_code ASC
@@ -84,13 +68,7 @@ export async function templateFor(
   return row ?? null
 }
 
-/**
- * Templates that tie at the winning specificity.
- *
- * `templateFor` always answers, because a hire needs a plan. This reports when
- * the answer was a coin toss resolved by template_code — configuration a person
- * should fix, and invisible otherwise.
- */
+/** Templates that tie at the winning specificity — `templateFor` always answers, this reports when it was a coin toss. */
 export async function ambiguousFor(
   tx: Tx,
   hire: {
@@ -128,14 +106,7 @@ export type PlannedTask = {
   due_date: string | null
 }
 
-/**
- * The plan a template produces for someone starting on a given date.
- *
- * Offsets run from -7 (pre-boarding, before the person exists in the building)
- * to +90. The arithmetic is done in SQL against a DATE, so it is calendar
- * arithmetic rather than 86,400-second arithmetic — which is the difference
- * that shows up across a daylight-saving boundary.
- */
+/** The plan a template produces for a start date — offset arithmetic is calendar (DATE), not 86,400-second, so DST is not an issue. */
 export async function planFor(
   tx: Tx,
   templateId: string,
@@ -200,13 +171,7 @@ export async function tasks(
   `
 }
 
-/**
- * Tasks whose status and completion date disagree.
- *
- * `completed` with no date leaves nothing to answer "when?" — which is the
- * question an auditor asks about a signed contract or a security training. A
- * date on a task that is not complete is the same drift the other way.
- */
+/** Tasks whose status and completion date disagree. */
 export async function inconsistent(
   tx: Tx,
 ): Promise<

@@ -1,46 +1,18 @@
 #!/usr/bin/env node
 /**
- * Application-code rules that no SQL harness can see.
- *
- *   authz/actions-are-guarded — every form action authorizes before it writes
- *   deletion/no-delete-in-app — no repository issues a DELETE
- *
- * docs/14-access-control.md.
- *
- * Every form action under routes/(app) must authorize before it writes. A
- * matrix nobody enforces is decoration, and the failure this catches is the
- * twentieth action shipping on "has a tenant" — which is how all nineteen of
- * them started.
- *
- * A lint rule rather than a SQL invariant because the subject is TypeScript.
- * Exemptions are committed literals with reasons, like every other list in
- * this repo: a NEW unguarded action fails, and so does removing a justified
- * exemption.
+ * authz/actions-are-guarded — every form action authorizes before it writes.
+ * deletion/no-delete-in-app — no repository issues a DELETE.
+ * See docs/14-access-control.md. Exemptions are a committed list with reasons.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
 const ROOT = new URL("..", import.meta.url).pathname
-/**
- * The WHOLE route tree, not just `(app)`.
- *
- * It used to scan `(app)` alone, which meant an action added under `(admin)`
- * or `(marketing)` — or any `+server.ts` endpoint anywhere — was invisible to
- * the step whose name claims every action is guarded. `+server.ts` matches
- * nothing today (there are no HTTP verb handlers in the app), and the glob is
- * here so the first one cannot arrive unnoticed.
- */
+/** The whole route tree, not just (app) — an action under (admin)/(marketing) or a +server.ts should not be invisible to this. */
 const ROUTES = join(ROOT, "apps/web/src/routes")
 const SERVER = join(ROOT, "apps/web/src/lib/server")
 
-/**
- * Records are retained, never destroyed — payroll history and statutory
- * retention both depend on the row still being there, and a deleted row cannot
- * be un-deleted by a support call. `app_user` no longer holds DELETE (see
- * 20260830120000_append_only.sql), so a stray DELETE now fails at runtime with
- * 42501; this catches it at review time instead, and names the one place where
- * destruction is the point.
- */
+/** Records are retained, never destroyed — app_user has no DELETE grant (20260830120000_append_only.sql). */
 const DELETE_ALLOWED = new Map([
   [
     "apps/web/src/lib/server/pii/pii.repo.ts",
@@ -48,15 +20,7 @@ const DELETE_ALLOWED = new Map([
   ],
 ])
 
-/**
- * action path -> why it needs no check. Reviewed edits only.
- *
- * Everything here runs BEFORE a tenant exists, which is why `requireCan` has
- * nothing to ask about: `can()` takes an actor with a tenant and a role, and
- * these actors have neither yet. They are the SaaS-starter account and
- * marketing surfaces, not product routes — no `(app)` action is exempt, and
- * one asking to be is a design question first.
- */
+/** action path -> why it needs no check. Runs before a tenant exists (account/marketing surfaces, not product routes). Reviewed edits only. */
 const EXEMPT = new Map([
   [
     "apps/web/src/routes/(marketing)/contact_us/+page.server.ts -> submitContactUs",
@@ -93,19 +57,10 @@ const EXEMPT = new Map([
 ])
 
 const GUARD = /\brequireCan\(|\bcan\(\s*ctx\b|\bcanReadEmployee\(/
-/**
- * Every write in this codebase reaches Postgres through `withTenant` — it is
- * the one place a transaction opens, and CLAUDE.md requires the actor on all
- * of them. So "before the first `withTenant(`" is "before the write" without
- * having to parse which repository calls actually mutate.
- */
+/** Every write opens its transaction through withTenant, so "before the first withTenant(" means "before the write". */
 const WRITE_ENTRY = /\bwithTenant\(/
 
-/**
- * Comments stripped before either regex runs, so a guard mentioned only in a
- * comment cannot satisfy the presence check, and a stray `//` cannot shift
- * where a real one appears to sit.
- */
+/** Comments stripped first, so a guard mentioned only in a comment can't pass. */
 function code(src) {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
@@ -121,14 +76,7 @@ function* serverFiles(dir) {
 }
 
 const problems = []
-/**
- * authz/guard-before-write — the guard's own regex match must sit before the
- * first `withTenant(` in the action body. Coverage (does a guard appear
- * anywhere) was the cheap half; this is the ordering the name of the step
- * actually promises. It stays a lexical check, same as the rest of this file:
- * a guard reached only through a helper this script cannot see into is a
- * review question, not something a regex should claim to settle.
- */
+/** authz/guard-before-write — the guard must sit before the first withTenant( in the body, a lexical check like the rest of this file. */
 const misordered = []
 const deletions = []
 let checked = 0

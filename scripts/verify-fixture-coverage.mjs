@@ -1,38 +1,13 @@
 #!/usr/bin/env node
 /**
- * Every column on a personal-data table carries real fixture data.
- *
- * An empty column is a column nothing tests. `compensation_premiums` held zero
- * rows and every "a colleague cannot read this" assertion against it passed
- * with nothing to hide; the five JSONB compensation columns on `employees`
- * were `{}`, so any visibility assertion over them would have passed while
- * they were protected by nothing at all (L48). The same shape produced L41 —
- * a guard that could not see inside JSONB, over columns that happened to be
- * empty.
- *
- * A test whose subject is NULL does not fail. It passes, and it reports the
- * absence of data as the absence of a problem. That is the single most common
- * way a check in this repository has stopped testing anything.
- *
- * So: on the tables below, every column must have at least one row with a
- * non-empty value, or sit on EXPECTED_SPARSE with a reason.
- *
- * SCOPE: every base table in the schema. It began as the eighteen tables
- * holding data about a person and was extended once those were green — 602
- * empty columns across 103 tables, now 3, each of which points at a module
- * that does not exist yet.
+ * Every base-table column must have at least one fixture row with a
+ * non-empty value, or sit on EXPECTED_SPARSE with a reason (L48). An empty
+ * column is untested — a visibility assertion over `{}` passes vacuously.
  */
 import { execFileSync } from "node:child_process"
 
 
-/**
- * `table.column` -> why NULL is the only sensible value across every fixture
- * row. A committed literal with a reason, like every exemption here: adding
- * one and removing one both require a reviewed edit.
- *
- * "We did not get round to it" is not a reason. If a value is meaningful for
- * any row, seed that row instead — that is the entire point of this check.
- */
+/** `table.column` -> why NULL is the only sensible value. "Not got round to it" is not a reason. */
 const EXPECTED_SPARSE = new Map([
   // Columns referencing a module that has not been built. There is no row to
   // point at, and inventing a uuid would satisfy the type while describing

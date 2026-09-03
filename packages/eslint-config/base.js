@@ -16,9 +16,7 @@ export default ts.config(
       globals: { ...globals.browser, ...globals.node },
     },
     rules: {
-      // Library functions keep a trailing `options` parameter for signature
-      // symmetry even where they do not yet read it. Flagging those adds noise
-      // without adding safety; unused *variables* are still errors.
+      // Unused function args are fine (signature symmetry); unused vars still error.
       "@typescript-eslint/no-unused-vars": [
         "error",
         { args: "none", varsIgnorePattern: "^_" },

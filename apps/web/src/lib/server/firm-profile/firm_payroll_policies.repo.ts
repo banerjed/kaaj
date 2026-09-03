@@ -2,19 +2,11 @@ import type { Tx } from "../db/tenant"
 
 /**
  * firm_payroll_policies — overtime, rounding and the workweek, per office.
- *
- * `location_id` is nullable: a row with no location is the firm-wide default,
- * and a row with one overrides it for that office. Overtime law is national
- * (FLSA in the US, Working Time Regulations in the UK, the Factories Act in
- * India), so a single tenant-wide rule cannot be right for a firm in three
- * countries.
+ * `location_id` is nullable: no location is the firm-wide default; a row with
+ * one overrides it, since overtime law is national.
  */
 
-/**
- * Strings, not numbers. These are rates and quantities — CLAUDE.md's
- * `numeric(18,4)` family — and a JSON number round-trips through a float64 on
- * the way back out of JSONB. Nothing here is arithmetic in JavaScript.
- */
+/** Strings, not numbers — JSONB rates/quantities, per CLAUDE.md § Money. */
 export type OvertimeRules = {
   daily_threshold_hours?: string
   weekly_threshold_hours?: string
@@ -87,15 +79,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<
     { id: string }[]

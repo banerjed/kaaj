@@ -10,11 +10,7 @@ import * as policies from "./hr_time_off_policies.repo"
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
-/**
- * Repositories are tested as an actor who reads everything, so a row-visibility
- * policy does not silently narrow what a repository test sees. Visibility has
- * its own tests in db/row-visibility.test.ts.
- */
+/** Tested as an owner so RLS doesn't narrow what the test sees (see db/row-visibility.test.ts). */
 const AS_OWNER = {
   tenantId: NORTHWIND,
   role: "owner",
@@ -41,16 +37,12 @@ describe("time-off balances", () => {
   })
 
   it("every stored balance matches the identity", async () => {
-    // current = opening + accrued + adjusted - used - pending - forfeited
-    // No constraint enforces this, and accrual is a scheduled job, so drift
-    // would be invisible until someone was refused leave they had earned.
     const bad = await withTenant(AS_OWNER, (tx) => balances.inconsistent(tx))
     expect(bad).toEqual([])
   })
 
   it("carried_over is NOT a separate addend", async () => {
-    // It is already inside opening_balance. Adding it again inflates the
-    // fixture's balances by 5-12 days each — leave nobody has earned.
+    // It is already inside opening_balance.
     const rows = await withTenant(AS_OWNER, async (tx) => {
       return tx`
         SELECT count(*) FILTER (WHERE carried_over > 0)::int AS with_carryover,
@@ -91,8 +83,6 @@ describe("time-off balances", () => {
 
 describe("time-off policies", () => {
   it("are scoped per jurisdiction, not firm-wide", async () => {
-    // Statutory leave is national: a single policy cannot be lawful in the US,
-    // the UK and India at once.
     const [us, uk, india] = await withTenant(AS_OWNER, async (tx) => [
       await policies.forLocation(tx, "US-NYC"),
       await policies.forLocation(tx, "UK-LON"),
@@ -113,8 +103,6 @@ describe("time-off policies", () => {
 
 describe("approving time off", () => {
   it("moves hours from pending to used without changing what is available", async () => {
-    // Both are already deducted from current_balance: the person spent it when
-    // they asked. Approving must not deduct a second time.
     const result = await inRollback(async (tx) => {
       const [pending] = await requests.list(tx, { status: "pending" })
       const before = await balances.forEmployee(tx, pending.employee_id)
@@ -171,8 +159,6 @@ describe("approving time off", () => {
   })
 
   it("refuses to decide a request twice", async () => {
-    // Otherwise approve-approve deducts twice, and approving a denied request
-    // silently revives it.
     await expect(
       inRollback(async (tx) => {
         const [pending] = await requests.list(tx, { status: "pending" })
@@ -184,8 +170,6 @@ describe("approving time off", () => {
   })
 
   it("refuses self-approval", async () => {
-    // The RLS policy is tenant isolation only, so this is the only thing
-    // between a manager and unlimited self-granted holiday.
     await expect(
       inRollback(async (tx) => {
         const [pending] = await requests.list(tx, { status: "pending" })

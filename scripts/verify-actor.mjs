@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 /**
- * Every withTenant in application code carries the ACTOR, not a bare tenant id.
- *
- * A bare tenant id still isolates by tenant, so nothing errors — but
- * row-visibility policies key on the role and the person, and a claim carrying
- * neither is denied by them. The result is a page that silently shows zero
- * (L21): the job-titles page reported "0 people" for every title while the
- * directory listed those same people, and only a screenshot caught it.
- *
- * Tests may pass a bare id deliberately, to assert that fail-closed behaviour.
+ * Every withTenant in application code carries the ACTOR, not a bare tenant
+ * id — row-visibility policies key on role and person, so a bare id passes
+ * isolation but returns zero rows, silently (L21).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"

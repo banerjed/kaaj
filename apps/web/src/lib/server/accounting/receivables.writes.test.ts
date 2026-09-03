@@ -5,16 +5,9 @@ import * as acc from "./accounting.repo"
 import { AccountingRefused } from "./accounting.repo"
 
 /**
- * The receivables write path, against the real database.
- *
- * The thing that must not go wrong is that the LEDGER stops agreeing with the
- * documents. `verify-stories.sql` asserts every journal entry balances, in
- * both currencies, and that an invoice's journal ties to its base total — but
- * a harness that runs at `./check` time finds a broken posting after it has
- * been made, over tables nobody prunes. These assert it at the point of the
- * write.
- *
- * Every case rolls back, so the fixture is unchanged afterwards.
+ * The receivables write path, against the real database — asserts the ledger
+ * stays balanced at the point of write, not just later via the harness. Every
+ * case rolls back.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -65,15 +58,7 @@ async function refusedBecause(
   throw new Error(`expected a refusal (${reason}) and the write succeeded`)
 }
 
-/**
- * Move an invoice into an OPEN accounting period.
- *
- * Every invoice in the fixture but one is dated 2026-01-21, and January 2026
- * is `closed` (December 2025 is `locked`). A closed period does not accept new
- * postings, so issuing any of them is refused — which is the correct behaviour
- * and was, before the guard existed, three tests quietly posting revenue into
- * a closed month.
- */
+/** Move an invoice into an OPEN accounting period (most fixture invoices sit in a closed one). */
 async function intoOpenPeriod(tx: Tx, invoiceId: string): Promise<void> {
   await tx`
     UPDATE invoices
@@ -124,8 +109,7 @@ describe("issuing an invoice", () => {
       `
       return { posted, unbalanced: await unbalancedEntries(tx) }
     })
-    // DR Accounts Receivable, CR Revenue. No tax on this invoice, so no third
-    // line — a zero credit is refused by ck_journal_entry_lines_one_sided_positive.
+    // DR Accounts Receivable, CR Revenue — no tax, so no third line.
     expect(posted).toHaveLength(2)
     expect(posted[0]).toEqual({
       account_code: "1100",
@@ -141,9 +125,6 @@ describe("issuing an invoice", () => {
   })
 
   it("splits revenue from tax when the invoice carries tax", async () => {
-    // The three-line posting. INV-2026-004 has 3,214.97 of tax on 36,225.00,
-    // so a posting that credited the gross to revenue would overstate income
-    // by the tax and understate the liability — and still balance.
     const posted = await inRollback(async (tx) => {
       // Put it back to draft so it can be issued inside the rollback.
       await tx`
@@ -173,8 +154,7 @@ describe("issuing an invoice", () => {
   })
 
   it("ties the posting to the invoice's base total in a foreign currency", async () => {
-    // GBP at 1.27. This is the half that a round-then-sum mistake breaks, and
-    // it breaks by a cent — invisible until a period close.
+    // GBP at 1.27 — a round-then-sum mistake breaks this by a cent.
     const { invoice, entry } = await inRollback(async (tx) => {
       await tx`
         UPDATE invoices SET status = 'draft', journal_entry_id = NULL
@@ -198,28 +178,17 @@ describe("issuing an invoice", () => {
       `
       return { invoice, entry }
     })
-    // ACC-invoice-journal-tieout allows 0.02; exact is what round-then-sum gives.
     expect(entry.base_debit).toBe(invoice.base_total)
-    // And the identity the CHECK requires still holds after the recompute.
     expect(Number(invoice.base_total)).toBe(
       Number(invoice.base_subtotal) + Number(invoice.base_tax),
     )
   })
 
   it("rounds each part before summing, on a rate where it matters", async () => {
-    // The test above cannot see this. The only foreign-currency invoice in the
-    // fixture carries ZERO tax, so round(sub*r) + round(0*r) and
-    // round((sub+0)*r) are the same number — a green assertion over an empty
-    // column, which is L50 happening inside a test rather than a fixture.
-    //
-    // At 1.27, a subtotal and a tax of 100.01 each round to 127.01, summing to
-    // 254.02 — while the gross 200.02 rounds to 254.03. One cent, in the
-    // direction that makes base_total disagree with its own parts, which is
-    // what ck_invoices_amounts_reconcile forbids.
-    // Built on the unpaid DRAFT rather than the GBP invoice: that one carries
-    // 10,000 of payments, and payment_allocations cannot be deleted (nothing
-    // in the app holds DELETE), so shrinking its total drives amount_due
-    // negative and ck_invoices_amounts_reconcile refuses the setup.
+    // At 1.27, subtotal and tax of 100.01 each round to 127.01 (sum 254.02),
+    // while the gross 200.02 rounds to 254.03 — a real cent of divergence
+    // the GBP fixture invoice's zero tax can't exercise (L50). Built on the
+    // unpaid DRAFT since GBP already carries payments that block shrinking it.
     const row = await inRollback(async (tx) => {
       await tx`
         UPDATE invoices
@@ -253,7 +222,6 @@ describe("issuing an invoice", () => {
     })
     expect(row.base_subtotal).toBe("127.01")
     expect(row.base_tax).toBe("127.01")
-    // 254.02, not the 254.03 that rounding the gross would give.
     expect(row.base_total).toBe("254.02")
   })
 
@@ -265,13 +233,8 @@ describe("issuing an invoice", () => {
   })
 
   it("refuses an invoice with no lines", async () => {
-    // An invoice for nothing says a customer owes zero, and looks exactly like
-    // one whose lines failed to load.
-    //
-    // The empty invoice is INSERTED rather than made by deleting the lines off
-    // an existing one: `app_user` holds no DELETE anywhere but two named
-    // tables (20260830120000), so the delete version of this test failed with
-    // `permission denied` — the append-only rule doing its job on the test.
+    // Empty invoice is INSERTED, not made by deleting lines off an existing
+    // one — app_user holds no DELETE here.
     await refusedBecause(
       () =>
         inRollback(async (tx) => {
@@ -297,11 +260,8 @@ describe("issuing an invoice", () => {
 
 describe("closed accounting periods", () => {
   it("refuses to post revenue into a closed period", async () => {
-    // January 2026 is `closed` in the fixture, and every invoice but one is
-    // dated inside it. `packages/spec-tests` asserts this rule (INV-ACC-002)
-    // against its own implementation; nothing connected it to the deployed
-    // path, so both suites were green while contradicting each other — the
-    // exact shape CLAUDE.md warns about.
+    // January 2026 is closed in the fixture; also asserted independently by
+    // packages/spec-tests (INV-ACC-002).
     await refusedBecause(
       () => inRollback((tx) => acc.issueInvoice(tx, NORTHWIND, DRAFT, ACTOR)),
       "period_closed",
@@ -309,9 +269,8 @@ describe("closed accounting periods", () => {
   })
 
   it("refuses a payment dated into a locked period", async () => {
-    // December 2025 is `locked` rather than `closed`. Both are non-open, and
-    // the rule is stated as "not open" rather than as a list of bad states, so
-    // a fifth status added later refuses by default rather than by omission.
+    // December 2025 is locked, not closed — rule is "not open", so a new
+    // status refuses by default rather than by omission.
     await refusedBecause(
       () =>
         inRollback((tx) =>
@@ -334,9 +293,7 @@ describe("closed accounting periods", () => {
   })
 
   it("allows a posting in a month no period row covers", async () => {
-    // Periods are created as a year is set up. Refusing a posting because
-    // nobody has opened next month yet would stop work for a reason nobody
-    // could act on, so only an EXPLICIT non-open period refuses.
+    // Only an explicit non-open period refuses; no period is not a refusal.
     const issued = await inRollback(async (tx) => {
       await tx`
         UPDATE invoices
@@ -409,7 +366,6 @@ describe("receiving a payment", () => {
   })
 
   it("leaves it partial when something is still outstanding", async () => {
-    // Both halves. A rule that always says "paid" is a broken page, not a rule.
     const result = await inRollback((tx) =>
       acc.recordPayment(tx, NORTHWIND, PAYMENT, ACTOR),
     )
@@ -417,9 +373,6 @@ describe("receiving a payment", () => {
   })
 
   it("refuses more than is outstanding", async () => {
-    // Nothing in the schema says "not more than is owed" in a way that
-    // produces a usable message — ck_invoices_amounts_reconcile would fail on
-    // amount_due >= 0 with a constraint name instead.
     await refusedBecause(
       () =>
         inRollback((tx) =>
@@ -450,8 +403,6 @@ describe("receiving a payment", () => {
   })
 
   it("keeps the payment, the allocation and the header in step", async () => {
-    // Three rows and a header, all written in one transaction. The header is a
-    // cache of the allocations and is recomputed from them, never adjusted.
     const { allocated, paid } = await inRollback(async (tx) => {
       await acc.recordPayment(tx, NORTHWIND, PAYMENT, ACTOR)
       const [allocated] = await tx<{ total: string }[]>`
@@ -470,8 +421,7 @@ describe("receiving a payment", () => {
 
 describe("the header is a cache of the lines", () => {
   it("REPAIRS an invoice whose stored total had drifted", async () => {
-    // The reason it is recomputed rather than adjusted: a header that is
-    // already wrong is corrected by the next write instead of carried forward.
+    // Recomputed, not adjusted — a wrong header self-heals on next write.
     const { drifted, repaired } = await inRollback(async (tx) => {
       await tx`
         UPDATE invoices
@@ -522,8 +472,7 @@ describe("voiding", () => {
   })
 
   it("refuses to void anything already issued", async () => {
-    // Its revenue is in the ledger. Removing it is a credit note — a new
-    // document that reverses the first — not an edit to the original.
+    // Its revenue is in the ledger — reverse it with a credit note, not a void.
     await refusedBecause(
       () => inRollback((tx) => acc.voidInvoice(tx, PAID, ACTOR, "mistake")),
       "wrong_status",

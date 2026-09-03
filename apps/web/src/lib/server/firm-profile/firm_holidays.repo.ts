@@ -1,12 +1,8 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * firm_holidays — the observed calendar, per office.
- *
- * Holidays are per LOCATION, not per tenant: Republic Day is a holiday in
- * Bangalore and a working day in New York. Payroll and leave accrual both read
- * this, so a holiday on the wrong calendar is a paid day the firm did not
- * intend to give, or a working day it did not intend to take away.
+ * firm_holidays — the observed calendar, per office. Holidays are per
+ * LOCATION, not per tenant — payroll and leave accrual both read this.
  */
 
 export type FirmHoliday = {
@@ -60,9 +56,7 @@ export async function create(
   tenantId: string,
   input: HolidayInput,
 ): Promise<void> {
-  // location_id is NOT NULL, so it is resolved from the code rather than asked
-  // for: the form works in location codes, which is what the rest of the
-  // schema uses.
+  // location_id resolved from the code, since the form works in codes.
   await tx`
     INSERT INTO firm_holidays (
       tenant_id, location_id, location_code, name, name_i18n, date,
@@ -98,15 +92,7 @@ export async function update(
   `
 }
 
-/**
- * Deactivate, and say whether a row actually matched.
- *
- * `Promise<void>` here meant an id that matches nothing — a stale tab, a
- * crafted POST, or a row this actor's policies hide — was indistinguishable
- * from a successful archive, and the page answered "archived". A write that
- * reports success for something it did not do is the failure shape this
- * codebase keeps finding (L68).
- */
+/** Deactivate, and say whether a row actually matched — a no-op must not report success (L68). */
 export async function archive(tx: Tx, id: string): Promise<boolean> {
   const rows = await tx<
     { id: string }[]
@@ -114,14 +100,7 @@ export async function archive(tx: Tx, id: string): Promise<boolean> {
   return rows.length > 0
 }
 
-/**
- * Is this date already a holiday at this office?
- *
- * `UNIQUE (tenant_id, holiday_id)` does not prevent it — two rows with
- * different holiday_ids can sit on the same date and location, which pays the
- * day twice. BR-FP-013 asks for deduplication on import; this is the same rule
- * applied to manual entry.
- */
+/** Is this date already a holiday at this office? The UNIQUE constraint doesn't catch two different holiday_ids on the same day (BR-FP-013). */
 export async function clashes(
   tx: Tx,
   locationCode: string,
@@ -131,9 +110,7 @@ export async function clashes(
   const [row] = await tx<{ n: number }[]>`
     SELECT count(*)::int AS n FROM firm_holidays
      WHERE is_active
-       -- Archived rows are retained but must not reserve the date: without
-       -- this an archived holiday blocks that day forever, and the only fix
-       -- would be the DELETE this codebase no longer allows.
+       -- Archived rows must not reserve the date forever.
        AND location_code = ${locationCode}
        AND date = ${date}::date
        AND (${excludeId ?? null}::uuid IS NULL OR id <> ${excludeId ?? null}::uuid)

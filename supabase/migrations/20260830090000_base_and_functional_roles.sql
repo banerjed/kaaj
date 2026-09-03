@@ -1,26 +1,14 @@
 -- =============================================================================
--- Kaaj — one base role, plus any number of functional roles
+-- Kaaj — one base role, plus any number of functional roles (docs/14-access-control.md)
 -- =============================================================================
--- docs/14-access-control.md. `tenant_users.role` carried a single value drawn
--- from a vocabulary that disagreed with `enumerations.json`, with
--- `employee_group_roles`, and with itself: `owner, hr_admin, manager, member`
--- where the enum file said `firm_admin` and `employee` for the same two ideas,
--- and where `hr_admin` (a job) and `member` (a floor) were the same column.
+-- `role` is the base role, exactly one: owner | firm_admin | employee |
+-- contractor. `functional_roles` are zero or more on top (hr_admin,
+-- payroll_admin, …) — small firms wear several hats, and one-role-per-person
+-- forces over-granting or a second login.
 --
--- After this migration:
---
---   role              the BASE role. Exactly one. The floor.
---                     owner | firm_admin | employee | contractor
---   functional_roles  zero or more, on top. hr_admin, payroll_admin, …
---
--- The split exists because small firms wear several hats: the office manager
--- who runs HR also orders the laptops, and one-role-per-person forces either
--- over-granting or a second login.
---
--- NEITHER COLUMN BECOMES A POSTGRES ENUM. Roles are Tier 1 customization
--- (06-customization-model.md) and ALTER TYPE has no DROP VALUE, so a customer's
--- typo would be permanent. `./check` enforces that via _must_not_be_enum.
--- CHECK constraints are used instead: they are alterable.
+-- Neither column is a Postgres enum: roles are Tier 1 customization
+-- (06-customization-model.md), and ALTER TYPE has no DROP VALUE, so a
+-- customer's typo would be permanent. CHECK constraints instead.
 -- =============================================================================
 
 ALTER TABLE tenant_users
@@ -57,28 +45,22 @@ ALTER TABLE tenant_users
         'auditor'
     ]::text[]);
 
--- Separation of duties, enforced by the database rather than by remembering.
---
--- Whoever sets pay must not approve the run that pays it. Without this, one
--- person can raise their own salary and approve their own payment, which is
--- the oldest fraud in payroll and the reason the control exists.
+-- Separation of duties: whoever sets pay must not approve the run that pays
+-- it, or one person can raise and approve their own salary.
 ALTER TABLE tenant_users
     ADD CONSTRAINT tenant_users_pay_setter_is_not_pay_approver
     CHECK (NOT (functional_roles @> ARRAY['hr_admin']::text[]
             AND functional_roles @> ARRAY['payroll_admin']::text[]));
 
--- An auditor who can change things is not an auditor. Read-only everywhere, or
--- the audit is worthless — including via a base role that already writes.
+-- An auditor must be read-only everywhere, including via a base role that
+-- already writes.
 ALTER TABLE tenant_users
     ADD CONSTRAINT tenant_users_auditor_writes_nothing
     CHECK (NOT (functional_roles @> ARRAY['auditor']::text[]
             AND (array_length(functional_roles, 1) > 1
                  OR role IN ('owner', 'firm_admin'))));
 
--- Composite GIN, tenant_id leading, via btree_gin. "Who here holds hr_admin?"
--- is a per-tenant question like every other, and an index that does not lead
--- with tenant_id scans other tenants' rows before discarding them — which is
--- why the index/tenant-leading invariant exists.
+-- tenant_id leads the index (ADR-003 rule 3) so this scan stays per-tenant.
 CREATE INDEX idx_tenant_users_functional_roles
     ON tenant_users USING GIN (tenant_id, functional_roles);
 
@@ -86,14 +68,9 @@ CREATE INDEX idx_tenant_users_functional_roles
 -- -----------------------------------------------------------------------------
 -- The token claim carries both, and the employee id
 -- -----------------------------------------------------------------------------
--- `employee_id` joins the claim because row visibility needs to know WHICH
--- person is asking, not just which tenant — "see your own record" is not
--- expressible without it.
---
--- Same discipline as 20260828000001: SET search_path = '' and every reference
--- schema-qualified, because GoTrue invokes this as `supabase_auth_admin`, whose
--- search_path does not include public. Getting that wrong is not a degraded
--- login, it is a 500 on /token and no login at all (L5).
+-- `employee_id` lets row visibility answer "see your own record", not just
+-- "which tenant". search_path pinned per 20260828000001 — GoTrue runs this as
+-- supabase_auth_admin, which cannot resolve unqualified names.
 
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
 RETURNS jsonb

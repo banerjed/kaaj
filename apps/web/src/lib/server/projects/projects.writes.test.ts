@@ -5,17 +5,8 @@ import * as projects from "./projects.repo"
 import { ProjectWriteRefused } from "./projects.repo"
 
 /**
- * The project and task WRITES, against the real database.
- *
- * `task_count` and `completed_task_count` are denormalised onto the project
- * row. Until these writes existed nothing could make them drift; now anything
- * that touches a task can. A wrong counter feeds a progress bar, and a wrong
- * progress bar looks exactly like a right one — no error, no failing page.
- *
- * So the counter is what most of this file is about, and the assertion that
- * matters is `staleCounters()` being empty AFTER a write, not before it.
- *
- * Every case rolls back, so the fixture is unchanged afterwards.
+ * The project and task WRITES, against the real database. Most of this file
+ * asserts `staleCounters()` is empty AFTER a write, not before. Every case rolls back.
  */
 
 const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
@@ -74,14 +65,10 @@ describe("adding a task keeps the project's counters true", () => {
     })
     expect(after.task_count).toBe(before.task_count + 1)
     expect(after.completed_task_count).toBe(before.completed_task_count)
-    // The stored counter and the counted tasks agree — which is the whole
-    // point, and is what the read path renders.
     expect(after.task_count).toBe(after.actual_task_count)
   })
 
   it("counts a task created as done immediately", async () => {
-    // A task can be entered after the fact, already finished. If the counter
-    // only moved on a status TRANSITION this would be permanently one short.
     const { before, after } = await inRollback(async (tx) => {
       const before = (await projects.byId(tx, PRJ1))!
       await projects.createTask(
@@ -98,7 +85,6 @@ describe("adding a task keeps the project's counters true", () => {
   })
 
   it("leaves no stale counter anywhere in the tenant", async () => {
-    // The maintainer's query, run after a write rather than before one.
     const stale = await inRollback(async (tx) => {
       await projects.createTask(tx, NORTHWIND, NEW_TASK, ACTOR)
       return projects.staleCounters(tx)
@@ -132,8 +118,6 @@ describe("adding a task keeps the project's counters true", () => {
   })
 
   it("stores estimated_hours exactly, without a float round trip", async () => {
-    // numeric(18,4). A value that survives Number() unchanged proves nothing,
-    // so this one has four decimals that a float64 would not return.
     const hours = await inRollback(async (tx) => {
       const { id } = await projects.createTask(
         tx,
@@ -172,9 +156,6 @@ describe("moving a task", () => {
   })
 
   it("clears the completion when a task is pulled back out of done", async () => {
-    // The failure this exists for: a task reopened but still carrying a
-    // completion date reads as finished to everything downstream, and nothing
-    // raises an error about it.
     const { after, task } = await inRollback(async (tx) => {
       await projects.setTaskStatus(tx, T1, "in_progress", ACTOR)
       const [task] = await tx<
@@ -211,10 +192,7 @@ describe("moving a task", () => {
   })
 
   it("REPAIRS a counter that had already drifted", async () => {
-    // Watch the guard work rather than assume it. The counters are recomputed
-    // rather than incremented precisely so that a row which is already wrong —
-    // from a fixture, a migration, or a write that failed halfway — is
-    // corrected by the next write instead of carrying the error forward.
+    // Recomputed, not incremented — a wrong prior value self-heals.
     const { corrupted, repaired } = await inRollback(async (tx) => {
       await tx`UPDATE projects SET task_count = 99 WHERE id = ${PRJ1}::uuid`
       const corrupted = await projects.staleCounters(tx)
@@ -260,7 +238,6 @@ describe("creating a project", () => {
   })
 
   it("keeps money as an exact string in its own currency", async () => {
-    // BR-FP-003: the currency travels with the amount, and nothing converts.
     const row = await inRollback(async (tx) => {
       const { id } = await projects.createProject(
         tx,
@@ -296,9 +273,6 @@ describe("creating a project", () => {
   })
 
   it("is reachable from the list, which is why draft is a filter value", async () => {
-    // A created project lands on the column default. If `draft` were missing
-    // from the status vocabulary the new project would exist and be
-    // unfindable — an empty result rather than an error.
     const found = await inRollback(async (tx) => {
       const created = await projects.createProject(
         tx,
@@ -336,17 +310,12 @@ describe("editing a project", () => {
       )
       return { before, after: (await projects.byId(tx, PRJ1))! }
     })
-    // The old values came back...
     expect(before.status).toBe("active")
-    // ...and the new ones are in place.
     expect(after.status).toBe("on_hold")
     expect(after.budget).toBe("999000.0000")
   })
 
   it("does not disturb the counters", async () => {
-    // updateProject must not touch task_count. If it ever writes them the
-    // recount is no longer the single owner, and two writers is how drift
-    // starts.
     const { before, after } = await inRollback(async (tx) => {
       const before = (await projects.byId(tx, PRJ1))!
       await projects.updateProject(

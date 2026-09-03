@@ -1,40 +1,25 @@
 -- =============================================================================
 -- Kaaj — field-level PII encryption: per-subject keys and the first field
 -- =============================================================================
--- docs/module-employee-profile.md § Encryption Specification requires PII to be
--- encrypted at rest, with keys stored separately from the data, AES-256-GCM,
--- and a key version on every value. This migration provides the storage for
--- that. The cryptography itself is in the application
--- (apps/web/src/lib/server/pii/), deliberately:
+-- Storage only; the cryptography lives in apps/web/src/lib/server/pii/, not
+-- pgcrypto — encrypting in Postgres would put plaintext and key in the same
+-- process (memory, statement log). A stolen backup stays inert without
+-- PRIVATE_PII_KEK, which never reaches this database.
 --
---   * pgcrypto would put the plaintext AND the key into this server's memory,
---     its statement log, and pg_stat_statements — which is installed here. A
---     database compromise would then yield both halves.
---   * pgsodium is deprecated by Supabase and is not an option.
---
--- Encrypting in the application means a dump, a replica or a stolen backup is
--- inert without PRIVATE_PII_KEK, which never reaches Postgres.
---
--- THE SPEC'S KEY DERIVATION IS NOT IMPLEMENTED, AND MUST NOT BE. It says
--- `DERIVE_KEY(org_prefix + org_4digit_code)`. A public prefix plus four digits
--- is ten thousand candidates — about 13 bits — and both inputs live in this
--- database. No KDF repairs a search space that small. `{prefix}-{4digit}` is
--- kept as the key LABEL, which is what the spec's storage format wants; the key
--- material is 32 random bytes. See docs/13-pii-encryption.md.
+-- The spec's `DERIVE_KEY(org_prefix + org_4digit_code)` is NOT implemented —
+-- ~13 bits of entropy, both inputs in this database. `{prefix}-{4digit}` is
+-- kept only as a key LABEL; key material is 32 random bytes. See
+-- docs/13-pii-encryption.md.
 -- =============================================================================
 
 
 -- -----------------------------------------------------------------------------
 -- 1. Per-subject data keys
 -- -----------------------------------------------------------------------------
--- One key per DATA SUBJECT, not per tenant. GDPR Article 17 is an individual
--- right: destroying a tenant-wide key cannot answer one employee's erasure
--- request, and a per-subject key can. Deleting a row here renders every
--- encrypted field belonging to that person unrecoverable at once — including in
--- backups taken before the request, which no `UPDATE ... SET NULL` achieves.
---
--- The row holds only the WRAPPED key. Unwrapping needs PRIVATE_PII_KEK, which
--- is not in this database, so `app_user` reading this table learns nothing.
+-- One key per data subject, not per tenant: GDPR Art. 17 is an individual
+-- right, so deleting a row here must render just that person's fields
+-- unrecoverable — including in old backups. Only the WRAPPED key is stored;
+-- unwrapping needs PRIVATE_PII_KEK, not present in this database.
 
 CREATE TABLE pii_keys (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,13 +55,9 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON pii_keys
 -- -----------------------------------------------------------------------------
 -- 2. The erasure record
 -- -----------------------------------------------------------------------------
--- Destroying a key leaves no trace by design, which is a problem when a
--- regulator asks you to demonstrate that an erasure request was honoured. This
--- table records THAT a key was destroyed, never the key. It is append-only in
--- practice and deliberately survives the subject's own deletion.
---
--- GDPR Article 30 (records of processing), and the equivalent demonstrability
--- expectations in India's DPDP Act.
+-- Key destruction leaves no trace by design; this records THAT a key was
+-- destroyed (never the key), append-only, surviving the subject's own
+-- deletion — needed to demonstrate compliance (GDPR Art. 30, DPDP Act).
 
 CREATE TABLE pii_erasures (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -108,16 +89,10 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON pii_erasures
 -- -----------------------------------------------------------------------------
 -- 3. employees.ssn_tax_id becomes ciphertext
 -- -----------------------------------------------------------------------------
--- The plaintext index goes first, and it is the more urgent half. A btree on
--- (tenant_id, ssn_tax_id) stores every tax identifier in its index pages, so
--- encrypting the column while leaving the index would have left the plaintext
--- readable in a file dump — and dropping a column does not scrub the index
--- pages it was built from.
---
--- No blind index replaces it: exact-match lookup by tax identifier is not a
--- feature this product has, and an HMAC index would make equal values linkable
--- for no current benefit. Adding one later means re-encrypting, which is
--- recorded here so the choice is visible rather than forgotten.
+-- Drop the plaintext btree index first — it stores every tax identifier in
+-- its pages, and dropping the column later would not scrub them. No blind
+-- index replaces it: exact-match lookup isn't a feature we have, and an HMAC
+-- index would make equal values linkable for no benefit.
 
 DROP INDEX IF EXISTS idx_employees_ssn_tax_id;
 
@@ -126,10 +101,8 @@ ALTER TABLE employees ADD COLUMN ssn_tax_id_ct TEXT;
 COMMENT ON COLUMN employees.ssn_tax_id_ct IS
     'AES-256-GCM envelope. Read and written only through $lib/server/pii.';
 
--- Refuse rather than destroy. On an empty database this is a no-op; on one
--- holding real identifiers it stops the migration until the values have been
--- encrypted into ssn_tax_id_ct, because a plain DROP COLUMN here would throw
--- away data no backup should be used to recover.
+-- Refuse rather than destroy: a plain DROP COLUMN would throw away data no
+-- backup should be used to recover.
 DO $$
 DECLARE
     remaining BIGINT;

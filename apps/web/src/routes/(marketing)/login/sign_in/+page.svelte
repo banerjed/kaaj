@@ -5,15 +5,7 @@
 
   let { data } = $props()
 
-  /**
-   * Where to go after signing in.
-   *
-   * `/account` is CMSaasStarter's billing area, not this product — landing
-   * there after login left people looking at a demo dashboard with no way into
-   * Kaaj. The app's layout bounces an unauthenticated visitor to
-   * `/login?redirect=<path>`, so honour that first and fall back to the
-   * directory, which is the app's home until a dashboard exists.
-   */
+  // Honour ?redirect (set by the app's layout when bouncing an unauthenticated visitor); fall back to the directory.
   const destination = () => {
     const wanted = page.url.searchParams.get("redirect")
     // Same-origin paths only: an open redirect here would send someone who
