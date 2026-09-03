@@ -4,15 +4,15 @@
   import { get, writable } from "svelte/store"
   import type { Writable } from "svelte/store"
 
-  export const themes = [
-    "light",
-    "contrast",
-    "material",
-    "dark",
-    "dim",
-    "material-dark",
-    "system",
-  ] as const
+  /**
+   * Two themes and `system`.
+   *
+   * Nexus ships six; Kaaj carries light and dark. `system` is NOT a third
+   * palette — it is the absence of a choice, and the only value that follows
+   * `prefers-color-scheme`. It is also the default, so removing it would pin
+   * every new visitor to one theme regardless of their OS.
+   */
+  export const themes = ["light", "dark", "system"] as const
 
   export type ITheme = (typeof themes)[number]
 
@@ -127,13 +127,18 @@
     })
   }
 
+  /**
+   * Anything that is not already an explicit dark choice becomes dark.
+   *
+   * `system` goes to dark rather than to the opposite of the OS setting. That
+   * is deliberate and unchanged from before the theme cull: the first press
+   * has to move somewhere predictable, and a toggle that depends on an OS
+   * setting the page cannot see would land differently for two people
+   * pressing the same button.
+   */
   const toggleTheme = () => {
-    let theme: IConfig["theme"] = "light"
-    if (
-      ["system", "light", "contrast", "material"].includes(get(config).theme)
-    ) {
-      theme = "dark"
-    }
+    const theme: IConfig["theme"] =
+      get(config).theme === "dark" ? "light" : "dark"
     config.update((c) => {
       return { ...c, theme }
     })

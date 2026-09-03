@@ -129,18 +129,3 @@ button[disabled].authBtn::before {
 .table :where(thead, tfoot) {
   color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
 }
-
-/*
- * Contrast floor for secondary text (L22).
- *
- * `--color-base-content` at 50-60% alpha fails WCAG AA on a light background:
- * 3.17:1 and 4.26:1 against the 4.5:1 required. 70% measures 5.88:1. The
- * component utilities were lifted to /70; daisyUI sets 60% on table headers
- * itself, so that one is raised here rather than at every call site.
- *
- * Not conditional on the theme: dark themes already pass at any of these
- * alphas, because light-on-dark loses less contrast per unit of transparency.
- */
-.table :where(thead, tfoot) {
-  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
-}

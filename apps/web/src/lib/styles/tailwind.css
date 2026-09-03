@@ -2,19 +2,20 @@
 @import "tailwindcss";
 
 /** Dark Variant with theme & system mode **/
+/*
+ * Two themes, and `system`. The structure matters more than the names: an
+ * EXPLICIT dark choice is dark, an EXPLICIT light choice is never dark, and
+ * anything else — which is `system`, the default — follows the OS.
+ *
+ * The `:not([data-theme="light"] *)` arm is what makes the second clause
+ * correct. Dropping it and testing only `prefers-color-scheme` would make a
+ * user who chose Light get dark styling on a dark OS.
+ */
 @variant dark {
-  &:where(
-    [data-theme="dark"] *,
-    [data-theme="dim"] *,
-    [data-theme="material-dark"] *
-  ) {
+  &:where([data-theme="dark"] *) {
     @slot;
   }
-  &:not(
-    [data-theme="light"] *,
-    [data-theme="contrast"] *,
-    [data-theme="material"] *
-  ) {
+  &:not([data-theme="light"] *) {
     @media (prefers-color-scheme: dark) {
       @slot;
     }

@@ -91,8 +91,7 @@
 <div
   id="layout-sidebar"
   class="sidebar-menu flex flex-col"
-  data-theme={$config.sidebarTheme === "dark" &&
-  ["light", "contrast"].includes($config.theme)
+  data-theme={$config.sidebarTheme === "dark" && $config.theme === "light"
     ? "dark"
     : undefined}
 >

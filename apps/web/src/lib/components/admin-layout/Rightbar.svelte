@@ -32,40 +32,11 @@
         "group-data-[theme=light]/html:p-1 group-data-[theme=light]/html:opacity-100",
     },
     {
-      value: "contrast",
-      label: "Contrast",
-      dataTheme: "contrast",
-      selectedClass:
-        "group-data-[theme=contrast]/html:p-1 group-data-[theme=contrast]/html:opacity-100",
-    },
-    {
-      value: "material",
-      label: "Material",
-      dataTheme: "material",
-      selectedClass:
-        "group-data-[theme=material]/html:p-1 group-data-[theme=material]/html:opacity-100",
-    },
-    {
       value: "dark",
       label: "Dark",
       dataTheme: "dark",
       selectedClass:
         "group-data-[theme=dark]/html:p-1 group-data-[theme=dark]/html:opacity-100",
-    },
-    {
-      value: "dim",
-      label: "Dim",
-      dataTheme: "dim",
-      selectedClass:
-        "group-data-[theme=dim]/html:p-1 group-data-[theme=dim]/html:opacity-100",
-    },
-    {
-      value: "material-dark",
-      label: "Material Dark",
-      dataTheme: "material-dark",
-      labelClass: "text-xs sm:text-sm",
-      selectedClass:
-        "group-data-[theme=material-dark]/html:p-1 group-data-[theme=material-dark]/html:opacity-100",
     },
     {
       value: "system",

@@ -1,7 +1,6 @@
 # Kaaj
 
-Unified workplace management software for SMBs. Multi-tenant SaaS, competing
-with Zoho and Odoo
+Unified workplace management software for SMBs. Multi-tenant SaaS
 
 ---
 
@@ -619,8 +618,10 @@ exactness without that tax.
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
 mode either way — so the failure is invisible if you only check one theme. Any
-new colour pair needs measuring in all six; see
-[L22](docs/10-lessons-learned.md).
+new colour pair needs measuring in BOTH — and the light one is the half that
+fails; see [L22](docs/10-lessons-learned.md). (Nexus ships six themes; Kaaj
+carries light and dark. L22's measurements predate the cull and still hold —
+`#378dff`, the dark theme's primary, still carries white at only 3.27:1.)
 
 **Customization is data, never code.** Customers customize through rows, custom
 field definitions and settings — never per-tenant schema changes or per-tenant

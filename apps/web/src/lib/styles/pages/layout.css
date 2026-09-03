@@ -135,26 +135,18 @@ html[data-monochrome-enabled] #layout-monochrome-layer {
   }
 }
 
-/* == Overrides: specific to material theme and non-material theme == */
-
-html:not([data-theme="material"], [data-theme="material-dark"]) {
-  #layout-sidebar {
-    @apply border-base-200 border-e-[1px];
-  }
-
-  #layout-topbar {
-    @apply border-base-200 border-b;
-  }
+/*
+ * The sidebar and topbar are separated from the content by a hairline.
+ *
+ * This was previously conditional — the `material` themes floated both as
+ * rounded cards instead. Those themes are gone (Kaaj carries light and dark),
+ * so the rule is unconditional and the `:not(...)` wrapper it lived in has
+ * been removed rather than left selecting everything.
+ */
+#layout-sidebar {
+  @apply border-base-200 border-e-[1px];
 }
 
-html[data-theme="material"],
-html[data-theme="material-dark"] {
-  #layout-sidebar {
-    max-height: calc(100vh - 32px);
-    @apply rounded-box top-4 bottom-4 ms-4;
-  }
-
-  #layout-topbar {
-    @apply rounded-box static mx-5 mt-4;
-  }
+#layout-topbar {
+  @apply border-base-200 border-b;
 }

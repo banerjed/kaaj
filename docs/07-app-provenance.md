@@ -63,6 +63,7 @@ preference:
 | Demo identity replaced with the session user | "Denish N", "John Doe", avatar images, a fake team roster, and an "Upgrade — save 30%" panel |
 | `Logo` redrawn as markup | Pointed at two PNGs that do not exist in this repo |
 | Touch-target floor moved from `min-h-11` utilities to one `pointer: coarse` rule | A per-element utility has to be remembered at every call site forever; the rule covers controls not yet written |
+| Six themes reduced to two — light and dark | Nexus ships `light`, `contrast`, `material`, `dark`, `dim`, `material-dark`. Kaaj carries light and dark, plus `system` (the absence of a choice, and the default). Every theme is a surface every new colour pair has to be measured against — L22's floor is per-theme work — and four of them differed from their siblings mainly in card shadow and topbar radius. The `material` themes also floated the sidebar and topbar as rounded cards, which was the only structural difference and is now gone |
 | Hand-built mobile cards replaced with daisyUI `list`, hand-built footer with `footer` | Both components already existed; rebuilding them is how spacing drifts page by page |
 | Four Google Fonts families reduced to one, moved to `<link>` | Chained `@import url()` is render-blocking three requests deep — docs 03 and 04 both forbid it |
 | Six plugin stylesheets dropped | apexcharts, quill, filepond, flatpickr, swiper, sortablejs are not installed; they are most of the template's weight |
