@@ -91,6 +91,13 @@ export function money(
                 // A cap, not a minimum: 18,123,432 renders as $18.12M while
                 // 950 stays $950 rather than becoming $950.00.
                 maximumFractionDigits: 2,
+                // Stated, not inherited. `style: "currency"` takes its MINIMUM
+                // from the currency (USD -> 2), and whether compact notation
+                // overrides that is an ICU judgement that has changed between
+                // versions: this rendered "$950" on Node 25 and "$950.00" on
+                // Node 22, so the suite passed locally and failed in CI on the
+                // same commit. Naming the minimum removes the dependence.
+                minimumFractionDigits: 0,
               }
             : {}),
         }),

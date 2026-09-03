@@ -99,6 +99,9 @@ describe("money — compact", () => {
 
   it("caps decimals rather than forcing them", () => {
     // A minimum of 2 would render $950 as "$950.00" and ₹45,000 as "₹45.00K".
+    // `minimumFractionDigits: 0` is set explicitly in format.ts because the
+    // ICU default for compact currency changed between Node 22 and 25 — this
+    // case passed locally and failed in CI on the same commit (L71).
     expect(norm(approxMoney("950", "USD", "en-US"))).toBe("$950")
     expect(norm(approxMoney("45000", "INR", "en-IN"))).toBe("₹45K")
   })

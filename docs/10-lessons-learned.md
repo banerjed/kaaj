@@ -442,6 +442,29 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L71 — An `Intl` default is a moving target, and CI is on a different Node
+
+`approxMoney` set `maximumFractionDigits: 2` and let the MINIMUM come from the
+currency. `style: "currency"` gives USD a minimum of 2, and whether compact
+notation overrides that is an ICU judgement rather than a fixed rule. It
+changed:
+
+    Node 25 (local)  ->  $950
+    Node 22 (CI)     ->  $950.00
+
+Same commit, same code, same test — green locally, red in CI. The comment
+beside the option said "a cap, not a minimum", which was the intent and not
+what the code stated; it only read as true on the machine it was written on.
+
+**State every `Intl` option the assertion depends on.** An inherited default
+is a dependency on the runtime's ICU data, and the test that pins it is exactly
+the test that will disagree across environments.
+
+Worth generalising past `Intl`: this surfaced only because CI finally ran the
+suite. It had been failing to start for long enough that nobody had seen the
+application tests execute there at all, so a version-dependent assertion had
+nowhere to show up. A check that cannot run is not a check that passes.
+
 ### L70 — A permission model the database does not know about protects one path
 
 `accounting.read` and `accounting.write` were granted to `finance_admin`
