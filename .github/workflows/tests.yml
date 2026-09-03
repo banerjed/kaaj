@@ -1,8 +1,26 @@
 name: Tests
 
+# The application suites, against a real database.
+#
+# They need one. `test:security` covers `src/lib/server/auth`, `pii` and
+# `tenant.test.ts`, and `turbo run test` adds `row-visibility.test.ts` — all of
+# which connect on APP_DATABASE_URL as `app_user`, deliberately the NON-OWNER,
+# because a suite running as the owner bypasses FORCE ROW LEVEL SECURITY and
+# would pass straight over the policies it exists to check.
+#
+# This job previously had no database at all, so every run failed on
+# "APP_DATABASE_URL is not set" before a single assertion executed. The 357
+# security cases had never actually run in CI; the green ticks on other
+# workflows were format, lint and build.
+#
+# The database is built by the same script `database.yml` uses, so the two
+# cannot drift from each other or from `supabase db reset`.
+
 on: [push, pull_request]
 
 env:
+  # A browser Supabase client is constructed at import time in a few modules.
+  # These suites never contact it.
   PUBLIC_SUPABASE_URL: "https://fake_test_url.supabase.co"
   PUBLIC_SUPABASE_ANON_KEY: "fake_anon_key"
   PRIVATE_SUPABASE_SERVICE_ROLE: "fake_service_role"
@@ -17,6 +35,29 @@ jobs:
       run:
         working-directory: .
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      # The owner — harnesses and snapshots.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # What the APPLICATION connects as. A non-owner, so RLS applies to it.
+      APP_DATABASE_URL: postgresql://app_user:app_user@localhost:5432/postgres
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +67,21 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Install psql 17
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+
+      - name: Build the database
+        run: packages/database/scripts/ci-database.sh
+
+      # Listed separately although `turbo run test` also covers it: without the
+      # line, 357 authorization, PII and tenant-isolation cases are invisible
+      # inside a single "unit tests" number.
       - name: Security — authorization, PII, tenant isolation
         run: pnpm test:security
 
