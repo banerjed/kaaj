@@ -82,19 +82,26 @@ test("a full-page form marks the refused field too", async ({ page }) => {
   const companyName = page.locator('input[name="company_name"]')
   await expect(companyName).toBeVisible()
 
-  // Same hydration race as openModal above, on a field instead of a click:
-  // this input is server-rendered with the real company name already in it,
-  // and a fill() that lands before Svelte's binding attaches gets silently
-  // overwritten back to that value once hydration catches up — the empty
-  // value never reaches the server, and "refused" never happens to assert on.
+  // Same hydration race as openModal above, on a field instead of a click,
+  // and wider than it looks: this input is server-rendered with the real
+  // company name already in it, `value={company.company_name}` is a one-way
+  // binding Svelte can re-apply on its own schedule, and a trace confirmed a
+  // confirmed-empty fill still lost the race — ~600ms elapsed between the
+  // value reading "" and the click actually landing (submit's own
+  // actionability/stability polling), long enough for a re-render to put the
+  // original text back before the value is ever read for the request. No
+  // single wait closes that window reliably, so retry the whole interaction:
+  // if the wrong ("succeeded") outcome shows up, re-fill and resubmit rather
+  // than trust one attempt. Idempotent — a wrongly-accepted save just writes
+  // back the same unchanged name, so retrying costs nothing.
   await expect(async () => {
     await companyName.fill("")
-    await expect(companyName).toHaveValue("")
-  }).toPass({ timeout: 15_000 })
+    await submitPastTheBrowser(page, "?/update")
+    await expect(page.locator(".alert").first()).toContainText("Company name", {
+      timeout: 3_000,
+    })
+  }).toPass({ timeout: 20_000 })
 
-  await submitPastTheBrowser(page, "?/update")
-
-  await expect(page.locator(".alert").first()).toContainText("Company name")
   await expect(companyName).toHaveClass(/input-error/)
   await expect(companyName).toHaveAttribute("aria-invalid", "true")
 })
