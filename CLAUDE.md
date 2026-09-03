@@ -49,25 +49,7 @@ Needs the local stack running (`supabase start`). It finds `psql` and resolves
 `DATABASE_URL` on its own — no shell setup required, and it works from any
 directory in the repo.
 
-### Deploying to production
-
-```bash
-./check                              # must be green
-supabase db push                     # apply migrations to the hosted project
-packages/database/tests/verify-remote.sh             # read-only verification against production
-```
-
-`supabase db push` is not reversible. Migrations are forward-only: a mistake is
-corrected by writing another migration, never by rolling back.
-
-**Never run `verify-rls.sql` against production** — it seeds a second tenant and
-writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to point
-at a live database; it forces a read-only transaction and aborts if that did not
-take effect.
-
----
-
-## What `./check` runs
+### What it runs
 
 | Step | Proves | Count |
 |---|---|---|
@@ -98,6 +80,22 @@ These are complementary and none substitutes for another:
   checks are metadata-only; a policy of `USING(true)` passes them.
 - **Invariants** prove rules hold, but say nothing about drift.
 - **Snapshot** proves nothing changed, but cannot say whether it was right.
+
+### Deploying to production
+
+```bash
+./check                              # must be green
+supabase db push                     # apply migrations to the hosted project
+packages/database/tests/verify-remote.sh             # read-only verification against production
+```
+
+`supabase db push` is not reversible. Migrations are forward-only: a mistake is
+corrected by writing another migration, never by rolling back.
+
+**Never run `verify-rls.sql` against production** — it seeds a second tenant and
+writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to point
+at a live database; it forces a read-only transaction and aborts if that did not
+take effect.
 
 ---
 
@@ -186,6 +184,17 @@ What we deliberately diverge on, and why, is recorded in
 architecture, the URLs, the accessibility floor, and any demo feature with
 nothing behind it. Divergence is fine — *undocumented* divergence is drift.
 
+**Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
+light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
+mode either way — so the failure is invisible if you only check one theme. Any
+new colour pair needs measuring in BOTH — and the light one is the half that
+fails; see [L22](docs/10-lessons-learned.md). Kaaj carries light and dark only;
+`#378dff`, the dark theme's primary, still carries white at just 3.27:1.
+
+**Customization is data, never code.** Customers customize through rows, custom
+field definitions and settings — never per-tenant schema changes or per-tenant
+code. See [docs/06-customization-model.md](docs/06-customization-model.md).
+
 ---
 
 ## Before building a module
@@ -231,73 +240,43 @@ everyone pays for. If an entry stops being true, delete it.
 
 ## Security: how the breaches actually happened
 
-Every disclosure found in this codebase was a *correct-looking number in the
-right-looking column*. None raised an error, none failed a test, and several
-sat behind guards that were passing. The detailed rules are below and in
-[docs/10-lessons-learned.md](docs/10-lessons-learned.md); this section is the
-lens that lets you spot the **next** one.
+Every disclosure found here was a *correct-looking number in the right-looking
+column*. None raised an error, none failed a test, and several sat behind
+guards that were passing. The concrete rules are below; these are the lenses
+that let you spot the **next** one. Each links the case that produced it.
 
-**A protected value has more than one home.** Protection is applied per
-MECHANISM — a policy on a table, a `can()` on an action, encryption on a
-column. Disclosure happens per VALUE. Before trusting any protection, list
-every place that value exists: denormalised caches, JSONB documents, audit
-entries, exports, indexes, error messages, log lines. *Every salary in the firm
-was readable because `COALESCE` fell back to a cache of the protected column
-(L47), and readable again later because the audit trail copied it (L55).*
+- **A protected value has more than one home.** Protection is applied per
+  MECHANISM; disclosure happens per VALUE. List every place the value exists —
+  caches, JSONB, audit entries, exports, indexes, logs (L47, L55).
+- **Ask who can READ what you write.** A new write is designed as a write and
+  its read side is examined by nobody. The highest-yield question here (L55).
+- **A guard never observed failing is not evidence.** Reintroduce the bug and
+  watch it fail (L48).
+- **An empty column is an unchecked column.** A test whose subject is NULL
+  reports the absence of data as the absence of a problem (L50, L51).
+- **Test as the actor meant to be REFUSED.** Suites run as an owner, which
+  makes the refused branch unreachable. Assert both halves (L47).
+- **A rule written only in prose is applied unevenly.** Make it a committed
+  register plus a `./check` step that fails on anything unclassified (L48, L54).
+- **`any` forbids nothing.** An untyped row is unexaminable downstream (L53).
+- **Make the classification visible in the name.** `_pvt`, `_ct` — so a
+  reviewer sees it in the diff, enforced both ways (L49).
 
-**Ask who can READ what you write.** A new write is designed as a write, and
-its read side is examined by nobody. That is the single highest-yield question
-in this file. *`audit_log` had no row policy, so auditing pay changes handed
-every employee every pay change in the firm (L55).*
-
-**A guard that has never been observed to fail is not evidence.** Reintroduce
-the bug and watch it fail before you trust it. *The first version of the
-unprotected-fallback guard let three of four evasion shapes through; the PII
-guard had `FROM employees` hardcoded and passed over plaintext IBANs in other
-tables (L48).*
-
-**An empty column is an unchecked column.** A test whose subject is NULL does
-not fail — it reports the absence of data as the absence of a problem. *Five
-`_ct` columns were never examined by two PII invariants because they held
-nothing; `PAY-math` omitted pre-tax deductions and passed for months because
-every row had zero (L50, L51).*
-
-**Test as the actor meant to be REFUSED.** Repository suites deliberately run
-as an owner so a policy cannot silently narrow what they see — which makes the
-refused branch of every query unreachable from them. Assert both halves: the
-refused actor gets nothing, *and* the permitted one still gets the value. *426
-tests could not see L47.*
-
-**A rule written only in prose is applied unevenly.** Make it a committed
-register plus a `./check` step that fails on anything unclassified — so a new
-case forces a decision instead of defaulting to silence. *The audit requirement
-was prose for months and 3 of 26 writes followed it (L54); the disclosure
-matrix exists for the same reason (L48).*
-
-**`any` forbids nothing.** An untyped row makes every value downstream
-unexaminable, so a wrong-shaped argument is not merely allowed — it cannot be
-checked. Type anything that crosses into a page. *(L53)*
-
-**Make the classification visible in the name.** `_pvt` for restricted,
-`_ct` for ciphertext, so a reviewer sees it in the diff. The register decides
-and the name must AGREE — enforced both ways. *(L49)*
-
-The planned mechanisation of all this — an exhaustive taint check over every
-read path × every actor — is specified in
+The planned mechanisation — an exhaustive taint check over every read path ×
+every actor — is in
 [docs/16-disclosure-verification.md](docs/16-disclosure-verification.md),
 including what it deliberately will **not** catch.
 
 ### Before shipping anything touching personal or financial data
 
-1. **Where else does this value live?** Cache, JSONB, audit entry, export,
-   index. Each home needs its own defence.
+1. **Where else does this value live?** Each home needs its own defence.
 2. **Run the read as a refused actor**, against the live database, not in your
-   head. An employee, and a `finance_admin` or `it_admin` — the roles powerful
+   head — an employee, and a `finance_admin` or `it_admin`. The roles powerful
    somewhere else are the ones whose limits nobody tests.
 3. **Watch the guard fail.** If nothing failed, you have not tested it.
 4. **Check the fixture has data.** A green assertion over NULL is not a pass.
-5. **Confirm it is classified** — in the disclosure matrix, the audit register,
-   or a committed exemption with a reason.
+5. **Confirm it is classified** — disclosure matrix, audit register, or a
+   committed exemption with a reason.
 
 Answering "who may write this" is half the work. The breaches were all in the
 other half.
@@ -338,17 +317,14 @@ column nobody classified. This asserts the classification; it never infers it
 ([L49](docs/10-lessons-learned.md)). Only `employees` needs this: elsewhere a
 row policy scopes the whole row.
 
-**No column anywhere may be empty in the fixture.** A test
-whose subject is NULL does not fail — it reports the absence of data as the
-absence of a problem, which is how `PAY-math` omitted pre-tax deductions from
-the payroll identity and passed for months ([L50](docs/10-lessons-learned.md)).
+**No column anywhere may be empty in the fixture.** A test whose subject is
+NULL does not fail — it reports the absence of data as the absence of a problem
+([L50](docs/10-lessons-learned.md), [L51](docs/10-lessons-learned.md)).
 `./check` enforces it across every base table, with a committed sparse list;
 "not got round to it" is not a reason — the only accepted one so far is "the
-table it references does not exist yet". Completing the schema this way
-surfaced five never-checked ciphertext columns, an unseeded `auth.users`, and a
-table with no rows at all ([L51](docs/10-lessons-learned.md)). Generate ciphertext through `sealField`, never by hand — and
-`pii.test.ts` opens every sealed fixture value, because a copied envelope still
-looks populated.
+table it references does not exist yet". Generate ciphertext through
+`sealField`, never by hand: `pii.test.ts` opens every sealed fixture value,
+because a copied envelope still looks populated.
 
 **Every sensitive column is classified before it ships.**
 `apps/web/src/lib/server/security/matrix.ts` records, per value, who may read
@@ -429,19 +405,32 @@ and then been invisible under every filter ([L57](docs/10-lessons-learned.md)).
 Ask of any new write: **can the thing this creates be found again by the page
 that lists it?**
 
-**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`, and a
-new FORM gets a case in `apps/web/e2e/form-errors.spec.ts`.** They are
-the only checks that load a URL — the other seventeen prove the schema, the
-policies, the classifications and the units, and none of them renders anything.
-The suite asks for the page's heading BY ROLE, which is how it found that no
-page in the product had an `<h1>` at all ([L64](docs/10-lessons-learned.md)).
-It is read-only on purpose: the fixture is shared with the unit suites, and a
-spec that writes needs its own serial project and a reseed. `form-errors.spec.ts`
-stays read-only by only ever submitting things the action REFUSES — it asserts
-that the message names the field, that the field is marked, and that the form is
-still on screen to be corrected ([L68](docs/10-lessons-learned.md)). Run it with
-`pnpm --filter @kaaj/web e2e`; it is deliberately NOT in `./check`, which is
-22 seconds and worth keeping that way.
+**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`; a new
+FORM gets a case in `apps/web/e2e/form-errors.spec.ts`.** They are the only
+checks that load a URL — nothing else in `./check` renders anything. Headings
+are asked for BY ROLE, which is how it found that no page in the product had an
+`<h1>` ([L64](docs/10-lessons-learned.md)). Both are read-only: the fixture is
+shared with the unit suites, so a spec that writes needs its own serial project
+and a reseed. Run with `pnpm --filter @kaaj/web e2e` — deliberately NOT in
+`./check`, which is 24 seconds and worth keeping that way.
+
+**An error is never logged raw — it goes through `safeError`
+(`$lib/errors.ts`), and unexpected ones through `handleError`.** A
+`PostgresError` carries the offending row in `detail`, and `where`, `query`
+and the bound parameters alongside it. Postgres withholds `detail` from
+`app_user`, so the request path is already covered — but the table owner sees
+it, and that is what `./check`, the migrations, `verify-remote.sh` and anything
+on the service role connect as ([L69](docs/10-lessons-learned.md)). The
+allowlist is defence in depth there and the only defence everywhere else.
+`message` echoes the submitted value whatever the role — `invalid input syntax
+for type date: "1985-03-12"` is a date of birth — which is why these lines stay
+in infrastructure we control.
+
+**Every unexpected error gets an id, and the id is on the page.** `handleError`
+in both hooks mints one, logs the error against it as JSON on stdout with the
+actor from `locals`, and returns `{ id, message }`. SvelteKit replaces the real
+message with "Internal Error" before it reaches the browser, so without the id
+a bug report has nothing to quote and we have nothing to search.
 
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so
@@ -507,12 +496,11 @@ value` before the query is sent. Pass `null` and test `IS NULL`
 date clash, an inverted band — so every failure arrives through one path and
 the page can put the cursor on the field.
 
-**A write that the database can refuse is caught, and answers with a sentence.**
-`FormReader` validates the shape of a value and cannot know that the code is
-already taken or that the row was archived a minute ago. Every such refusal —
-UNIQUE, CHECK, FK — reached the user as an "Internal Error" page with the form
-contents gone, including four separate "somebody already used that code" cases
-([L66](docs/10-lessons-learned.md)). Wrap the write and translate:
+**A write the database can refuse is caught and answers with a sentence.**
+`FormReader` validates the shape of a value; it cannot know the code is already
+taken or the row was archived a minute ago. Uncaught, every such refusal —
+UNIQUE, CHECK, FK — was an "Internal Error" page with the form's contents gone
+([L66](docs/10-lessons-learned.md)).
 
 ```ts
 try {
@@ -524,46 +512,42 @@ try {
 }
 ```
 
-The registry keys on **`constraint_name`, never the message text** — the name is
-in the migration, and SQLSTATE `23505` alone cannot say which field to mark. An
-unregistered constraint keeps crashing loudly on purpose; that is what gets it
+The registry keys on **`constraint_name`, never the message text** — the name
+is in the migration, and SQLSTATE `23505` alone cannot say which field to mark.
+An unregistered constraint keeps crashing loudly, which is what gets it
 registered rather than hidden behind "something went wrong". `./check`'s
-`refusals have a message` step fails on any UNIQUE or CHECK on a form-written
-table that is neither registered nor exempted with a reason.
+`refusals have a message` step fails on any constraint on a form-written table
+that is neither registered nor exempted with a reason.
 
-**A date is read with `f.date()`. A shape regex is not a date check.**
-`/^\d{4}-\d{2}-\d{2}$/` accepts `2026-02-31`, and postgres.js serialises it
-through a JS `Date` that rolls it forward — so the row stored `2026-03-03`,
-with no error and `saved: true` ([L67](docs/10-lessons-learned.md)). A wrong
-hire date is a wrong first pay period. The same applies to any value the
-driver serialises: validate in the units the column stores.
+**A shape regex is not a date check.** `/^\d{4}-\d{2}-\d{2}$/` accepts
+`2026-02-31`; postgres.js then rolls it through a JS `Date` and stores
+`2026-03-03`, with no error and `saved: true`
+([L67](docs/10-lessons-learned.md)). Use `f.date()`, which round-trips the
+parse. The same goes for anything the driver serialises — validate in the units
+the column stores.
 
 **A write reports what it DID, not that the request arrived.** An `UPDATE …
-WHERE id = $1` that matches nothing returns success, so all eight `archive`
-actions answered `{ archived: true }` for rows that did not exist — and audited
-the archiving ([L68](docs/10-lessons-learned.md)). Return `RETURNING id` and
-have the action check it before it claims anything. Ask of any write: **if this
-silently did nothing, would the page look different?**
+WHERE id = $1` matching nothing still succeeds, so all eight `archive` actions
+answered `{ archived: true }` for rows that did not exist — and audited it
+([L68](docs/10-lessons-learned.md)). Return `RETURNING id` and check it. Ask of
+any write: **if this silently did nothing, would the page look different?**
 
-**A refused field is MARKED, and the form is still on screen to mark.** Three
-things have to hold together, and each failed separately:
+**A refused field is MARKED, and the form is still there to mark.** Three parts,
+each of which failed separately ([L68](docs/10-lessons-learned.md)):
 
-- the message NAMES the field. `f.problem()` does this by default now —
-  "Check Anchor date." — so never pass a bare "Some fields need attention."
-- the control carries the highlight AND `aria-invalid`. Use `fieldErrors(form)`
-  from `$lib/form-errors`; a red border is invisible to a screen reader and to
-  anyone who cannot separate the hue.
-- a form in a modal uses `use:enhance={closeOnSuccess(() => (editing = null))}`
-  from `$lib/form-enhance`. A plain POST reloads, which resets the `$state`
-  holding the modal open — so the alert described a form that was no longer
-  there, with everything typed into it gone. **`update({ reset: false })` is
-  not optional**: the default resets the form and discards the person's work at
-  the moment they need it back. A form that is not in a modal still wants
-  `keepValues` for the same reason.
+- the message NAMES the field — `f.problem()` does this by default ("Check
+  Anchor date."), so never pass a bare "Some fields need attention."
+- the control carries the daisyUI modifier AND `aria-invalid`, via
+  `fieldErrors(form)` in `$lib/form-errors`. A red border does not reach a
+  screen reader.
+- a modal form uses `use:enhance={closeOnSuccess(() => (editing = null))}` from
+  `$lib/form-enhance`; a plain POST reloads and resets the `$state` holding it
+  open. **`update({ reset: false })` is not optional** — the default resets the
+  form and discards the work the person is being asked to fix. Non-modal forms
+  use `keepValues` for the same reason.
 
-`apps/web/e2e/form-errors.spec.ts` asserts all three. It writes nothing —
-every submission in it is one the action refuses — which is why it can sit
-beside the read-only specs.
+`apps/web/e2e/form-errors.spec.ts` asserts all three, and stays read-only by
+only ever submitting what the action refuses.
 
 `src/lib/server/forms.test.ts` is the regression guard. Every case in it
 returned a 500, or a silent `saved: true`, against the running app before the
@@ -641,9 +625,7 @@ money column to it, deliberately, the way every other list here works.
 
 **Arithmetic happens in SQL, not in JavaScript.** Summing invoice lines,
 computing gross pay, prorating: all `NUMERIC` in Postgres, where it is exact.
-This bit once: a component added `employee + employer` from a JSONB cost map,
-which was a float64 round trip — and became silent string *concatenation* the
-moment those fields were correctly typed as strings, with no type error.
+Adding two money strings in JS is silent *concatenation*, with no type error.
 
 **Currency travels with the amount, always,** and is never converted for
 display (BR-FP-003). A figure is shown in its currency of record, formatted in
@@ -669,9 +651,7 @@ because `Intl` already knows:
 
 ```
 en-US  18,123,432  ->  $18.12M
-en-IN   1,423,323  ->  ₹14.23L      (lakh)
-en-IN  18,123,432  ->  ₹1.81Cr      (crore)
-ja-JP  18,123,432  ->  ￥1812.34万   (man)
+en-IN  18,123,432  ->  ₹1.81Cr      (crore; en-IN 1,423,323 -> ₹14.23L)
 ```
 
 Decimals are capped at 2, not forced, so `950` stays `$950` rather than
@@ -680,25 +660,6 @@ Decimals are capped at 2, not forced, so `950` stays `$950` rather than
 `approxMoney` is a separate function rather than an option so a reviewer sees
 the choice — `approxMoney` on a payslip line reads wrong; a `compact: true`
 buried in an options object does not.
-
-**Not integer minor units.** The other defensible answer, rejected: every query
-needs division to be readable, JPY (0 decimals) and BHD (3) break the ×100
-assumption, and `Intl.NumberFormat` wants major units. `NUMERIC` gives
-exactness without that tax.
-
----
-
-**Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
-light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
-mode either way — so the failure is invisible if you only check one theme. Any
-new colour pair needs measuring in BOTH — and the light one is the half that
-fails; see [L22](docs/10-lessons-learned.md). (Nexus ships six themes; Kaaj
-carries light and dark. L22's measurements predate the cull and still hold —
-`#378dff`, the dark theme's primary, still carries white at only 3.27:1.)
-
-**Customization is data, never code.** Customers customize through rows, custom
-field definitions and settings — never per-tenant schema changes or per-tenant
-code. See [docs/06-customization-model.md](docs/06-customization-model.md).
 
 **Abbreviated money is for scale, never for action.** `approxMoney()` belongs
 on dashboards, chart axes and summary tiles — figures a person reads to get a
@@ -711,6 +672,13 @@ is a cosmetic problem, and the reverse is a financial one.
 **Custom fields must never feed payroll or accounting calculations.** They are
 untyped and untested. A customer needing a custom allowance on a payslip is a
 modelling gap to fix in the product, not a custom field.
+
+Integer minor units were the rejected alternative; the reasoning is in
+[docs/05-architecture-decisions.md](docs/05-architecture-decisions.md).
+
+---
+
+## Tenancy, audit and disclosure
 
 **Every `withTenant` takes `actorFrom(locals)`, never `locals.tenantId`.** Row
 visibility keys on the role and the person, so a bare tenant id returns zero
@@ -750,6 +718,10 @@ next to the flag, so a page that renders it breaks the promise silently
 NULL`), not after the query: a repository that fetches and drops has still put
 it in a result set, a log line and a heap dump. And add the fixture row that
 triggers the rule, or nobody is testing it.
+
+---
+
+## PII and secrets
 
 **PII is encrypted in the application, never in SQL, and always through
 `$lib/server/pii`.** `sealField`/`openField` are the only write and read paths.
@@ -806,3 +778,4 @@ Local environment values live in `apps/web/.env.local` and are loaded automatica
 Production values live in `apps/web/.env.prod`, which is deliberately **not**
 auto-loaded so a stray `npm run dev` cannot write to production. Both are
 gitignored.
+
