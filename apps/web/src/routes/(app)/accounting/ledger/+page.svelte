@@ -104,7 +104,7 @@
                     {e.entry_number}
                   </button>
                   {#if !e.balances}
-                    <span class="badge badge-error badge-sm ms-1">
+                    <span class="badge badge-soft badge-error badge-sm ms-1">
                       does not balance
                     </span>
                   {/if}

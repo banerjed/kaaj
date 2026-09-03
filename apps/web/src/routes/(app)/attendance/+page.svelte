@@ -2,6 +2,8 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, hours, instant } from "$lib/format"
   import { isPositive } from "$lib/decimal"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -28,14 +30,14 @@
       "time",
     )
 
-  const statusClass = (s: string) =>
+  const statusTone = (s: string): Tone =>
     s === "present"
-      ? "badge-success"
+      ? "positive"
       : s === "late"
-        ? "badge-warning"
+        ? "caution"
         : s === "absent"
-          ? "badge-error"
-          : "badge-ghost"
+          ? "critical"
+          : "neutral"
 
   const label = (s: string) => s.replace(/_/g, " ")
 
@@ -135,9 +137,9 @@
                 {/if}
               </p>
             </div>
-            <span class={`badge badge-sm capitalize ${statusClass(d.status)}`}>
+            <StatusBadge tone={statusTone(d.status)}>
               {label(d.status)}
-            </span>
+            </StatusBadge>
           </li>
         {/each}
       </ul>
@@ -201,11 +203,9 @@
                   {/if}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(d.status)}`}
-                  >
+                  <StatusBadge tone={statusTone(d.status)}>
                     {label(d.status)}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}

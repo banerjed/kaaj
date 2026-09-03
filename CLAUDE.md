@@ -186,6 +186,24 @@ What we deliberately diverge on, and why, is recorded in
 architecture, the URLs, the accessibility floor, and any demo feature with
 nothing behind it. Divergence is fine — *undocumented* divergence is drift.
 
+**A status badge goes through `StatusBadge` (`$lib/components/`), and
+coloured badges use `badge-soft`.** Eleven pages each held their own ternary
+returning `badge-success`/`badge-error`/…; the vocabularies differ and should —
+"paid" belongs to invoices and "present" to attendance — but the daisyUI
+spelling was copied eleven times. A page now names a *tone*
+(`positive` · `caution` · `critical` · `progress` · `neutral`) and
+`status-tone.ts` says how daisyUI writes it, so restyling every status badge is
+one edit. `badge-soft` is the template's own convention — Nexus writes
+`badge badge-soft badge-success badge-sm` 28 times and never a solid status
+badge — and solid colour across a dense table reads as an alert rather than a
+state. `badge-ghost` is a *style* like `badge-soft` and they are mutually
+exclusive, so `neutral` is ghost alone ([L72](docs/10-lessons-learned.md)).
+
+**Never assemble a class name.** `badge-${size}` is invisible to Tailwind,
+which reads source text and cannot evaluate an expression — the class is simply
+never generated, the element renders unstyled, and nothing errors. Map to full
+literals, as `TONE_CLASS` and `SIZE_CLASS` do.
+
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
 mode either way — so the failure is invisible if you only check one theme. Any

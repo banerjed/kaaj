@@ -4,6 +4,8 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -20,14 +22,14 @@
   const localeFor = (country: string | null) =>
     country === "GB" ? "en-GB" : country === "IN" ? "en-IN" : "en-US"
 
-  const statusClass = (s: string) =>
+  const statusTone = (s: string): Tone =>
     s === "paid" || s === "finalized"
-      ? "badge-success"
+      ? "positive"
       : s === "approved"
-        ? "badge-info"
+        ? "progress"
         : s === "cancelled"
-          ? "badge-error"
-          : "badge-ghost"
+          ? "critical"
+          : "neutral"
 </script>
 
 <svelte:head>
@@ -141,7 +143,7 @@
                          a run claiming people it has no line for says it paid
                          someone it cannot name. -->
                     <span
-                      class="badge badge-error badge-sm ms-1"
+                      class="badge badge-soft badge-error badge-sm ms-1"
                       title={`Header claims ${r.employee_count}`}
                     >
                       ≠ {r.employee_count}
@@ -161,11 +163,9 @@
                   >
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(r.run_status)}`}
-                  >
+                  <StatusBadge tone={statusTone(r.run_status)}>
                     {r.run_status}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}

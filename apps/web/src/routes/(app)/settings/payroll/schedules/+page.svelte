@@ -184,7 +184,8 @@
                         </td>
                         <td>
                           {#if p.clashes[d] === "holiday"}
-                            <span class="badge badge-warning badge-sm"
+                            <span
+                              class="badge badge-soft badge-warning badge-sm"
                               >Holiday</span
                             >
                           {:else if p.clashes[d] === "weekend"}

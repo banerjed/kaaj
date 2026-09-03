@@ -2,6 +2,8 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -23,21 +25,14 @@
         : tenantLocale,
   )
 
-  const priorityClass = (p: string | null) =>
-    p === "urgent"
-      ? "badge-error"
-      : p === "high"
-        ? "badge-warning"
-        : p === "low"
-          ? "badge-ghost"
-          : "badge-neutral"
+  // `medium` was `badge-neutral` — the heaviest badge in the set, on the least
+  // remarkable value. The word is still there, which is what carries the
+  // meaning; the colour was doing redundant work.
+  const priorityTone = (p: string | null): Tone =>
+    p === "urgent" ? "critical" : p === "high" ? "caution" : "neutral"
 
-  const statusClass = (s: string | null) =>
-    s === "done"
-      ? "badge-success"
-      : s === "in_progress"
-        ? "badge-info"
-        : "badge-ghost"
+  const statusTone = (s: string | null): Tone =>
+    s === "done" ? "positive" : s === "in_progress" ? "progress" : "neutral"
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 </script>
@@ -152,7 +147,7 @@
          the tasks actually present. A denormalised count that nobody checks
          drifts, and it drifts into a progress bar that still looks right. -->
     {#if data.project.task_count !== data.tasks.length}
-      <span class="badge badge-error badge-sm ms-1">
+      <span class="badge badge-soft badge-error badge-sm ms-1">
         row claims {data.project.task_count}
       </span>
     {/if}
@@ -201,16 +196,16 @@
                   {t.assignee_name ?? "Unassigned"}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${priorityClass(t.priority)}`}
-                  >
+                  <StatusBadge tone={priorityTone(t.priority)}>
                     {t.priority}
-                  </span>
+                  </StatusBadge>
                 </td>
                 <td class="text-sm tabular-nums">
                   {t.due_date ? calendarDate(t.due_date, locale) : "—"}
                   {#if t.is_overdue}
-                    <span class="badge badge-error badge-sm ms-1">overdue</span>
+                    <span class="badge badge-soft badge-error badge-sm ms-1"
+                      >overdue</span
+                    >
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">
@@ -255,11 +250,9 @@
                       </noscript>
                     </form>
                   {:else}
-                    <span
-                      class={`badge badge-sm capitalize ${statusClass(t.status)}`}
-                    >
+                    <StatusBadge tone={statusTone(t.status)}>
                       {label(t.status)}
-                    </span>
+                    </StatusBadge>
                   {/if}
                 </td>
               </tr>

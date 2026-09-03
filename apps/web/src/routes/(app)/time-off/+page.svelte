@@ -5,6 +5,8 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -32,12 +34,8 @@
 
   let denying = $state<TimeOffRequest | null>(null)
 
-  const statusClass = (s: string) =>
-    s === "approved"
-      ? "badge-success"
-      : s === "denied"
-        ? "badge-error"
-        : "badge-warning"
+  const statusTone = (s: string): Tone =>
+    s === "approved" ? "positive" : s === "denied" ? "critical" : "caution"
 
   // A balance that has gone negative is a real state — an adjustment, or leave
   // taken in advance — and it should be visible rather than clamped to zero.
@@ -104,7 +102,9 @@
   <h2 class="mt-6 text-base font-medium">
     Awaiting a decision
     {#if pending.length > 0}
-      <span class="badge badge-warning badge-sm ms-1">{pending.length}</span>
+      <span class="badge badge-soft badge-warning badge-sm ms-1"
+        >{pending.length}</span
+      >
     {/if}
   </h2>
 
@@ -200,9 +200,9 @@
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <span class={`badge badge-sm ${statusClass(r.status)}`}>
+              <StatusBadge tone={statusTone(r.status)} capitalize={false}>
                 {r.status}
-              </span>
+              </StatusBadge>
             </div>
             {#if r.denial_reason}
               <p class="list-col-wrap text-base-content/70 text-sm">

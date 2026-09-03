@@ -442,6 +442,37 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L72 — We drifted from the template's badge idiom, and only a third tool saw it
+
+The complaint was "lots of very complex class definitions, against the grain of
+daisyUI". Measured, the product code was the opposite: `(app)` had **8**
+elements with 7+ classes; `nexus-sveltekit-ref`, the template it derives from,
+has **744**. The long chains were all in `(marketing)` and the vendored shell.
+Checked against daisyUI's own rule set, `(app)` had zero dynamically built
+class names, zero arbitrary colour utilities, and zero component-fighting
+overrides — every apparent override was `card bg-base-100 shadow`, which is
+required because `.card` sets no background, and which Nexus itself writes 62
+times to our 63.
+
+What WAS wrong was invisible to that complaint. Eleven pages had independently
+written the same status→badge ternary, and all 53 coloured badges were solid
+while Nexus uses `badge-soft` 28 times and solid never. Two authorities the
+project already recognises — the template in the repo, and daisyUI's own
+guidance — agreed with each other and disagreed with us, and neither had ever
+been consulted for this because nothing compares them.
+
+**A style guide nobody diffs against is decoration.** `./check` proves the
+schema, the policies and the units; nothing in it can see that the product
+stopped looking like the template it is supposed to look like. The tiebreaker
+was already committed in `nexus-sveltekit-ref` and one `grep` answered it.
+
+Two smaller things from the same change. `badge-ghost` and `badge-soft` are
+both *style* modifiers and are mutually exclusive — combining them silently
+drops one. And a screenshot found what no test could: an invoice whose status
+IS `overdue` rendered a grey badge, because the vocabulary listed `void`,
+`sent` and `viewed` — none of which occur — and omitted the one that does
+(L57 again, in a colour rather than a filter).
+
 ### L71 — An `Intl` default is a moving target, and CI is on a different Node
 
 `approxMoney` set `maximumFractionDigits: 2` and let the MINIMUM come from the

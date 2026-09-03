@@ -1,22 +1,24 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
   const localeFor = (c: string) =>
     c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : "en-US"
 
-  const statusClass = (s: string | null) =>
+  const statusTone = (s: string | null): Tone =>
     s === "paid"
-      ? "badge-success"
+      ? "positive"
       : s === "void" || s === "cancelled"
-        ? "badge-error"
+        ? "critical"
         : s === "partial"
-          ? "badge-warning"
+          ? "caution"
           : s === "approved"
-            ? "badge-info"
-            : "badge-ghost"
+            ? "progress"
+            : "neutral"
 </script>
 
 <svelte:head><title>Bills · Kaaj</title></svelte:head>
@@ -90,7 +92,7 @@
                   </a>
                   {#if b.line_subtotal !== null && Number(b.line_subtotal) !== Number(b.subtotal)}
                     <span
-                      class="badge badge-error badge-sm ms-1"
+                      class="badge badge-soft badge-error badge-sm ms-1"
                       title={`Lines sum to ${b.line_subtotal}`}
                     >
                       ≠ lines
@@ -108,7 +110,9 @@
                 <td class="text-sm tabular-nums">
                   {b.due_date ? calendarDate(b.due_date, locale) : "—"}
                   {#if b.is_overdue}
-                    <span class="badge badge-error badge-sm ms-1">overdue</span>
+                    <span class="badge badge-soft badge-error badge-sm ms-1"
+                      >overdue</span
+                    >
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">
@@ -121,11 +125,9 @@
                   {money(b.amount_due, b.currency, locale)}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(b.status)}`}
-                  >
+                  <StatusBadge tone={statusTone(b.status)}>
                     {b.status?.replace(/_/g, " ")}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}

@@ -4,6 +4,8 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -20,21 +22,17 @@
   const localeFor = (c: string | null) =>
     c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
 
-  const healthClass = (h: string | null) =>
-    h === "at_risk"
-      ? "badge-warning"
-      : h === "off_track"
-        ? "badge-error"
-        : "badge-success"
+  const healthTone = (h: string | null): Tone =>
+    h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"
 
-  const statusClass = (s: string | null) =>
+  const statusTone = (s: string | null): Tone =>
     s === "active"
-      ? "badge-info"
+      ? "progress"
       : s === "completed"
-        ? "badge-success"
+        ? "positive"
         : s === "cancelled"
-          ? "badge-error"
-          : "badge-ghost"
+          ? "critical"
+          : "neutral"
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 
@@ -125,16 +123,12 @@
                 </p>
               </div>
               <div class="flex shrink-0 gap-1">
-                <span
-                  class={`badge badge-sm capitalize ${healthClass(p.health_status)}`}
-                >
+                <StatusBadge tone={healthTone(p.health_status)}>
                   {p.health_status?.replace(/_/g, " ")}
-                </span>
-                <span
-                  class={`badge badge-sm capitalize ${statusClass(p.status)}`}
-                >
+                </StatusBadge>
+                <StatusBadge tone={statusTone(p.status)}>
                   {p.status?.replace(/_/g, " ")}
-                </span>
+                </StatusBadge>
               </div>
             </div>
 

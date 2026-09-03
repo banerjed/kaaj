@@ -90,7 +90,7 @@
         </p>
         <div class="flex gap-1">
           {#if data.invoice.is_overdue}
-            <span class="badge badge-error badge-sm">overdue</span>
+            <span class="badge badge-soft badge-error badge-sm">overdue</span>
           {/if}
           <span class="badge badge-sm capitalize">{data.invoice.status}</span>
         </div>

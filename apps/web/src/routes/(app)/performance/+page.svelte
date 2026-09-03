@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, number } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -9,12 +11,12 @@
   const mine = $derived(data.reviews.filter((r) => r.employee_id === data.me))
   const others = $derived(data.reviews.filter((r) => r.employee_id !== data.me))
 
-  const statusClass = (s: string) =>
+  const statusTone = (s: string): Tone =>
     s === "acknowledged"
-      ? "badge-success"
+      ? "positive"
       : s === "submitted"
-        ? "badge-info"
-        : "badge-ghost"
+        ? "progress"
+        : "neutral"
 
   const goalsFor = (employeeId: string) =>
     data.goals.filter((g) => g.employee_id === employeeId)
@@ -72,10 +74,10 @@
         {#if data.readsAll && data.progress.length > 0}
           <div class="flex flex-wrap gap-2 pt-1">
             {#each data.progress as p (p.status)}
-              <span class={`badge badge-sm ${statusClass(p.status)}`}>
+              <StatusBadge tone={statusTone(p.status)} capitalize={false}>
                 {p.n}
                 {p.status}
-              </span>
+              </StatusBadge>
             {/each}
           </div>
         {/if}
@@ -94,9 +96,9 @@
               {r.cycle_name ?? r.cycle_code} · reviewed by {r.reviewer_name ??
                 "—"}
             </p>
-            <span class={`badge badge-sm capitalize ${statusClass(r.status)}`}>
+            <StatusBadge tone={statusTone(r.status)}>
               {r.status}
-            </span>
+            </StatusBadge>
           </div>
 
           {#if r.self_assessment}
@@ -176,7 +178,9 @@
             <div class="flex items-baseline justify-between gap-2">
               <p class="font-medium">{g.goal_title}</p>
               {#if g.overdue}
-                <span class="badge badge-warning badge-sm">overdue</span>
+                <span class="badge badge-soft badge-warning badge-sm"
+                  >overdue</span
+                >
               {/if}
             </div>
             {#if g.description}
@@ -229,11 +233,11 @@
             </div>
             <div class="flex items-center gap-1">
               {#if f.feedback_type}
-                <span
-                  class={`badge badge-sm capitalize ${f.feedback_type === "praise" ? "badge-success" : "badge-ghost"}`}
+                <StatusBadge
+                  tone={f.feedback_type === "praise" ? "positive" : "neutral"}
                 >
                   {f.feedback_type}
-                </span>
+                </StatusBadge>
               {/if}
               {#if f.visibility !== "public"}
                 <span class="badge badge-ghost badge-sm">
@@ -277,11 +281,9 @@
                   {r.overall_rating ? number(r.overall_rating, locale) : "—"}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(r.status)}`}
-                  >
+                  <StatusBadge tone={statusTone(r.status)}>
                     {r.status}
-                  </span>
+                  </StatusBadge>
                 </td>
                 <td>
                   {#if r.status === "draft" && r.reviewer_id === data.me}

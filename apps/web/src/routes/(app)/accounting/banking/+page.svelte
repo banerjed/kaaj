@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, instant, money } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -10,14 +12,14 @@
   const localeFor = (c: string) =>
     c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : tenantLocale
 
-  const statusClass = (s: string | null) =>
+  const statusTone = (s: string | null): Tone =>
     s === "reconciled"
-      ? "badge-success"
+      ? "positive"
       : s === "unmatched"
-        ? "badge-warning"
+        ? "caution"
         : s === "ignored"
-          ? "badge-ghost"
-          : "badge-info"
+          ? "neutral"
+          : "progress"
 
   /**
    * The gap between what the bank says and what has been imported. Null when
@@ -61,7 +63,7 @@
               </p>
             </div>
             {#if a.unmatched_count > 0}
-              <span class="badge badge-warning badge-sm shrink-0">
+              <span class="badge badge-soft badge-warning badge-sm shrink-0">
                 {a.unmatched_count} to match
               </span>
             {/if}
@@ -189,11 +191,9 @@
                   {money(t.balance, t.currency, locale)}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(t.status)}`}
-                  >
+                  <StatusBadge tone={statusTone(t.status)}>
                     {t.status}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}

@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -44,12 +46,8 @@
     return `?${p.toString()}`
   }
 
-  const statusClass = (s: string) =>
-    s === "active"
-      ? "badge-success"
-      : s === "on_leave"
-        ? "badge-warning"
-        : "badge-ghost"
+  const statusTone = (s: string): Tone =>
+    s === "active" ? "positive" : s === "on_leave" ? "caution" : "neutral"
 </script>
 
 <svelte:head>
@@ -236,11 +234,12 @@
                   )}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm ${statusClass(e.employment_status)}`}
+                  <StatusBadge
+                    tone={statusTone(e.employment_status)}
+                    capitalize={false}
                   >
                     {e.employment_status.replaceAll("_", " ")}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}

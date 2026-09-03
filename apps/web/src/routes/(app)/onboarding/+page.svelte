@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -9,12 +11,8 @@
   const open = $derived(data.tasks.filter((t) => t.status !== "completed"))
   const done = $derived(data.tasks.filter((t) => t.status === "completed"))
 
-  const statusClass = (t: { status: string; overdue: boolean }) =>
-    t.overdue
-      ? "badge-error"
-      : t.status === "completed"
-        ? "badge-success"
-        : "badge-ghost"
+  const statusTone = (t: { status: string; overdue: boolean }): Tone =>
+    t.overdue ? "critical" : t.status === "completed" ? "positive" : "neutral"
 </script>
 
 <svelte:head>
@@ -47,9 +45,9 @@
                 {#if t.due_date}· due {calendarDate(t.due_date, locale)}{/if}
               </p>
             </div>
-            <span class={`badge badge-sm capitalize ${statusClass(t)}`}>
+            <StatusBadge tone={statusTone(t)}>
               {t.overdue ? "overdue" : t.status}
-            </span>
+            </StatusBadge>
           </li>
         {/each}
       </ul>
@@ -71,7 +69,9 @@
                 {/if}
               </p>
             </div>
-            <span class="badge badge-success badge-sm">completed</span>
+            <span class="badge badge-soft badge-success badge-sm"
+              >completed</span
+            >
           </li>
         {/each}
       </ul>

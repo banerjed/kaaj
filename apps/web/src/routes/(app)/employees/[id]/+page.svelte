@@ -1,6 +1,7 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money, number } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
 
   let { data } = $props()
 
@@ -122,11 +123,13 @@
             <span class="iconify lucide--pencil size-4"></span>
             Edit
           </a>
-          <span
-            class={`badge ${e.employment_status === "active" ? "badge-success" : "badge-ghost"}`}
+          <StatusBadge
+            tone={e.employment_status === "active" ? "positive" : "neutral"}
+            size="md"
+            capitalize={false}
           >
             {e.employment_status.replaceAll("_", " ")}
-          </span>
+          </StatusBadge>
           {#if e.base_amount_pvt}
             <span class="text-lg font-medium tabular-nums">
               {money(e.base_amount_pvt, e.currency ?? "USD", locale)}

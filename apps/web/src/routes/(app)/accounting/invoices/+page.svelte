@@ -1,6 +1,8 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money } from "$lib/format"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -8,16 +10,19 @@
   const localeFor = (c: string) =>
     c === "GBP" ? "en-GB" : c === "INR" ? "en-IN" : "en-US"
 
-  const statusClass = (s: string | null) =>
+  // `overdue` is a real status in this column and was missing here, so an
+  // overdue invoice showed a grey badge beside a red "overdue" tag on the same
+  // row. The list omitting a value the column actually holds is L57's shape.
+  const statusTone = (s: string | null): Tone =>
     s === "paid"
-      ? "badge-success"
-      : s === "void"
-        ? "badge-error"
+      ? "positive"
+      : s === "void" || s === "overdue"
+        ? "critical"
         : s === "partial"
-          ? "badge-warning"
+          ? "caution"
           : s === "sent" || s === "viewed"
-            ? "badge-info"
-            : "badge-ghost"
+            ? "progress"
+            : "neutral"
 </script>
 
 <svelte:head><title>Invoices · Kaaj</title></svelte:head>
@@ -94,7 +99,7 @@
                        that can quietly stop matching its own invoice. -->
                   {#if i.line_subtotal !== null && Number(i.line_subtotal) !== Number(i.subtotal)}
                     <span
-                      class="badge badge-error badge-sm ms-1"
+                      class="badge badge-soft badge-error badge-sm ms-1"
                       title={`Lines sum to ${i.line_subtotal}`}
                     >
                       ≠ lines
@@ -111,7 +116,9 @@
                 <td class="text-sm tabular-nums">
                   {i.due_date ? calendarDate(i.due_date, locale) : "—"}
                   {#if i.is_overdue}
-                    <span class="badge badge-error badge-sm ms-1">overdue</span>
+                    <span class="badge badge-soft badge-error badge-sm ms-1"
+                      >overdue</span
+                    >
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">
@@ -124,11 +131,9 @@
                   {money(i.amount_due, i.currency, locale)}
                 </td>
                 <td>
-                  <span
-                    class={`badge badge-sm capitalize ${statusClass(i.status)}`}
-                  >
+                  <StatusBadge tone={statusTone(i.status)}>
                     {i.status}
-                  </span>
+                  </StatusBadge>
                 </td>
               </tr>
             {/each}
