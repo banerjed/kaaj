@@ -74,6 +74,38 @@ to change, which then requires a migration and a release to alter one row of
 someone's configuration. When adding any new module, check every enum against
 this rule before it ships.
 
+### Brand colour: the seam exists, the delivery does not
+
+The topbar is `bg-neutral text-neutral-content` — daisyUI's semantic pair for
+"interface areas that always use a dark style". That makes `--color-neutral`
+the single token a tenant's brand colour would set, and the bar the only
+surface it would recolour.
+
+**Recolour the CHROME, never the semantics.** `success`, `warning`, `error` and
+`info` carry meaning, so a firm with a red logo must not end up with a product
+that reads as permanently alarmed. `neutral` carries no meaning, which is
+exactly why it is the right slot.
+
+Three things have to be settled before this ships, and none of them is code
+volume:
+
+1. **Delivery.** daisyUI themes compile at BUILD time, so a per-tenant value
+   cannot come from a theme block. It has to be a custom property set on the
+   shell from tenant data at request time — which daisyUI's own guidance
+   argues against ("do not define brand or interface colors as `:root` custom
+   properties", "do not use arbitrary color utilities for theme-aware UI").
+   Setting only `--color-neutral`, on the app shell, from a validated column,
+   is the narrowest possible version of that trade.
+2. **Contrast is not optional and cannot be assumed.** A customer's brand
+   colour is chosen for a logo, not for carrying 14px text. Whatever is stored
+   must be checked against `neutral-content` at 4.5:1 before it is applied,
+   with a documented fallback — the current bar measures 5.46:1 in `nord` and
+   9.45:1 in `night`, and a mid-bright brand colour would fail both. This is
+   L22's rule and the reason the badge palette had to be replaced.
+3. **Where it lives.** A `tenants.brand_color` column is Tier 1
+   configuration data, so it belongs with `company_name` and the locale
+   settings — one validated value, no per-tenant code, no per-tenant schema.
+
 ### Seeding
 
 The second half of Tier 1 is **defaults**. At onboarding, provision each tenant a

@@ -71,8 +71,11 @@
 
 /* == Layout: Topbar == */
 
+/* No `background` here. It used to read `var(--layout-topbar-background)`, a
+   property Nexus defined in a theme block that was culled — nothing has set it
+   since, so it resolved to nothing and the bar was transparent. The colour is
+   now `bg-neutral` on the markup, where a utility belongs. */
 #layout-topbar {
-  background: var(--layout-topbar-background);
   @apply sticky top-0 z-10 max-h-16 min-h-16 transition-[top,_margin,_border-radius] duration-300;
 }
 

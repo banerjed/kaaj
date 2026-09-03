@@ -54,7 +54,7 @@
     <div class="drawer-content">
       <label
         for="topbar-profile-drawer"
-        class="btn btn-ghost max-sm:btn-square gap-2 px-1.5"
+        class="btn btn-ghost max-sm:btn-square text-neutral-content gap-2 px-1.5"
       >
         <div class="avatar avatar-placeholder">
           <div class="bg-primary text-primary-content mask mask-squircle w-8">
@@ -65,7 +65,11 @@
         </div>
         <div class="text-start max-sm:hidden">
           <p class="text-sm/none">{displayName}</p>
-          <p class="text-base-content/70 mt-0.5 text-xs/none capitalize">
+          <!-- No /70 here. On `neutral` the 70% alpha measures 3.58:1, below
+               the 4.5 floor — the neutral pair has less headroom than the base
+               pair L22 was written against. The role is already smaller and
+               lighter-weight than the name, so size carries the hierarchy. -->
+          <p class="text-neutral-content mt-0.5 text-xs/none capitalize">
             {user?.role ?? ""}
           </p>
         </div>
