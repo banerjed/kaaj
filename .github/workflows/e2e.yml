@@ -21,6 +21,10 @@ env:
   # Not a fake — the fixture's sealed PII is opened with this dev KEK, the
   # same class of demo credential as the app_user password. See tests.yml.
   PRIVATE_PII_KEK: "1:xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
+  # What the APPLICATION connects as — a non-owner, so RLS applies to it.
+  # `./setup` sets this password locally; CI has no ./setup, so a step below
+  # sets it the same way ci-database.sh does for database.yml/tests.yml.
+  APP_DATABASE_URL: postgresql://app_user:app_user@127.0.0.1:54322/postgres
 
 jobs:
   e2e:
@@ -44,6 +48,24 @@ jobs:
       # from what a developer runs.
       - name: Start the local Supabase stack
         run: supabase start
+
+      # Matches the CLI's bundled Postgres 17, same as database.yml/tests.yml.
+      - name: Install psql 17
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+
+      # Set out of band, never in a migration (20260827000002 says so).
+      # `./setup` does this locally; CI has no ./setup. Same step
+      # database.yml/tests.yml take via ci-database.sh.
+      - name: Set the app_user password (local/CI demo credential)
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
 
       - name: Install Playwright's browser
         run: pnpm --filter @kaaj/web exec playwright install --with-deps chromium
