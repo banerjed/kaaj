@@ -56,7 +56,7 @@ preference:
 | Change | Reason |
 |---|---|
 | `warningFilter` NOT copied from `svelte.config.js` | It suppressed every accessibility warning, against docs 02 (WCAG 2.1 AA) and 04. It also tested for `"ally_"` when the real Svelte prefix is `a11y_`, so it never worked. Removing it surfaced **73 real lint errors**, all since fixed |
-| Rightbar options given `role`/`tabindex`/keydown | Every appearance control was `onclick` on a plain `<div>`: mouse-only, no tab stop, invisible to screen readers. WCAG 2.1.1 and 4.1.2 failures |
+| Rightbar options given `role`/`tabindex`/keydown | Every appearance control was `onclick` on a plain `<div>`: mouse-only, no tab stop, invisible to screen readers. WCAG 2.1.1 and 4.1.2 failures. The surviving theme swatches are real `<button>`s and keep that fix; the controls listed in the row below were removed rather than kept |
 | ~35 self-closing non-void tags corrected | `<span />` is an open tag in HTML; everything after it nested inside |
 | `Sidebar` active-item tracking moved to `$derived` | Seeded `$state` captured only the initial `menuItems`, so a menu that changes would highlight against a stale array |
 | Search / language / notification widgets deleted | Convincing shells over hardcoded data. See the note in `Topbar.svelte` |
@@ -64,6 +64,7 @@ preference:
 | `Logo` redrawn as markup | Pointed at two PNGs that do not exist in this repo |
 | Touch-target floor moved from `min-h-11` utilities to one `pointer: coarse` rule | A per-element utility has to be remembered at every call site forever; the rule covers controls not yet written |
 | Six themes reduced to two — light and dark | Nexus ships `light`, `contrast`, `material`, `dark`, `dim`, `material-dark`. Kaaj carries light and dark, plus `system` (the absence of a choice, and the default). Every theme is a surface every new colour pair has to be measured against — L22's floor is per-theme work — and four of them differed from their siblings mainly in card shadow and topbar radius. The `material` themes also floated the sidebar and topbar as rounded cards, which was the only structural difference and is now gone |
+| Appearance panel reduced to theme selection | Nexus's Rightbar also set `direction` (LTR/RTL), an independent `sidebarTheme`, a `fontFamily` switcher, fullscreen and reset. RTL is not a commitment Kaaj is making; the font switcher was already vestigial (`typography.css` says so); the sidebar now follows the active theme, which is one fewer combination to measure contrast against (L22); and "reset to defaults" with a single setting is one click that changes the one value the panel already shows. The panel itself is being repurposed for the AI assistant |
 | Hand-built mobile cards replaced with daisyUI `list`, hand-built footer with `footer` | Both components already existed; rebuilding them is how spacing drifts page by page |
 | Four Google Fonts families reduced to one, moved to `<link>` | Chained `@import url()` is render-blocking three requests deep — docs 03 and 04 both forbid it |
 | Six plugin stylesheets dropped | apexcharts, quill, filepond, flatpickr, swiper, sortablejs are not installed; they are most of the template's weight |

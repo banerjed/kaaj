@@ -2,7 +2,6 @@
   import { afterNavigate } from "$app/navigation"
   import { page } from "$app/state"
   import Logo from "$lib/components/Logo.svelte"
-  import { useConfig } from "$lib/contexts/ConfigProvider.svelte"
   import type SimpleBar from "simplebar"
   import "simplebar/dist/simplebar.min.css"
   import SidebarMenuItem, {
@@ -20,8 +19,6 @@
     user?: ISidebarUser
     companyName?: string | null
   } = $props()
-
-  const { config } = useConfig()
 
   // $derived, not seeded $state: the latter captured only the initial
   // menuItems, so a menu that changes would highlight against a stale array.
@@ -88,13 +85,7 @@
   aria-label="Dense layout sidebar"
 />
 <div id="layout-sidebar-hover" class="bg-base-300 h-screen w-1"></div>
-<div
-  id="layout-sidebar"
-  class="sidebar-menu flex flex-col"
-  data-theme={$config.sidebarTheme === "dark" && $config.theme === "light"
-    ? "dark"
-    : undefined}
->
+<div id="layout-sidebar" class="sidebar-menu flex flex-col">
   <div class="flex h-16 min-h-16 items-center justify-between gap-3 ps-5 pe-4">
     <a href="/" aria-label="Home">
       <Logo />

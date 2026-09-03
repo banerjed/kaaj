@@ -1,11 +1,14 @@
 <!doctype html>
 <!--
-  `group/html` is load-bearing, not decoration. 25 styles across ThemeToggle,
-  Rightbar and Sidebar are written as `group-data-[...]/html:` — they target the
-  <html> element as a named Tailwind group. Without the class none of them ever
-  match, and they fail silently: the theme toggle keeps showing one icon, the
-  appearance panel shows no selected state, the sidebar peek button never
-  changes. Nothing errors. (L23)
+  `group/html` is load-bearing, not decoration. 10 styles across ThemeToggle and
+  Rightbar are written as `group-data-[...]/html:` — they target the <html>
+  element as a named Tailwind group. Without the class none of them ever match,
+  and they fail silently: the theme toggle keeps showing one icon and the
+  appearance panel shows no selected state. Nothing errors. (L23)
+
+  The count was 25 across three components before the theme cull and the
+  removal of the direction, font and sidebar-theme controls. It is quoted so a
+  reader can check it; correct it when it moves.
 -->
 <html lang="en" class="group/html">
   <head>

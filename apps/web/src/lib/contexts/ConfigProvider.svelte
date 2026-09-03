@@ -16,20 +16,22 @@
 
   export type ITheme = (typeof themes)[number]
 
+  /**
+   * Theme, and nothing else.
+   *
+   * Nexus's appearance panel also carried `direction` (LTR/RTL), a
+   * `sidebarTheme` override, a `fontFamily` switcher and a fullscreen toggle.
+   * RTL is not a commitment Kaaj is making, the font switcher was already
+   * vestigial (see typography.css), and the sidebar now follows the active
+   * theme rather than being independently settable — one fewer combination to
+   * measure contrast against (L22).
+   */
   export type IConfig = {
     theme: ITheme
-    direction: "ltr" | "rtl"
-    sidebarTheme: "light" | "dark"
-    fontFamily: "default" | "dm-sans" | "inclusive" | "ar-one" | "wix"
-    fullscreen: boolean
   }
 
   const defaultConfig: IConfig = {
     theme: "system",
-    direction: "ltr",
-    fontFamily: "default",
-    sidebarTheme: "light",
-    fullscreen: false,
   }
 
   const localStorageKey = "__NEXUS_CONFIG_v3.0__"
@@ -37,12 +39,7 @@
   type ConfigContext = {
     config: Writable<IConfig>
     toggleTheme: () => void
-    changeFontFamily: (fontFamily: IConfig["fontFamily"]) => void
     changeTheme: (theme: IConfig["theme"]) => void
-    changeSidebarTheme: (sidebarTheme: IConfig["sidebarTheme"]) => void
-    changeDirection: (direction: IConfig["direction"]) => void
-    toggleFullscreen: () => Promise<void>
-    reset: () => void
   }
 
   const configContextKey = Symbol("kaaj-config")
@@ -52,7 +49,16 @@
 
     try {
       const storedValue = window.localStorage.getItem(localStorageKey)
-      return storedValue ? (JSON.parse(storedValue) as IConfig) : defaultConfig
+      if (!storedValue) return defaultConfig
+      const parsed = JSON.parse(storedValue) as Partial<IConfig>
+      // A browser that visited before the theme cull still holds "material",
+      // "dim" or "contrast" here. Written back to `data-theme` those select a
+      // theme that no longer exists — daisyUI emits no variables for it, so
+      // the page renders unstyled with no error anywhere. Anything not in the
+      // current list falls back to the default rather than being trusted.
+      return themes.includes(parsed?.theme as ITheme)
+        ? { theme: parsed.theme as ITheme }
+        : defaultConfig
     } catch {
       return defaultConfig
     }
@@ -69,28 +75,6 @@
     } else {
       htmlRef.setAttribute("data-theme", config.theme)
     }
-
-    if (config.fullscreen) {
-      htmlRef.setAttribute("data-fullscreen", "")
-    } else {
-      htmlRef.removeAttribute("data-fullscreen")
-    }
-
-    htmlRef.setAttribute("data-sidebar-theme", config.sidebarTheme)
-
-    if (config.fontFamily !== "default") {
-      htmlRef.setAttribute("data-font-family", config.fontFamily)
-    } else {
-      htmlRef.removeAttribute("data-font-family")
-    }
-
-    if (JSON.stringify(config) !== JSON.stringify(defaultConfig)) {
-      htmlRef.setAttribute("data-changed", "")
-    } else {
-      htmlRef.removeAttribute("data-changed")
-    }
-
-    htmlRef.dir = config.direction
   }
 
   export const useConfig = () => {
@@ -106,24 +90,6 @@
   const changeTheme = (theme: IConfig["theme"]) => {
     config.update((c) => {
       return { ...c, theme }
-    })
-  }
-
-  const changeSidebarTheme = (sidebarTheme: IConfig["sidebarTheme"]) => {
-    config.update((c) => {
-      return { ...c, sidebarTheme }
-    })
-  }
-
-  const changeFontFamily = (fontFamily: IConfig["fontFamily"]) => {
-    config.update((c) => {
-      return { ...c, fontFamily }
-    })
-  }
-
-  const changeDirection = (direction: IConfig["direction"]) => {
-    config.update((c) => {
-      return { ...c, direction }
     })
   }
 
@@ -144,58 +110,15 @@
     })
   }
 
-  const toggleFullscreen = async () => {
-    if (!browser) return
-
-    const htmlRef = document.documentElement
-    if (document.fullscreenElement != null) {
-      await document.exitFullscreen()
-    } else {
-      await htmlRef.requestFullscreen()
-    }
-    config.update((c) => {
-      return { ...c, fullscreen: !c.fullscreen }
-    })
-  }
-
-  const reset = () => {
-    config.set(defaultConfig)
-    if (browser && document.fullscreenElement != null) {
-      document.exitFullscreen()
-    }
-  }
-
   setContext(configContextKey, {
     config,
     toggleTheme,
-    changeFontFamily,
     changeTheme,
-    changeSidebarTheme,
-    changeDirection,
-    toggleFullscreen,
-    reset,
   })
 
   $effect(() => {
     const unsubscribe = config.subscribe(applyConfig)
     return unsubscribe
-  })
-
-  $effect(() => {
-    if (!browser) return
-
-    const fullscreenMedia = window.matchMedia("(display-mode: fullscreen)")
-    const fullscreenListener = () => {
-      config.update((c) => {
-        return { ...c, fullscreen: fullscreenMedia.matches }
-      })
-    }
-    fullscreenMedia.addEventListener("change", fullscreenListener)
-    fullscreenListener()
-
-    return () => {
-      fullscreenMedia.removeEventListener("change", fullscreenListener)
-    }
   })
 </script>
 
