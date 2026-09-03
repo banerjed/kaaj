@@ -237,3 +237,20 @@ export function localeForCurrency(
   const office = locations.find((l) => l.currency === currency && l.locale)
   return office?.locale ?? fallbackLocale
 }
+
+/**
+ * The locale a payroll run's country should be formatted in, taken from the
+ * office in that country — the same reasoning as localeForCurrency, on
+ * `firm_locations.country` instead of `.currency`. Two offices in one country
+ * could disagree; the first configured wins, same tradeoff as the currency
+ * version. Not a hardcoded country->locale table: a firm operating in a
+ * country adds it by adding the office, not by this file growing a case.
+ */
+export function localeForCountry(
+  locations: { country: string | null; locale: string | null }[],
+  country: string | null,
+  fallbackLocale: string,
+): string {
+  const office = locations.find((l) => l.country === country && l.locale)
+  return office?.locale ?? fallbackLocale
+}

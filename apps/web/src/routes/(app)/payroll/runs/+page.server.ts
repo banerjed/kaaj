@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as runs from "$lib/server/payroll/payroll_runs.repo"
 import { RunRefused } from "$lib/server/payroll/payroll_runs.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -44,6 +45,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
        WHERE is_active IS NOT FALSE
        ORDER BY name
     `,
+    // For per-market number formatting; see localeForCountry.
+    locations: await locationsRepo.list(tx),
   }))
 }
 

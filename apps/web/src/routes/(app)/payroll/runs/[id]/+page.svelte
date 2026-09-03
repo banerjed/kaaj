@@ -1,6 +1,6 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money } from "$lib/format"
+  import { calendarDate, localeForCountry, money } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
@@ -40,13 +40,10 @@
       ),
   })
 
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   /** The market the run belongs to. Figures are never converted. */
   const locale = $derived(
-    data.run.country === "GB"
-      ? "en-GB"
-      : data.run.country === "IN"
-        ? "en-IN"
-        : "en-US",
+    localeForCountry(data.locations, data.run.country, tenantLocale),
   )
   const currency = $derived(data.run.currency)
 

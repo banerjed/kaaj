@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as runs from "$lib/server/payroll/payroll_runs.repo"
 import { RunRefused } from "$lib/server/payroll/payroll_runs.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -26,6 +27,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       mayApprove: can(ctx, "payroll.approve"),
       // The person who calculated it cannot approve it, whatever they hold.
       isCalculator: run.calculated_by_name !== null && can(ctx, "payroll.run"),
+      // For per-market number formatting; see localeForCountry.
+      locations: await locationsRepo.list(tx),
     }
   })
 }
