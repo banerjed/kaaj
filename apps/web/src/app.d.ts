@@ -13,7 +13,14 @@ declare global {
   namespace App {
     interface Locals {
       supabase: SupabaseClient<Database>
-      supabaseServiceRole: SupabaseClient<Database>
+      /**
+       * NOTE: the service-role client is deliberately NOT here. It bypasses
+       * RLS entirely, so it is imported from `$lib/server/supabase_service_role`
+       * by the handful of files that genuinely need it, and `./check`'s
+       * `service role is quarantined` step fails on any importer not on the
+       * committed list. On `locals` it was one destructure away from every
+       * handler in the product.
+       */
       safeGetSession: (options?: { includeAmr?: boolean }) => Promise<{
         session: Session | null
         user: User | null

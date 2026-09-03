@@ -35,7 +35,8 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** Eighteen steps, about 25 seconds. Non-zero exit means do not
+production.** Nineteen steps, about 25 seconds; `./check --all` adds the
+browser suite. Non-zero exit means do not
 push.
 
 ```
@@ -58,12 +59,13 @@ directory in the repo.
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 142 |
 | structure snapshot | the schema is exactly what was committed | 3,823 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 37 |
+| authorization | every form action authorizes; no DELETE in app code | 45 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
 | writes are audited | every action is in the audit register, either list | 31 + 6 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 23 |
+| service role quarantined | nothing outside a committed list bypasses RLS | 5 files |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | security | authorization, PII and tenant isolation, both suites | 357 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 964 tests |
@@ -745,9 +747,23 @@ hand will eventually get it wrong.
 - **`PRIVATE_PII_KEK` is backed up separately from the database.** Losing it
   destroys every encrypted field, by design.
 
-**`PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely.** Server-side and
-worker only — never in anything reachable from a request handler, and never in a
-`PUBLIC_`-prefixed variable, which SvelteKit ships to the browser.
+**`PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely** — every policy,
+every tenant predicate, every row-visibility rule. It is **imported**, never
+handed out on `locals`: it used to sit on `event.locals` for every request,
+which put it one destructure from any handler and made it read as ordinary
+request state. `./check`'s `service role quarantined` step holds a committed
+list of the five files allowed to import it — none under `(app)` — and fails on
+a new importer, on a removed justification, and on any `.svelte` file touching
+it at all, which would ship the key to the browser. Never in a `PUBLIC_`
+variable, which SvelteKit ships to the browser by design.
+
+**Accounting rows are visible to the finance function only.** `invoices`,
+`payments`, `bank_accounts` and twelve more carry RESTRICTIVE policies keyed to
+the role — `finance_admin`, `auditor` and the base admins read; `auditor` does
+not write. The application already refused, but RLS did not, so one missed
+`requireCan` was the firm's whole ledger. Both halves are asserted in
+`row-visibility.test.ts`: the refused actor gets zero rows AND the permitted one
+still gets rows.
 
 ---
 

@@ -8,6 +8,7 @@
 #   ./check --db         database only
 #   ./check --app        application only
 #   ./check --quick      skip the build (fastest useful signal)
+#   ./check --all        everything, plus the end-to-end suite in a browser
 #
 # Exits non-zero if anything fails. Finds psql, resolves DATABASE_URL, and
 # checks the local Supabase stack is up before running anything that needs it.
@@ -24,13 +25,18 @@ else
   R=""; G=""; Y=""; B=""; D=""; N=""
 fi
 
-RUN_DB=1; RUN_APP=1; RUN_BUILD=1
+RUN_DB=1; RUN_APP=1; RUN_BUILD=1; RUN_E2E=0
 case "${1:-}" in
   --db)    RUN_APP=0 ;;
   --app)   RUN_DB=0 ;;
   --quick) RUN_BUILD=0 ;;
+  # e2e is OUT of the default run on purpose: it needs a dev server and a
+  # browser, and it turns a 25-second loop into a ~90-second one. That trade is
+  # right for the pre-push check and wrong for a release, so it gets a flag
+  # rather than an argument every time.
+  --all)   RUN_E2E=1 ;;
   --help|-h)
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
     exit 0 ;;
   "") ;;
   *) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
@@ -112,6 +118,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "sensitive cols classified" node scripts/verify-matrix-complete.mjs
   step "writes are audited"       node scripts/verify-audit-coverage.mjs
   step "refusals have a message"  node scripts/verify-constraint-registry.mjs
+  step "service role quarantined" node scripts/verify-service-role.mjs
   step "fixtures are complete"    node scripts/verify-fixture-coverage.mjs
   echo ""
 fi
@@ -140,6 +147,10 @@ if [ "$RUN_APP" = 1 ]; then
   step "security"   pnpm test:security
   step "unit tests" pnpm turbo run test
   [ "$RUN_BUILD" = 1 ] && step "build" pnpm turbo run build
+  # The only steps that load a URL. Everything above proves the schema, the
+  # policies, the classifications and the units; none of it renders anything,
+  # which is the shape of most of docs/10-lessons-learned.md.
+  [ "$RUN_E2E" = 1 ] && step "end-to-end" pnpm --filter @kaaj/web e2e
   echo ""
 fi
 

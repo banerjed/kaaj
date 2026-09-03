@@ -2,6 +2,7 @@ import { fail, redirect } from "@sveltejs/kit"
 import { sendAdminEmail, sendUserEmail } from "$lib/mailer"
 import { formString } from "$lib/server/forms"
 import { WebsiteBaseUrl } from "../../../../config"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 
 export const actions = {
   toggleEmailSubscription: async ({ locals: { session, supabase } }) => {
@@ -166,10 +167,7 @@ export const actions = {
 
     return {}
   },
-  deleteAccount: async ({
-    request,
-    locals: { session, user, supabase, supabaseServiceRole },
-  }) => {
+  deleteAccount: async ({ request, locals: { session, user, supabase } }) => {
     if (!session || !user?.id) {
       redirect(303, "/login")
     }

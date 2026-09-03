@@ -21,7 +21,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
 const ROOT = new URL("..", import.meta.url).pathname
-const APP = join(ROOT, "apps/web/src/routes/(app)")
+/**
+ * The WHOLE route tree, not just `(app)`.
+ *
+ * It used to scan `(app)` alone, which meant an action added under `(admin)`
+ * or `(marketing)` — or any `+server.ts` endpoint anywhere — was invisible to
+ * the step whose name claims every action is guarded. `+server.ts` matches
+ * nothing today (there are no HTTP verb handlers in the app), and the glob is
+ * here so the first one cannot arrive unnoticed.
+ */
+const ROUTES = join(ROOT, "apps/web/src/routes")
 const SERVER = join(ROOT, "apps/web/src/lib/server")
 
 /**
@@ -39,9 +48,48 @@ const DELETE_ALLOWED = new Map([
   ],
 ])
 
-/** action path -> why it needs no check. Reviewed edits only. */
+/**
+ * action path -> why it needs no check. Reviewed edits only.
+ *
+ * Everything here runs BEFORE a tenant exists, which is why `requireCan` has
+ * nothing to ask about: `can()` takes an actor with a tenant and a role, and
+ * these actors have neither yet. They are the SaaS-starter account and
+ * marketing surfaces, not product routes — no `(app)` action is exempt, and
+ * one asking to be is a design question first.
+ */
 const EXEMPT = new Map([
-  // none today
+  [
+    "apps/web/src/routes/(marketing)/contact_us/+page.server.ts -> submitContactUs",
+    "an anonymous visitor; there is no session, let alone a tenant",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> updateEmail",
+    "acts on the signed-in auth user's own account, before any tenant",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> updatePassword",
+    "the account's own password",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> deleteAccount",
+    "the account deletes itself; auth.users, not a tenant row",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> updateProfile",
+    "the account's own profile",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> signout",
+    "ends the session it is called with",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/(menu)/+page.server.ts -> signout",
+    "ends the session it is called with; takes no input",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/api/+page.server.ts -> toggleEmailSubscription",
+    "the account's own marketing preference — filtered on session.user.id, through the RLS-scoped client, with no id taken from the form",
+  ],
 ])
 
 const GUARD = /\brequireCan\(|\bcan\(\s*ctx\b|\bcanReadEmployee\(/
@@ -50,7 +98,7 @@ function* serverFiles(dir) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
     if (statSync(full).isDirectory()) yield* serverFiles(full)
-    else if (name === "+page.server.ts") yield full
+    else if (name === "+page.server.ts" || name === "+server.ts") yield full
   }
 }
 
@@ -58,7 +106,7 @@ const problems = []
 const deletions = []
 let checked = 0
 
-for (const file of serverFiles(APP)) {
+for (const file of serverFiles(ROUTES)) {
   const src = readFileSync(file, "utf8")
   const start = src.indexOf("export const actions")
   if (start === -1) continue
@@ -87,7 +135,7 @@ function* tsFiles(dir) {
   }
 }
 
-for (const dir of [SERVER, APP]) {
+for (const dir of [SERVER, ROUTES]) {
   for (const file of tsFiles(dir)) {
     const rel = relative(ROOT, file)
     if (DELETE_ALLOWED.has(rel)) continue

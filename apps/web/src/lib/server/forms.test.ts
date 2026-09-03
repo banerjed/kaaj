@@ -247,3 +247,41 @@ describe("a required choice or enum is a string, not string | null", () => {
     expect(f.ok).toBe(true)
   })
 })
+
+describe("decimal bounds are compared as decimals, not floats", () => {
+  it("refuses a value a float comparison lets through", () => {
+    // `Number("9007199254740993")` is 9007199254740992 — equal to the bound,
+    // so the old `Number(raw) > opts.max` check accepted a figure ABOVE the
+    // maximum. The value is a string precisely so this cannot happen.
+    const f = form({ amount: "9007199254740993" })
+    f.decimal("amount", { scale: 2, integerDigits: 16, max: 9007199254740992 })
+    expect(f.errorFields).toEqual(["amount"])
+  })
+
+  it("still accepts a large value that is genuinely within the bound", () => {
+    const f = form({ amount: "9007199254740991.99" })
+    const v = f.decimal("amount", {
+      scale: 2,
+      integerDigits: 16,
+      max: 9007199254740992,
+    })
+    expect(f.ok).toBe(true)
+    expect(v).toBe("9007199254740991.99")
+  })
+
+  it("still refuses a value genuinely outside the bound", () => {
+    const f = form({ amount: "10.01" })
+    f.decimal("amount", { scale: 2, max: 10 })
+    expect(f.errorFields).toEqual(["amount"])
+  })
+
+  it("refuses a negative payment where min is a fraction", () => {
+    const under = form({ amount: "0.00" })
+    under.decimal("amount", { scale: 2, min: 0.01 })
+    expect(under.errorFields).toEqual(["amount"])
+
+    const ok = form({ amount: "0.01" })
+    ok.decimal("amount", { scale: 2, min: 0.01 })
+    expect(ok.ok).toBe(true)
+  })
+})

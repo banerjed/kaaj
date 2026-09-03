@@ -25,8 +25,17 @@
   const costLocale = (currency: string) =>
     localeForCurrency(data.locations, currency, locale)
 
-  const itemsFor = (packageId: string) =>
-    data.items.filter((i) => i.benefits_package_id === packageId)
+  // Grouped ONCE — see the note in settings/job-titles. `itemsFor` runs inside
+  // the packages loop, so filtering per call is packages x items.
+  const itemsByPackage = $derived(
+    data.items.reduce<Map<string, typeof data.items>>((m, i) => {
+      const bucket = m.get(i.benefits_package_id)
+      if (bucket) bucket.push(i)
+      else m.set(i.benefits_package_id, [i])
+      return m
+    }, new Map()),
+  )
+  const itemsFor = (packageId: string) => itemsByPackage.get(packageId) ?? []
 
   let editingPackage = $state<BenefitsPackage | "new" | null>(null)
   const currentPackage = $derived(
@@ -395,8 +404,6 @@
                   >
                   <input
                     name={`cost.${c}.employee`}
-                    type="number"
-                    step="0.01"
                     inputmode="decimal"
                     class="input w-full tabular-nums"
                     value={editingItem.item?.costs_by_currency?.[c]?.employee ??
@@ -410,8 +417,6 @@
                   >
                   <input
                     name={`cost.${c}.employer`}
-                    type="number"
-                    step="0.01"
                     inputmode="decimal"
                     class="input w-full tabular-nums"
                     value={editingItem.item?.costs_by_currency?.[c]?.employer ??

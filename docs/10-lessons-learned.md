@@ -442,6 +442,38 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L70 — A permission model the database does not know about protects one path
+
+`accounting.read` and `accounting.write` were granted to `finance_admin`
+alone, every accounting route called `requireCan`, and `./check` proved all of
+them did. Fifteen accounting tables still carried `tenant_isolation` and
+nothing else — so every member of a firm could read every invoice, payment,
+journal entry and bank account it holds, and write them, the moment any query
+path reached those tables without passing a route guard.
+
+Nothing was failing. The application was right, the harness was right about the
+application, and the database had simply never been told the same thing. That
+is the "protection is applied per MECHANISM, disclosure happens per VALUE" shape
+from CLAUDE.md § Security, in its least visible form: not a missing guard, but
+two layers holding different opinions with only one of them tested.
+
+`docs/15-row-level-visibility.md` had it as Tier 3 — "tenant-only, **and should
+stay that way**" — on the reasoning that these are "business records that
+everyone in a function reads". The reasoning is what to notice: it was written
+about firm CONFIGURATION and extended to finance by adjacency. A plain employee
+is not in the finance function, and `packages/authz` already said so.
+
+Two predicates, not one, because `auditor` reads everything and writes nothing;
+four RESTRICTIVE policies per table, because `FOR ALL` cannot express that
+split. Measured after: employee, `hr_admin`, `it_admin` and a malformed claim
+all see zero; `finance_admin`, `auditor` and `owner` see the fixture's rows;
+`auditor` updates zero rows without an error, because a RESTRICTIVE `UPDATE`
+policy filters rather than raises.
+
+**Ask of any permission: which layer enforces it, and what does the OTHER layer
+think?** A route guard and a row policy that disagree are not defence in depth.
+They are one defence and one assumption.
+
 ### L69 — `PostgresError.detail` is the row, and whether you see it depends on the ROLE
 
 A unique-violation error from this database carries the values that collided:

@@ -7,12 +7,13 @@ import {
 } from "../../subscription_helpers.server"
 import { pricingPlans } from "../../../../(marketing)/pricing/pricing_plans"
 import type { PageServerLoad } from "./$types"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 const stripe = new Stripe(PRIVATE_STRIPE_API_KEY, { apiVersion: "2023-08-16" })
 
 export const load: PageServerLoad = async ({
   params,
   url,
-  locals: { session, user, supabaseServiceRole },
+  locals: { session, user },
 }) => {
   if (!session || !user) {
     redirect(303, "/login")

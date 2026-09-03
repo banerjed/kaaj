@@ -24,21 +24,29 @@ Measured against the running system, not assumed:
 | | State |
 |---|---|
 | Tenant isolation | **Enforced.** RLS, `FORCE`d on all 100 tables, 587 checks in `./check` |
-| Role claim | **Correct but decorative.** `custom_access_token_hook` reads `tenant_users.role` and stamps `app_metadata.role`; `hooks.server.ts` resolves it into `locals.tenantRole` |
+| Role claim | **Enforced.** `custom_access_token_hook` reads `tenant_users.role` and stamps `app_metadata.role`; `hooks.server.ts` resolves it into `locals.tenantRole`, and the `app.*` policy predicates read it |
 | Role enforcement | **Application layer done.** `can()` / `requireCan()` in `$lib/server/auth/`, with the base + functional bundles |
-| Write paths gated by role | **23 of 23**, enforced by `authz/actions-are-guarded` in `./check` |
-| Row visibility by role | **Not yet.** RLS still filters by tenant only. Scoped to 15 tables in [15-row-level-visibility.md](./15-row-level-visibility.md), with the measured cost and the InitPlan pattern that makes it affordable |
+| Write paths gated by role | **37 of 37**, enforced by `authz/actions-are-guarded` in `./check` |
+| Row visibility by role | **Enforced on 35 tables.** RESTRICTIVE policies keyed to the acting person's role, over the tiers in [15-row-level-visibility.md](./15-row-level-visibility.md) — pay, the employee record, HR documents, the audit trail, and the fifteen accounting tables |
+| Service role | **Quarantined.** No longer on `locals`; reachable from five committed files, none under `(app)`, enforced by `service role quarantined` in `./check` |
 
-**The consequence, stated plainly: any authenticated member of a tenant can
-change anyone's pay.** `addRaise` authorizes on "has a tenant". So can
-`employees/[id]/edit`, `settings/company`, and every settings action. The only
-authorization the product performs beyond tenancy is two hand-written refusals
-in `time_off.decide` — `not_pending` and `self_approval` — which exist because
-the schema could not express them, not because a role model asked for them.
+**What this now means in practice.** Pay is not editable by any member of a
+tenant: `compensation_base` and its siblings carry row-visibility policies, and
+the routes hold `compensation.write`. Accounting is not readable by everyone in
+the firm: a plain employee, an `it_admin` and an `hr_admin` all see zero
+invoices, payments and bank accounts, and only `finance_admin`, `auditor` and
+the base admin roles see them at all. Both halves are asserted in
+`apps/web/src/lib/server/db/row-visibility.test.ts` — the refused actor gets
+nothing, *and* the permitted one still gets rows.
 
-This is acceptable for a design-partner beta with people you know. It is not
-acceptable before **Phase 6, payroll**, which is the phase that turns "can edit
-a number" into "can pay themselves".
+**What is still application-only.** A guard in a route is the first line and
+RLS is the second, but the two are not the same shape everywhere: firm
+configuration (locations, departments, job titles, holidays, benefits, payroll
+policies and schedules) remains tenant-only at the database, so a missed
+`requireCan` on a settings action would be caught by review rather than by the
+database. That is a deliberate tier, recorded in
+[15-row-level-visibility.md](./15-row-level-visibility.md), not an oversight —
+but it is the honest edge of the enforcement story.
 
 ### One property to design around
 

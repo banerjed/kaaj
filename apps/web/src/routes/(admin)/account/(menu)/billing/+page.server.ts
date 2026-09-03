@@ -4,10 +4,9 @@ import {
   getOrCreateCustomerId,
 } from "../../subscription_helpers.server"
 import type { PageServerLoad } from "./$types"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 
-export const load: PageServerLoad = async ({
-  locals: { session, user, supabaseServiceRole },
-}) => {
+export const load: PageServerLoad = async ({ locals: { session, user } }) => {
   if (!session || !user?.id) {
     redirect(303, "/login")
   }

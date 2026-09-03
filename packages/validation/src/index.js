@@ -1026,7 +1026,17 @@ const verifyVerhoeff = (num) => {
 // ============================================================================
 
 /**
- * Validate and format currency amounts
+ * Validate and format currency amounts.
+ *
+ * **Not a path for money that reaches a column.** This returns a JS `number`,
+ * and money in this product is a decimal STRING end to end because a float64
+ * cannot hold `numeric(15,2)` at crore scale exactly — see CLAUDE.md § Money.
+ * Use `FormReader.decimal()` for anything that will be stored, compared or
+ * paid; it keeps the value a string from the browser to Postgres.
+ *
+ * What this is still good for is a range/shape opinion on a figure that is
+ * never persisted. It currently has no callers in the product, and adding one
+ * for a stored value would be a bug.
  */
 export const sanitizeCurrency = (amount, options = {}) => {
   const {

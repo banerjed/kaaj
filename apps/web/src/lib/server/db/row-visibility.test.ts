@@ -437,3 +437,95 @@ describe("a reviewer reads the reviews they are writing", () => {
     expect(n).toBe(3) // the three she writes; she has no review of her own
   })
 })
+
+/**
+ * Accounting — the firm's money, not the tenant's noticeboard.
+ *
+ * Fifteen accounting tables carried `tenant_isolation` and nothing else, so
+ * every member of a firm could read every invoice, payment and bank account it
+ * holds. The application already refused — `accounting.*` is granted to
+ * `finance_admin` alone — but RLS did not, which makes one missed guard on one
+ * new query path a full disclosure of the firm's finances.
+ *
+ * `docs/15-row-level-visibility.md` used to place these in Tier 3 and say they
+ * should stay there. They were moved, and this is the test that says so.
+ */
+const ACCOUNTING = [
+  "invoices",
+  "bank_accounts",
+  "payments",
+  "journal_entries",
+  "vendors",
+  "expenses",
+] as const
+
+describe("accounting is visible to the finance function, and to nobody else", () => {
+  // Fixture rows must exist, or every assertion below passes over NULL and
+  // reports the absence of data as the absence of a problem (L50).
+  for (const table of ACCOUNTING) {
+    it(`${table}: finance_admin sees rows, and there ARE rows`, async () => {
+      const n = await countOf(
+        { role: "employee", functionalRoles: ["finance_admin"] },
+        table,
+      )
+      expect(n).toBeGreaterThan(0)
+    })
+
+    it(`${table}: a plain employee sees none`, async () => {
+      const n = await countOf({ role: "employee" }, table)
+      expect(n).toBe(0)
+    })
+
+    it(`${table}: a powerful role from ANOTHER function sees none`, async () => {
+      // The roles nobody tests: powerful somewhere else, and therefore the
+      // ones most likely to be assumed harmless here.
+      for (const fr of ["hr_admin", "it_admin", "payroll_admin"]) {
+        expect(
+          await countOf({ role: "employee", functionalRoles: [fr] }, table),
+        ).toBe(0)
+      }
+    })
+
+    it(`${table}: an owner sees rows`, async () => {
+      expect(await countOf({ role: "owner" }, table)).toBeGreaterThan(0)
+    })
+  }
+
+  it("an auditor reads accounting but cannot write it", async () => {
+    const auditor = { role: "employee", functionalRoles: ["auditor"] }
+    expect(await countOf(auditor, "invoices")).toBeGreaterThan(0)
+
+    // A RESTRICTIVE policy on UPDATE filters rows rather than raising, so the
+    // refusal is a zero-row result. Asserting "no error" would pass vacuously.
+    const updated = await asRole(auditor, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE invoices SET notes = 'probe' RETURNING id
+      `
+      return rows.length
+    })
+    expect(updated).toBe(0)
+  })
+
+  it("a plain employee cannot insert a bank account", async () => {
+    await expect(
+      asRole(
+        { role: "employee" },
+        (tx) =>
+          tx`INSERT INTO bank_accounts (tenant_id, account_name)
+           VALUES (${NORTHWIND}, 'probe')`,
+      ),
+    ).rejects.toThrow(/row-level security/)
+  })
+
+  it("a malformed claim reads no accounting, rather than raising", async () => {
+    const n = await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE app_user`
+      await tx`SELECT set_config('request.jwt.claims', 'not-json', true)`
+      const [r] = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM invoices
+      `
+      return r.n
+    })
+    expect(n).toBe(0)
+  })
+})

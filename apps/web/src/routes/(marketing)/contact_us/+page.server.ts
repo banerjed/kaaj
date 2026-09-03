@@ -1,10 +1,11 @@
 import { fail } from "@sveltejs/kit"
 import { sendAdminEmail } from "$lib/mailer.js"
 import { formString } from "$lib/server/forms"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 
 /** @type {import('./$types').Actions} */
 export const actions = {
-  submitContactUs: async ({ request, locals: { supabaseServiceRole } }) => {
+  submitContactUs: async ({ request }) => {
     const formData = await request.formData()
     const errors: { [fieldName: string]: string } = {}
 

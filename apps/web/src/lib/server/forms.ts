@@ -1,4 +1,5 @@
 import { allEnumerations } from "@kaaj/enums"
+import { compareDecimal } from "$lib/decimal"
 
 /**
  * Reading and validating form fields.
@@ -240,9 +241,17 @@ export class FormReader {
       // Refused, not rounded: the column rounds to scale silently (L25), and
       // the person who typed the third decimal is never told it went.
       if (!shape.test(raw)) return undefined
-      const n = Number(raw)
-      if (opts.min !== undefined && n < opts.min) return undefined
-      if (opts.max !== undefined && n > opts.max) return undefined
+      // Bounds compared as DECIMALS, not through `Number()`. The value is a
+      // string precisely because a float64 cannot hold `numeric(15,2)` at
+      // crore scale exactly, and a bound check that parses it reintroduces the
+      // rounding the string exists to avoid — quietly, on the one comparison
+      // that decides whether the figure is accepted at all.
+      if (opts.min !== undefined && compareDecimal(raw, String(opts.min)) < 0) {
+        return undefined
+      }
+      if (opts.max !== undefined && compareDecimal(raw, String(opts.max)) > 0) {
+        return undefined
+      }
       return raw
     })
     return opts.required ? (value ?? "") : value

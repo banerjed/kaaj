@@ -28,8 +28,18 @@
   const bandLocale = (currency: string) =>
     localeForCurrency(data.locations, currency, locale)
 
-  const levelsFor = (titleId: string) =>
-    data.jobLevels.filter((l) => l.job_title_id === titleId)
+  // Grouped ONCE, not re-filtered per title. `levelsFor` is called inside the
+  // titles loop, so a filter here is a full scan of every level for every
+  // title — fine at fixture size, quadratic at a real firm's.
+  const levelsByTitle = $derived(
+    data.jobLevels.reduce<Map<string, typeof data.jobLevels>>((m, l) => {
+      const bucket = m.get(l.job_title_id)
+      if (bucket) bucket.push(l)
+      else m.set(l.job_title_id, [l])
+      return m
+    }, new Map()),
+  )
+  const levelsFor = (titleId: string) => levelsByTitle.get(titleId) ?? []
 
   let editingTitle = $state<FirmJobTitle | "new" | null>(null)
   const currentTitle = $derived(editingTitle === "new" ? null : editingTitle)
@@ -365,8 +375,7 @@
                   >
                   <input
                     name={`range.${c}.min`}
-                    type="number"
-                    inputmode="numeric"
+                    inputmode="decimal"
                     class="input w-full tabular-nums"
                     value={editingLevel.level?.salary_ranges?.[c]?.min ?? ""}
                     aria-label={`Minimum salary in ${c}`}
@@ -377,8 +386,7 @@
                   >
                   <input
                     name={`range.${c}.max`}
-                    type="number"
-                    inputmode="numeric"
+                    inputmode="decimal"
                     class="input w-full tabular-nums"
                     value={editingLevel.level?.salary_ranges?.[c]?.max ?? ""}
                     aria-label={`Maximum salary in ${c}`}

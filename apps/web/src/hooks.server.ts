@@ -7,7 +7,6 @@ import { createServerClient } from "@supabase/ssr"
 import type { AMREntry } from "@supabase/supabase-js"
 import type { Handle, HandleServerError } from "@sveltejs/kit"
 import { sequence } from "@sveltejs/kit/hooks"
-import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 import { safeError } from "$lib/errors"
 import { log } from "$lib/server/log"
 
@@ -37,8 +36,6 @@ export const supabase: Handle = async ({ event, resolve }) => {
       },
     },
   )
-
-  event.locals.supabaseServiceRole = supabaseServiceRole
 
   // https://github.com/supabase/auth-js/issues/888#issuecomment-2189298518
   if ("suppressGetSessionWarning" in event.locals.supabase.auth) {

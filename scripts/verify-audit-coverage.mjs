@@ -58,9 +58,68 @@ const { AUDITED_OPERATIONS, NOT_AUDITED } = parseRegister()
 const audited = new Set(AUDITED_OPERATIONS)
 const notAudited = new Set(NOT_AUDITED)
 
+/**
+ * Does every `audit.record` share the transaction of the write beside it?
+ *
+ * Presence was all this step used to prove, and presence is not the rule. The
+ * rule (L40) is that the entry is written in the SAME transaction as the
+ * change — written afterwards, or on a second connection, the trail records
+ * what the application BELIEVED happened, and the two diverge exactly when it
+ * matters. An `audit.record(sql, …)` next to a `withTenant(…)` block satisfies
+ * a presence check and breaks the rule.
+ *
+ * So: find each `withTenant(…, async (P) => {` region by brace-matching, and
+ * require every `audit.record(A, …)` to sit inside one with `A === P`.
+ *
+ * It is a lexical check and says so. It cannot follow a `tx` passed into a
+ * helper — those show up as "outside any withTenant" and want a review, which
+ * is the right answer for a call it cannot see into.
+ */
+function auditTransactionProblems(body, key) {
+  const problems = []
+
+  // Every `withTenant(..., <async> (PARAM) => {` and the span it encloses.
+  const regions = []
+  // NOT `[^)]*?` for the first argument: it is `actorFrom(locals)`, which
+  // contains parentheses, so that form matched nothing and the check reported
+  // all 31 audited actions as violations. Bounded look-ahead to the arrow.
+  const opener =
+    /withTenant\s*\([\s\S]{0,200}?\(\s*([A-Za-z_$][\w$]*)\s*\)\s*=>\s*\{/g
+  for (const m of body.matchAll(opener)) {
+    let depth = 0
+    let i = m.index + m[0].length - 1 // at the opening brace
+    for (; i < body.length; i++) {
+      if (body[i] === "{") depth++
+      else if (body[i] === "}" && --depth === 0) break
+    }
+    regions.push({ param: m[1], start: m.index, end: i })
+  }
+
+  for (const call of body.matchAll(/audit\.record\s*\(\s*([A-Za-z_$][\w$]*)/g)) {
+    const arg = call[1]
+    // Innermost enclosing region wins, for a nested transaction.
+    const enclosing = regions
+      .filter((r) => call.index > r.start && call.index < r.end)
+      .sort((a, b) => b.start - a.start)[0]
+
+    if (!enclosing) {
+      problems.push(
+        `${key}: audit.record(${arg}, …) is outside any withTenant callback`,
+      )
+    } else if (arg !== enclosing.param) {
+      problems.push(
+        `${key}: audit.record(${arg}, …) does not use the transaction ` +
+          `\`${enclosing.param}\` it is written inside`,
+      )
+    }
+  }
+  return problems
+}
+
 const missing = []
 const unexpected = []
 const unclassified = []
+const notTransactional = []
 
 for (const file of routeFiles(ROUTES)) {
   const src = readFileSync(file, "utf8")
@@ -78,6 +137,8 @@ for (const file of routeFiles(ROUTES)) {
     const body = block.slice(from, to)
     const records = /audit\.record\s*\(/.test(body)
     const key = `${route}::${action}`
+
+    if (records) notTransactional.push(...auditTransactionProblems(body, key))
 
     if (audited.has(key)) {
       if (!records) missing.push(key)
@@ -150,6 +211,16 @@ report(
     `  ${REGISTER}, with a reason. The question: would someone later ask who\n` +
     "  changed this and what it was before, and would the answer affect a\n" +
     "  person's money, employment, rights, or a regulator's question?",
+)
+
+report(
+  notTransactional,
+  "audit write(s) may not share the business transaction:",
+  "  L40: an entry written outside the transaction that made the change\n" +
+    "  records what the application BELIEVED happened, and the two diverge\n" +
+    "  exactly when it matters. Pass the `tx` from the enclosing withTenant\n" +
+    "  callback. If the call is inside a helper this check cannot see into,\n" +
+    "  that is a review question, not an exemption.",
 )
 
 report(

@@ -148,6 +148,38 @@ imply a medical circumstance.
 
 ---
 
+## Accounting — moved out of Tier 3 (15)
+
+`invoices` · `invoice_lines` · `bills` · `bill_lines` · `journal_entries` ·
+`journal_entry_lines` · `chart_of_accounts` · `payments` ·
+`payment_allocations` · `bank_accounts` · `bank_transactions` ·
+`bank_reconciliation_rules` · `accounting_periods` · `vendors` · `expenses`
+
+These were Tier 3 on the reasoning that they are "business records that
+everyone in a function reads". **That reasoning was wrong**, and it is worth
+writing down why rather than quietly deleting it: a plain employee is not in
+the finance function. `accounting.read` and `accounting.write` are granted to
+`finance_admin` alone (`packages/authz`), so the permission model had already
+made the judgement the tier list contradicted. Tenant-only RLS meant one missed
+`requireCan`, one join from an unguarded page, or one repository helper reused
+in a new context would return every invoice, payment and bank account the firm
+holds.
+
+Two predicates rather than one, because `auditor` reads everything and writes
+nothing:
+
+- `app.reads_all_accounting()` — `owner`, `firm_admin`, `finance_admin`,
+  `auditor`
+- `app.writes_accounting()` — the same, minus `auditor`
+
+Four RESTRICTIVE policies per table (SELECT / INSERT / UPDATE / DELETE),
+because a single `FOR ALL` policy cannot express "may read, may not write".
+Migration `20260903045821_accounting_row_visibility.sql`; asserted in
+`row-visibility.test.ts`, both halves, including that a malformed claim reads
+nothing rather than raising.
+
+---
+
 ## Tier 3 — tenant-only, and should stay that way (~60)
 
 Firm configuration, reference data, and business records that everyone in a
@@ -159,10 +191,7 @@ function reads. A role predicate here costs something and protects nothing.
   `payroll_pay_schedules`, `tenants`, `tenant_settings`,
   `custom_field_definitions`
 - **Reference** — `payroll_tax_rates`, `exchange_rates`, `translations`
-- **Accounting** — `invoices`, `invoice_lines`, `bills`, `bill_lines`,
-  `journal_entries`, `journal_entry_lines`, `chart_of_accounts`, `payments`,
-  `payment_allocations`, `bank_accounts`, `bank_transactions`,
-  `bank_reconciliation_rules`, `accounting_periods`, `vendors`, `expenses`
+*(Accounting used to be listed here. It was wrong — see below.)*
 - **Projects, CRM, marketing, ticketing** — `projects`, `tasks`, `pm_*`,
   `clients`, `customers`, `ticketing_*`
 - **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`,
