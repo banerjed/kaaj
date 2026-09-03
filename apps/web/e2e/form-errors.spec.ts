@@ -81,7 +81,17 @@ test("a full-page form marks the refused field too", async ({ page }) => {
 
   const companyName = page.locator('input[name="company_name"]')
   await expect(companyName).toBeVisible()
-  await companyName.fill("")
+
+  // Same hydration race as openModal above, on a field instead of a click:
+  // this input is server-rendered with the real company name already in it,
+  // and a fill() that lands before Svelte's binding attaches gets silently
+  // overwritten back to that value once hydration catches up — the empty
+  // value never reaches the server, and "refused" never happens to assert on.
+  await expect(async () => {
+    await companyName.fill("")
+    await expect(companyName).toHaveValue("")
+  }).toPass({ timeout: 15_000 })
+
   await submitPastTheBrowser(page, "?/update")
 
   await expect(page.locator(".alert").first()).toContainText("Company name")
