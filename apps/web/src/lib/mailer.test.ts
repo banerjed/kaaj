@@ -1,17 +1,12 @@
 import { vi, describe, it, expect, beforeEach } from "vitest"
 
-vi.mock("@supabase/supabase-js")
 vi.mock("$env/dynamic/private")
 vi.mock("resend")
 
-import { createClient, type User } from "@supabase/supabase-js"
-import { Resend } from "resend"
-import * as mailer from "./mailer"
-
-describe("mailer", () => {
-  const mockSend = vi.fn().mockResolvedValue({ id: "mock-email-id" })
-
-  const mockSupabaseClient = {
+// vi.mock factories are hoisted above top-level declarations, so the mock
+// object itself must be too.
+const { mockSupabaseClient } = vi.hoisted(() => ({
+  mockSupabaseClient: {
     auth: {
       admin: {
         getUserById: vi.fn(),
@@ -21,14 +16,26 @@ describe("mailer", () => {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     single: vi.fn(),
-  }
+  },
+}))
+// mailer.ts imports the shared singleton rather than constructing its own
+// client (verify-service-role.mjs quarantines who may build one at all), so
+// the mock replaces that singleton, not @supabase/supabase-js.
+vi.mock("$lib/server/supabase_service_role", () => ({
+  supabaseServiceRole: mockSupabaseClient,
+}))
+
+import type { User } from "@supabase/supabase-js"
+import { Resend } from "resend"
+import * as mailer from "./mailer"
+
+describe("mailer", () => {
+  const mockSend = vi.fn().mockResolvedValue({ id: "mock-email-id" })
 
   beforeEach(async () => {
     vi.clearAllMocks()
     const { env } = await import("$env/dynamic/private")
     env.PRIVATE_RESEND_API_KEY = "mock_resend_api_key"
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(createClient as any).mockReturnValue(mockSupabaseClient)
 
     vi.mocked(Resend).mockImplementation(
       () =>

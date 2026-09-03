@@ -11,6 +11,12 @@ import { join, relative } from "node:path"
 const ROOT = new URL("..", import.meta.url).pathname
 const SCAN = ["apps/web/src"]
 const MODULE = "$lib/server/supabase_service_role"
+/**
+ * The actual credential, not just the wrapper module — mailer.ts imported
+ * this directly and built a second client, invisible to a check that only
+ * looked for MODULE. Catches that shape wherever it recurs.
+ */
+const RAW_SECRET = /\bPRIVATE_SUPABASE_SERVICE_ROLE\b/
 
 /**
  * Files allowed to reach past RLS. All billing/account plumbing acting on
@@ -38,6 +44,10 @@ const PERMITTED = new Map([
     "apps/web/src/routes/(admin)/account/(menu)/billing/manage/+page.server.ts",
     "billing: opens the Stripe portal for the signed-in account",
   ],
+  [
+    "apps/web/src/lib/mailer.ts",
+    "auth.admin.getUserById to check email verification before sending — acts on auth.users, not a tenant row",
+  ],
 ])
 
 /** Comments stripped first, or a comment mentioning the identifier would trip the rule. */
@@ -64,9 +74,13 @@ for (const d of SCAN) {
     const rel = relative(ROOT, file)
     // The module itself defines the client; it is not one of its importers.
     if (rel === "apps/web/src/lib/server/supabase_service_role.ts") continue
-    // An import of the module, or any surviving route back onto `locals` —
-    // putting it there again is the regression this exists to catch.
-    if (src.includes(MODULE) || /locals\b[^\n]*supabaseServiceRole/.test(src)) {
+    // An import of the module, a raw import of the secret it wraps, or any
+    // surviving route back onto `locals` — all three are the regression.
+    if (
+      src.includes(MODULE) ||
+      RAW_SECRET.test(src) ||
+      /locals\b[^\n]*supabaseServiceRole/.test(src)
+    ) {
       importers.push(rel)
     }
   }

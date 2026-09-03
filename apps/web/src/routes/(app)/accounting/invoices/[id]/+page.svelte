@@ -1,10 +1,12 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money, number } from "$lib/format"
+  import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -12,6 +14,18 @@
 
   let paying = $state(false)
   let voiding = $state(false)
+
+  // `overdue` must stay in this list — matches the list page's statusTone.
+  const statusTone = (s: string | null): Tone =>
+    s === "paid"
+      ? "positive"
+      : s === "void" || s === "overdue"
+        ? "critical"
+        : s === "partial"
+          ? "caution"
+          : s === "sent" || s === "viewed"
+            ? "progress"
+            : "neutral"
 
   /** What this invoice may do next — mirrors the statuses the repo enforces. */
   const may = $derived({
@@ -22,12 +36,9 @@
       ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
   })
 
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const locale = $derived(
-    data.invoice.currency === "GBP"
-      ? "en-GB"
-      : data.invoice.currency === "INR"
-        ? "en-IN"
-        : "en-US",
+    localeForCurrency(data.locations, data.invoice.currency, tenantLocale),
   )
   const cur = $derived(data.invoice.currency)
 </script>
@@ -84,7 +95,9 @@
           {#if data.invoice.is_overdue}
             <span class="badge badge-error badge-sm">overdue</span>
           {/if}
-          <span class="badge badge-sm capitalize">{data.invoice.status}</span>
+          <StatusBadge tone={statusTone(data.invoice.status)}>
+            {data.invoice.status}
+          </StatusBadge>
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as acc from "$lib/server/accounting/accounting.repo"
 import { AccountingRefused } from "$lib/server/accounting/accounting.repo"
+import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -35,6 +36,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       bankAccounts: await tx<{ id: string; account_name: string }[]>`
         SELECT id, account_name FROM bank_accounts ORDER BY account_name
       `,
+      // For per-market number formatting; see localeForCurrency.
+      locations: await locationsRepo.list(tx),
     }
   })
 }

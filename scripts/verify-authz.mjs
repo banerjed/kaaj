@@ -80,6 +80,8 @@ const problems = []
 const misordered = []
 const deletions = []
 let checked = 0
+/** Every action id actually found, exempt or not — lets a stale EXEMPT entry (renamed/removed action) be told apart from a live one. */
+const foundIds = new Set()
 
 for (const file of serverFiles(ROUTES)) {
   const src = readFileSync(file, "utf8")
@@ -97,6 +99,7 @@ for (const file of serverFiles(ROUTES)) {
     const body = code(rawBody)
     const id = `${relative(ROOT, file)} -> ${head[1]}`
     checked++
+    foundIds.add(id)
     if (EXEMPT.has(id)) continue
 
     const guardAt = body.search(GUARD)
@@ -153,10 +156,9 @@ for (const [file, reason] of DELETE_ALLOWED) {
   }
 }
 
-// A stale exemption is as much a defect as a missing guard.
-const stale = [...EXEMPT.keys()].filter(
-  (id) => !problems.includes(id) && !id.startsWith("__"),
-)
+// A stale exemption is as much a defect as a missing guard: the action it
+// names was renamed, moved, or deleted, and the exemption now protects nothing.
+const stale = [...EXEMPT.keys()].filter((id) => !foundIds.has(id))
 
 if (problems.length) {
   console.error(`\n  ${problems.length} action(s) write without authorizing:\n`)
@@ -180,8 +182,17 @@ if (misordered.length) {
   )
   process.exit(1)
 }
-if (stale.length && checked === 0) {
+if (checked === 0) {
   console.error("  no actions found — the scanner is looking in the wrong place")
+  process.exit(1)
+}
+if (stale.length) {
+  console.error(`\n  ${stale.length} exemption(s) name an action that no longer exists:\n`)
+  for (const s of stale) console.error(`    ${s}`)
+  console.error(
+    "\n  The action was renamed, moved, or removed. Remove it from EXEMPT in" +
+      "\n  scripts/verify-authz.mjs — the list is a claim about live code.\n",
+  )
   process.exit(1)
 }
 console.log(

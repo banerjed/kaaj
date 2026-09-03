@@ -20,6 +20,10 @@
         ? "progress"
         : "neutral"
 
+  // The cycle's own status (draft/open/...), not a review's.
+  const cycleTone = (s: string | null): Tone =>
+    s === "open" ? "progress" : "neutral"
+
   const goalsFor = (employeeId: string) =>
     data.goals.filter((g) => g.employee_id === employeeId)
 
@@ -58,7 +62,9 @@
       <div class="card-body gap-3 p-4">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="text-base font-medium">{cycle.cycle_name}</h2>
-          <span class="badge badge-sm capitalize">{cycle.status}</span>
+          <StatusBadge tone={cycleTone(cycle.status)}
+            >{cycle.status}</StatusBadge
+          >
         </div>
         <!-- The four deadlines are a sequence, so they read as one. -->
         <ol class="flex flex-wrap gap-x-6 gap-y-1 text-sm">

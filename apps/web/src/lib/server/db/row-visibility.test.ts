@@ -411,9 +411,18 @@ describe("a reviewer reads the reviews they are writing", () => {
  */
 const ACCOUNTING = [
   "invoices",
+  "invoice_lines",
+  "bills",
+  "bill_lines",
   "bank_accounts",
+  "bank_transactions",
+  "bank_reconciliation_rules",
   "payments",
+  "payment_allocations",
   "journal_entries",
+  "journal_entry_lines",
+  "chart_of_accounts",
+  "accounting_periods",
   "vendors",
   "expenses",
 ] as const

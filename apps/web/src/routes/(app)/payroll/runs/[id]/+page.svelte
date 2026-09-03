@@ -5,12 +5,24 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
 
   let cancelling = $state(false)
+
+  // Matches the list page's statusTone.
+  const statusTone = (s: string): Tone =>
+    s === "paid" || s === "finalized"
+      ? "positive"
+      : s === "approved"
+        ? "progress"
+        : s === "cancelled"
+          ? "critical"
+          : "neutral"
 
   /** What this run may do next — mirrors NEXT in payroll_runs.repo.ts. */
   const may = $derived({
@@ -77,7 +89,9 @@
           {calendarDate(data.run.pay_period_start, locale)} –
           {calendarDate(data.run.pay_period_end, locale)}
         </p>
-        <span class="badge badge-sm capitalize">{data.run.run_status}</span>
+        <StatusBadge tone={statusTone(data.run.run_status)}>
+          {data.run.run_status}
+        </StatusBadge>
       </div>
 
       <!-- Each step is a POST, never a link, and audited in the same transaction. -->

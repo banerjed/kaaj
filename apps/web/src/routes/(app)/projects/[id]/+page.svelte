@@ -1,6 +1,6 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
-  import { calendarDate, money, number } from "$lib/format"
+  import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
@@ -18,19 +18,33 @@
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const locale = $derived(
-    data.project.currency === "GBP"
-      ? "en-GB"
-      : data.project.currency === "INR"
-        ? "en-IN"
-        : tenantLocale,
+    localeForCurrency(
+      data.locations,
+      data.project.currency ?? "USD",
+      tenantLocale,
+    ),
   )
 
   // `medium` reads as neutral — the label carries the meaning, not the colour.
   const priorityTone = (p: string | null): Tone =>
     p === "urgent" ? "critical" : p === "high" ? "caution" : "neutral"
 
+  // Task status. Matches the list-page-style vocab used in the table below.
   const statusTone = (s: string | null): Tone =>
     s === "done" ? "positive" : s === "in_progress" ? "progress" : "neutral"
+
+  // The project's own health/status — matches projects/+page.svelte.
+  const healthTone = (h: string | null): Tone =>
+    h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"
+
+  const projectStatusTone = (s: string | null): Tone =>
+    s === "active"
+      ? "progress"
+      : s === "completed"
+        ? "positive"
+        : s === "cancelled"
+          ? "critical"
+          : "neutral"
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 </script>
@@ -81,12 +95,12 @@
               .manager_name}{/if}
         </p>
         <div class="flex gap-1">
-          <span class="badge badge-sm capitalize">
+          <StatusBadge tone={healthTone(data.project.health_status)}>
             {data.project.health_status?.replace(/_/g, " ")}
-          </span>
-          <span class="badge badge-sm capitalize">
+          </StatusBadge>
+          <StatusBadge tone={projectStatusTone(data.project.status)}>
             {data.project.status?.replace(/_/g, " ")}
-          </span>
+          </StatusBadge>
           {#if data.mayWrite}
             <button
               type="button"

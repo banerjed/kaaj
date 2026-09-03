@@ -5,6 +5,8 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -13,6 +15,10 @@
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (c: string | null) =>
     c ? localeForCurrency(data.locations, c, tenantLocale) : tenantLocale
+
+  // No write path changes this off its 'active' default; anything else is unrecognised, not a known bad state.
+  const grantStatusTone = (s: string | null): Tone =>
+    s === "active" ? "positive" : "neutral"
 
   /** The open record — no end date — is what the person is paid today. */
   const current = $derived(data.history.find((h) => h.effective_to === null))
@@ -187,7 +193,9 @@
                         : "—"}
                     </td>
                     <td>
-                      <span class="badge badge-sm capitalize">{g.status}</span>
+                      <StatusBadge tone={grantStatusTone(g.status)}
+                        >{g.status}</StatusBadge
+                      >
                     </td>
                   </tr>
                 {/each}

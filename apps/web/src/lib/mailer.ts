@@ -1,9 +1,7 @@
 import { Resend } from "resend"
 import { env } from "$env/dynamic/private"
-import { PRIVATE_SUPABASE_SERVICE_ROLE } from "$env/static/private"
-import { PUBLIC_SUPABASE_URL } from "$env/static/public"
-import { createClient, type User } from "@supabase/supabase-js"
-import type { Database } from "../DatabaseDefinitions"
+import type { User } from "@supabase/supabase-js"
+import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 import handlebars from "handlebars"
 
 // Sends to the admin email address. Logs errors rather than throwing.
@@ -55,14 +53,8 @@ export const sendUserEmail = async ({
   }
 
   // OAuth uses email_verified; email auth uses email_confirmed_at.
-  const serverSupabase = createClient<Database>(
-    PUBLIC_SUPABASE_URL,
-    PRIVATE_SUPABASE_SERVICE_ROLE,
-    { auth: { persistSession: false } },
-  )
-  const { data: serviceUserData } = await serverSupabase.auth.admin.getUserById(
-    user.id,
-  )
+  const { data: serviceUserData } =
+    await supabaseServiceRole.auth.admin.getUserById(user.id)
   const emailVerified =
     serviceUserData.user?.email_confirmed_at ||
     serviceUserData.user?.user_metadata?.email_verified
@@ -72,7 +64,7 @@ export const sendUserEmail = async ({
     return
   }
 
-  const { data: profile, error: profileError } = await serverSupabase
+  const { data: profile, error: profileError } = await supabaseServiceRole
     .from("profiles")
     .select("unsubscribed")
     .eq("id", user.id)

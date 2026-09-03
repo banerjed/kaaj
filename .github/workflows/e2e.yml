@@ -1,0 +1,60 @@
+name: End-to-end
+
+# The only CI job that loads a URL in a real browser. Needs the full local
+# Supabase stack (Postgres + GoTrue), not just Postgres — e2e signs in through
+# the real form (apps/web/e2e/auth.setup.ts), which needs a working Auth API,
+# not the SQL-level auth.uid()/auth.jwt() stubs database.yml and tests.yml use.
+#
+# Kept out of ./check by default (see apps/web/playwright.config.ts) and out
+# of the other workflows for the same reason: it is materially slower than
+# the rest of CI combined. This job owns that cost on its own line.
+
+on: [push, pull_request]
+
+env:
+  # The local Supabase stack's fixed demo values — see apps/web/.env.example.
+  # Not secrets: identical on every machine that runs `supabase start`.
+  PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+  PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+  PRIVATE_SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
+  PRIVATE_STRIPE_API_KEY: "fake_strip_api_key"
+  # Not a fake — the fixture's sealed PII is opened with this dev KEK, the
+  # same class of demo credential as the app_user password. See tests.yml.
+  PRIVATE_PII_KEK: "1:xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
+
+jobs:
+  e2e:
+    name: Playwright, real browser
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.115.0 }
+
+      # Applies every migration and both fixtures per supabase/config.toml —
+      # the same path `supabase db reset` takes locally, so this cannot drift
+      # from what a developer runs.
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      - name: Install Playwright's browser
+        run: pnpm --filter @kaaj/web exec playwright install --with-deps chromium
+
+      - name: e2e
+        run: pnpm --filter @kaaj/web e2e
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7

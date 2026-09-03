@@ -3,12 +3,17 @@
   import { calendarDate, money } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import type { Tone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   /** The firm's books, in base currency — unlike an invoice, one locale throughout. */
   const baseCurrency = $derived(data.tenant?.default_currency ?? "USD")
+
+  const statusTone = (s: string | null): Tone =>
+    s === "posted" ? "positive" : s === "reversed" ? "critical" : "neutral"
 
   let open = $state<string | null>(null)
 </script>
@@ -119,7 +124,9 @@
                   {money(e.credits, baseCurrency, tenantLocale)}
                 </td>
                 <td>
-                  <span class="badge badge-sm capitalize">{e.status}</span>
+                  <StatusBadge tone={statusTone(e.status)}
+                    >{e.status}</StatusBadge
+                  >
                 </td>
               </tr>
               {#if open === e.id}

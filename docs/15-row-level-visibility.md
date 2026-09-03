@@ -197,11 +197,6 @@ function reads. A role predicate here costs something and protects nothing.
 - **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`,
   `_billable_expenses`
 
-Accounting is Tier 3 on the reasoning that `finance_admin` is the gate, and
-someone who holds it needs the whole ledger. If a customer wants per-project
-financial visibility that becomes a Tier 1 conversation for `expenses` and
-`invoices`, not a change to this default.
-
 ---
 
 ## Explicitly excluded, with reasons
