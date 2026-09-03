@@ -186,23 +186,30 @@ What we deliberately diverge on, and why, is recorded in
 architecture, the URLs, the accessibility floor, and any demo feature with
 nothing behind it. Divergence is fine — *undocumented* divergence is drift.
 
-**A status badge goes through `StatusBadge` (`$lib/components/`), and
-coloured badges use `badge-soft`.** Eleven pages each held their own ternary
-returning `badge-success`/`badge-error`/…; the vocabularies differ and should —
-"paid" belongs to invoices and "present" to attendance — but the daisyUI
-spelling was copied eleven times. A page now names a *tone*
-(`positive` · `caution` · `critical` · `progress` · `neutral`) and
-`status-tone.ts` says how daisyUI writes it, so restyling every status badge is
-one edit. `badge-soft` is the template's own convention — Nexus writes
-`badge badge-soft badge-success badge-sm` 28 times and never a solid status
-badge — and solid colour across a dense table reads as an alert rather than a
-state. `badge-ghost` is a *style* like `badge-soft` and they are mutually
-exclusive, so `neutral` is ghost alone ([L72](docs/10-lessons-learned.md)).
+**A status badge goes through `StatusBadge` (`$lib/components/`).** Eleven
+pages each held their own ternary returning `badge-success`/`badge-error`/…;
+the vocabularies differ and should — "paid" belongs to invoices and "present"
+to attendance — but the daisyUI spelling was copied eleven times. A page now
+names a *tone* (`positive` · `caution` · `critical` · `progress` · `neutral`)
+and the component holds the ten complete class strings, so restyling every
+status badge is one edit ([L72](docs/10-lessons-learned.md)).
+
+**They are SOLID, not `badge-soft`, against both Nexus and daisyUI's own
+preference.** Measured in the light theme, soft is worse on every tone and
+takes the one passing colour below AA — warning 9.57:1 → 1.94:1. The
+accessibility floor outranks template fidelity here and the divergence is
+recorded in [docs/07-app-provenance.md](docs/07-app-provenance.md), which also
+carries the real problem: `info`, `success` and `error` all pair WHITE content
+text with a mid-bright colour, so 3 of 4 solid badges fail AA in light too.
+That is a theme-token decision, still open. **Measure a colour pair by letting
+the browser convert it** — parsing daisyUI's `oklab()` output by hand reads the
+components as RGB and yields a confident wrong answer.
 
 **Never assemble a class name.** `badge-${size}` is invisible to Tailwind,
 which reads source text and cannot evaluate an expression — the class is simply
-never generated, the element renders unstyled, and nothing errors. Map to full
-literals, as `TONE_CLASS` and `SIZE_CLASS` do.
+never generated, the element renders unstyled, and nothing errors. Map each
+state to a COMPLETE class string, as `StatusBadge`'s `BADGE` table does —
+daisyUI's own audit flags an assembled one for the same reason.
 
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark

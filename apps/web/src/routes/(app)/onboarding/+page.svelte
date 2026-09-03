@@ -69,9 +69,7 @@
                 {/if}
               </p>
             </div>
-            <span class="badge badge-soft badge-success badge-sm"
-              >completed</span
-            >
+            <span class="badge badge-success badge-sm">completed</span>
           </li>
         {/each}
       </ul>

@@ -454,12 +454,26 @@ overrides — every apparent override was `card bg-base-100 shadow`, which is
 required because `.card` sets no background, and which Nexus itself writes 62
 times to our 63.
 
-What WAS wrong was invisible to that complaint. Eleven pages had independently
-written the same status→badge ternary, and all 53 coloured badges were solid
-while Nexus uses `badge-soft` 28 times and solid never. Two authorities the
-project already recognises — the template in the repo, and daisyUI's own
-guidance — agreed with each other and disagreed with us, and neither had ever
-been consulted for this because nothing compares them.
+What WAS wrong was invisible to that complaint: eleven pages had independently
+written the same status→badge ternary. That consolidated cleanly.
+
+**The interesting part is what happened next.** Nexus uses `badge-soft` 28
+times and solid never, and daisyUI's own guidance prefers soft — two
+authorities agreeing against us — so the badges were switched. Rendering them
+and MEASURING the contrast said otherwise: in the light theme soft is worse on
+every tone, and takes warning from 9.57:1 (passing AA) to 1.94:1. The change
+was reverted and the divergence recorded.
+
+Two authorities agreeing is not evidence about YOUR theme. Both were reasoning
+about daisyUI's default palette; this product's `--color-*-content` tokens pair
+white with mid-bright colours, which soft's tinted background makes worse. The
+measurement is the only thing that knew that — and 3 of 4 solid badges fail AA
+in light as well, which nobody had measured either (docs/07-app-provenance.md).
+
+A trap inside the trap: the first two contrast figures were wrong. daisyUI
+emits `oklab(0.982 0.003 0.012)`, and a hand-rolled parser reads those as RGB
+0-255, producing a confident 10.28:1 for a pair that is actually 1.94:1. Let
+the browser convert the colour — paint it to a canvas and read the pixel.
 
 **A style guide nobody diffs against is decoration.** `./check` proves the
 schema, the policies and the units; nothing in it can see that the product

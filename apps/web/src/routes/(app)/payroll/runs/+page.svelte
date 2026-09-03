@@ -143,7 +143,7 @@
                          a run claiming people it has no line for says it paid
                          someone it cannot name. -->
                     <span
-                      class="badge badge-soft badge-error badge-sm ms-1"
+                      class="badge badge-error badge-sm ms-1"
                       title={`Header claims ${r.employee_count}`}
                     >
                       ≠ {r.employee_count}

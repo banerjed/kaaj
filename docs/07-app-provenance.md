@@ -81,6 +81,19 @@ fine; undocumented divergence is drift:
 | Divergence | Why |
 |---|---|
 | The firm's name sits in the topbar, beside the menu toggle, at `text-xl` | Nexus puts its search palette there and shows no tenant identity anywhere — it is a single-tenant demo. This is multi-tenant software where an admin may hold accounts in several firms, and "which company am I editing?" must be answerable without opening a menu. The sidebar's `text-xs` line under the user's name is not an answer |
+| Status badges are SOLID; Nexus uses `badge-soft` (28 times, and solid never) | Measured in this app's light theme, soft is worse on every tone and turns the only passing one into the worst failure — warning goes 9.57:1 to 1.94:1, success 2.44 to 2.28, error 4.14 to 3.75, info 2.33 to 2.19. The accessibility floor is this document's own stated divergence, and L22 says the light theme is the half that fails. See the note below: the underlying problem is the theme tokens, not the badge style |
+
+**The badge palette does not meet WCAG AA in the light theme, and this predates
+the divergence above.** `--color-info-content`, `--color-success-content` and
+`--color-error-content` are all `#ffffff`, paired with mid-bright colours that
+white cannot sit on: white on `#14b4ff` is 2.33:1, on `#0bbf58` is 2.44:1, and
+on `#f31260` is 4.14:1, against the 4.5:1 AA needs. `--color-warning-content` is
+`#150a00` — near-black — which is why warning is the one tone that passes at
+9.57:1. The same pairs back every solid `btn-*` and `alert-*`, so this is a
+theme-token decision rather than a badge one, and it is not fixed here: darkening
+three content colours changes the product's palette and is the owner's call.
+Measured with the browser converting each computed colour to sRGB — parsing
+daisyUI's `oklab()` strings by hand produces confident nonsense.
 
 ---
 

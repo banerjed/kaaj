@@ -147,7 +147,7 @@
          the tasks actually present. A denormalised count that nobody checks
          drifts, and it drifts into a progress bar that still looks right. -->
     {#if data.project.task_count !== data.tasks.length}
-      <span class="badge badge-soft badge-error badge-sm ms-1">
+      <span class="badge badge-error badge-sm ms-1">
         row claims {data.project.task_count}
       </span>
     {/if}
@@ -203,9 +203,7 @@
                 <td class="text-sm tabular-nums">
                   {t.due_date ? calendarDate(t.due_date, locale) : "—"}
                   {#if t.is_overdue}
-                    <span class="badge badge-soft badge-error badge-sm ms-1"
-                      >overdue</span
-                    >
+                    <span class="badge badge-error badge-sm ms-1">overdue</span>
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">

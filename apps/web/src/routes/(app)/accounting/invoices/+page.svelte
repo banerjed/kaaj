@@ -99,7 +99,7 @@
                        that can quietly stop matching its own invoice. -->
                   {#if i.line_subtotal !== null && Number(i.line_subtotal) !== Number(i.subtotal)}
                     <span
-                      class="badge badge-soft badge-error badge-sm ms-1"
+                      class="badge badge-error badge-sm ms-1"
                       title={`Lines sum to ${i.line_subtotal}`}
                     >
                       ≠ lines
@@ -116,9 +116,7 @@
                 <td class="text-sm tabular-nums">
                   {i.due_date ? calendarDate(i.due_date, locale) : "—"}
                   {#if i.is_overdue}
-                    <span class="badge badge-soft badge-error badge-sm ms-1"
-                      >overdue</span
-                    >
+                    <span class="badge badge-error badge-sm ms-1">overdue</span>
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">

@@ -102,9 +102,7 @@
   <h2 class="mt-6 text-base font-medium">
     Awaiting a decision
     {#if pending.length > 0}
-      <span class="badge badge-soft badge-warning badge-sm ms-1"
-        >{pending.length}</span
-      >
+      <span class="badge badge-warning badge-sm ms-1">{pending.length}</span>
     {/if}
   </h2>
 

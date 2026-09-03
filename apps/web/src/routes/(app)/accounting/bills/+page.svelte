@@ -92,7 +92,7 @@
                   </a>
                   {#if b.line_subtotal !== null && Number(b.line_subtotal) !== Number(b.subtotal)}
                     <span
-                      class="badge badge-soft badge-error badge-sm ms-1"
+                      class="badge badge-error badge-sm ms-1"
                       title={`Lines sum to ${b.line_subtotal}`}
                     >
                       ≠ lines
@@ -110,9 +110,7 @@
                 <td class="text-sm tabular-nums">
                   {b.due_date ? calendarDate(b.due_date, locale) : "—"}
                   {#if b.is_overdue}
-                    <span class="badge badge-soft badge-error badge-sm ms-1"
-                      >overdue</span
-                    >
+                    <span class="badge badge-error badge-sm ms-1">overdue</span>
                   {/if}
                 </td>
                 <td class="text-right text-sm tabular-nums">

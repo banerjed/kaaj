@@ -63,7 +63,7 @@
               </p>
             </div>
             {#if a.unmatched_count > 0}
-              <span class="badge badge-soft badge-warning badge-sm shrink-0">
+              <span class="badge badge-warning badge-sm shrink-0">
                 {a.unmatched_count} to match
               </span>
             {/if}

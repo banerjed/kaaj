@@ -178,9 +178,7 @@
             <div class="flex items-baseline justify-between gap-2">
               <p class="font-medium">{g.goal_title}</p>
               {#if g.overdue}
-                <span class="badge badge-soft badge-warning badge-sm"
-                  >overdue</span
-                >
+                <span class="badge badge-warning badge-sm">overdue</span>
               {/if}
             </div>
             {#if g.description}
