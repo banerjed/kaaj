@@ -2,6 +2,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, money, number } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data } = $props()
 
@@ -85,9 +86,7 @@
   ])
 </script>
 
-<svelte:head>
-  <title>{fullName} · Kaaj</title>
-</svelte:head>
+<PageHead title={fullName} />
 
 <div class="p-4 lg:p-6">
   <PageTitle

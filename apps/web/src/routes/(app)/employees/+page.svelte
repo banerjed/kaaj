@@ -3,6 +3,7 @@
   import { calendarDate, currentTimeIn, money } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data } = $props()
 
@@ -50,9 +51,7 @@
     s === "active" ? "positive" : s === "on_leave" ? "caution" : "neutral"
 </script>
 
-<svelte:head>
-  <title>Employees · Kaaj</title>
-</svelte:head>
+<PageHead title="Employees" />
 
 <div class="p-4 lg:p-6">
   <PageTitle title="Employees" items={[{ label: "Employees", active: true }]} />

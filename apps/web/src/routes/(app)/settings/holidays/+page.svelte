@@ -5,6 +5,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -46,9 +47,7 @@
   const current = $derived(editing === "new" ? null : editing)
 </script>
 
-<svelte:head>
-  <title>Holidays · Kaaj</title>
-</svelte:head>
+<PageHead title="Holidays" />
 
 <div class="p-4 lg:p-6">
   <PageTitle

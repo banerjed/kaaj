@@ -5,6 +5,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -66,9 +67,7 @@
     data.locations.find((l) => l.location_code === code)?.name ?? code ?? "—"
 </script>
 
-<svelte:head>
-  <title>Departments · Kaaj</title>
-</svelte:head>
+<PageHead title="Departments" />
 
 <div class="p-4 lg:p-6">
   <PageTitle

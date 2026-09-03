@@ -4,6 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -40,7 +41,7 @@
   const cur = $derived(data.invoice.currency)
 </script>
 
-<svelte:head><title>{data.invoice.invoice_number} · Kaaj</title></svelte:head>
+<PageHead title={data.invoice.invoice_number} />
 
 <div class="p-4 lg:p-6">
   <PageTitle

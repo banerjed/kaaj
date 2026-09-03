@@ -1,13 +1,12 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import EmployeeForm from "$lib/components/EmployeeForm.svelte"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 </script>
 
-<svelte:head>
-  <title>New employee · Kaaj</title>
-</svelte:head>
+<PageHead title="New employee" />
 
 <div class="p-4 lg:p-6">
   <PageTitle

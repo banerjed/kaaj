@@ -11,6 +11,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -52,9 +53,7 @@
   let expanded = $state<string | null>(null)
 </script>
 
-<svelte:head>
-  <title>Pay Schedules · Kaaj</title>
-</svelte:head>
+<PageHead title="Pay Schedules" />
 
 <div class="p-4 lg:p-6">
   <PageTitle

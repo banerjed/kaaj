@@ -4,6 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -53,9 +54,7 @@
   const label = (k: string) => k.replace(/_/g, " ")
 </script>
 
-<svelte:head>
-  <title>{data.run.run_id} · Kaaj</title>
-</svelte:head>
+<PageHead title={data.run.run_id} />
 
 <div class="p-4 lg:p-6">
   <PageTitle

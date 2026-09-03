@@ -1,6 +1,7 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, money, number } from "$lib/format"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data } = $props()
 
@@ -14,7 +15,7 @@
   const cur = $derived(data.bill.currency)
 </script>
 
-<svelte:head><title>{data.bill.bill_number} · Kaaj</title></svelte:head>
+<PageHead title={data.bill.bill_number} />
 
 <div class="p-4 lg:p-6">
   <PageTitle

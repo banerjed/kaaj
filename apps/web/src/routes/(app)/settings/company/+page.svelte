@@ -14,6 +14,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { keepValues } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -96,9 +97,7 @@
   const previewCompact = $derived(approxMoney("18123432", currency, locale))
 </script>
 
-<svelte:head>
-  <title>Company Profile · Kaaj</title>
-</svelte:head>
+<PageHead title="Company Profile" />
 
 <div class="p-4 lg:p-6">
   <PageTitle

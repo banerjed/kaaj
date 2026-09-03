@@ -119,6 +119,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "writes are audited"       node scripts/verify-audit-coverage.mjs
   step "refusals have a message"  node scripts/verify-constraint-registry.mjs
   step "service role quarantined" node scripts/verify-service-role.mjs
+  step "product name not hardcoded" node scripts/verify-product-name.mjs
   step "fixtures are complete"    node scripts/verify-fixture-coverage.mjs
   echo ""
 fi

@@ -6,6 +6,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import PageHead from "$lib/components/PageHead.svelte"
 
   let { data, form } = $props()
 
@@ -57,9 +58,7 @@
     item.total_by_currency?.[currency] ?? null
 </script>
 
-<svelte:head>
-  <title>Benefits · Kaaj</title>
-</svelte:head>
+<PageHead title="Benefits" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
