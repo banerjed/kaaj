@@ -1,14 +1,15 @@
 <!doctype html>
 <!--
-  `group/html` is load-bearing, not decoration. 10 styles across ThemeToggle and
-  Rightbar are written as `group-data-[...]/html:` — they target the <html>
-  element as a named Tailwind group. Without the class none of them ever match,
-  and they fail silently: the theme toggle keeps showing one icon and the
-  appearance panel shows no selected state. Nothing errors. (L23)
+  `group/html` is load-bearing, not decoration. 11 styles across ThemeToggle,
+  TopbarProfileMenu and Sidebar are written as `group-data-[...]/html:` — they
+  target the <html> element as a named Tailwind group. Without the class none
+  of them ever match, and they fail silently: the theme toggle keeps showing
+  one icon and the theme buttons show no selected state. Nothing errors. (L23)
 
-  The count was 25 across three components before the theme cull and the
-  removal of the direction, font and sidebar-theme controls. It is quoted so a
-  reader can check it; correct it when it moves.
+  Count it with `grep -ro "/html:" apps/web/src`, not with a bracket-matching
+  pattern: `group-[:not([data-theme])]/html:` nests brackets, and a `[^]]*`
+  regex stops at the inner `]` and silently misses it. That mistake is how this
+  comment briefly claimed 10 across two components.
 -->
 <html lang="en" class="group/html">
   <head>

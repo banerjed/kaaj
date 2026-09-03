@@ -1,6 +1,6 @@
 <script lang="ts">
   import Footer from "$lib/components/admin-layout/Footer.svelte"
-  import Rightbar from "$lib/components/admin-layout/Rightbar.svelte"
+  import AssistantPanel from "$lib/components/admin-layout/AssistantPanel.svelte"
   import Sidebar from "$lib/components/admin-layout/Sidebar.svelte"
   import Topbar from "$lib/components/admin-layout/Topbar.svelte"
   import ConfigProvider from "$lib/contexts/ConfigProvider.svelte"
@@ -33,6 +33,6 @@
         <Footer />
       </div>
     </div>
-    <Rightbar />
+    <AssistantPanel />
   </div>
 </ConfigProvider>

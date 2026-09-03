@@ -43,9 +43,9 @@
     <label
       for="layout-rightbar-drawer"
       class="btn btn-circle btn-ghost btn-sm drawer-button"
-      aria-label="Appearance settings"
+      aria-label="Assistant"
     >
-      <span class="iconify lucide--settings-2 size-4.5"></span>
+      <span class="iconify lucide--sparkles size-4.5"></span>
     </label>
     <TopbarProfileMenu {user} />
   </div>
