@@ -19,7 +19,20 @@
 </script>
 
 <div class="flex items-center justify-between">
-  <p class="text-lg font-medium">{title}</p>
+  <!--
+    An <h1>, not a <p>.
+    
+    This rendered `<p class="text-lg font-medium">` and looked exactly right,
+    so nothing caught it: `<p>` is valid markup, eslint's a11y rules have
+    nothing to object to, and `svelte-check` is a type checker. The effect is
+    that NO page in the application had a level-one heading — a screen reader
+    user pressing "1" to jump to the page's subject landed nowhere, and the
+    section <h2>s beneath were headings under no heading (WCAG 1.3.1, 2.4.6).
+    
+    The classes are unchanged, so it looks identical. Found by the first e2e
+    run, which asks for the heading by ROLE rather than by text (L64).
+  -->
+  <h1 class="text-lg font-medium">{title}</h1>
   {#if centerItem}
     {@render centerItem()}
   {/if}

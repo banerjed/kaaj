@@ -442,6 +442,35 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L64 — No page in the application had an `<h1>`
+
+The first end-to-end run failed on eighteen of twenty-one pages, all with the
+same message: *did not render its heading*.
+
+`PageTitle.svelte` rendered the page's title as
+`<p class="text-lg font-medium">`. It looked exactly right — same size, same
+weight, same position — so nothing objected. `<p>` is valid markup, eslint's
+a11y rules have nothing to say about it, and `svelte-check` is a type checker.
+The suites were green and every screen in the product was missing its level-one
+heading.
+
+What that costs someone using a screen reader: pressing `1` to jump to the
+page's subject lands nowhere, and every section `<h2>` beneath it is a heading
+under no heading — WCAG 1.3.1 and 2.4.6. It is invisible to anyone testing with
+their eyes, which is everyone who had looked at it so far.
+
+The fix is one tag and changes nothing visually.
+
+**The general point is about how it was found, not what it was.** Sixteen
+`./check` steps prove the schema, the policies, the classifications and the
+units, and not one of them loads a URL. This is the first check that asks the
+page a question *by role* rather than by text — the same question assistive
+technology asks — and it found the defect on its first execution.
+
+Asserting `getByRole("heading", ...)` rather than `getByText(...)` is what made
+it visible. A text assertion would have passed against the `<p>` and the bug
+would still be here.
+
 ### L62 — A claim cast inside a policy cannot be made to fail closed
 
 `./check` went red on `G/claim-malformed` without any function having changed:

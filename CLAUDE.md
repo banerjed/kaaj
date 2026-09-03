@@ -428,6 +428,16 @@ and then been invisible under every filter ([L57](docs/10-lessons-learned.md)).
 Ask of any new write: **can the thing this creates be found again by the page
 that lists it?**
 
+**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`.** It is
+the only check that loads a URL — the other sixteen prove the schema, the
+policies, the classifications and the units, and none of them renders anything.
+The suite asks for the page's heading BY ROLE, which is how it found that no
+page in the product had an `<h1>` at all ([L64](docs/10-lessons-learned.md)).
+It is read-only on purpose: the fixture is shared with the unit suites, and a
+spec that writes needs its own serial project and a reseed. Run it with
+`pnpm --filter @kaaj/web e2e`; it is deliberately NOT in `./check`, which is
+22 seconds and worth keeping that way.
+
 **Every exemption is a committed literal, never a filter.** The harnesses list
 exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern
@@ -717,6 +727,9 @@ supabase migration new <name>        # new migration
 supabase db reset                    # rebuild from migrations, reseed fixture
 pnpm db:snapshot                     # regenerate the snapshot after a change
 pnpm --filter @kaaj/enums build      # regenerate the enum fixture
+
+pnpm --filter @kaaj/web e2e          # end-to-end, real browser, real login
+pnpm --filter @kaaj/web e2e:ui       # the same, with Playwright's inspector
 
 pnpm turbo run build                 # everything, cached
 pnpm --filter @kaaj/web dev          # one package only
