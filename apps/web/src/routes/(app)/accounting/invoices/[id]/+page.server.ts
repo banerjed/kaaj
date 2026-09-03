@@ -71,8 +71,13 @@ function refusal(e: AccountingRefused) {
         field: "invoice",
       }
     case "overpayment":
+      // The raw figure is deliberately NOT interpolated here. `e.detail` is a
+      // NUMERIC string with no currency attached, and a bare "2443.75" beside
+      // a page that renders every other figure through `money()` is exactly
+      // the drift CLAUDE.md forbids — a number without its currency is not a
+      // number. The reloaded page shows Outstanding, formatted, directly below.
       return {
-        message: `That is more than is outstanding (${e.detail} remains).`,
+        message: "That is more than is outstanding on this invoice.",
         field: "amount",
       }
     case "number_taken":
