@@ -442,6 +442,34 @@ survived review: the browser's own `required` and `maxlength` hide it, and the
 fixture never carries a bad value. It is reachable by any crafted POST, and by
 a paste into a field with no `maxlength`.
 
+### L65 — A test that waits for nothing can pass before the code runs
+
+Three theme cases asserted `data-theme` is null, and would have passed against
+an application that never executed.
+
+`data-theme` is written by an `$effect` after hydration. Reading the attribute
+straight after `page.reload()` is a race — the dark case came back null one run
+in five, failing in a full suite and passing when run alone, which is the worst
+combination to debug. The obvious fix, polling for the attribute, repairs the
+race and **breaks the null cases**: before hydration there is no attribute
+either, so `toBeNull` is satisfied by a page that has done nothing at all.
+
+The fix is to wait on something only the application can produce.
+`applyConfig` writes the config it settled on back to `localStorage`, so
+polling for that value is a synchronisation point *and* an assertion — it is
+what proves the stale `"material"` was rewritten to `"system"` rather than
+merely ignored.
+
+**A negative assertion needs a positive synchronisation point.** "The attribute
+is absent" and "the code has not run yet" look identical from outside, and only
+a value the code must have written distinguishes them.
+
+Two smaller things from the same session, both about locating elements rather
+than timing: `button[type="submit"]` matched the OAuth provider buttons before
+it matched Sign in, and `getByLabel("Assistant")` matched the panel's own
+"Close assistant" control as a substring. Both failed loudly on the first run,
+which is the difference between them and the one above.
+
 ### L64 — No page in the application had an `<h1>`
 
 The first end-to-end run failed on eighteen of twenty-one pages, all with the

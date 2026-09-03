@@ -31,7 +31,11 @@
       class="bg-base-100 text-base-content flex h-full w-72 flex-col sm:w-96"
     >
       <div class="bg-base-200 flex items-center justify-between px-5 py-4">
-        <p class="text-lg font-medium">Assistant</p>
+        <!-- A heading, not a styled <p> — the same mistake L64 records, made
+             again in this file the day it was written. The panel is a landmark
+             a screen reader user navigates to; without a heading it is an
+             unnamed region. -->
+        <h2 class="text-lg font-medium">Assistant</h2>
         <label
           for="layout-rightbar-drawer"
           aria-label="Close assistant"
