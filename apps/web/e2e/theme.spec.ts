@@ -57,6 +57,24 @@ async function visitWithStoredConfig(
       { timeout: 10_000 },
     )
     .toBe(JSON.stringify({ theme: settlesOn }))
+
+  // The localStorage write and the data-theme write are two separate effects,
+  // not one atomic step — on a slower machine (CI) localStorage can settle a
+  // beat before the DOM attribute does, which is the race this settle exists
+  // to close. Poll the attribute too, except for "system": that case expects
+  // no attribute at all, and polling FOR absence would defeat the point (see
+  // the comment on the "system" test below).
+  if (settlesOn !== "system") {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            document.documentElement.getAttribute("data-theme"),
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe(settlesOn)
+  }
 }
 
 const themeAttr = (page: Page) =>
