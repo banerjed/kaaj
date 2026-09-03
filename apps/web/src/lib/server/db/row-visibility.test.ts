@@ -258,6 +258,24 @@ const TIER1: {
     readsAll: ["hr_admin", "payroll_admin", "auditor"],
   },
   {
+    table: "payroll_india_salary_structure",
+    total: 2,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "payroll_india_tax_declarations",
+    total: 1,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "payroll_tax_withholding_certificates",
+    total: 4,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
     table: "employee_bank_accounts",
     total: 7,
     own: 1,
@@ -491,5 +509,134 @@ describe("accounting is visible to the finance function, and to nobody else", ()
       return r.n
     })
     expect(n).toBe(0)
+  })
+})
+
+/**
+ * Tier 1 write policies (20260903150000) — the SELECT-only gap accounting's
+ * writes closed on 20260903045821, closed here too. Most of these tables
+ * have no application write path yet, so this proves the RLS shape directly
+ * rather than through a route action.
+ */
+describe("Tier 1 writes are role-aware, not just tenant-wide", () => {
+  it("a plain employee cannot update their own pay", async () => {
+    const updated = await asRole(
+      { employeeId: MARCUS, role: "employee" },
+      async (tx) => {
+        const rows = await tx<{ id: string }[]>`
+          UPDATE compensation_base SET employee_id = employee_id
+           WHERE employee_id = ${MARCUS} RETURNING id
+        `
+        return rows.length
+      },
+    )
+    expect(updated).toBe(0)
+  })
+
+  it("hr_admin can update compensation, payroll_admin cannot", async () => {
+    const hrAdmin = { role: "employee", functionalRoles: ["hr_admin"] }
+    const payrollAdmin = {
+      role: "employee",
+      functionalRoles: ["payroll_admin"],
+    }
+
+    const byHr = await asRole(hrAdmin, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE compensation_base SET employee_id = employee_id
+         WHERE employee_id = ${MARCUS} RETURNING id
+      `
+      return rows.length
+    })
+    expect(byHr).toBeGreaterThan(0)
+
+    const byPayroll = await asRole(payrollAdmin, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE compensation_base SET employee_id = employee_id
+         WHERE employee_id = ${MARCUS} RETURNING id
+      `
+      return rows.length
+    })
+    expect(byPayroll).toBe(0)
+  })
+
+  it("payroll_admin can write payroll India tables, hr_admin cannot", async () => {
+    const hrAdmin = { role: "employee", functionalRoles: ["hr_admin"] }
+    const payrollAdmin = {
+      role: "employee",
+      functionalRoles: ["payroll_admin"],
+    }
+
+    const byPayroll = await asRole(payrollAdmin, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE payroll_india_salary_structure SET updated_at = now()
+        RETURNING id
+      `
+      return rows.length
+    })
+    expect(byPayroll).toBeGreaterThan(0)
+
+    const byHr = await asRole(hrAdmin, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE payroll_india_salary_structure SET updated_at = now()
+        RETURNING id
+      `
+      return rows.length
+    })
+    expect(byHr).toBe(0)
+  })
+
+  it("a plain employee cannot edit the employee directory, not even their own row", async () => {
+    const updated = await asRole(
+      { employeeId: MARCUS, role: "employee" },
+      async (tx) => {
+        const rows = await tx<{ id: string }[]>`
+          UPDATE employees SET introduction = 'probe'
+           WHERE id = ${MARCUS} RETURNING id
+        `
+        return rows.length
+      },
+    )
+    expect(updated).toBe(0)
+  })
+
+  it("acknowledging a review is the one write a plain employee may do — their OWN row only", async () => {
+    const marcusOwnReview = "40e86787-3514-59e7-acb6-935e9a28a9f3"
+    const someoneElsesReview = "f25614d5-256e-502d-9979-7245769eaf56"
+
+    const own = await asRole(
+      { employeeId: MARCUS, role: "employee" },
+      async (tx) => {
+        const rows = await tx<{ id: string }[]>`
+          UPDATE hr_reviews SET status = status
+           WHERE id = ${marcusOwnReview} RETURNING id
+        `
+        return rows.length
+      },
+    )
+    expect(own).toBe(1)
+
+    const someoneElses = await asRole(
+      { employeeId: MARCUS, role: "employee" },
+      async (tx) => {
+        const rows = await tx<{ id: string }[]>`
+          UPDATE hr_reviews SET status = status
+           WHERE id = ${someoneElsesReview} RETURNING id
+        `
+        return rows.length
+      },
+    )
+    expect(someoneElses).toBe(0)
+  })
+
+  it("a plain employee cannot insert a compensation record", async () => {
+    await expect(
+      asRole(
+        { role: "employee" },
+        (tx) =>
+          tx`INSERT INTO compensation_base
+             (tenant_id, employee_id, amount, currency, effective_from, pay_frequency, compensation_type)
+             VALUES (${NORTHWIND}, ${MARCUS}, 1, 'USD', current_date, 'monthly', 'salary')`,
+      ),
+    ).rejects.toThrow(/row-level security/)
   })
 })
