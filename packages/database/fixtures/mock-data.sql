@@ -400,6 +400,34 @@ UPDATE customers SET
     custom_fields = '{"tax_exemption_certificate": "EXEMPT-HELIOS-2026"}'::jsonb
 WHERE customer_number = 'HELIOS';
 
+-- Customer portal test personas (docs/17-customer-portal.md §5). Two
+-- contacts at the same customer (Acme) so RLS is exercised across contacts,
+-- not just across customers: both must see the same customer-scoped rows,
+-- neither should see Britannia's or Helios's.
+INSERT INTO customer_contacts (id, tenant_id, customer_id, first_name, last_name, email, phone, title, is_primary, is_active) VALUES
+    ('da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Dana', 'Whitcombe', 'dana.whitcombe@acme.example', '+1-212-555-0201', 'Operations Director', TRUE, TRUE),
+    ('a31f1ed7-22b2-4326-b309-204ce40919ca', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Felix', 'Ndiaye', 'felix.ndiaye@acme.example', '+1-212-555-0202', 'IT Lead', FALSE, TRUE),
+    ('1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'Imogen', 'Faulkner', 'imogen.faulkner@britco.example', '+44-20-7946-0201', 'IT Manager', TRUE, TRUE),
+    ('bd5b885a-62df-456c-8b71-af7baa246197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'Theo', 'Bakshi', 'theo.bakshi@helios.example', '+1-512-555-0201', 'Data Lead', TRUE, TRUE);
+
+-- One tenant_users row per contact — role 'customer', employee_id NULL,
+-- mirroring the employee-derived INSERT below but sourced from
+-- customer_contacts instead. user_id is a fresh id, not derived from the
+-- contact's own id, so it reads distinctly from an employee's tenant_user
+-- id in any raw dump.
+INSERT INTO tenant_users (id, tenant_id, user_id, customer_contact_id, role,
+                          functional_roles, is_active, is_default_tenant,
+                          accepted_at)
+SELECT
+    uuid_generate_v5_compat(cc.id, 'tenant_user'),
+    cc.tenant_id,
+    uuid_generate_v5_compat(cc.id, 'auth_user'),
+    cc.id,
+    'customer',
+    '{}'::text[],
+    TRUE, TRUE, '2026-02-01T09:00:00Z'
+FROM customer_contacts cc;
+
 -- Invoices in mixed states, multi-currency with base conversion
 INSERT INTO invoices (id, tenant_id, customer_id, invoice_number, invoice_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, payment_terms) VALUES
     ('c72699f8-700c-5760-a8e8-19ae6dfd53c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-001', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 42300.0, 0, 42300.0, 42300.0, 0, 42300.0, 0, 42300.0, 42300.0, 0, 'paid', 'net_30'),

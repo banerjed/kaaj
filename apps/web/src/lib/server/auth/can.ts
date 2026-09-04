@@ -18,6 +18,10 @@ export type AuthContext = {
   userId: string
   /** NULL for a tenant member who is not an employee. */
   employeeId: string | null
+  /** NULL for a tenant member who is not a portal contact. */
+  customerContactId: string | null
+  /** The customer that customerContactId belongs to; NULL for staff. */
+  customerId: string | null
   role: BaseRole
   functionalRoles: string[]
 }
@@ -30,6 +34,8 @@ export function contextFrom(locals: App.Locals): AuthContext | null {
     tenantId: locals.tenantId,
     userId: locals.user.id,
     employeeId: locals.employeeId ?? null,
+    customerContactId: locals.customerContactId ?? null,
+    customerId: locals.customerId ?? null,
     // An unrecognised claim reads as the floor, never as an escalation.
     role: isBaseRole(role) ? role : "employee",
     functionalRoles: locals.functionalRoles ?? [],

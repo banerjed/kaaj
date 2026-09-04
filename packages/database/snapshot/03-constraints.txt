@@ -63,6 +63,10 @@ custom_field_definitions	custom_field_definitions_data_type_check	c	CHECK ((data
 custom_field_definitions	custom_field_definitions_pkey	p	PRIMARY KEY (id)
 custom_field_definitions	custom_field_definitions_tenant_id_entity_type_field_key_key	u	UNIQUE (tenant_id, entity_type, field_key)
 custom_field_definitions	custom_field_definitions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customer_contacts	customer_contacts_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+customer_contacts	customer_contacts_pkey	p	PRIMARY KEY (id)
+customer_contacts	customer_contacts_tenant_id_email_key	u	UNIQUE (tenant_id, email)
+customer_contacts	customer_contacts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 customers	customers_pkey	p	PRIMARY KEY (id)
 customers	customers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 customers	fk_customers_ar_account_id	f	FOREIGN KEY (ar_account_id) REFERENCES chart_of_accounts(id)
@@ -342,11 +346,13 @@ tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON D
 tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)
 tenant_settings	tenant_settings_pkey	p	PRIMARY KEY (tenant_id, namespace, key)
 tenant_settings	tenant_settings_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+tenant_users	ck_tenant_users_one_identity	c	CHECK ((num_nonnulls(employee_id, customer_contact_id) = 1))
 tenant_users	tenant_users_auditor_writes_nothing	c	CHECK ((NOT ((functional_roles @> ARRAY['auditor'::text]) AND ((array_length(functional_roles, 1) > 1) OR (role = ANY (ARRAY['owner'::text, 'firm_admin'::text]))))))
+tenant_users	tenant_users_customer_contact_id_fkey	f	FOREIGN KEY (customer_contact_id) REFERENCES customer_contacts(id)
 tenant_users	tenant_users_functional_roles_are_known	c	CHECK ((functional_roles <@ ARRAY['hr_admin'::text, 'payroll_admin'::text, 'finance_admin'::text, 'sales_admin'::text, 'marketing_admin'::text, 'it_admin'::text, 'legal_admin'::text, 'project_manager'::text, 'auditor'::text]))
 tenant_users	tenant_users_pay_setter_is_not_pay_approver	c	CHECK ((NOT ((functional_roles @> ARRAY['hr_admin'::text]) AND (functional_roles @> ARRAY['payroll_admin'::text]))))
 tenant_users	tenant_users_pkey	p	PRIMARY KEY (id)
-tenant_users	tenant_users_role_is_a_base_role	c	CHECK ((role = ANY (ARRAY['owner'::text, 'firm_admin'::text, 'employee'::text, 'contractor'::text])))
+tenant_users	tenant_users_role_is_a_base_role	c	CHECK ((role = ANY (ARRAY['owner'::text, 'firm_admin'::text, 'employee'::text, 'contractor'::text, 'customer'::text])))
 tenant_users	tenant_users_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tenant_users	tenant_users_tenant_id_user_id_key	u	UNIQUE (tenant_id, user_id)
 tenants	tenants_company_size_check	c	CHECK ((company_size = ANY (ARRAY['1-10'::text, '11-50'::text, '51-200'::text, '201-500'::text, '501+'::text])))

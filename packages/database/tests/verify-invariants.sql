@@ -546,13 +546,15 @@ SELECT 'authz/constraint-present', c.conname,
        c.why
   FROM (VALUES
     ('tenant_users_role_is_a_base_role',
-     'role must be one of owner/firm_admin/employee/contractor'),
+     'role must be one of owner/firm_admin/employee/contractor/customer'),
     ('tenant_users_functional_roles_are_known',
      'an unknown functional role grants nothing and hides a typo'),
     ('tenant_users_pay_setter_is_not_pay_approver',
      'whoever sets pay must not approve the run that pays it'),
     ('tenant_users_auditor_writes_nothing',
-     'an auditor who can change things is not an auditor')
+     'an auditor who can change things is not an auditor'),
+    ('ck_tenant_users_one_identity',
+     'a tenant_users row is staff OR a portal contact, never both and never neither')
   ) AS c(conname, why);
 
 -- And that they actually REFUSE, not merely exist. Each probe rolls back.
@@ -562,7 +564,11 @@ DECLARE
     victim  UUID;
     refused BOOLEAN;
 BEGIN
-    SELECT id INTO victim FROM tenant_users LIMIT 1;
+    -- Staff, specifically: a portal-contact row already has employee_id
+    -- NULL, which would make the "both identities" probe below a no-op
+    -- (still exactly one non-null value after the UPDATE) rather than a
+    -- genuine violation.
+    SELECT id INTO victim FROM tenant_users WHERE employee_id IS NOT NULL LIMIT 1;
     IF victim IS NULL THEN
         INSERT INTO _inv (rule, subject, passed, detail)
         VALUES ('authz/constraint-refuses', '(no tenant_users rows)', false,
@@ -575,7 +581,11 @@ BEGIN
         ('auditor + a writing role', $$functional_roles = ARRAY['auditor','finance_admin']::text[]$$),
         ('auditor on a writing base role', $$role = 'owner', functional_roles = ARRAY['auditor']::text[]$$),
         ('a base role that does not exist', $$role = 'manager'$$),
-        ('an unknown functional role', $$functional_roles = ARRAY['cfo']::text[]$$)
+        ('an unknown functional role', $$functional_roles = ARRAY['cfo']::text[]$$),
+        ('a tenant_user with both an employee and a portal contact',
+         $$customer_contact_id = (SELECT id FROM customer_contacts LIMIT 1)$$),
+        ('a tenant_user with neither an employee nor a portal contact',
+         $$employee_id = NULL, customer_contact_id = NULL$$)
     ) AS v(label, assignment)
     LOOP
         refused := false;

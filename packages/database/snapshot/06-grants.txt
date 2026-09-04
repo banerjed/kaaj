@@ -33,6 +33,9 @@ cross_module_links	app_user	INSERT,SELECT,UPDATE
 cross_module_links	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 custom_field_definitions	app_user	INSERT,SELECT,UPDATE
 custom_field_definitions	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+customer_contacts	app_user	INSERT,SELECT,UPDATE
+customer_contacts	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+customer_contacts	supabase_auth_admin	SELECT
 customers	app_user	INSERT,SELECT,UPDATE
 customers	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 employee_assets	app_user	INSERT,SELECT,UPDATE

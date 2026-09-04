@@ -16,6 +16,7 @@ compensation_variable	t	t
 compensation_work_schedules	t	t
 cross_module_links	t	t
 custom_field_definitions	t	t
+customer_contacts	t	t
 customers	t	t
 employee_assets	t	t
 employee_bank_accounts	t	t

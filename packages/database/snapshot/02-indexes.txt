@@ -92,6 +92,8 @@ custom_field_definitions	custom_field_definitions_tenant_id_entity_type_field_ke
 custom_field_definitions	idx_cfd_tenant_entity	CREATE INDEX idx_cfd_tenant_entity ON public.custom_field_definitions USING btree (tenant_id, entity_type, display_order) WHERE is_active
 custom_field_definitions	idx_custom_field_definitions_created	CREATE INDEX idx_custom_field_definitions_created ON public.custom_field_definitions USING btree (tenant_id, created_at DESC)
 custom_field_definitions	idx_custom_field_definitions_is_active	CREATE INDEX idx_custom_field_definitions_is_active ON public.custom_field_definitions USING btree (tenant_id, is_active)
+customer_contacts	customer_contacts_pkey	CREATE UNIQUE INDEX customer_contacts_pkey ON public.customer_contacts USING btree (id)
+customer_contacts	customer_contacts_tenant_id_email_key	CREATE UNIQUE INDEX customer_contacts_tenant_id_email_key ON public.customer_contacts USING btree (tenant_id, email)
 customers	customers_pkey	CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)
 customers	idx_customers_ar_account_id	CREATE INDEX idx_customers_ar_account_id ON public.customers USING btree (tenant_id, ar_account_id)
 customers	idx_customers_created	CREATE INDEX idx_customers_created ON public.customers USING btree (tenant_id, created_at DESC)

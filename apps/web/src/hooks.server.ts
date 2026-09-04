@@ -99,6 +99,8 @@ const authGuard: Handle = async ({ event, resolve }) => {
   event.locals.tenantRole = claims.role
   event.locals.functionalRoles = claims.functionalRoles
   event.locals.employeeId = claims.employeeId
+  event.locals.customerContactId = claims.customerContactId
+  event.locals.customerId = claims.customerId
 
   return resolve(event)
 }
@@ -113,12 +115,16 @@ function appMetadataFromToken(accessToken?: string): {
   role: string | null
   functionalRoles: string[]
   employeeId: string | null
+  customerContactId: string | null
+  customerId: string | null
 } {
   const none = {
     tenantId: null,
     role: null,
     functionalRoles: [] as string[],
     employeeId: null,
+    customerContactId: null,
+    customerId: null,
   }
   if (!accessToken) return none
 
@@ -133,12 +139,16 @@ function appMetadataFromToken(accessToken?: string): {
         role?: unknown
         functional_roles?: unknown
         employee_id?: unknown
+        customer_contact_id?: unknown
+        customer_id?: unknown
       }
     }
     const meta = claims.app_metadata
     const tenantId = meta?.tenant_id
     const role = meta?.role
     const employeeId = meta?.employee_id
+    const customerContactId = meta?.customer_contact_id
+    const customerId = meta?.customer_id
     return {
       tenantId: typeof tenantId === "string" && tenantId ? tenantId : null,
       role: typeof role === "string" && role ? role : null,
@@ -150,6 +160,12 @@ function appMetadataFromToken(accessToken?: string): {
         : [],
       employeeId:
         typeof employeeId === "string" && employeeId ? employeeId : null,
+      customerContactId:
+        typeof customerContactId === "string" && customerContactId
+          ? customerContactId
+          : null,
+      customerId:
+        typeof customerId === "string" && customerId ? customerId : null,
     }
   } catch {
     return none // malformed token = missing tenant, not a crash

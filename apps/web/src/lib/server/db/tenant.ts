@@ -25,6 +25,8 @@ export type Actor =
   | {
       tenantId: string
       employeeId?: string | null
+      customerContactId?: string | null
+      customerId?: string | null
       role?: string | null
       functionalRoles?: string[] | null
     }
@@ -49,6 +51,8 @@ export async function withTenant<T>(
         : {
             tenant_id: tenantId,
             employee_id: actor.employeeId ?? null,
+            customer_contact_id: actor.customerContactId ?? null,
+            customer_id: actor.customerId ?? null,
             role: actor.role ?? null,
             functional_roles: actor.functionalRoles ?? [],
           },
@@ -72,6 +76,8 @@ export function actorFrom(locals: App.Locals): Actor {
   return {
     tenantId: locals.tenantId,
     employeeId: locals.employeeId ?? null,
+    customerContactId: locals.customerContactId ?? null,
+    customerId: locals.customerId ?? null,
     role: locals.tenantRole ?? null,
     functionalRoles: locals.functionalRoles ?? [],
   }

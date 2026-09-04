@@ -19,6 +19,8 @@ const ctx: AuthContext = {
   tenantId: NORTHWIND,
   userId: "00000000-0000-0000-0000-000000000001",
   employeeId: SARAH,
+  customerContactId: null,
+  customerId: null,
   role: "owner",
   functionalRoles: [],
 }

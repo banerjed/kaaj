@@ -65,6 +65,9 @@ compensation_variable	tenant_isolation	ALL	public	(tenant_id = app.current_tenan
 compensation_work_schedules	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 cross_module_links	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 custom_field_definitions	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+customer_contacts	auth_admin_reads_contacts	SELECT	supabase_auth_admin	true	
+customer_contacts	portal_contact_visibility	SELECT	public	((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR (customer_id = ( SELECT app.current_customer_id() AS current_customer_id)))	
+customer_contacts	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 customers	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 employee_assets	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 employee_bank_accounts	pii_delete	DELETE	public	( SELECT app.writes_pii() AS writes_pii)	

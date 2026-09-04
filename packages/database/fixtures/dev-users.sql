@@ -10,14 +10,20 @@
 -- also needs registering in supabase/config.toml / dashboard Hooks — see
 -- 20260827000002_auth_and_grants.sql section 3.
 --
--- LOGINS  (password is the same for all four)
+-- STAFF LOGINS
 --   sarah.johnson@northwind.example    owner
---   rachel.adeyemi@northwind.example   hr_admin
---   aisha.okafor@northwind.example     manager
---   marcus.chen@northwind.example      member
---   tom.whitfield@northwind.example    member
+--   rachel.adeyemi@northwind.example   employee, functional_roles: {hr_admin}
+--   aisha.okafor@northwind.example     employee
+--   marcus.chen@northwind.example      employee
+--   tom.whitfield@northwind.example    employee
 --
---   password: devpassword
+-- PORTAL LOGINS (docs/17-customer-portal.md) — role 'customer', no employee_id
+--   dana.whitcombe@acme.example        Acme Manufacturing, primary contact
+--   felix.ndiaye@acme.example          Acme Manufacturing
+--   imogen.faulkner@britco.example     Britannia Retail Group
+--   theo.bakshi@helios.example         Helios Energy
+--
+--   password: devpassword, for all of the above
 -- =============================================================================
 
 BEGIN;
@@ -52,18 +58,20 @@ SELECT
     tu.user_id,
     'authenticated',
     'authenticated',
-    e.email,
+    coalesce(e.email, cc.email),
     extensions.crypt('devpassword', extensions.gen_salt('bf')),
     now(),
     jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
     jsonb_build_object(
-        'full_name', e.first_name || ' ' || e.last_name,
+        'full_name', coalesce(e.first_name || ' ' || e.last_name,
+                               cc.first_name || ' ' || cc.last_name),
         'kaaj_role', tu.role
     ),
     now(), now(),
     '', '', '', ''
 FROM tenant_users tu
-JOIN employees e ON e.id = tu.employee_id
+LEFT JOIN employees e ON e.id = tu.employee_id
+LEFT JOIN customer_contacts cc ON cc.id = tu.customer_contact_id
 WHERE tu.is_active
 ON CONFLICT (id) DO NOTHING;
 
@@ -90,7 +98,11 @@ SELECT
     'email',
     now(), now(), now()
 FROM auth.users u
-WHERE u.email LIKE '%@northwind.example'
+-- Every user this script itself just created (staff AND portal contacts),
+-- not a domain-name guess — the set of "our seeded users" is exactly
+-- tenant_users.user_id, which is what the auth.users INSERT above sourced
+-- its rows from.
+WHERE u.id IN (SELECT user_id FROM tenant_users WHERE is_active)
 ON CONFLICT (provider_id, provider) DO NOTHING;
 
 

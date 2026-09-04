@@ -27,6 +27,10 @@ const EXEMPT = new Map([
     "an anonymous visitor; there is no session, let alone a tenant",
   ],
   [
+    "apps/web/src/routes/portal/login/+page.server.ts -> default",
+    "signing in — there is no session yet, let alone a tenant or a permission",
+  ],
+  [
     "apps/web/src/routes/(admin)/account/api/+page.server.ts -> updateEmail",
     "acts on the signed-in auth user's own account, before any tenant",
   ],

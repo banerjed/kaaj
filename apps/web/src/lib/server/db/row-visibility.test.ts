@@ -23,6 +23,8 @@ const sql = postgres(
 
 type Who = {
   employeeId?: string | null
+  customerContactId?: string | null
+  customerId?: string | null
   role?: string
   functionalRoles?: string[]
   tenantId?: string
@@ -39,6 +41,8 @@ async function asRole<T>(
       app_metadata: {
         tenant_id: who.tenantId ?? NORTHWIND,
         employee_id: who.employeeId ?? null,
+        customer_contact_id: who.customerContactId ?? null,
+        customer_id: who.customerId ?? null,
         role: who.role ?? "employee",
         functional_roles: who.functionalRoles ?? [],
       },
@@ -129,6 +133,8 @@ describe("RLS and can() agree", () => {
     tenantId: NORTHWIND,
     userId: "00000000-0000-0000-0000-000000000001",
     employeeId: MARCUS,
+    customerContactId: null,
+    customerId: null,
     role: role as AuthContext["role"],
     functionalRoles,
   })
@@ -638,5 +644,73 @@ describe("Tier 1 writes are role-aware, not just tenant-wide", () => {
              VALUES (${NORTHWIND}, ${MARCUS}, 1, 'USD', current_date, 'monthly', 'salary')`,
       ),
     ).rejects.toThrow(/row-level security/)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// Customer portal identity (docs/17-customer-portal.md) — a third shape,
+// keyed on app.current_customer_id() rather than app.current_employee_id().
+// customer_contacts is tenant-wide for staff (ordinary directory data) and
+// scoped to "own customer" for a portal contact — not the TIER1 pattern
+// above, whose "own" means one specific employee's own row.
+// -----------------------------------------------------------------------------
+
+describe("customer portal identity", () => {
+  const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+  const BRITCO = "ac7a04b4-a28e-5a15-9993-596db32c8d4e"
+  const DANA = "da1d1f9e-9d10-4d13-a3d9-b90f49903a13"
+  const IMOGEN = "1561052e-6bd8-49a5-ae6b-2ed384cec0b6"
+
+  const contactCount = (who: Who) =>
+    asRole(who, async (tx) => {
+      const [r] = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM customer_contacts
+      `
+      return r.n
+    })
+
+  it("shows staff every contact, whatever customer they belong to", async () => {
+    expect(await contactCount({ employeeId: MARCUS, role: "employee" })).toBe(4)
+    expect(await contactCount({ employeeId: SARAH, role: "owner" })).toBe(4)
+  })
+
+  it("shows a portal contact their own customer's contacts, and only those", async () => {
+    // Acme has two contacts (Dana, primary, and Felix) — both must see each
+    // other, proving visibility is scoped by customer_id, not by which
+    // contact created a row.
+    const acme = await contactCount({
+      customerContactId: DANA,
+      customerId: ACME,
+      role: "customer",
+    })
+    expect(acme).toBe(2)
+
+    // Britannia has exactly one contact — Imogen sees herself, and confirms
+    // the count isn't accidentally leaking Acme's rows too.
+    const britco = await contactCount({
+      customerContactId: IMOGEN,
+      customerId: BRITCO,
+      role: "customer",
+    })
+    expect(britco).toBe(1)
+  })
+
+  it("shows nothing with no customer claim at all", async () => {
+    expect(await contactCount({ role: "customer" })).toBe(0)
+  })
+
+  it("app.current_customer_id() and can() agree: a portal contact never gets an internal grant", async () => {
+    const ctx: AuthContext = {
+      tenantId: NORTHWIND,
+      userId: "00000000-0000-0000-0000-000000000002",
+      employeeId: null,
+      customerContactId: DANA,
+      customerId: ACME,
+      role: "customer",
+      functionalRoles: [],
+    }
+    expect(can(ctx, "ticket.submit")).toBe(true)
+    expect(can(ctx, "employee.read.self")).toBe(false)
+    expect(can(ctx, "compensation.read.self")).toBe(false)
   })
 })

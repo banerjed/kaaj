@@ -51,6 +51,13 @@ export const PERMISSIONS = [
   "tenant.members.manage",
   "tenant.billing",
   "audit.read.all",
+  // Customer-portal permissions — a separate namespace on purpose, so a
+  // portal contact is never one missing `if` away from an internal one.
+  // See docs/17-customer-portal.md.
+  "ticket.submit",
+  "ticket.read.own",
+  "document.read.own",
+  "document.upload.own",
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -60,6 +67,9 @@ export const BASE_ROLES = [
   "firm_admin",
   "employee",
   "contractor",
+  // A customer's own contact, not a member of the firm. See
+  // docs/17-customer-portal.md §1.
+  "customer",
 ] as const
 export type BaseRole = (typeof BASE_ROLES)[number]
 
@@ -100,6 +110,15 @@ const BASE: Record<BaseRole, Permission[]> = {
   // Same grants as employee today; kept separate because directory/profile
   // gating uses base role, not a permission, and that's where they'll diverge.
   contractor: [...EVERYONE],
+  // Deliberately NOT built on EVERYONE — a portal contact gets none of
+  // employee.read.self/compensation.read.self/etc, which mean nothing for
+  // someone who isn't an employee.
+  customer: [
+    "ticket.submit",
+    "ticket.read.own",
+    "document.read.own",
+    "document.upload.own",
+  ],
 }
 
 const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {

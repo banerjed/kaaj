@@ -24,12 +24,16 @@ declare global {
       amr: AMREntry[] | null
       /** The tenant this request is scoped to (ADR-003 rule 5). Pass to withTenant(); null = no membership, not an error. */
       tenantId: string | null
-      /** The BASE role — owner | firm_admin | employee | contractor. Exactly one. See docs/14-access-control.md. */
+      /** The BASE role — owner | firm_admin | employee | contractor | customer. Exactly one. See docs/14-access-control.md. */
       tenantRole: string | null
       /** Functional roles on top: hr_admin, payroll_admin, … Zero or more. */
       functionalRoles: string[]
       /** Which PERSON is asking, distinct from which tenant. Null for a non-employee member. */
       employeeId: string | null
+      /** Which portal contact is asking. Null for staff. See docs/17-customer-portal.md. */
+      customerContactId: string | null
+      /** The customer customerContactId belongs to. Null for staff. */
+      customerId: string | null
     }
     interface PageData {
       session: SafeAuthSession | null

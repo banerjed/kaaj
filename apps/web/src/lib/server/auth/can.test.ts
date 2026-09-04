@@ -29,6 +29,8 @@ const ctx = (
   tenantId: NORTHWIND,
   userId: "00000000-0000-0000-0000-000000000001",
   employeeId,
+  customerContactId: null,
+  customerId: null,
   role,
   functionalRoles,
 })
@@ -114,9 +116,28 @@ describe("owner and firm_admin", () => {
 
   it("only owner may erase a data subject", () => {
     expect(can(ctx("owner"), "pii.erase")).toBe(true)
-    for (const r of ["firm_admin", "employee", "contractor"] as const) {
+    for (const r of [
+      "firm_admin",
+      "employee",
+      "contractor",
+      "customer",
+    ] as const) {
       expect(can(ctx(r, ["hr_admin"]), "pii.erase"), r).toBe(false)
     }
+  })
+
+  it("a portal contact gets exactly the four portal permissions, nothing from EVERYONE", () => {
+    // Deliberately not built on EVERYONE — employee.read.self etc mean
+    // nothing for someone who isn't an employee (docs/17-customer-portal.md §1).
+    const c = ctx("customer", [], null)
+    expect(can(c, "ticket.submit")).toBe(true)
+    expect(can(c, "ticket.read.own")).toBe(true)
+    expect(can(c, "document.read.own")).toBe(true)
+    expect(can(c, "document.upload.own")).toBe(true)
+    expect(can(c, "employee.read.self")).toBe(false)
+    expect(can(c, "compensation.read.self")).toBe(false)
+    expect(can(c, "timeoff.request")).toBe(false)
+    expect(can(c, "time_entries.write")).toBe(false)
   })
 })
 
