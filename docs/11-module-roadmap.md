@@ -2,7 +2,7 @@
 
 **Status:** active
 **Created:** 2026-08-29
-**Last verified against the code:** 2026-09-03, at `c0a4c14`
+**Last verified against the code:** 2026-09-04, at `0983035`
 
 Phases 0–2 of [09-build-plan.md](./09-build-plan.md) are done: the shell, the
 data layer, the firm profile and the employee profile. This document covers what
@@ -264,11 +264,12 @@ work is billed on); task writes are in `NOT_AUDITED` with the reason, because a
 line per board movement would bury the pay changes the trail exists to make
 findable.
 
-**Accounting — receivables and bill payment done, banking not.**
+**Accounting — ✅ done, for the slice this codebase builds.**
 `/accounting/{invoices,invoices/[id],bills,bills/[id],ledger,banking}` all
-render, and both the **receivables cycle** and the **payables cycle now
-write**: issue an invoice, receive a payment against it, void a draft; approve
-a bill, pay a vendor against it.
+render, and the **receivables cycle**, the **payables cycle** and **bank
+matching now write**: issue an invoice, receive a payment against it, void a
+draft; approve a bill, pay a vendor against it; match an imported bank line to
+a payment already recorded.
 
 Each of those posts a BALANCED journal entry in the same transaction as the
 document, reusing one `postJournal()` engine for both cycles:
@@ -317,10 +318,31 @@ against the payment's actor — because approving a liability and paying it are
 the two steps a real AP control keeps apart, and the column was already being
 stored either way.
 
-**Still read-only: banking and reconciliation.** No bank line can be matched
-to a payment. That is the next slice of this phase, and
-`docs/accounting-gap-analysis.md` lists ten endpoints the module specs missed
-on top of it.
+**Bank matching writes too, and Phase 7 is done.** A bank_transaction can be
+tagged as matched to a payment already on the books — `/accounting/banking`,
+row action. Deliberately narrow: this ties one imported line to one existing
+payment, manually, one at a time. Bank feed integration, auto-match rules, and
+the "reconcile a statement against a running balance" workflow the module spec
+describes are not built — `docs/accounting-gap-analysis.md` catalogues the
+rest of that gap.
+
+No `postJournal` here, and no `period_closed` check as a result: the cash
+movement was already posted by `recordPayment`/`recordVendorPayment` when the
+payment itself was recorded, so posting again would double-count cash, and the
+period gate lives inside `postJournal`, which this write never calls. That is
+a deliberate break from the pattern the last two slices established, not an
+oversight.
+
+**Direction matters as much as currency.** `bank_transactions.amount` is
+signed — a credit is money in, a debit is money out — while a payment's
+`amount` is always positive and its direction lives in which id is set
+(`customer_id` for money received, `vendor_id` for money paid). Same currency
+and a plausible amount is not enough: a GBP credit and a USD vendor payment
+share neither currency nor direction, and matching a credit to a vendor
+payment would silently record money received as money paid out. Both are
+refused, and both were fixture-blind before two more transactions were added —
+every bank_transaction above was already GBP-vs-nothing, leaving
+`direction_mismatch` with no real subject (L50, L51 again).
 
 ---
 
@@ -348,9 +370,10 @@ was trusted** — six tests for the project counters, three for the payroll
 header, two for the accounting posting. A guard that has never been observed to
 fail is not evidence.
 
-Still read-only after this work: **payroll calculation** (per-person gross, tax
-and net), and **bank reconciliation** (matching a bank_transaction to a
-payment). Both are named in their phases above.
+Still read-only after this work: **payroll calculation** (per-person gross,
+tax and net) — named in its phase above. Bank matching now writes too (below),
+though the full statement-reconciliation workflow the module spec describes —
+bank feeds, auto-match rules, a running-balance confirmation — is not built.
 
 ### 1. Projects — ✅ done
 
@@ -375,7 +398,7 @@ twin ([L59](./10-lessons-learned.md)) — and a test asserting an error *class*
 passes on the wrong error, which hid a transition bug behind three green
 separation-of-duties tests ([L60](./10-lessons-learned.md)).
 
-### 3. Accounting — ✅ receivables and payables done, banking ahead
+### 3. Accounting — ✅ done
 
 The balance rule was **not** only a spec test.
 `packages/database/tests/verify-stories.sql` asserts, over the live schema, that
@@ -398,6 +421,13 @@ confirm the posting shape before writing any code — the L50/L51 fix landed
 again on the way in: every seeded bill was already `approved` or `paid`, so two
 draft bills were added (one in the open period, one in the closed one) or
 `approveBill()` would have had nothing real to operate on.
+
+Bank matching reused nothing from `postJournal()`, deliberately — matching
+tags an existing bank_transaction with the payment it corresponds to; the cash
+was already posted when that payment was recorded, so this write never opens a
+journal entry. Its own guard, `direction_mismatch`, was verified the same
+way as the counter and header guards before it: removed, watched fail, then
+restored — same L48 discipline as the rest of this list.
 
 ### What every one of these writes needs
 
@@ -443,7 +473,7 @@ in CLAUDE.md.
 
 ## Deferred, and where each actually stands
 
-Re-verified 2026-09-01. Four of these have closed since the list was written,
+Re-verified 2026-09-04. Four of these have closed since the list was written,
 which is the reason for the verification date at the top of this file.
 
 1. **Field-level PII encryption — ✅ closed.** 19 fields across 6 tables are
@@ -466,7 +496,7 @@ which is the reason for the verification date at the top of this file.
    tests were the project, as predicted; the policies were the small half.
 
 1d. **Auditing — ✅ closed, and enforced.** Every write is classified in
-   `audit/register.ts` — 35 audited operations and 8 explicitly not-audited,
+   `audit/register.ts` — 36 audited operations and 8 explicitly not-audited,
    each with a reason — and `./check` fails on an action in neither list. The
    rule was prose for months and 3 of 26 actions followed it (L54). `audit_log`
    now carries row-level visibility of its own, because auditing a value copies
