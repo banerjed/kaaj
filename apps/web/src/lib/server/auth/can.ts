@@ -74,6 +74,7 @@ const DENIALS: Partial<Record<Permission, string>> = {
   "tenant.members.manage": "Only the account owner can change who has access.",
   "pii.erase": "Only the account owner can erase someone's data.",
   "timeoff.approve": "You cannot decide this request.",
+  "time_entries.approve": "You cannot decide this time entry.",
 }
 
 /**

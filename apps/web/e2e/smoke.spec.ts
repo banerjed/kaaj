@@ -31,6 +31,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/onboarding", heading: "Onboarding" },
   { path: "/compensation", heading: "Compensation" },
   { path: "/projects", heading: "Projects" },
+  { path: "/time-tracking", heading: "Time Tracking" },
   { path: "/payroll/runs", heading: "Pay Runs" },
   { path: "/payroll/payslips", heading: "Payslips" },
   { path: "/accounting/invoices", heading: "Invoices" },

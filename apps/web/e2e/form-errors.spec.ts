@@ -143,3 +143,25 @@ test("a refused form keeps what was typed into it", async ({ page }) => {
   await expect(amount).toHaveAttribute("aria-invalid", "true")
   await expect(amount).toHaveValue("123456.789012")
 })
+
+test("logging time without a description is refused, hours survive", async ({
+  page,
+}) => {
+  await page.goto("/time-tracking")
+  await openModal(page, /log time/i, 'select[name="project_id"]')
+
+  const project = page.locator('select[name="project_id"]')
+  const hours = page.locator('input[name="hours"]')
+  const description = page.locator('textarea[name="description"]')
+
+  await project.selectOption({ index: 1 }) // first real project, after the placeholder
+  await hours.fill("7.5")
+  // description left blank — required
+  await submitPastTheBrowser(page, "?/create")
+
+  await expect(page.locator(".alert").first()).toContainText("Description")
+  await expect(hours).toBeVisible()
+  await expect(hours).toHaveValue("7.5")
+  await expect(description).toHaveClass(/textarea-error/)
+  await expect(description).toHaveAttribute("aria-invalid", "true")
+})

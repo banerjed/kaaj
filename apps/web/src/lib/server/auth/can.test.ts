@@ -78,7 +78,12 @@ describe("separation of duties", () => {
   it("auditor reads and writes nothing", () => {
     const a = ctx("employee", ["auditor"])
     const writes = PERMISSIONS.filter(
-      (p) => !p.includes(".read") && p !== "timeoff.request",
+      (p) =>
+        !p.includes(".read") &&
+        p !== "timeoff.request" &&
+        // Self-service, granted by the base `employee` role regardless of
+        // functional bundle — same reasoning as `timeoff.request` above.
+        p !== "time_entries.write",
     )
     for (const p of writes) expect(can(a, p), p).toBe(false)
     expect(can(a, "compensation.read.all")).toBe(true)

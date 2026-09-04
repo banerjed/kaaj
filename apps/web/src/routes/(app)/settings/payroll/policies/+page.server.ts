@@ -1,14 +1,13 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as policies from "$lib/server/firm-profile/firm_payroll_policies.repo"
+import { ROUNDING } from "$lib/server/firm-profile/firm_payroll_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
-
-const ROUNDING = ["none", "nearest_5", "nearest_6", "nearest_15"] as const
 
 /** /settings/payroll/policies — module-firm-profile.md § FR-FP-005. */
 export const load: PageServerLoad = async ({ locals }) => {

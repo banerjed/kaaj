@@ -287,6 +287,16 @@ INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, timeshe
     ('6fe05d7d-a1ea-5532-84cd-1e6d2b7bf4a9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-008', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'e40b5ae5-586e-5cf5-b086-c8acf146e0da', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, '2026-01-08', 7.0, 7.0, TRUE, 150, 1050.0, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('990702ae-fed9-57b0-8b5e-769ed2c28f8b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-009', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'd634105b-83dc-55f4-944b-ea9dcb78d1f6', 'f606af3e-f56f-5050-b663-02471b9f9dbd', 'd144cb33-1f61-5317-993c-074c63e6716e', NULL, '2026-01-09', 8.0, 8.0, TRUE, 260, 2080.0, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
+-- draft/submitted/rejected states — the first 9 rows were all 'approved', which
+-- is the L50/L51 trap by another name: a status column exercised in one state
+-- only leaves the submit/decide paths, the StatusBadge tones, and the refused
+-- half of any test unexercised (never rounded/billed, since only `decide`
+-- resolves `billable_amount`, so these three carry NULL there on purpose).
+INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, project_id, task_id, entry_date, hours, duration_hours, is_billable, hourly_rate, currency, description, status, submitted_at, approved_by, approved_at, rejection_reason, created_at, updated_at) VALUES
+    ('c3a6e8c1-6b60-5e4e-8c8a-2e6c9f8a0a11', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-010', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '2026-01-13', 6.0, 6.0, TRUE, 150, 'USD', 'Client delivery work', 'draft', NULL, NULL, NULL, NULL, '2026-01-13T09:00:00Z', '2026-01-13T09:00:00Z'),
+    ('d4b7f9d2-7c71-5f5f-9d9b-3f7da9b1b122', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-011', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'f606af3e-f56f-5050-b663-02471b9f9dbd', 'd144cb33-1f61-5317-993c-074c63e6716e', '2026-01-12', 5.0, 5.0, TRUE, 260, 'USD', 'Client delivery work', 'submitted', '2026-01-12T18:00:00Z', NULL, NULL, NULL, '2026-01-12T09:00:00Z', '2026-01-12T18:00:00Z'),
+    ('e5c8a0e3-8d82-5060-ae0c-408eb0c2c233', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-012', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'fda698f3-bf14-5aae-bed6-330c8b5a6a70', 'e5557981-472b-5016-a458-b1de5cce6910', '2026-01-11', 3.0, 3.0, TRUE, 195, 'GBP', 'Client delivery work', 'rejected', '2026-01-11T17:00:00Z', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-12T09:00:00Z', 'Logged against the wrong task — please resubmit under Frontend build.', '2026-01-11T09:00:00Z', '2026-01-12T09:00:00Z');
+
 INSERT INTO time_tracking_billable_expenses (id, tenant_id, expense_id, employee_id, project_id, client_id, expense_date, description, expense_type, category, amount, currency, markup_percentage, markup_amount, billable_amount, has_receipt, receipt_url, is_billable, is_reimbursable, status, approved_by, approved_at, submitted_at, created_at, updated_at) VALUES
     ('a3fb770c-9ae9-58ab-8104-29a642d613e2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TT-EXP-001', '11f31511-ad53-59c7-9e90-8ee3b553489b', '8257009f-6a91-5fd1-9efb-518198c08e2a', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '2026-01-16', 'Acme onsite workshop airfare', 'travel', 'travel', 845.20, 'USD', 0.00, 0.00, 845.20, TRUE, '/storage/receipts/TT-EXP-001.pdf', TRUE, TRUE, 'approved', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-17T09:00:00Z', '2026-01-16T18:00:00Z', '2026-01-16T18:00:00Z', '2026-01-17T09:00:00Z');
 
@@ -2037,6 +2047,26 @@ UPDATE projects p SET
      GROUP BY pr.id
   ) c
  WHERE c.id = p.id;
+
+-- Same idea, for hours instead of task counts — mirrors
+-- `time_tracking_entries.repo.ts`'s `refreshHours()` exactly, so the fixture
+-- matches what the app itself would compute. Rejected entries are excluded:
+-- effort that was refused did not happen. Projects/tasks with no entries at
+-- all (PRJ-004, still on-hold) land on 0 rather than keeping a hand-typed
+-- number a real write would never reproduce.
+UPDATE tasks t SET
+    actual_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
+                               WHERE te.task_id = t.id AND te.status <> 'rejected'), 0),
+    billable_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
+                                 WHERE te.task_id = t.id AND te.status <> 'rejected'
+                                   AND te.is_billable), 0),
+    non_billable_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
+                                     WHERE te.task_id = t.id AND te.status <> 'rejected'
+                                       AND NOT te.is_billable), 0);
+
+UPDATE projects p SET
+    actual_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
+                               WHERE te.project_id = p.id AND te.status <> 'rejected'), 0);
 
 -- ---------------------------------------------------------------------------
 -- Soft-delete markers are SPARSE, not filled: `archived_at`/`deleted_at`/

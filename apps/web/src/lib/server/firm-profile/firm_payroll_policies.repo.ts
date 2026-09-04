@@ -6,6 +6,17 @@ import type { Tx } from "../db/tenant"
  * one overrides it, since overtime law is national.
  */
 
+/** `time_rounding`'s vocabulary — plain `varchar`, no CHECK, so this list IS
+ * the constraint (L57). Exported so every reader/writer imports one copy
+ * rather than retyping it — `time_tracking_entries.repo.ts` interprets the
+ * same values when snapshotting a billable amount at approval. */
+export const ROUNDING = [
+  "none",
+  "nearest_5",
+  "nearest_6",
+  "nearest_15",
+] as const
+
 /** Strings, not numbers — JSONB rates/quantities, per CLAUDE.md § Money. */
 export type OvertimeRules = {
   daily_threshold_hours?: string

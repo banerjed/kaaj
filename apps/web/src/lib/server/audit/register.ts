@@ -26,6 +26,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "An entitlement granted or refused, by a named approver who is not the requester.",
   },
   {
+    route: "time-tracking",
+    action: "decide",
+    why: "Approval snapshots the billable_amount that will become an invoice line — a named approver, not the person who logged the hours, fixing what gets billed.",
+  },
+  {
     route: "performance",
     action: "submit",
     why: "The moment a manager's assessment becomes visible to its subject. Before it, the subject may not see it at all.",
@@ -213,5 +218,15 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "projects/[id]",
     action: "moveTask",
     why: "Board movement, and the highest-frequency write in the product. What must not go wrong here is the project's counters, and that is guarded by staleCounters() rather than by a trail nobody would read.",
+  },
+  {
+    route: "time-tracking",
+    action: "create",
+    why: "Logging a draft changes nobody's money yet — no rate is billed until decide() approves it. Guarded by staleHours() rather than a trail nobody would read.",
+  },
+  {
+    route: "time-tracking",
+    action: "submit",
+    why: "The logging employee's own status flip, not a decision by anyone else. What decide() does to it is audited; this step just queues it.",
   },
 ]

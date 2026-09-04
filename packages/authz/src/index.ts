@@ -37,6 +37,8 @@ export const PERMISSIONS = [
   "it.integrations.write",
   "legal.documents.write",
   "projects.write",
+  "time_entries.write",
+  "time_entries.approve",
   "performance.read.self",
   "performance.read.reports",
   "performance.read.all",
@@ -81,6 +83,8 @@ const EVERYONE: Permission[] = [
   "attendance.read.self",
   "timeoff.request",
   "performance.read.self",
+  // Logging your own hours is self-service, like requesting time off.
+  "time_entries.write",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {
@@ -143,7 +147,11 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "employee.read.all",
   ],
   legal_admin: ["legal.documents.write", "audit.read.all", "employee.read.all"],
-  project_manager: ["projects.write", "attendance.approve"],
+  project_manager: [
+    "projects.write",
+    "attendance.approve",
+    "time_entries.approve",
+  ],
   // Reads everything, writes nothing. The DB refuses combining it with a
   // writing role, so this bundle never widens anything.
   auditor: (PERMISSIONS as readonly Permission[]).filter(

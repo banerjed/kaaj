@@ -70,3 +70,13 @@ export const projectStatusTone = (s: string | null): Tone =>
       : s === "cancelled"
         ? "critical"
         : "neutral"
+
+/** `time_tracking_entries.status` — draft/submitted/approved/rejected. */
+export const timeEntryStatusTone = (s: string | null): Tone =>
+  s === "approved"
+    ? "positive"
+    : s === "submitted"
+      ? "progress"
+      : s === "rejected"
+        ? "critical"
+        : "neutral"

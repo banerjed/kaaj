@@ -110,7 +110,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "time-tracking",
     icon: "lucide--timer",
     label: "Time Tracking",
-    ...soon,
+    url: "/time-tracking",
   },
   {
     id: "proposals",
