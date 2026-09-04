@@ -13,13 +13,13 @@
    * every new visitor to one theme regardless of their OS.
    *
    * These are daisyUI built-in theme NAMES, written to `data-theme` verbatim:
-   * `nord` is the light palette, `night` the dark one. The labels a person
-   * reads are still Light and Dark (see TopbarProfileMenu). A browser that
-   * stored `light` or `dark` before this change is not in the list, so the
-   * guard below falls it back to `system` — the same path the theme cull
-   * already relies on.
+   * `corporate` is the light palette, `night` the dark one. The labels a
+   * person reads are still Light and Dark (see TopbarProfileMenu). A browser
+   * that stored `light`, `dark`, or `nord` from before a rename is not in the
+   * list, so the guard below falls it back to `system` — the same path the
+   * theme cull already relies on.
    */
-  export const themes = ["nord", "night", "system"] as const
+  export const themes = ["corporate", "night", "system"] as const
 
   export type ITheme = (typeof themes)[number]
 
@@ -59,11 +59,12 @@
       if (!storedValue) return defaultConfig
       const parsed = JSON.parse(storedValue) as Partial<IConfig>
       // A browser that visited before the theme cull still holds "material",
-      // "dim" or "contrast" here, and one from before the nord/night rename
-      // holds "light" or "dark". Written back to `data-theme` those select a
-      // theme that no longer exists — daisyUI emits no variables for it, so
-      // the page renders unstyled with no error anywhere. Anything not in the
-      // current list falls back to the default rather than being trusted.
+      // "dim" or "contrast" here, one from before the nord/night rename holds
+      // "light" or "dark", and one from before the light-theme swap holds
+      // "nord". Written back to `data-theme` those select a theme that no
+      // longer exists — daisyUI emits no variables for it, so the page
+      // renders unstyled with no error anywhere. Anything not in the current
+      // list falls back to the default rather than being trusted.
       return themes.includes(parsed?.theme as ITheme)
         ? { theme: parsed.theme as ITheme }
         : defaultConfig
@@ -112,7 +113,7 @@
    */
   const toggleTheme = () => {
     const theme: IConfig["theme"] =
-      get(config).theme === "night" ? "nord" : "night"
+      get(config).theme === "night" ? "corporate" : "night"
     config.update((c) => {
       return { ...c, theme }
     })

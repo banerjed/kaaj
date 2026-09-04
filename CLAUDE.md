@@ -197,10 +197,14 @@ and the component holds the ten complete class strings, so restyling every
 status badge is one edit ([L72](docs/10-lessons-learned.md)).
 
 **They are SOLID, not `badge-soft`, against both Nexus and daisyUI's own
-preference.** `badge-soft` fails AA in the light theme — 1.32:1 to 3.27:1 under
-`nord`, against solid's 4.97 to 12.24. It passes in dark, but a badge style
-cannot be theme-dependent. The accessibility floor outranks template fidelity
-and the divergence is recorded in
+preference.** `badge-soft` failed AA in the light theme when it was `nord` —
+1.32:1 to 3.27:1, against solid's 4.97 to 12.24. It passes in dark, but a badge
+style cannot be theme-dependent. The light theme is now `corporate`, and this
+has **not been re-measured**: `corporate` pairs pure-white content colours with
+several mid-bright backgrounds, the same shape that failed before
+([L73](docs/10-lessons-learned.md)) — treat solid vs. soft as unverified there
+until it is. The accessibility floor outranks template fidelity and the
+divergence is recorded in
 [docs/07-app-provenance.md](docs/07-app-provenance.md).
 
 **Never assemble a class name.** `badge-${size}` is invisible to Tailwind,
@@ -209,8 +213,8 @@ never generated, the element renders unstyled, and nothing errors. Map each
 state to a COMPLETE class string, as `StatusBadge`'s `BADGE` table does —
 daisyUI's own audit flags an assembled one for the same reason.
 
-**The palettes are daisyUI's built-in `nord` (light) and `night` (dark), and
-the app never owns a copy of them.** `data-theme` carries those names; the
+**The palettes are daisyUI's built-in `corporate` (light) and `night` (dark),
+and the app never owns a copy of them.** `data-theme` carries those names; the
 labels a person reads are still Light and Dark, and `TopbarProfileMenu` keeps
 value and label separate on purpose. `system` removes `data-theme` entirely,
 which is what `--prefersdark` on `night` is for — daisyUI warns against
@@ -236,8 +240,9 @@ must not carry `font-bold`, or the browser synthesises a fake bold.
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
 mode either way — so the failure is invisible if you only check one theme. Any
 new colour pair needs measuring in BOTH — and the light one is the half that
-fails; see [L22](docs/10-lessons-learned.md). Under `nord` it measures
-4.59:1 — above the 4.5 floor, but only just, so the floor stays where it is.
+fails; see [L22](docs/10-lessons-learned.md). The light theme is now
+`corporate`, and `/70` has not been re-measured against it — re-check before
+relying on this floor.
 
 **Customization is data, never code.** Customers customize through rows, custom
 field definitions and settings — never per-tenant schema changes or per-tenant

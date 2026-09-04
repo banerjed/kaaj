@@ -99,9 +99,12 @@ volume:
 2. **Contrast is not optional and cannot be assumed.** A customer's brand
    colour is chosen for a logo, not for carrying 14px text. Whatever is stored
    must be checked against `neutral-content` at 4.5:1 before it is applied,
-   with a documented fallback — the current bar measures 5.46:1 in `nord` and
-   9.45:1 in `night`, and a mid-bright brand colour would fail both. This is
-   L22's rule and the reason the badge palette had to be replaced.
+   with a documented fallback. The light theme changed from `nord` to
+   `corporate`, whose `neutral`/`neutral-content` pair is pure black on pure
+   white — 21:1, the maximum possible — so the light theme is no longer the
+   tight side of this check. `night`'s bar is unchanged at 9.45:1, and a
+   mid-bright brand colour can still fail there. This is L22's rule and the
+   reason the badge palette had to be replaced.
 3. **Where it lives.** A `tenants.brand_color` column is Tier 1
    configuration data, so it belongs with `company_name` and the locale
    settings — one validated value, no per-tenant code, no per-tenant schema.

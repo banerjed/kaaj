@@ -1,7 +1,7 @@
 /*
  * The two palettes, taken from daisyUI rather than hand-written.
  *
- * `nord` for light and `night` for dark, both BUILT IN. This file used to
+ * `corporate` for light and `night` for dark, both BUILT IN. This file used to
  * carry 98 lines of hand-maintained token values, which is how the palette
  * drifted out of contrast compliance without anyone noticing: three
  * `--color-*-content` tokens paired white text with mid-bright colours, so
@@ -23,7 +23,7 @@
  */
 @plugin "daisyui" {
   themes:
-    nord --default,
+    corporate --default,
     night --prefersdark;
   exclude: rootscrollgutter;
 }

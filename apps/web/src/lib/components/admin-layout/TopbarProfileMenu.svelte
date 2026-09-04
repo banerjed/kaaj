@@ -19,10 +19,10 @@
   }[] = [
     {
       // value is daisyUI's theme name (-> data-theme); label is what's shown.
-      value: "nord",
+      value: "corporate",
       label: "Light",
       icon: "lucide--sun",
-      selectedClass: "group-data-[theme=nord]/html:bg-base-200",
+      selectedClass: "group-data-[theme=corporate]/html:bg-base-200",
     },
     {
       value: "night",

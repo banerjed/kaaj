@@ -41,7 +41,7 @@ async function visitWithStoredConfig(
   page: Page,
   path: string,
   stored: string,
-  settlesOn: "nord" | "night" | "system",
+  settlesOn: "corporate" | "night" | "system",
 ) {
   await page.goto(path)
   await page.evaluate(([key, v]) => window.localStorage.setItem(key, v), [
@@ -89,7 +89,7 @@ const themeAttr = (page: Page) =>
  * variables never compiled, and the page then renders with no palette.
  *
  * The token's VALUE is deliberately not asserted. These are daisyUI's built-in
- * `nord` and `night` palettes now, so pinning a literal here would re-create
+ * `corporate` and `night` palettes now, so pinning a literal here would re-create
  * the thing removing the hand-written themes was meant to end: a copy of
  * someone else's palette, in our repo, going stale silently. What matters is
  * that the variable resolved at all, and `brightness` below is what says WHICH
@@ -125,11 +125,11 @@ test("light is applied, and the page is actually painted", async ({ page }) => {
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "nord" }),
-    "nord",
+    JSON.stringify({ theme: "corporate" }),
+    "corporate",
   )
 
-  expect(await themeAttr(page)).toBe("nord")
+  expect(await themeAttr(page)).toBe("corporate")
 
   const { brightness, base100 } = await surface(page)
   expect(
@@ -197,6 +197,29 @@ test("a theme deleted by the cull falls back instead of rendering unstyled", asy
   expect(base100, "no palette resolved after the fallback").not.toBe("")
 })
 
+test("a browser that stored the old light theme falls back instead of rendering unstyled", async ({
+  page,
+}) => {
+  // `nord` was the light theme before the swap to `corporate`. A returning
+  // visitor's storage still holds it, and daisyUI emits no variables for a
+  // theme that is no longer in the `@plugin "daisyui"` block — the same
+  // silent-unstyled-page failure the "material" case above guards against.
+  await visitWithStoredConfig(
+    page,
+    "/projects",
+    JSON.stringify({ theme: "nord" }),
+    "system",
+  )
+
+  expect(
+    await themeAttr(page),
+    "a stale theme was written back to data-theme",
+  ).toBeNull()
+
+  const { base100 } = await surface(page)
+  expect(base100, "no palette resolved after the fallback").not.toBe("")
+})
+
 test("garbage in storage does not take the page down", async ({ page }) => {
   await visitWithStoredConfig(page, "/projects", "{not json at all", "system")
   expect(await themeAttr(page)).toBeNull()
@@ -212,8 +235,8 @@ test("the sidebar follows the theme rather than carrying its own", async ({
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "nord" }),
-    "nord",
+    JSON.stringify({ theme: "corporate" }),
+    "corporate",
   )
   const sidebarTheme = await page
     .locator("#layout-sidebar")
@@ -230,8 +253,8 @@ test("theme selection lives in the profile drawer and works", async ({
   await visitWithStoredConfig(
     page,
     "/projects",
-    JSON.stringify({ theme: "nord" }),
-    "nord",
+    JSON.stringify({ theme: "corporate" }),
+    "corporate",
   )
 
   // The topbar trigger specifically. Three labels drive this drawer — trigger,

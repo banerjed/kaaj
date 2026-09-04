@@ -85,30 +85,31 @@ fine; undocumented divergence is drift:
 
 | Typography is Inter + Instrument Serif, not Nexus's Inclusive Sans | Inclusive Sans was inherited, not chosen. Inter is the body face in all three references that prompted the change (Tailwind Plus Salient, Tailwind Plus Oatmeal `mist_instrument`, and Linear — verified by reading the computed `font-family` off each rendered page, not from the kit names); Instrument Serif is Oatmeal's display face. Applied in BOTH themes: daisyUI themes carry no font slot, Tailwind `@theme` tokens are global, and varying the typeface by theme would reflow every heading on a toggle. Instrument Serif ships one weight (400), so `font-display` headings must not carry `font-bold` |
 
-**The palette is daisyUI's `nord` (light) and `night` (dark), not ours.** The
-two themes used to be ~98 lines of hand-written tokens in
+**The palette is daisyUI's `corporate` (light) and `night` (dark), not ours.**
+The two themes used to be ~98 lines of hand-written tokens in
 `lib/styles/daisyui.css`, and owning that copy is how it drifted out of
 contrast compliance: `--color-info-content`, `--color-success-content` and
 `--color-error-content` were all `#ffffff` paired with mid-bright colours white
 cannot sit on, so 3 of 4 solid coloured badges — and every solid `btn-*` and
 `alert-*` on the same pairs — failed WCAG AA in light. Switching to the
-built-ins fixed it outright. Measured after:
+built-ins (originally `nord`) fixed it outright; measured numbers for that pair
+are the historical record in [L73](10-lessons-learned.md).
 
-| | nord (light) | night (dark) |
-|---|---|---|
-| `badge-success` | 9.60:1 | 10.44:1 |
-| `badge-warning` | 12.24:1 | 11.41:1 |
-| `badge-error` | 4.97:1 | 7.38:1 |
-| `badge-info` | 7.05:1 | 7.57:1 |
-| `btn-primary` | 5.04:1 | 9.18:1 |
-| `text-base-content/70` | 4.59:1 | 4.63:1 |
+The light theme changed from `nord` to `corporate` afterwards. **That swap has
+not been re-measured** — the table above described `nord`, not `corporate`,
+and this file's own rule is measured, not eyeballed. Read directly off
+`corporate`'s token source (not composited, not converted by hand):
+`--color-info-content`, `--color-success-content`, `--color-secondary-content`
+and `--color-accent-content` are `oklch(100% 0 0)` — pure white — sitting on
+55–62% lightness backgrounds, the same shape L73 describes. `--color-warning-content`
+and `--color-error-content` are black, so those two are unlikely to repeat it.
+Until this is measured in the browser per the method below, treat solid
+`badge-info`, `badge-success`, `badge-secondary`, `badge-accent` and their
+`btn-*`/`alert-*` equivalents in the light theme as unverified, not passing.
 
-Everything clears 4.5:1, though `base-content/70` clears it only just — L22's
-floor stays exactly where it is.
-
-The user-facing labels are still **Light** and **Dark**; `nord`/`night` are the
-values written to `data-theme`. `TopbarProfileMenu` keeps them separate on
-purpose and `theme.spec.ts` asserts it.
+The user-facing labels are still **Light** and **Dark**; `corporate`/`night`
+are the values written to `data-theme`. `TopbarProfileMenu` keeps them
+separate on purpose and `theme.spec.ts` asserts it.
 
 Measure a colour pair by letting the BROWSER convert it — paint it to a canvas
 and read the pixel. Parsing a computed string by hand bit three times in one
