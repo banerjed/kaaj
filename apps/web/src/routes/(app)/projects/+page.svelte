@@ -5,7 +5,10 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import {
+    projectHealthTone as healthTone,
+    projectStatusTone as statusTone,
+  } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
@@ -21,18 +24,6 @@
   /** A budget is shown in the currency of the engagement, never converted. */
   const localeFor = (c: string | null) =>
     c ? localeForCurrency(data.locations, c, tenantLocale) : tenantLocale
-
-  const healthTone = (h: string | null): Tone =>
-    h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"
-
-  const statusTone = (s: string | null): Tone =>
-    s === "active"
-      ? "progress"
-      : s === "completed"
-        ? "positive"
-        : s === "cancelled"
-          ? "critical"
-          : "neutral"
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 

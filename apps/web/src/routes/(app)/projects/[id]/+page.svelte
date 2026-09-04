@@ -4,6 +4,10 @@
   import { fieldErrors } from "$lib/form-errors"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import {
+    projectHealthTone as healthTone,
+    projectStatusTone,
+  } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
@@ -29,22 +33,9 @@
   const priorityTone = (p: string | null): Tone =>
     p === "urgent" ? "critical" : p === "high" ? "caution" : "neutral"
 
-  // Task status. Matches the list-page-style vocab used in the table below.
+  // Task status — its own vocab (done/in_progress), not shared with the project's.
   const statusTone = (s: string | null): Tone =>
     s === "done" ? "positive" : s === "in_progress" ? "progress" : "neutral"
-
-  // The project's own health/status — matches projects/+page.svelte.
-  const healthTone = (h: string | null): Tone =>
-    h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"
-
-  const projectStatusTone = (s: string | null): Tone =>
-    s === "active"
-      ? "progress"
-      : s === "completed"
-        ? "positive"
-        : s === "cancelled"
-          ? "critical"
-          : "neutral"
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 </script>

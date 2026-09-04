@@ -3,7 +3,7 @@
   import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { billStatusTone as statusTone } from "$lib/components/status-tone"
 
   let { data } = $props()
 
@@ -12,18 +12,6 @@
     localeForCurrency(data.locations, data.bill.currency, tenantLocale),
   )
   const cur = $derived(data.bill.currency)
-
-  // Matches the list page's statusTone.
-  const statusTone = (s: string | null): Tone =>
-    s === "paid"
-      ? "positive"
-      : s === "void" || s === "cancelled"
-        ? "critical"
-        : s === "partial"
-          ? "caution"
-          : s === "approved"
-            ? "progress"
-            : "neutral"
 </script>
 
 <PageHead title={data.bill.bill_number} />

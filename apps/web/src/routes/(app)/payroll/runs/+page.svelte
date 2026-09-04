@@ -5,7 +5,7 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { payrollRunStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
@@ -19,15 +19,6 @@
   /** Figures shown in the run's own market locale, never converted (BR-FP-003). */
   const localeFor = (country: string | null) =>
     localeForCountry(data.locations, country, tenantLocale)
-
-  const statusTone = (s: string): Tone =>
-    s === "paid" || s === "finalized"
-      ? "positive"
-      : s === "approved"
-        ? "progress"
-        : s === "cancelled"
-          ? "critical"
-          : "neutral"
 </script>
 
 <PageHead title="Pay Runs" />

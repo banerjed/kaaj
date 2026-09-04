@@ -6,23 +6,13 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { payrollRunStatusTone as statusTone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
 
   let cancelling = $state(false)
-
-  // Matches the list page's statusTone.
-  const statusTone = (s: string): Tone =>
-    s === "paid" || s === "finalized"
-      ? "positive"
-      : s === "approved"
-        ? "progress"
-        : s === "cancelled"
-          ? "critical"
-          : "neutral"
 
   /** What this run may do next — mirrors NEXT in payroll_runs.repo.ts. */
   const may = $derived({

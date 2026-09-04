@@ -6,7 +6,7 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { invoiceStatusTone as statusTone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
 
@@ -14,18 +14,6 @@
 
   let paying = $state(false)
   let voiding = $state(false)
-
-  // `overdue` must stay in this list — matches the list page's statusTone.
-  const statusTone = (s: string | null): Tone =>
-    s === "paid"
-      ? "positive"
-      : s === "void" || s === "overdue"
-        ? "critical"
-        : s === "partial"
-          ? "caution"
-          : s === "sent" || s === "viewed"
-            ? "progress"
-            : "neutral"
 
   /** What this invoice may do next — mirrors the statuses the repo enforces. */
   const may = $derived({

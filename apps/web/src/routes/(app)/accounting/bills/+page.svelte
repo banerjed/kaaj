@@ -2,7 +2,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { billStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
@@ -11,17 +11,6 @@
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
-
-  const statusTone = (s: string | null): Tone =>
-    s === "paid"
-      ? "positive"
-      : s === "void" || s === "cancelled"
-        ? "critical"
-        : s === "partial"
-          ? "caution"
-          : s === "approved"
-            ? "progress"
-            : "neutral"
 </script>
 
 <PageHead title="Bills" />

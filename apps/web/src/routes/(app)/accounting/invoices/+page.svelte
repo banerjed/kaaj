@@ -2,7 +2,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { invoiceStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
@@ -12,18 +12,6 @@
   /** An invoice is read in the market it was raised in, never converted. */
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
-
-  // `overdue` must stay in this list — an omitted status is L57's shape.
-  const statusTone = (s: string | null): Tone =>
-    s === "paid"
-      ? "positive"
-      : s === "void" || s === "overdue"
-        ? "critical"
-        : s === "partial"
-          ? "caution"
-          : s === "sent" || s === "viewed"
-            ? "progress"
-            : "neutral"
 </script>
 
 <PageHead title="Invoices" />
