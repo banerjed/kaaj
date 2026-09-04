@@ -1722,29 +1722,6 @@ pm_task_comments	16	created_at	timestamp with time zone	t	now()
 pm_task_comments	17	updated_at	timestamp with time zone	t	now()
 pm_task_comments	18	edited_at	timestamp with time zone	f	
 pm_task_comments	19	deleted_at	timestamp with time zone	f	
-pm_task_time_entries	1	id	uuid	t	gen_random_uuid()
-pm_task_time_entries	2	tenant_id	uuid	t	
-pm_task_time_entries	3	time_entry_id	text	f	
-pm_task_time_entries	4	task_id	uuid	t	
-pm_task_time_entries	5	project_id	uuid	t	
-pm_task_time_entries	6	employee_id	uuid	t	
-pm_task_time_entries	7	start_time	timestamp with time zone	t	
-pm_task_time_entries	8	end_time	timestamp with time zone	f	
-pm_task_time_entries	9	duration_minutes	integer	f	
-pm_task_time_entries	10	is_manual_entry	boolean	f	false
-pm_task_time_entries	11	entry_date	date	t	
-pm_task_time_entries	12	hours	numeric(18,4)	f	
-pm_task_time_entries	13	is_billable	boolean	f	true
-pm_task_time_entries	14	hourly_rate	numeric(18,4)	f	
-pm_task_time_entries	15	amount	numeric(18,4)	f	
-pm_task_time_entries	16	notes	text	f	
-pm_task_time_entries	17	status	text	f	'draft'::text
-pm_task_time_entries	18	approved_by	text	f	
-pm_task_time_entries	19	approved_at	timestamp with time zone	f	
-pm_task_time_entries	20	invoice_id	uuid	f	
-pm_task_time_entries	21	invoice_line_item_id	uuid	f	
-pm_task_time_entries	22	created_at	timestamp with time zone	t	now()
-pm_task_time_entries	23	updated_at	timestamp with time zone	t	now()
 projects	1	id	uuid	t	gen_random_uuid()
 projects	2	tenant_id	uuid	t	
 projects	3	project_id	text	f	

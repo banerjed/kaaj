@@ -69,7 +69,6 @@ pm_dashboards	trg_pm_dashboards_updated_at	CREATE TRIGGER trg_pm_dashboards_upda
 pm_objectives	trg_pm_objectives_updated_at	CREATE TRIGGER trg_pm_objectives_updated_at BEFORE UPDATE ON public.pm_objectives FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 pm_project_templates	trg_pm_project_templates_updated_at	CREATE TRIGGER trg_pm_project_templates_updated_at BEFORE UPDATE ON public.pm_project_templates FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 pm_task_comments	trg_pm_task_comments_updated_at	CREATE TRIGGER trg_pm_task_comments_updated_at BEFORE UPDATE ON public.pm_task_comments FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
-pm_task_time_entries	trg_pm_task_time_entries_updated_at	CREATE TRIGGER trg_pm_task_time_entries_updated_at BEFORE UPDATE ON public.pm_task_time_entries FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 projects	trg_projects_updated_at	CREATE TRIGGER trg_projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 tasks	trg_tasks_updated_at	CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 tenant_settings	trg_tenant_settings_updated_at	CREATE TRIGGER trg_tenant_settings_updated_at BEFORE UPDATE ON public.tenant_settings FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()

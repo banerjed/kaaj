@@ -334,10 +334,6 @@ pm_task_comments	fk_pm_task_comments_task_id	f	FOREIGN KEY (task_id) REFERENCES 
 pm_task_comments	pm_task_comments_pkey	p	PRIMARY KEY (id)
 pm_task_comments	pm_task_comments_tenant_id_comment_id_key	u	UNIQUE (tenant_id, comment_id)
 pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-pm_task_time_entries	fk_pm_task_time_entries_task_id	f	FOREIGN KEY (task_id) REFERENCES tasks(id)
-pm_task_time_entries	pm_task_time_entries_pkey	p	PRIMARY KEY (id)
-pm_task_time_entries	pm_task_time_entries_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-pm_task_time_entries	pm_task_time_entries_tenant_id_time_entry_id_key	u	UNIQUE (tenant_id, time_entry_id)
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)

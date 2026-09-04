@@ -83,7 +83,6 @@ pm_objectives	t	t
 pm_project_templates	t	t
 pm_task_attachments	t	t
 pm_task_comments	t	t
-pm_task_time_entries	t	t
 projects	t	t
 tasks	t	t
 tenant_settings	t	t

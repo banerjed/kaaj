@@ -189,15 +189,15 @@ Manual time entries are, now — but timesheets and billable expenses are not.
    covers the billing need; a start/stop timer is a UI feature on the same
    table, not a schema change.
 
-**Found, not yet resolved: a duplicate table.** `pm_task_time_entries` is a
+**Found and resolved: a duplicate table.** `pm_task_time_entries` was a
 second, narrower time-entry table (task/project both `NOT NULL`, no
 timesheet, no submit step) — a project-management coverage pass that didn't
-know about the time-tracking module's own tables. It has one fixture row and
-no application code either way. `time_tracking_entries` is the one this slice
-built on (richer, matches the module spec, and its nullable `project_id`/
-`task_id` is required by a real fixture row — a non-project entry
-`pm_task_time_entries` cannot represent). Deciding what to do with
-`pm_task_time_entries` — drop it, or repurpose it — is still open.
+know about the time-tracking module's own tables. It had one fixture row and
+no application code either way, and nothing else in the schema referenced it
+(no FK pointed at it). `time_tracking_entries` is the one this slice built on
+(richer, matches the module spec, and its nullable `project_id`/`task_id` is
+required by a real fixture row — a non-project entry `pm_task_time_entries`
+could not represent). Dropped in `20260903160000_drop_duplicate_time_entry_table.sql`.
 
 ---
 

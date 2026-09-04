@@ -118,8 +118,7 @@ INSERT INTO _global_rows VALUES ('payroll_tax_rates'), ('translations');
 CREATE TEMP TABLE _no_fixture (tbl TEXT PRIMARY KEY);
 INSERT INTO _no_fixture VALUES
   ('compensation_premiums'), ('firm_benefit_items'), ('firm_benefits_packages'),
-  ('firm_benefits_plans'), ('firm_payroll_policies'), ('pm_project_templates'),
-  ('pm_task_time_entries');
+  ('firm_benefits_plans'), ('firm_payroll_policies'), ('pm_project_templates');
 
 CREATE TEMP VIEW _targets AS
   SELECT c.relname AS tbl

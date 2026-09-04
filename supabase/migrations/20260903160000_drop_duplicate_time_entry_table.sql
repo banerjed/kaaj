@@ -1,0 +1,15 @@
+-- pm_task_time_entries duplicated time_tracking_entries — two competing
+-- designs for the same concept, from two different schema-coverage passes
+-- that didn't know about each other (docs/11-module-roadmap.md, Phase 5).
+--
+-- time_tracking_entries is the one the application now reads and writes
+-- ($lib/server/time-tracking/time_tracking_entries.repo.ts): it matches
+-- module-time-tracking.md, it is paired with time_tracking_hourly_rates and
+-- time_tracking_timesheets, and its nullable project_id/task_id is required
+-- by a real row (non-project internal time) that pm_task_time_entries'
+-- NOT NULL columns cannot represent.
+--
+-- pm_task_time_entries had no repository, no route, and nothing else in the
+-- schema references it (no FK points at it) — dropping it removes its own
+-- RLS policy, indexes and FK constraint with it.
+DROP TABLE pm_task_time_entries;

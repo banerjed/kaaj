@@ -1503,20 +1503,12 @@ INSERT INTO firm_benefits_plans (id, tenant_id, plan_name, plan_code, plan_type,
    'Renewal quote due each September.',
    '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
--- A project template, and the time entries that reference tasks and projects.
+-- A project template.
 INSERT INTO pm_project_templates (id, tenant_id, template_id, name, description, category, template_data, is_public, use_count, estimated_duration_days, estimated_hours, estimated_budget, created_at, updated_at, created_by) VALUES
   ('a6fc1e29-82a7-54d6-ef11-739421568c0d'::uuid, '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TPL-DELIVERY-01', 'Standard client delivery',
    'Discovery, build, review and handover.', 'consulting',
    '{"phases": [{"name": "Discovery", "days": "10"}, {"name": "Build", "days": "40"}, {"name": "Handover", "days": "5"}]}'::jsonb,
    FALSE, 3, 55, 440.00, 88000.00, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
-
-INSERT INTO pm_task_time_entries (id, tenant_id, time_entry_id, task_id, project_id, employee_id, start_time, end_time, duration_minutes, is_manual_entry, entry_date, hours, is_billable, hourly_rate, amount, notes, status, approved_by, approved_at, created_at, updated_at)
-SELECT 'b70d2f3a-93b8-55e7-f022-84a532679d1e'::uuid, '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-000001',
-       t.id, t.project_id, '11f31511-ad53-59c7-9e90-8ee3b553489b',
-       '2026-02-10T09:00:00Z', '2026-02-10T12:30:00Z', 210, FALSE, '2026-02-10', 3.5000, TRUE, 265.0000, 927.50,
-       'Discovery workshop with the client.', 'approved', '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-11T10:00:00Z',
-       '2026-02-10T13:00:00Z', '2026-02-11T10:00:00Z'
-  FROM tasks t WHERE t.project_id IS NOT NULL ORDER BY t.id LIMIT 1;
 
 INSERT INTO contact_requests (id, updated_at, first_name, last_name, email, phone, company_name, message_body) VALUES
   ('c81e3a4b-a4c9-56f8-0133-95b64378ae2f'::uuid, '2026-02-01T09:00:00Z', 'Dana', 'Whitlock', 'dana.whitlock@example.com',
@@ -1948,8 +1940,6 @@ UPDATE pm_task_comments c SET parent_comment_id =
 
 -- The last references, now that the rows they point at exist.
 UPDATE projects SET template_id = (SELECT id FROM pm_project_templates LIMIT 1) WHERE template_id IS NULL;
-UPDATE pm_task_time_entries SET invoice_id = (SELECT id FROM invoices LIMIT 1) WHERE invoice_id IS NULL;
-UPDATE pm_task_time_entries SET invoice_line_item_id = (SELECT id FROM invoice_lines LIMIT 1) WHERE invoice_line_item_id IS NULL;
 
 -- A reply needs something to reply to, so the attachment table gets a second
 -- row rather than a self-parent.
