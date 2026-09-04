@@ -2,7 +2,7 @@
 
 **Status:** active
 **Created:** 2026-08-29
-**Last verified against the code:** 2026-09-03, at `50df4a4`
+**Last verified against the code:** 2026-09-03, at `c0a4c14`
 
 Phases 0–2 of [09-build-plan.md](./09-build-plan.md) are done: the shell, the
 data layer, the firm profile and the employee profile. This document covers what
@@ -264,13 +264,14 @@ work is billed on); task writes are in `NOT_AUDITED` with the reason, because a
 line per board movement would bury the pay changes the trail exists to make
 findable.
 
-**Accounting — receivables done, payables not.**
+**Accounting — receivables and bill payment done, banking not.**
 `/accounting/{invoices,invoices/[id],bills,bills/[id],ledger,banking}` all
-render, and the **receivables cycle now writes**: issue an invoice, receive a
-payment against it, void a draft.
+render, and both the **receivables cycle** and the **payables cycle now
+write**: issue an invoice, receive a payment against it, void a draft; approve
+a bill, pay a vendor against it.
 
 Each of those posts a BALANCED journal entry in the same transaction as the
-document:
+document, reusing one `postJournal()` engine for both cycles:
 
 ```
 issue     DR Accounts Receivable  total
@@ -279,27 +280,47 @@ issue     DR Accounts Receivable  total
 
 payment   DR Cash at Bank         amount
             CR Accounts Receivable       amount
+
+approve   DR <expense account>    per bill_line, by its own amount
+            DR Input Tax Recoverable     tax      (omitted when zero)
+            CR Accounts Payable                 total
+
+pay       DR Accounts Payable     amount
+            CR Cash at Bank              amount
 ```
 
-An invoice's ten money columns are recomputed from its lines and its
-allocations — the L58 rule a third time — and the base-currency half rounds
-each part BEFORE summing, because `ck_invoices_amounts_reconcile` requires
-`base_total = base_subtotal + base_tax_total` and rounding the gross
-independently lands a cent away.
+Approving a bill posts one line per `bill_line`'s own `expense_account_id`
+rather than one lump sum, confirmed against the fixture's own pre-existing
+approval entries before any code was written — a bill spanning rent and
+travel does not collapse into one figure the way a single-account invoice
+subtotal does.
 
-A **closed accounting period refuses new postings.** `accounting_periods` has
-January 2026 `closed` and December 2025 `locked`, and every invoice in the
-fixture but one is dated inside the closed month — so this is not hypothetical.
-`packages/spec-tests` asserted the rule (INV-ACC-002) against its own
-implementation while the deployed path had no check at all: two suites green
-and contradicting each other, which is the shape CLAUDE.md names. The rule is
-stated as "not open" rather than as a list of bad statuses, so a status added
-later refuses by default.
+An invoice's or a bill's money columns are recomputed from its lines and its
+allocations — the L58 rule again — and the base-currency half rounds each part
+BEFORE summing, because `ck_invoices_amounts_reconcile` and
+`ck_bills_amounts_reconcile` both require `base_total = base_subtotal +
+base_tax_total`, and rounding the gross independently lands a cent away.
 
-**Still read-only: bills, banking and reconciliation.** No bill can be
-approved, no vendor payment made, no bank line matched. That is the next slice
-of this phase, and `docs/accounting-gap-analysis.md` lists ten endpoints the
-module specs missed on top of it.
+A **closed accounting period refuses new postings**, for both cycles.
+`accounting_periods` has January 2026 `closed` and December 2025 `locked`, and
+every invoice in the fixture but one is dated inside the closed month — so this
+is not hypothetical. `packages/spec-tests` asserted the rule (INV-ACC-002)
+against its own implementation while the deployed path had no check at all:
+two suites green and contradicting each other, which is the shape CLAUDE.md
+names. The rule is stated as "not open" rather than as a list of bad statuses,
+so a status added later refuses by default.
+
+**Paying a vendor refuses the bill's own approver.** The same segregation
+payroll enforces between `calculated_by` and `approved_by` on one row
+(`payroll_runs`) applies here across two tables — a bill's `approved_by`
+against the payment's actor — because approving a liability and paying it are
+the two steps a real AP control keeps apart, and the column was already being
+stored either way.
+
+**Still read-only: banking and reconciliation.** No bank line can be matched
+to a payment. That is the next slice of this phase, and
+`docs/accounting-gap-analysis.md` lists ten endpoints the module specs missed
+on top of it.
 
 ---
 
@@ -328,8 +349,8 @@ header, two for the accounting posting. A guard that has never been observed to
 fail is not evidence.
 
 Still read-only after this work: **payroll calculation** (per-person gross, tax
-and net), and **payables** (bills, banking, reconciliation). Both are named
-in their phases above.
+and net), and **bank reconciliation** (matching a bank_transaction to a
+payment). Both are named in their phases above.
 
 ### 1. Projects — ✅ done
 
@@ -354,7 +375,7 @@ twin ([L59](./10-lessons-learned.md)) — and a test asserting an error *class*
 passes on the wrong error, which hid a transition bug behind three green
 separation-of-duties tests ([L60](./10-lessons-learned.md)).
 
-### 3. Accounting — ✅ receivables done, payables ahead
+### 3. Accounting — ✅ receivables and payables done, banking ahead
 
 The balance rule was **not** only a spec test.
 `packages/database/tests/verify-stories.sql` asserts, over the live schema, that
@@ -364,12 +385,19 @@ base total within 0.02. `packages/spec-tests` asserts the same rules
 independently (INV-ACC-001 … 006). That made accounting last for **size**, not
 for risk — and the sequencing held.
 
-Two things the slice taught. `ck_journal_entry_lines_one_sided_positive`
+Two things the receivables slice taught. `ck_journal_entry_lines_one_sided_positive`
 refuses a zero line, so **an invoice with no tax posts two lines, not three** —
 code that writes a 0.00 credit "for symmetry" fails at runtime. And a test
 whose subject is zero cannot tell two implementations apart: the rounding test
 passed over the fixture's zero-tax GBP invoice even with the rounding
 deliberately broken ([L61](./10-lessons-learned.md)).
+
+Payables reused `postJournal()` rather than a second engine, and reused the
+fixture's own pre-existing bill-approval and vendor-payment journal entries to
+confirm the posting shape before writing any code — the L50/L51 fix landed
+again on the way in: every seeded bill was already `approved` or `paid`, so two
+draft bills were added (one in the open period, one in the closed one) or
+`approveBill()` would have had nothing real to operate on.
 
 ### What every one of these writes needs
 
@@ -438,7 +466,7 @@ which is the reason for the verification date at the top of this file.
    tests were the project, as predicted; the policies were the small half.
 
 1d. **Auditing — ✅ closed, and enforced.** Every write is classified in
-   `audit/register.ts` — 21 audited operations and 4 explicitly not-audited,
+   `audit/register.ts` — 35 audited operations and 8 explicitly not-audited,
    each with a reason — and `./check` fails on an action in neither list. The
    rule was prose for months and 3 of 26 actions followed it (L54). `audit_log`
    now carries row-level visibility of its own, because auditing a value copies
