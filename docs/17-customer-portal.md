@@ -1,7 +1,8 @@
 # Customer Portal
 
-**Status:** §1 (portal identity) ✅ built; §2–4 (ticketing, documents, chat)
-📋 specified, not implemented — see [11-module-roadmap.md](./11-module-roadmap.md) Phase 8
+**Status:** §1 (portal identity) ✅ built; §2 (ticketing) ✅ built; §3–4
+(documents, chat) 📋 specified, not implemented — see
+[11-module-roadmap.md](./11-module-roadmap.md) Phase 8
 **Created:** 2026-09-04
 
 A second class of authenticated actor — someone who works for a *customer*,
@@ -303,7 +304,7 @@ has to reason about whether it affects portal contacts too.
 
 ---
 
-## 2. Ticketing, portal-side — demonstrating the configuration model
+## 2. Ticketing, portal-side — demonstrating the configuration model — ✅ built
 
 ### What's already schema-ready
 
@@ -736,8 +737,9 @@ not accidentally shared state from the other personas' activity.
    extension, the new base role, the JWT claim, the third RLS pattern.
    Everything below depends on this; nothing below should start before it —
    and now nothing has to wait.
-2. **Ticketing, portal-side** (§2) — the business-area/custom-field wiring,
-   the `/portal/tickets` routes, `logger_contact_id`.
+2. **Ticketing, portal-side** (§2) — ✅ done. Business-area portal-visibility,
+   `logger_contact_id`/`author_contact_id`, staff `/ticketing` and portal
+   `/portal/tickets` routes, sharing one repository.
 3. **Documents** (§3) — also the first real Supabase Storage integration,
    which is its own piece of unglamorous but necessary work.
 4. **Chat** (§4).

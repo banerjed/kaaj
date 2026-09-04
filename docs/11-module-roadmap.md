@@ -2,7 +2,7 @@
 
 **Status:** active
 **Created:** 2026-08-29
-**Last verified against the code:** 2026-09-04, at `78585ec`
+**Last verified against the code:** 2026-09-04, at `6c07ed6`
 
 Phases 0–2 of [09-build-plan.md](./09-build-plan.md) are done: the shell, the
 data layer, the firm profile and the employee profile. This document covers what
@@ -348,18 +348,20 @@ every bank_transaction above was already GBP-vs-nothing, leaving
 
 ## Phase 8 — Support surfaces 🏗️ started
 
-Ticketing (4 tables), change requests (deferred from Phase 2), user groups.
-Smaller, and each depends on the employee record being complete.
+Ticketing (4 tables) — ✅ built, both staff and portal side. Change requests
+(deferred from Phase 2) and user groups remain, each depends on the employee
+record being complete.
 
-**Ticketing's biggest piece is a second class of authenticated actor, and
-that piece is now built.** [17-customer-portal.md](./17-customer-portal.md)
+**Ticketing's biggest piece was a second class of authenticated actor, and
+that piece is built.** [17-customer-portal.md](./17-customer-portal.md)
 designs a customer contact — no employee record — plus the ticketing
 configuration model, a document portal (internal and client-facing), and
 chat, all sharing one identity and one row-visibility pattern rather than
-each inventing its own. Portal identity (§1) is done: `customer_contacts`, a
-`customer` base role, the third RLS pattern, and a `/portal` shell that
-proves the whole chain end to end. Ticketing/documents/chat (§2–4) are still
-spec only.
+each inventing its own. Portal identity (§1) and ticketing (§2) are both
+done: `customer_contacts`, a `customer` base role, the third RLS pattern, a
+`/portal` shell, and one repository shared by `/ticketing` (staff) and
+`/portal/tickets` (customer contact) — RLS is what actually separates what
+each caller sees. Documents/chat (§3–4) are still spec only.
 
 The `(marketing)` route group is the CMSaasStarter site
 ([07-app-provenance.md](./07-app-provenance.md)), **not** the marketing module,
