@@ -1722,6 +1722,33 @@ Multi-tenancy fails closed by design: no tenant means no rows, not an error
 claim in the token → `locals.tenantId` → `withTenant` → RLS → fixture rows —
 rather than debugging the component.
 
+### L75 — A real env var beats a `.env` file, silently, machine-wide
+
+`PUBLIC_SUPABASE_URL` was exported in a shell profile, pointing a plain
+`pnpm dev` at the hosted project instead of `apps/web/.env.local`'s local
+stack — with nothing in the UI to say so. Signing in as the seeded fixture
+user returned "Invalid login credentials", which reads as a broken seed or a
+stale reseed, not a wrong target; the local Supabase auth service, called
+directly with the same credentials, accepted them fine. Only reading the
+actual network request (`.../auth/v1/token` against `<ref>.supabase.co`, not
+`127.0.0.1`) surfaced it.
+
+Vite's precedence is the trap: a real environment variable always wins over a
+`.env` file, and that is correct for CI/deploy but wrong for a developer's
+shell. This doc used to show `env $(grep -v '^#' .env.prod | xargs) npm run
+dev` as the way to point dev at production for one run — nothing about that
+command keeps the value scoped to it, and a copy into a profile file
+recreates the same bug, silently, for every future `pnpm dev` in every
+project on that machine.
+
+`vite.config.ts` now fails closed instead: it reads the effective
+`PUBLIC_SUPABASE_URL` the same way Vite itself resolves it and refuses to
+start `vite dev` — or the vitest runner, which starts a dev server the same
+way — unless it resolves to `127.0.0.1`/`localhost`. No override flag: an
+opt-out env var for this check is the identical footgun one level up. The
+"point dev at prod for one run" workflow this doc used to document is gone;
+use the hosted project's own Supabase Studio instead.
+
 ---
 
 ## Conventions

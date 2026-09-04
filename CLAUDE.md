@@ -101,6 +101,18 @@ writes probe rows. `packages/database/tests/verify-remote.sh` is the only harnes
 at a live database; it forces a read-only transaction and aborts if that did not
 take effect.
 
+**`vite dev` refuses to start against anything but `127.0.0.1`/`localhost`, with
+no override.** A real environment variable beats a `.env` file, so a
+`PUBLIC_SUPABASE_URL` exported in a shell profile — copied out of a one-line
+"point dev at prod for one run" command and left there — silently outranks
+`apps/web/.env.local` for every future `pnpm dev` on that machine, with nothing
+in the UI to say so ([L75](docs/10-lessons-learned.md)). There is deliberately
+no opt-out env var for this check: that would just be the same footgun one
+level up. `pnpm build` against `.env.prod` — the actual deploy path — is
+unaffected: the guard only fires on `command === "serve"`, which is `vite dev`
+and anything that starts one, including the vitest runner and the e2e
+`webServer`.
+
 ---
 
 ## Architecture in one paragraph

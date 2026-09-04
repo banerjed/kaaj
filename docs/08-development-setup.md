@@ -137,11 +137,26 @@ supabase stop --project-id <other-project>
 load it automatically** — that is deliberate, so a stray `npm run dev` cannot
 silently write to production.
 
-To point the app at the cloud project for one run:
+**There is no supported way to run the interactive dev server against the
+hosted project, on purpose — not even for one run.** An earlier version of
+this doc showed `env $(grep -v '^#' .env.prod | xargs) npm run dev`; that
+command puts real credentials into an ordinary shell command, and a value
+that starts in one command line does not reliably stay there — it has already
+ended up **exported in a shell profile**, which silently outranks
+`apps/web/.env.local` for every future `pnpm dev` run in every project on that
+machine, with nothing in the UI to show it. `vite.config.ts` now refuses to
+start `vite dev` (or the vitest runner, which starts a dev server the same
+way) whenever `PUBLIC_SUPABASE_URL` does not resolve to `127.0.0.1`/`localhost`
+— there is deliberately no escape hatch, because an opt-out env var is the
+same footgun one level up. If you hit that error, something in your
+environment (most likely a shell profile) has `PUBLIC_SUPABASE_URL` or
+`PUBLIC_SUPABASE_ANON_KEY` exported — find and remove it; `env -u
+PUBLIC_SUPABASE_URL -u PUBLIC_SUPABASE_ANON_KEY` unblocks one command without
+fixing the underlying export.
 
-```bash
-cd app && env $(grep -v '^#' .env.prod | xargs) npm run dev
-```
+Need to look at, or click through, production data? Use the hosted project's
+own Supabase Studio, which carries its own auth and guardrails — not a local
+Node process holding production credentials.
 
 For real deployments, put these values in the hosting platform's secret store
 rather than shipping the file.
@@ -153,6 +168,9 @@ grep PUBLIC_SUPABASE_URL apps/web/.env.local
 # http://127.0.0.1:54321   → local
 # https://<ref>.supabase.co → remote
 ```
+
+If a shell has `PUBLIC_SUPABASE_URL` exported, that value wins over the file
+above for anything started from it — check `env | grep PUBLIC_SUPABASE` too.
 
 ### Building against production
 
