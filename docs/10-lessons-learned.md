@@ -816,6 +816,50 @@ Two rules follow. **Recreating a policy means restating every modifier** — the
 policy change, before anything else** — it is one second, and it is the only
 thing standing between a two-word omission and cross-tenant disclosure.
 
+### L74 — "the claim is NULL" is not the same question as "is this actor staff"
+
+Building the customer-portal identity (`docs/17-customer-portal.md`), the
+first draft of `portal_contact_visibility` on `customer_contacts` read:
+
+```sql
+USING (
+  (SELECT app.current_customer_id()) IS NULL
+  OR customer_id = (SELECT app.current_customer_id())
+)
+```
+
+The intent was "staff aren't restricted; a portal contact sees only their own
+customer." What it actually says is "an actor with no resolvable
+`customer_id` claim is unrestricted" — and a `customer`-role actor with a
+missing or malformed claim **also** has `current_customer_id() IS NULL`. The
+policy handed that actor every customer's contacts instead of none: the
+opposite of fail-closed, on the exact actor the table exists to restrict.
+
+Caught by a unit test (`row-visibility.test.ts`'s "shows nothing with no
+customer claim at all"), not by inspection — the SQL reads correctly at a
+glance, which is the point. The fix is a second function that checks the
+*role*, not the claim's nullness, and fails closed the other direction on
+error:
+
+```sql
+CREATE FUNCTION app.is_portal_contact() RETURNS boolean ... AS $$
+  ...
+  RETURN coalesce((claims #>> '{app_metadata,role}') = 'customer', false);
+EXCEPTION WHEN OTHERS THEN RETURN true;  -- error => assume the MORE restrictive case
+END $$;
+
+USING (
+  NOT (SELECT app.is_portal_contact())
+  OR customer_id = (SELECT app.current_customer_id())
+)
+```
+
+**"Who is this" and "what may they see" are two different claims, and a
+NULL in one is not evidence about the other.** Any RESTRICTIVE policy shaped
+"exempt X, else narrow by Y" needs X checked on its own terms — never
+inferred from Y being absent, or the exemption swallows the ID's own failure
+mode.
+
 ### L61 — L50 applies to tests, not just to fixtures
 
 A test asserted that a foreign-currency invoice's journal ties to its base

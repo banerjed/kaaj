@@ -1,6 +1,7 @@
 # Customer Portal
 
-**Status:** 📋 specified, not implemented — see [11-module-roadmap.md](./11-module-roadmap.md) Phase 8
+**Status:** §1 (portal identity) ✅ built; §2–4 (ticketing, documents, chat)
+📋 specified, not implemented — see [11-module-roadmap.md](./11-module-roadmap.md) Phase 8
 **Created:** 2026-09-04
 
 A second class of authenticated actor — someone who works for a *customer*,
@@ -41,7 +42,36 @@ Supabase Auth like everything else in this product.
 
 ---
 
-## 1. Portal identity
+## 1. Portal identity — ✅ built
+
+`supabase/migrations/20260904090000_customer_portal_identity.sql`;
+`packages/authz/src/index.ts`; `apps/web/src/lib/server/{auth/can,db/tenant}.ts`;
+`apps/web/src/hooks.server.ts`; `apps/web/src/routes/portal/**`. Verified live:
+signed in as two portal contacts at two different customers (Acme, Britannia)
+and confirmed each sees only their own customer's name on the shell page;
+confirmed an anonymous visitor and a signed-in staff member are both bounced
+to `/portal/login` rather than shown the shell; confirmed staff sign-in is
+unaffected by the hook change. Four test personas seeded
+(`packages/database/fixtures/mock-data.sql` — Dana Whitcombe & Felix Ndiaye
+at Acme, Imogen Faulkner at Britannia, Theo Bakshi at Helios).
+
+**One thing the design below got wrong the first time, caught by a test, not
+by inspection:** see [L74](./10-lessons-learned.md) — the "is this actor
+staff" check must be a role check, never `current_customer_id() IS NULL`,
+which is also true for a `customer`-role actor with a malformed claim. The
+`app.is_portal_contact()` function below is the fix; the code in this
+document already reflects it.
+
+**A second thing worth naming for whoever builds §2–4 next:**
+`customer_contacts` needed the exact same "chicken-and-egg" fix `tenant_users`
+already has (`20260827000002_auth_and_grants.sql` §3) — the access-token hook
+runs as `supabase_auth_admin` before any JWT exists, so `tenant_isolation`'s
+`app.current_tenant_id() = tenant_id` check has nothing to compare against and
+filters out every row, silently. A `GRANT SELECT` alone does not fix this;
+`FORCE ROW LEVEL SECURITY` still applies to a granted role. Any new table the
+hook itself reads (there is no reason for there to be more, but if one shows
+up) needs its own `CREATE POLICY ... FOR SELECT TO supabase_auth_admin USING
+(true)`, not just a grant.
 
 ### Why this is one piece, not four
 
@@ -198,6 +228,24 @@ BEGIN
     RETURN (claims #>> '{app_metadata,customer_id}')::uuid;
 EXCEPTION WHEN OTHERS THEN RETURN NULL; -- fail closed, same shape as every app.* function
 END $$;
+
+-- Whether the actor is a portal contact AT ALL — by role, never by
+-- "current_customer_id() IS NULL". Those are not the same question: a
+-- customer-role actor with a missing/malformed customer_id claim also has
+-- current_customer_id() IS NULL, and an early draft of this policy treated
+-- that as "must be staff" — granting every customer's rows to exactly the
+-- actor the policy exists to restrict (L74). Fails closed the OTHER
+-- direction from current_customer_id() on purpose: an error here means
+-- "assume the most restrictive case", not "assume staff".
+CREATE OR REPLACE FUNCTION app.is_portal_contact() RETURNS boolean
+LANGUAGE plpgsql STABLE SET search_path = ''
+AS $$
+DECLARE claims jsonb;
+BEGIN
+    claims := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
+    RETURN coalesce((claims #>> '{app_metadata,role}') = 'customer', false);
+EXCEPTION WHEN OTHERS THEN RETURN true;
+END $$;
 ```
 
 Applied per table that a portal contact may touch — first on
@@ -206,13 +254,21 @@ Applied per table that a portal contact may touch — first on
 ```sql
 CREATE POLICY portal_visibility ON ticketing_tickets AS RESTRICTIVE FOR SELECT
 USING (
-  (SELECT app.current_customer_id()) IS NULL   -- staff: this policy doesn't narrow them
+  NOT (SELECT app.is_portal_contact())          -- staff: this policy doesn't narrow them
   OR customer_id = (SELECT app.current_customer_id())
 );
 ```
 
-Two things to get right that a first draft will miss:
+Two things to get right that a first draft will miss — the first of which
+this design *did* miss once, per [L74](./10-lessons-learned.md):
 
+- **The "staff" exemption is `NOT is_portal_contact()`, never
+  `current_customer_id() IS NULL`.** The two are only the same for a
+  well-formed token; for a `customer`-role actor with a missing or malformed
+  claim they diverge in exactly the wrong direction, granting the broadest
+  access to the actor with the least trustworthy claim. Test both a missing
+  claim AND a `customer`-role actor with a missing claim as two separate
+  cases — they must both see nothing.
 - **This is `AS RESTRICTIVE`, not a replacement policy.** Per
   [L63](./10-lessons-learned.md), omitting that turns "must satisfy
   tenant_isolation AND this" into "either one" — a cross-tenant leak, not a
@@ -465,7 +521,7 @@ dedicated signed-URL expiry policy when it's actually built, not a bare
 ```sql
 CREATE POLICY portal_document_visibility ON documents AS RESTRICTIVE FOR SELECT
 USING (
-  (SELECT app.current_customer_id()) IS NULL
+  NOT (SELECT app.is_portal_contact())
   OR (customer_id = (SELECT app.current_customer_id())
       AND visibility IN ('client_visible', 'public'))
 );
@@ -484,7 +540,7 @@ contract. The `WITH CHECK` has to be narrow —
 ```sql
 CREATE POLICY portal_document_upload ON documents AS RESTRICTIVE FOR INSERT
 WITH CHECK (
-  (SELECT app.current_customer_id()) IS NULL
+  NOT (SELECT app.is_portal_contact())
   OR (customer_id = (SELECT app.current_customer_id())
       AND uploaded_by_contact_id = (SELECT app.current_customer_contact_id())
       AND visibility = 'client_visible')
@@ -676,9 +732,10 @@ not accidentally shared state from the other personas' activity.
 
 ## 7. Build sequencing
 
-1. **Portal identity** (§1) — `customer_contacts`, the `tenant_users`
+1. **Portal identity** (§1) — ✅ done. `customer_contacts`, the `tenant_users`
    extension, the new base role, the JWT claim, the third RLS pattern.
-   Everything below depends on this; nothing below should start first.
+   Everything below depends on this; nothing below should start before it —
+   and now nothing has to wait.
 2. **Ticketing, portal-side** (§2) — the business-area/custom-field wiring,
    the `/portal/tickets` routes, `logger_contact_id`.
 3. **Documents** (§3) — also the first real Supabase Storage integration,
