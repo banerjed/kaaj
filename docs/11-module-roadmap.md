@@ -351,6 +351,14 @@ every bank_transaction above was already GBP-vs-nothing, leaving
 Ticketing (4 tables), change requests (deferred from Phase 2), user groups.
 Smaller, and each depends on the employee record being complete.
 
+**Ticketing's biggest piece is now specified, not the tables above.**
+[17-customer-portal.md](./17-customer-portal.md) designs a second class of
+authenticated actor — a customer contact, no employee record — plus the
+ticketing configuration model, a document portal (internal and
+client-facing), and chat. Nothing in it is built; it exists so those three
+features share one identity and one row-visibility pattern instead of each
+inventing its own.
+
 The `(marketing)` route group is the CMSaasStarter site
 ([07-app-provenance.md](./07-app-provenance.md)), **not** the marketing module,
 which is also not started.
