@@ -227,7 +227,17 @@ tenant_users	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(
 tenants	tenant_self	ALL	public	(id = app.current_tenant_id())	
 ticketing_attachments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_business_areas	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+ticketing_tickets	portal_ticket_insert	INSERT	public		((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR ((customer_id = ( SELECT app.current_customer_id() AS current_customer_id)) AND (logger_contact_id = ( SELECT app.current_customer_contact_id() AS current_customer_contact_id)) AND (EXISTS ( SELECT 1
+   FROM ticketing_business_areas ba
+  WHERE ((ba.id = ticketing_tickets.business_area_id) AND ((ba.settings ->> 'portalVisible'::text) = 'true'::text))))))
+ticketing_tickets	portal_visibility	SELECT	public	((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR (customer_id = ( SELECT app.current_customer_id() AS current_customer_id)))	
 ticketing_tickets	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+ticketing_updates	portal_update_insert	INSERT	public		((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR ((author_contact_id = ( SELECT app.current_customer_contact_id() AS current_customer_contact_id)) AND (visibility = 'external'::text) AND (EXISTS ( SELECT 1
+   FROM ticketing_tickets t
+  WHERE ((t.id = ticketing_updates.ticket_id) AND (t.customer_id = ( SELECT app.current_customer_id() AS current_customer_id)))))))
+ticketing_updates	portal_updates_visibility	SELECT	public	((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR ((visibility <> 'internal'::text) AND (EXISTS ( SELECT 1
+   FROM ticketing_tickets t
+  WHERE ((t.id = ticketing_updates.ticket_id) AND (t.customer_id = ( SELECT app.current_customer_id() AS current_customer_id)))))))	
 ticketing_updates	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 time_tracking_billable_expenses	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 time_tracking_entries	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())

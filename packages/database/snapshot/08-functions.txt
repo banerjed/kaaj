@@ -1,5 +1,6 @@
 # schema	function	args	returns	volatility	security_definer	body_sha256
 app	claim_role		text	s	f	6211dd4a724cac8e3a23d6683045f5a62c815830cc5ae7dd1bbbfceaee616735
+app	current_customer_contact_id		uuid	s	f	b7195e1868f93413564bb41772b4a371817c0ae37e99c31ce8337efc00c454b8
 app	current_customer_id		uuid	s	f	073771fd8501a9d015bb4599cc4cdba748373091fbdab9a58d2a2d28a59fcffa
 app	current_employee_id		uuid	s	f	1709928f2d7e95a8e3401759644532a7d89b1251f1cf94b8261d52578a4d2d8a
 app	current_tenant_id		uuid	s	f	d16e70b3fa064c5568c93bc94da938dfc109d1bb754ec730355c16c0cc006d0c

@@ -210,7 +210,8 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "ticketing",
     icon: "lucide--life-buoy",
     label: "Ticketing",
-    ...soon,
+    url: "/ticketing",
+    permission: "ticketing.read.own",
   },
   {
     id: "assistant",

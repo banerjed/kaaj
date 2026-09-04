@@ -468,7 +468,7 @@ ticketing_business_areas	ticketing_business_areas_pkey	CREATE UNIQUE INDEX ticke
 ticketing_business_areas	ticketing_business_areas_tenant_id_prefix_key	CREATE UNIQUE INDEX ticketing_business_areas_tenant_id_prefix_key ON public.ticketing_business_areas USING btree (tenant_id, prefix)
 ticketing_tickets	idx_ticketing_tickets_business_area_id	CREATE INDEX idx_ticketing_tickets_business_area_id ON public.ticketing_tickets USING btree (tenant_id, business_area_id)
 ticketing_tickets	idx_ticketing_tickets_created	CREATE INDEX idx_ticketing_tickets_created ON public.ticketing_tickets USING btree (tenant_id, created_at DESC)
-ticketing_tickets	idx_ticketing_tickets_logger_id	CREATE INDEX idx_ticketing_tickets_logger_id ON public.ticketing_tickets USING btree (tenant_id, logger_id)
+ticketing_tickets	idx_ticketing_tickets_logger_id	CREATE INDEX idx_ticketing_tickets_logger_id ON public.ticketing_tickets USING btree (tenant_id, logger_employee_id)
 ticketing_tickets	idx_ticketing_tickets_search	CREATE INDEX idx_ticketing_tickets_search ON public.ticketing_tickets USING gin (tenant_id, search_vector)
 ticketing_tickets	idx_ticketing_tickets_status	CREATE INDEX idx_ticketing_tickets_status ON public.ticketing_tickets USING btree (tenant_id, status)
 ticketing_tickets	idx_tickets_sla_open	CREATE INDEX idx_tickets_sla_open ON public.ticketing_tickets USING btree (tenant_id, sla_due_at) WHERE (status <> ALL (ARRAY['resolved'::text, 'closed'::text]))

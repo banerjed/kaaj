@@ -365,10 +365,15 @@ ticketing_attachments	ticketing_attachments_tenant_id_fkey	f	FOREIGN KEY (tenant
 ticketing_business_areas	ticketing_business_areas_pkey	p	PRIMARY KEY (id)
 ticketing_business_areas	ticketing_business_areas_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_business_areas	ticketing_business_areas_tenant_id_prefix_key	u	UNIQUE (tenant_id, prefix)
+ticketing_tickets	ck_ticketing_tickets_one_logger	c	CHECK ((num_nonnulls(logger_employee_id, logger_contact_id) = 1))
+ticketing_tickets	ticketing_tickets_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+ticketing_tickets	ticketing_tickets_logger_contact_id_fkey	f	FOREIGN KEY (logger_contact_id) REFERENCES customer_contacts(id)
 ticketing_tickets	ticketing_tickets_pkey	p	PRIMARY KEY (id)
 ticketing_tickets	ticketing_tickets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_tickets	ticketing_tickets_tenant_id_ticket_number_key	u	UNIQUE (tenant_id, ticket_number)
+ticketing_updates	ck_ticketing_updates_one_author	c	CHECK ((num_nonnulls(author_employee_id, author_contact_id) = 1))
 ticketing_updates	fk_ticketing_updates_ticket_id	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
+ticketing_updates	ticketing_updates_author_contact_id_fkey	f	FOREIGN KEY (author_contact_id) REFERENCES customer_contacts(id)
 ticketing_updates	ticketing_updates_pkey	p	PRIMARY KEY (id)
 ticketing_updates	ticketing_updates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_updates	ticketing_updates_tenant_id_update_id_key	u	UNIQUE (tenant_id, update_id)

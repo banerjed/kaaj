@@ -1968,7 +1968,7 @@ ticketing_tickets	20	closed_at	timestamp with time zone	f
 ticketing_tickets	21	reported_by	text	f	
 ticketing_tickets	22	reported_by_name	text	f	
 ticketing_tickets	23	reported_by_email	text	f	
-ticketing_tickets	24	logger_id	uuid	t	
+ticketing_tickets	24	logger_employee_id	uuid	f	
 ticketing_tickets	25	last_updated_by	text	t	
 ticketing_tickets	26	closed_by	text	f	
 ticketing_tickets	27	assignees	jsonb	f	'[]'::jsonb
@@ -1991,6 +1991,8 @@ ticketing_tickets	43	first_response_at	timestamp with time zone	f
 ticketing_tickets	44	sla_paused_seconds	integer	t	0
 ticketing_tickets	45	sla_resolution_breached	boolean	f	
 ticketing_tickets	46	sla_response_breached	boolean	f	
+ticketing_tickets	47	customer_id	uuid	f	
+ticketing_tickets	48	logger_contact_id	uuid	f	
 ticketing_updates	1	id	uuid	t	gen_random_uuid()
 ticketing_updates	2	tenant_id	uuid	t	
 ticketing_updates	3	update_id	text	f	
@@ -2011,6 +2013,7 @@ ticketing_updates	17	changes	jsonb	f	'{}'::jsonb
 ticketing_updates	18	attachments	jsonb	f	
 ticketing_updates	19	is_internal	boolean	f	false
 ticketing_updates	20	search_vector	tsvector	f	
+ticketing_updates	21	author_contact_id	uuid	f	
 time_tracking_billable_expenses	1	id	uuid	t	gen_random_uuid()
 time_tracking_billable_expenses	2	tenant_id	uuid	t	
 time_tracking_billable_expenses	3	expense_id	text	f	

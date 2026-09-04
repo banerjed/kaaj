@@ -1,6 +1,7 @@
 import { redirect } from "@sveltejs/kit"
 import type { LayoutServerLoad } from "./$types"
 import { toSafeAuthSession } from "$lib/server/auth_session"
+import { withTenant, actorFrom } from "$lib/server/db/tenant"
 
 /**
  * The gate for every portal page — mirrors (app)/+layout.server.ts's shape,
@@ -18,6 +19,22 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     redirect(303, "/portal/login")
   }
 
+  // For per-market date/time formatting (CLAUDE.md § Time) — loaded once
+  // here since every portal page under this layout needs it.
+  const tenant = await withTenant(actorFrom(locals), async (tx) => {
+    const [row] = await tx<
+      {
+        default_locale: string
+        default_timezone: string
+        time_format: string | null
+      }[]
+    >`
+      SELECT default_locale, default_timezone, time_format
+        FROM tenants WHERE id = ${locals.tenantId}
+    `
+    return row
+  })
+
   return {
     session: toSafeAuthSession(session, user),
     user: {
@@ -25,5 +42,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
       fullName: (user.user_metadata?.full_name as string | undefined) ?? null,
     },
     customerId: locals.customerId,
+    tenant,
   }
 }

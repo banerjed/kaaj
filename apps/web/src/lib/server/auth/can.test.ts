@@ -45,6 +45,20 @@ describe("the floor", () => {
     expect(can(e, "firm.settings.write")).toBe(false)
   })
 
+  it("any employee can raise and work their own tickets, not everyone's", () => {
+    const e = ctx("employee")
+    expect(can(e, "ticketing.read.own")).toBe(true)
+    expect(can(e, "ticketing.write.own")).toBe(true)
+    expect(can(e, "ticketing.read.all")).toBe(false)
+    expect(can(e, "ticketing.write.all")).toBe(false)
+  })
+
+  it("it_admin also reads and works every ticket", () => {
+    const it = ctx("employee", ["it_admin"])
+    expect(can(it, "ticketing.read.all")).toBe(true)
+    expect(can(it, "ticketing.write.all")).toBe(true)
+  })
+
   it("an unrecognised role reads as the floor, never as an escalation", () => {
     const rogue = { ...ctx("employee"), role: "superuser" as never }
     expect(can(rogue, "compensation.write")).toBe(false)
@@ -85,7 +99,8 @@ describe("separation of duties", () => {
         p !== "timeoff.request" &&
         // Self-service, granted by the base `employee` role regardless of
         // functional bundle — same reasoning as `timeoff.request` above.
-        p !== "time_entries.write",
+        p !== "time_entries.write" &&
+        p !== "ticketing.write.own",
     )
     for (const p of writes) expect(can(a, p), p).toBe(false)
     expect(can(a, "compensation.read.all")).toBe(true)
@@ -138,6 +153,10 @@ describe("owner and firm_admin", () => {
     expect(can(c, "compensation.read.self")).toBe(false)
     expect(can(c, "timeoff.request")).toBe(false)
     expect(can(c, "time_entries.write")).toBe(false)
+    // Distinct namespace from staff ticketing — a portal contact must never
+    // pick up the staff-side grant by accident.
+    expect(can(c, "ticketing.read.own")).toBe(false)
+    expect(can(c, "ticketing.write.own")).toBe(false)
   })
 })
 

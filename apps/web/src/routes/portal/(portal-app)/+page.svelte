@@ -18,4 +18,6 @@
     Signed in as {data.user.fullName ?? data.user.email} · {data.customerName ??
       "—"}
   </p>
+
+  <a href="/portal/tickets" class="btn btn-outline btn-sm mt-4">Tickets</a>
 </div>

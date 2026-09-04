@@ -11,6 +11,9 @@ export const GET: RequestHandler = async () => {
       ".*\\(admin\\).*", // exclude routes within admin group
       // Excludes the whole product surface: it's behind auth/tenancy, so listing it here would leak customer data shape.
       ".*\\(app\\).*",
+      // Same reasoning for the customer portal — behind its own auth, and
+      // its dynamic [id] routes have no public param list to enumerate.
+      ".*portal.*",
     ],
   })
 }

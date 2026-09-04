@@ -714,3 +714,82 @@ describe("customer portal identity", () => {
     expect(can(ctx, "compensation.read.self")).toBe(false)
   })
 })
+
+// -----------------------------------------------------------------------------
+// Ticketing — portal side (20260905090000_ticketing_portal.sql). CS-0001 and
+// CS-0003 are Acme's; CS-0002 is Britannia's. Dana (Acme) must see the first
+// two and not the third; her ticket's internal update (TU-004/TU-005) must be
+// filtered out while the external one (TU-007) is not.
+// -----------------------------------------------------------------------------
+
+describe("ticketing", () => {
+  const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+  const BRITCO = "ac7a04b4-a28e-5a15-9993-596db32c8d4e"
+  const DANA = "da1d1f9e-9d10-4d13-a3d9-b90f49903a13"
+  const IMOGEN = "1561052e-6bd8-49a5-ae6b-2ed384cec0b6"
+  const CS_0001 = "fbc213ca-f362-58d3-aa36-45db45958e60"
+
+  const ticketNumbers = (who: Who) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ ticket_number: string }[]>`
+        SELECT ticket_number FROM ticketing_tickets ORDER BY ticket_number
+      `
+      return rows.map((r) => r.ticket_number)
+    })
+
+  const updateVisibilities = (who: Who, ticketId: string) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ visibility: string | null }[]>`
+        SELECT visibility FROM ticketing_updates WHERE ticket_id = ${ticketId}::uuid
+      `
+      return rows.map((r) => r.visibility)
+    })
+
+  it("shows staff every ticket, whatever customer it belongs to", async () => {
+    expect(
+      await ticketNumbers({ employeeId: MARCUS, role: "employee" }),
+    ).toEqual([
+      "CS-0001",
+      "CS-0002",
+      "CS-0003",
+      "FAC-0001",
+      "IT-0001",
+      "IT-0002",
+      "IT-0003",
+    ])
+  })
+
+  it("shows a portal contact only their own customer's tickets", async () => {
+    const dana = await ticketNumbers({
+      customerContactId: DANA,
+      customerId: ACME,
+      role: "customer",
+    })
+    expect(dana).toEqual(["CS-0001", "CS-0003"])
+
+    const imogen = await ticketNumbers({
+      customerContactId: IMOGEN,
+      customerId: BRITCO,
+      role: "customer",
+    })
+    expect(imogen).toEqual(["CS-0002"])
+  })
+
+  it("filters internal updates for a portal contact, but not for staff", async () => {
+    const staffSees = await updateVisibilities(
+      { employeeId: MARCUS, role: "employee" },
+      CS_0001,
+    )
+    expect(staffSees.sort()).toEqual(["external", "internal", "internal"])
+
+    const danaSees = await updateVisibilities(
+      { customerContactId: DANA, customerId: ACME, role: "customer" },
+      CS_0001,
+    )
+    expect(danaSees).toEqual(["external"])
+  })
+
+  it("shows a portal contact no tickets with no customer claim at all", async () => {
+    expect(await ticketNumbers({ role: "customer" })).toEqual([])
+  })
+})

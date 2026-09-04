@@ -316,14 +316,24 @@ UPDATE ticketing_business_areas SET
     roles = '{"agent": ["update", "assign"], "manager": ["close", "reopen"]}'::jsonb
 WHERE tenant_id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 
+-- Client Support is the one business area a portal contact may submit into
+-- (docs/17-customer-portal.md §2) — IT and Facilities stay internal-only.
+UPDATE ticketing_business_areas SET
+    settings = jsonb_set(settings, '{portalVisible}', 'true'::jsonb)
+WHERE prefix = 'CS';
+
 -- Tickets across three business areas. search_vector is populated by trigger on insert.
-INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, prefix, sequence_number, title, subject, description, category, status, priority, severity, internal_summary, external_summary, private, due_date, logged_at, updated_at, resolved_at, reported_by, logger_id, last_updated_by, assignees, custom_fields, version, created_at) VALUES
-    ('a22f6d41-d654-5951-a043-e174f7e1a258', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0001', 'IT', 1, 'Laptop will not boot', 'Laptop will not boot', 'Laptop will not boot', 'hardware', 'open', 'high', 'high', 'Internal notes for Laptop will not boot', 'Laptop will not boot', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('81535673-0241-5ed1-bb17-6fe1c042e9f1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0002', 'IT', 2, 'VPN access for new starter', 'VPN access for new starter', 'VPN access for new starter', 'access', 'resolved', 'medium', 'medium', 'Internal notes for VPN access for new starter', 'VPN access for new starter', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '56bd1329-6740-572f-aa90-c44d1b27bedf', '56bd1329-6740-572f-aa90-c44d1b27bedf', 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('c7f8ebb6-27b9-5098-b584-d4a3e0518c50', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0003', 'IT', 3, 'Second monitor request', 'Second monitor request', 'Second monitor request', 'hardware', 'open', 'low', 'low', 'Internal notes for Second monitor request', 'Second monitor request', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('7cf9d829-a0aa-5a22-a1f5-f8f7d7464977', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'FAC-0001', 'FAC', 1, 'Meeting room booking system down', 'Meeting room booking system down', 'Meeting room booking system down', 'facilities', 'in_progress', 'medium', 'medium', 'Internal notes for Meeting room booking system down', 'Meeting room booking system down', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('fbc213ca-f362-58d3-aa36-45db45958e60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0001', 'CS', 1, 'Acme reports slow report generation', 'Acme reports slow report generation', 'Acme reports slow report generation', 'performance', 'in_progress', 'high', 'high', 'Internal notes for Acme reports slow report generation', 'Acme reports slow report generation', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '["db1f1f2b-b140-5948-a34e-1c998ed98757"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('6e78ba43-d504-546e-933d-4a5dce8d3313', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0002', 'CS', 2, 'Britannia data export format query', 'Britannia data export format query', 'Britannia data export format query', 'question', 'resolved', 'low', 'low', 'Internal notes for Britannia data export format query', 'Britannia data export format query', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '["b9b84064-a67a-5048-8282-8fc048b4dbfb"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, prefix, sequence_number, title, subject, description, category, status, priority, severity, internal_summary, external_summary, private, due_date, logged_at, updated_at, resolved_at, reported_by, logger_employee_id, logger_contact_id, customer_id, last_updated_by, assignees, custom_fields, version, created_at) VALUES
+    ('a22f6d41-d654-5951-a043-e174f7e1a258', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0001', 'IT', 1, 'Laptop will not boot', 'Laptop will not boot', 'Laptop will not boot', 'hardware', 'open', 'high', 'high', 'Internal notes for Laptop will not boot', 'Laptop will not boot', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
+    ('81535673-0241-5ed1-bb17-6fe1c042e9f1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0002', 'IT', 2, 'VPN access for new starter', 'VPN access for new starter', 'VPN access for new starter', 'access', 'resolved', 'medium', 'medium', 'Internal notes for VPN access for new starter', 'VPN access for new starter', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '56bd1329-6740-572f-aa90-c44d1b27bedf', '56bd1329-6740-572f-aa90-c44d1b27bedf', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
+    ('c7f8ebb6-27b9-5098-b584-d4a3e0518c50', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0003', 'IT', 3, 'Second monitor request', 'Second monitor request', 'Second monitor request', 'hardware', 'open', 'low', 'low', 'Internal notes for Second monitor request', 'Second monitor request', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'bf17b1af-963b-53ef-9083-21506fb34e9c', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
+    ('7cf9d829-a0aa-5a22-a1f5-f8f7d7464977', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'FAC-0001', 'FAC', 1, 'Meeting room booking system down', 'Meeting room booking system down', 'Meeting room booking system down', 'facilities', 'in_progress', 'medium', 'medium', 'Internal notes for Meeting room booking system down', 'Meeting room booking system down', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '["a87e0200-0849-53b6-a491-e882feace3f5"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
+    ('fbc213ca-f362-58d3-aa36-45db45958e60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0001', 'CS', 1, 'Acme reports slow report generation', 'Acme reports slow report generation', 'Acme reports slow report generation', 'performance', 'in_progress', 'high', 'high', 'Internal notes for Acme reports slow report generation', 'Acme reports slow report generation', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'db1f1f2b-b140-5948-a34e-1c998ed98757', '["db1f1f2b-b140-5948-a34e-1c998ed98757"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
+    ('6e78ba43-d504-546e-933d-4a5dce8d3313', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0002', 'CS', 2, 'Britannia data export format query', 'Britannia data export format query', 'Britannia data export format query', 'question', 'resolved', 'low', 'low', 'Internal notes for Britannia data export format query', 'Britannia data export format query', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', NULL, NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '["b9b84064-a67a-5048-8282-8fc048b4dbfb"]'::jsonb, '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+-- CS-0003 (portal-submitted, by Dana) is seeded further below, after
+-- customer_contacts exists — its logger_contact_id and customer_id are
+-- real foreign keys into tables that don't exist yet at this point in the
+-- file.
 
 UPDATE ticketing_tickets SET
     private = TRUE,
@@ -346,7 +356,12 @@ INSERT INTO ticketing_updates (id, tenant_id, update_id, ticket_id, ticket_numbe
     ('04634de5-de4e-51a9-91b1-4e08eed80953', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-003', '81535673-0241-5ed1-bb17-6fe1c042e9f1', 'IT-0002', 'comment', 'a87e0200-0849-53b6-a491-e882feace3f5', 'a87e0200-0849-53b6-a491-e882feace3f5', 'E010', 'VPN profile issued and tested.', 'VPN profile issued and tested.', 'internal', TRUE, '2026-01-01T09:00:00Z'),
     ('d746ac08-167a-52b6-9e0d-14717998905e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-004', 'fbc213ca-f362-58d3-aa36-45db45958e60', 'CS-0001', 'comment', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'E002', 'Traced to a missing index on the reporting query.', 'Traced to a missing index on the reporting query.', 'internal', TRUE, '2026-01-01T09:00:00Z'),
     ('eccad372-c665-5b56-845a-4880f7df21a2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-005', 'fbc213ca-f362-58d3-aa36-45db45958e60', 'CS-0001', 'comment', '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'E005', 'Client confirmed the slowdown started last Tuesday.', 'Client confirmed the slowdown started last Tuesday.', 'internal', TRUE, '2026-01-01T09:00:00Z'),
-    ('a33c3c9c-0762-5919-82da-ce25bad737bf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-006', '6e78ba43-d504-546e-933d-4a5dce8d3313', 'CS-0002', 'comment', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'E004', 'Sent the CSV schema documentation.', 'Sent the CSV schema documentation.', 'internal', TRUE, '2026-01-01T09:00:00Z');
+    ('a33c3c9c-0762-5919-82da-ce25bad737bf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-006', '6e78ba43-d504-546e-933d-4a5dce8d3313', 'CS-0002', 'comment', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'E004', 'Sent the CSV schema documentation.', 'Sent the CSV schema documentation.', 'internal', TRUE, '2026-01-01T09:00:00Z'),
+    -- External-visible — the one update on CS-0001 a portal contact (Dana)
+    -- can actually see, alongside the internal ones she can't (TU-004, TU-005).
+    ('f18f5a9e-0f9e-5f3d-9c3a-2f6f6a2b9e11', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-007', 'fbc213ca-f362-58d3-aa36-45db45958e60', 'CS-0001', 'comment', '11f31511-ad53-59c7-9e90-8ee3b553489b', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'E005', 'We''ve identified a missing index and are deploying a fix — no action needed on your end.', 'We''ve identified a missing index and are deploying a fix — no action needed on your end.', 'external', FALSE, '2026-01-02T10:00:00Z');
+-- TU-008 (Dana's own reply on CS-0003) is seeded further below, alongside
+-- CS-0003 itself, for the same FK-ordering reason.
 
 -- Chart of accounts (seeded default for a services firm)
 INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, account_name_i18n, account_type, account_subtype, is_bank_account, is_active, currency, current_balance) VALUES
@@ -400,6 +415,15 @@ UPDATE customers SET
     custom_fields = '{"tax_exemption_certificate": "EXEMPT-HELIOS-2026"}'::jsonb
 WHERE customer_number = 'HELIOS';
 
+-- Two tickets already about a real customer by title, wired to the real
+-- row now that customers exists (ticketing_tickets was seeded before this
+-- point in the file — this must run after). CS-0003 is set in its own
+-- INSERT below, once customer_contacts exists too.
+UPDATE ticketing_tickets SET customer_id = 'e40d0f18-1333-5cd1-a969-f5113df51e70'
+WHERE ticket_number = 'CS-0001';
+UPDATE ticketing_tickets SET customer_id = 'ac7a04b4-a28e-5a15-9993-596db32c8d4e'
+WHERE ticket_number = 'CS-0002';
+
 -- Customer portal test personas (docs/17-customer-portal.md §5). Two
 -- contacts at the same customer (Acme) so RLS is exercised across contacts,
 -- not just across customers: both must see the same customer-scoped rows,
@@ -427,6 +451,27 @@ SELECT
     '{}'::text[],
     TRUE, TRUE, '2026-02-01T09:00:00Z'
 FROM customer_contacts cc;
+
+-- CS-0003: portal-submitted, unassigned — nothing else in the fixture
+-- exercises logger_contact_id/author_contact_id (L50, L51). Dana raises her
+-- own ticket, no employee has touched it yet.
+INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, prefix, sequence_number, title, subject, description, category, status, priority, severity, internal_summary, external_summary, private, due_date, logged_at, updated_at, resolved_at, reported_by, logger_employee_id, logger_contact_id, customer_id, last_updated_by, assignees, custom_fields, version, created_at) VALUES
+    ('16a68eb5-4d61-5548-8e17-8f1ac4c2f5c9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0003', 'CS', 3, 'Question about February invoice', 'Question about February invoice', 'Question about February invoice', 'question', 'open', 'medium', 'medium', 'Internal notes for Question about February invoice', 'Question about February invoice', FALSE, '2026-03-10', '2026-03-03T14:00:00Z', '2026-03-03T14:00:00Z', NULL, 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', NULL, 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '[]'::jsonb, '{}'::jsonb, 1, '2026-03-03T14:00:00Z');
+
+UPDATE ticketing_tickets SET
+    reported_by_name = 'Dana Whitcombe',
+    reported_by_email = 'dana.whitcombe@acme.example'
+WHERE ticket_number = 'CS-0003';
+
+-- CS-0003 was inserted with a literal sequence_number rather than through
+-- nextTicketNumber(), so the counter it increments never moved past what
+-- CS-0001/0002 left it at — the next portal submission would collide on
+-- ticketing_tickets_tenant_id_ticket_number_key, generating CS-0003 again.
+UPDATE ticketing_business_areas SET current_sequence = 3 WHERE prefix = 'CS';
+
+-- Author is the portal contact herself.
+INSERT INTO ticketing_updates (id, tenant_id, update_id, ticket_id, ticket_number, update_type, author_id, author_contact_id, author_name, comment_text, content_text, visibility, is_internal, created_at) VALUES
+    ('c2e6a442-2b0c-5e63-9a8b-6b4a5b6f2d31', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TU-008', '16a68eb5-4d61-5548-8e17-8f1ac4c2f5c9', 'CS-0003', 'comment', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 'Dana Whitcombe', 'Just to clarify — this is about the invoice dated Feb 1, not the one from January.', 'Just to clarify — this is about the invoice dated Feb 1, not the one from January.', 'external', FALSE, '2026-03-03T14:05:00Z');
 
 -- Invoices in mixed states, multi-currency with base conversion
 INSERT INTO invoices (id, tenant_id, customer_id, invoice_number, invoice_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, payment_terms) VALUES
@@ -1041,8 +1086,22 @@ WHERE sla_due_at IS NOT NULL;
 -- it's load-bearing for login. user_id values are deterministic uuid5
 -- stand-ins for auth.users rows. One BASE role plus any number of FUNCTIONAL
 -- roles (docs/14-access-control.md); `manager` is derived from
--- employees.manager_id, not granted. E010/E001 hold hr_admin/payroll_admin
--- separately — a CHECK constraint refuses the same person holding both.
+-- employees.manager_id, not granted — Sarah (E001), Aisha (E005) and Diego
+-- (E008) already have direct reports, so no separate "manager" grant exists
+-- or is needed to reach that persona.
+--
+-- Every base role and every functional role in packages/authz has at least
+-- one seeded login (dev-users.sql turns every row here into one), and three
+-- people deliberately hold more than one hat — realistic for a firm this
+-- size, and exactly the shape docs/14-access-control.md calls out ("small
+-- firms wear several hats"):
+--   E001 Sarah  — owner + payroll_admin, and a manager of three.
+--   E006 James  — firm_admin + legal_admin + project_manager.
+--   E008 Diego  — sales_admin + finance_admin, and a manager of one.
+-- E007 (Lena) and E010 (Rachel) hold hr_admin/payroll_admin and auditor in
+-- ISOLATION on purpose — a CHECK constraint refuses the same person holding
+-- hr_admin with payroll_admin, or auditor with any other role, and mixing
+-- either into a multi-hat example here would just be untestable SQL.
 INSERT INTO tenant_users (id, tenant_id, user_id, employee_id, role,
                           functional_roles, is_active, is_default_tenant,
                           accepted_at)
@@ -1052,19 +1111,29 @@ SELECT
     uuid_generate_v5_compat(e.id, 'auth_user'),
     e.id,
     CASE e.employee_id
-        WHEN 'E001' THEN 'owner'
+        WHEN 'E001' THEN 'owner'         -- everything, and the only biller
+        WHEN 'E006' THEN 'firm_admin'    -- everything except billing/members/pii.erase
+        WHEN 'E012' THEN 'contractor'    -- matches her employment_type
         ELSE 'employee'
     END,
     CASE e.employee_id
         WHEN 'E001' THEN ARRAY['payroll_admin']::text[]
+        WHEN 'E006' THEN ARRAY['legal_admin', 'project_manager']::text[]
+        WHEN 'E007' THEN ARRAY['auditor']::text[]              -- read-only, alone, by CHECK
+        WHEN 'E008' THEN ARRAY['sales_admin', 'finance_admin']::text[]
+        WHEN 'E009' THEN ARRAY['marketing_admin']::text[]
         WHEN 'E010' THEN ARRAY['hr_admin']::text[]
+        WHEN 'E011' THEN ARRAY['it_admin']::text[]
         ELSE '{}'::text[]
     END,
     TRUE, TRUE, '2026-01-01T09:00:00Z'
 FROM employees e
--- E003 (Priya) is the subject of the one review still in `draft` — the only
--- login that exercises "a manager's unfinished assessment is withheld".
-WHERE e.employee_id IN ('E001','E002','E003','E004','E005','E010');
+-- Every employee is a tenant member. E003 (Priya) is additionally the
+-- subject of the one review still in `draft` — the only login that
+-- exercises "a manager's unfinished assessment is withheld".
+WHERE e.employee_id IN
+    ('E001','E002','E003','E004','E005','E006',
+     'E007','E008','E009','E010','E011','E012');
 
 
 -- =============================================================================
@@ -2134,8 +2203,18 @@ UPDATE pm_task_comments SET deleted_at = '2026-03-05T10:15:00Z'
  WHERE id = (SELECT id FROM pm_task_comments ORDER BY id LIMIT 1);
 
 UPDATE ticketing_tickets SET closed_at = NULL, status = 'open';
+-- Named by ticket_number, not `ORDER BY id LIMIT 2` (arbitrary UUID sort) —
+-- that silently caught CS-0003 (the freshly-submitted, still-open portal
+-- ticket added for the customer-portal demo) depending on how its UUID
+-- happened to sort. IT-0002 and CS-0002 were both 'resolved' in their
+-- original INSERT above; this keeps that intent, just coarser.
 UPDATE ticketing_tickets SET closed_at = '2026-04-02T14:20:00Z', status = 'closed'
- WHERE id IN (SELECT id FROM ticketing_tickets ORDER BY id LIMIT 2);
+ WHERE ticket_number IN ('IT-0002', 'CS-0002');
+-- Both were 'in_progress' in their original INSERT too — kept, so that
+-- status has a real row (a status filter with zero matches for a value in
+-- its own vocabulary is exactly the L50/L51 shape).
+UPDATE ticketing_tickets SET status = 'in_progress'
+ WHERE ticket_number IN ('CS-0001', 'FAC-0001');
 
 -- A second objective, archived — with only one row, setting `archived_at`
 -- would leave no live objective for the module to read.

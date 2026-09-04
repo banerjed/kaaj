@@ -10,12 +10,22 @@
 -- also needs registering in supabase/config.toml / dashboard Hooks — see
 -- 20260827000002_auth_and_grants.sql section 3.
 --
--- STAFF LOGINS
---   sarah.johnson@northwind.example    owner
---   rachel.adeyemi@northwind.example   employee, functional_roles: {hr_admin}
---   aisha.okafor@northwind.example     employee
+-- STAFF LOGINS — every base role and every functional role in
+-- packages/authz has at least one login here; three (Sarah, James, Diego)
+-- deliberately hold more than one hat. See mock-data.sql's tenant_users
+-- insert for why each combination is legal under the role CHECK constraints.
+--   sarah.johnson@northwind.example    owner, functional_roles: {payroll_admin}; manages 3
 --   marcus.chen@northwind.example      employee
+--   priya.raman@northwind.example      employee — subject of the one review still in draft
 --   tom.whitfield@northwind.example    employee
+--   aisha.okafor@northwind.example     employee; manages 2 (James, Lena) — the plain "manager" persona
+--   james.reid@northwind.example       firm_admin, functional_roles: {legal_admin, project_manager}
+--   lena.fischer@northwind.example     employee, functional_roles: {auditor} — read-only, alone by CHECK
+--   diego.morales@northwind.example    employee, functional_roles: {sales_admin, finance_admin}; manages 1 (Yuki)
+--   yuki.tanaka@northwind.example      employee, functional_roles: {marketing_admin}
+--   rachel.adeyemi@northwind.example   employee, functional_roles: {hr_admin}
+--   oliver.grant@northwind.example     employee, functional_roles: {it_admin}
+--   nadia.hassan@northwind.example     contractor (matches her employment_type)
 --
 -- PORTAL LOGINS (docs/17-customer-portal.md) — role 'customer', no employee_id
 --   dana.whitcombe@acme.example        Acme Manufacturing, primary contact

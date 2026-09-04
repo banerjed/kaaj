@@ -51,6 +51,14 @@ export const PERMISSIONS = [
   "tenant.members.manage",
   "tenant.billing",
   "audit.read.all",
+  // Staff-side ticketing — self/all split, same shape as
+  // compensation.read.self/.read.all. Deliberately NOT ticket.* (below) —
+  // that namespace is the portal contact's, this one is staff's, and the
+  // two must never be confused for each other.
+  "ticketing.read.own",
+  "ticketing.write.own",
+  "ticketing.read.all",
+  "ticketing.write.all",
   // Customer-portal permissions — a separate namespace on purpose, so a
   // portal contact is never one missing `if` away from an internal one.
   // See docs/17-customer-portal.md.
@@ -95,6 +103,10 @@ const EVERYONE: Permission[] = [
   "performance.read.self",
   // Logging your own hours is self-service, like requesting time off.
   "time_entries.write",
+  // Raising an IT/facilities request, or replying to one of your own
+  // tickets, is self-service the same way.
+  "ticketing.read.own",
+  "ticketing.write.own",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {
@@ -164,6 +176,11 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     "it.groups.write",
     "it.integrations.write",
     "employee.read.all",
+    // The one reasonable default for this slice — full per-business-area
+    // role assignment (ticketing_business_areas.roles) is real Tier-1
+    // config, not built yet.
+    "ticketing.read.all",
+    "ticketing.write.all",
   ],
   legal_admin: ["legal.documents.write", "audit.read.all", "employee.read.all"],
   project_manager: [

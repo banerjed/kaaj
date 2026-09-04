@@ -246,4 +246,14 @@ export const NOT_AUDITED: AuditedOperation[] = [
     action: "submit",
     why: "The logging employee's own status flip, not a decision by anyone else. What decide() does to it is audited; this step just queues it.",
   },
+  {
+    route: "ticketing/[id]",
+    action: "addUpdate",
+    why: "A support-ticket comment, same shape as a board movement — it changes nobody's money, employment or rights, and a line per comment would bury the pay changes the trail exists to make findable.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "setStatus",
+    why: "A support ticket's own lifecycle, not a decision about a person. StatusBadge and the list page are the record anyone would actually check.",
+  },
 ]

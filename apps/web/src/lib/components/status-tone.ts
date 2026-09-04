@@ -90,3 +90,13 @@ export const bankTransactionStatusTone = (s: string | null): Tone =>
       : s === "ignored"
         ? "neutral"
         : "progress"
+
+/** `ticketing_tickets.status` — open/in_progress/resolved/closed. */
+export const ticketStatusTone = (s: string | null): Tone =>
+  s === "resolved" || s === "closed"
+    ? "positive"
+    : s === "in_progress"
+      ? "progress"
+      : s === "open"
+        ? "caution"
+        : "neutral"
