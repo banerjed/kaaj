@@ -904,6 +904,27 @@ UPDATE bills SET
     END
 WHERE bill_number IN ('BILL-AWS-2026-01','BILL-UX-2026-001');
 
+-- Two drafts, not yet approved — every other bill above is pre-seeded past
+-- that state, which left approveBill() with nothing real to operate on
+-- (L50, L51). One sits in the open February period so approval can succeed;
+-- the other sits in the closed January period so period_closed has a real
+-- subject. Both are created by an employee other than the fixture's usual
+-- seeding actor, so the ordinary approval tests exercise a genuine
+-- creator/approver difference rather than approving one's own entry.
+INSERT INTO bills (id, tenant_id, vendor_id, bill_number, reference, bill_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, requires_approval, approved_by, approved_at, payment_terms, file_url, ocr_processed, ocr_data, payment_scheduled_date, created_at, updated_at, created_by) VALUES
+    ('bcd1ea91-77f8-435b-8a5e-d8dbdf861819', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e21a30e8-9dfd-5817-8479-c7d574417831', 'BILL-WEWORK-2026-03', 'WEWORK-2026-03', '2026-02-20', '2026-03-20', 'USD', 1.0, 'USD', 3350.00, 284.00, 3634.00, 0.00, 3634.00, 3350.00, 284.00, 3634.00, 0.00, 3634.00, 'draft', TRUE, NULL, NULL, 'net_30', NULL, FALSE, NULL, NULL, '2026-02-20T09:00:00Z', '2026-02-20T09:00:00Z', 'db1f1f2b-b140-5948-a34e-1c998ed98757'),
+    ('4ad6a70c-4bf5-4d20-be0c-82cc758009fa', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e21a30e8-9dfd-5817-8479-c7d574417831', 'BILL-WEWORK-2026-01', 'WEWORK-2026-01', '2026-01-10', '2026-02-09', 'USD', 1.0, 'USD', 500.00, 0.00, 500.00, 0.00, 500.00, 500.00, 0.00, 500.00, 0.00, 500.00, 'draft', TRUE, NULL, NULL, 'net_30', NULL, FALSE, NULL, NULL, '2026-01-10T09:00:00Z', '2026-01-10T09:00:00Z', 'db1f1f2b-b140-5948-a34e-1c998ed98757');
+
+INSERT INTO bill_lines (tenant_id, id, bill_id, line_number, description, quantity, unit_price, amount, expense_account_id, created_at) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9677edb-820b-42dd-ab58-5efe9ca13468', 'bcd1ea91-77f8-435b-8a5e-d8dbdf861819', 1, 'February office rent', 1, 3200.00, 3200.00, '9d558ace-8adc-52ed-811a-de519ad88a29', '2026-02-20T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '61c90710-7a37-4562-bf12-713817f66e83', 'bcd1ea91-77f8-435b-8a5e-d8dbdf861819', 2, 'Client site visit travel', 1, 150.00, 150.00, 'c1158fe0-38ae-5741-a84f-a76381cebae3', '2026-02-20T09:00:00Z'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '8dc04880-fb4c-452d-914a-4302e354dcd6', '4ad6a70c-4bf5-4d20-be0c-82cc758009fa', 1, 'January office rent', 1, 500.00, 500.00, '9d558ace-8adc-52ed-811a-de519ad88a29', '2026-01-10T09:00:00Z');
+
+UPDATE bill_lines SET
+    tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53',
+    tax_amount = 284.00
+WHERE id = 'b9677edb-820b-42dd-ab58-5efe9ca13468';
+
 INSERT INTO payments (id, tenant_id, payment_number, payment_date, reference, customer_id, vendor_id, currency, amount, exchange_rate, base_amount, payment_method, payment_gateway, payment_gateway_id, gateway_fee, bank_account_id, status, notes, journal_entry_id, created_at, updated_at, created_by) VALUES
     ('26361e4b-8a87-5b2a-a692-10ec68e02875', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PAY-2026-001', '2026-01-22', 'ACH-ACME-001', 'e40d0f18-1333-5cd1-a969-f5113df51e70', NULL, 'USD', 42300.00, 1.0, 42300.00, 'direct_deposit', 'Stripe', 'pi_acme_001', 650.17, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', 'Online payment for INV-2026-001', '7d5527ea-8449-5a3c-8819-e93caf4073b5', '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('4c3b0a1e-770f-55b6-820d-d6ba91c6bf73', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PAY-2026-002', '2026-02-07', 'ACH-ACME-002', 'e40d0f18-1333-5cd1-a969-f5113df51e70', NULL, 'USD', 10000.00, 1.0, 10000.00, 'direct_deposit', 'Stripe', 'pi_acme_002', 295.30, '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'completed', 'Partial payment split across INV-2026-004 and INV-2026-005', '342f47a2-7820-5fa2-9f92-30e641731b41', '2026-02-07T13:00:00Z', '2026-02-07T13:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),

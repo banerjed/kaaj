@@ -1,11 +1,25 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localeForCurrency, money, number } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import { billStatusTone as statusTone } from "$lib/components/status-tone"
 
-  let { data } = $props()
+  let { data, form } = $props()
+
+  const err = $derived(fieldErrors(form))
+
+  let paying = $state(false)
+
+  /** What this bill may do next — mirrors the statuses the repo enforces. */
+  const may = $derived({
+    approve: data.mayWrite && data.bill.status === "draft",
+    pay:
+      data.mayWrite && ["approved", "partial"].includes(data.bill.status ?? ""),
+  })
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const locale = $derived(
@@ -25,6 +39,25 @@
       { label: data.bill.bill_number, active: true },
     ]}
   />
+
+  {#if form?.approved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>
+        Approved. The liability posted to the ledger as {form.approved}.
+      </span>
+    </div>
+  {:else if form?.paid}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>{form.paid} recorded. The bill is now {form.status}.</span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
 
   <div class="card bg-base-100 mt-4 shadow">
     <div class="card-body gap-3 p-4">
@@ -156,4 +189,126 @@
       </ul>
     </div>
   {/if}
+
+  <!-- Each posts a balanced journal entry; POST only, never a link. -->
+  {#if may.approve || may.pay}
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      {#if may.approve}
+        <form method="POST" action="?/approve">
+          <button class="btn btn-primary btn-sm">
+            <span class="iconify lucide--check size-4"></span>
+            Approve bill
+          </button>
+        </form>
+        <p class="text-base-content/70 text-xs">
+          Posts {money(data.bill.total, cur, locale)} to accounts payable and the
+          expense behind it.
+        </p>
+      {/if}
+      {#if may.pay}
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          onclick={() => (paying = true)}
+        >
+          <span class="iconify lucide--banknote size-4"></span>
+          Pay vendor
+        </button>
+      {/if}
+    </div>
+  {/if}
 </div>
+
+<!-- Pay vendor --------------------------------------------------------- -->
+{#if paying}
+  <div class="modal modal-open" role="dialog" aria-label="Pay vendor">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">
+        Payment against {data.bill.bill_number}
+      </h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        {money(data.bill.amount_due, cur, locale)} outstanding. More than that is
+        refused — an over-allocation is not something a later reconciliation can undo.
+      </p>
+      <form
+        method="POST"
+        action="?/recordPayment"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (paying = false))}
+      >
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Amount ({cur})</legend>
+          <!-- inputmode, never type="number" — that round-trips through a float. -->
+          <input
+            name="amount"
+            aria-invalid={err.aria("amount")}
+            class={`input w-full ${err.input("amount")}`}
+            inputmode="decimal"
+            required
+            value={data.bill.amount_due ?? ""}
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Paid on</legend>
+          <input
+            name="payment_date"
+            aria-invalid={err.aria("payment_date")}
+            type="date"
+            class={`input w-full ${err.input("payment_date")}`}
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Method</legend>
+          <select
+            name="payment_method"
+            aria-invalid={err.aria("payment_method")}
+            class={`select w-full ${err.select("payment_method")}`}
+            required
+          >
+            {#each data.methods as m (m)}
+              <option value={m} class="capitalize"
+                >{m.replace(/_/g, " ")}</option
+              >
+            {/each}
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">From</legend>
+          <select
+            name="bank_account_id"
+            aria-invalid={err.aria("bank_account_id")}
+            class={`select w-full ${err.select("bank_account_id")}`}
+          >
+            <option value="">Not recorded</option>
+            {#each data.bankAccounts as b (b.id)}
+              <option value={b.id}>{b.account_name}</option>
+            {/each}
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Reference</legend>
+          <input
+            name="reference"
+            aria-invalid={err.aria("reference")}
+            class={`input w-full ${err.input("reference")}`}
+            maxlength="100"
+          />
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (paying = false)}>Cancel</button
+          >
+          <button type="submit" class="btn btn-primary">Record payment</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (paying = false)}
+    ></button>
+  </div>
+{/if}

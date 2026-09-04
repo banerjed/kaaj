@@ -141,6 +141,18 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "A document withdrawn before it was issued. Without a record, an invoice that was raised and then made to disappear leaves no trace it ever existed.",
   },
 
+  // -- Payables: the liability recognised, and cash paid out ---------------
+  {
+    route: "accounting/bills/[id]",
+    action: "approve",
+    why: "The moment a liability enters the general ledger and someone is named as having authorised it. The journal it posts can never be deleted.",
+  },
+  {
+    route: "accounting/bills/[id]",
+    action: "recordPayment",
+    why: "Cash leaving the firm against a debt. 'Who paid this, how much, and when' is the question every reconciliation and every vendor dispute asks.",
+  },
+
   // -- Payroll: the record of money leaving the firm -----------------------
   {
     route: "payroll/runs",

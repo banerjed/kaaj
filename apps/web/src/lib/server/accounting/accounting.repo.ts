@@ -267,7 +267,8 @@ export async function ledgerLinesForEntries(
 // A zero-amount line is never written: ck_journal_entry_lines_one_sided_positive
 // forbids it, so a tax-free invoice posts two lines, not three.
 //
-// Bills, banking and reconciliation have no write path here yet.
+// Bills reuse this same postJournal (payables.repo.ts); banking and
+// reconciliation still have no write path.
 
 /**
  * What an invoice's status may be. Plain `varchar` with no CHECK behind it, so
@@ -296,6 +297,7 @@ export class AccountingRefused extends Error {
   constructor(
     readonly reason:
       | "no_such_invoice"
+      | "no_such_bill"
       | "no_such_account"
       | "wrong_status"
       | "no_lines"
@@ -303,7 +305,11 @@ export class AccountingRefused extends Error {
       | "does_not_balance"
       | "period_closed"
       | "overpayment"
-      | "number_taken",
+      | "number_taken"
+      // The approver may not also be the payer — same rule as payroll's
+      // calculated_by/approved_by, applied across bills and payments instead
+      // of within one row (payroll_runs.repo.ts).
+      | "self_approval",
     readonly detail?: string,
   ) {
     super(reason)
@@ -371,7 +377,7 @@ async function nextEntryNumber(tx: Tx, year: number): Promise<string> {
 }
 
 /** One side of a journal entry, before it is written. */
-type JournalLine = {
+export type JournalLine = {
   accountCode: string
   debit: string | null
   credit: string | null
@@ -384,7 +390,7 @@ type JournalLine = {
  * lines, not three). Amounts stay strings; base_* uses the same round-then-sum
  * discipline as the invoice header.
  */
-async function postJournal(
+export async function postJournal(
   tx: Tx,
   tenantId: string,
   entry: {

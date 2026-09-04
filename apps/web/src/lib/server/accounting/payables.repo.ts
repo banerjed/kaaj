@@ -1,10 +1,34 @@
 import type { Tx } from "../db/tenant"
+import { postJournal, AccountingRefused } from "./accounting.repo"
 
 /**
  * Bills and banking — payables and cash. Same discipline as invoices: money is
  * a string, sums happen in SQL. No account number is ever selected here (L39);
  * the ciphertext columns on bank_accounts stay out of the returned type entirely.
  */
+
+/**
+ * What a bill's status may be. Plain `varchar` with no CHECK behind it, so
+ * this list IS the constraint (L57) — `is_overdue` above and `billStatusTone`
+ * both already treat `cancelled` as distinct from `void`, so it stays in the
+ * list even though no write here produces it (it arrives from OCR intake).
+ */
+export const BILL_STATUSES = [
+  "draft",
+  "approved",
+  "partial",
+  "paid",
+  "void",
+  "cancelled",
+] as const
+export type BillStatus = (typeof BILL_STATUSES)[number]
+
+/** The accounts the payables cycle posts to, by code rather than by id. */
+const ACCOUNTS = {
+  cash: "1000",
+  inputTax: "1200",
+  payable: "2000",
+} as const
 
 export type BillRow = {
   id: string
@@ -208,4 +232,309 @@ export async function bankTransactions(
        AND (${status} = '' OR t.status = ${status})
      ORDER BY t.transaction_date DESC, t.created_at DESC
   `
+}
+
+// ---------------------------------------------------------------------------
+// Writes — bill approval and vendor payment, posted to the ledger
+// ---------------------------------------------------------------------------
+//
+// Reuses postJournal from accounting.repo.ts rather than a second engine.
+// Banking (matching a bank_transaction to a payment) has no write path yet.
+
+/**
+ * Recompute a bill's money columns from its lines and payments — recomputed,
+ * never adjusted (L58). base_total sums the two rounded parts rather than
+ * rounding the total independently, so it stays equal to base_subtotal +
+ * base_tax_total (L25) — required here: ck_bills_amounts_reconcile enforces
+ * total = subtotal + tax_total at the database level.
+ */
+export async function recomputeBillTotals(
+  tx: Tx,
+  billId: string,
+): Promise<void> {
+  await tx`
+    WITH line_totals AS (
+      SELECT coalesce(sum(l.amount), 0)     AS subtotal,
+             coalesce(sum(l.tax_amount), 0) AS tax_total
+        FROM bill_lines l WHERE l.bill_id = ${billId}::uuid
+    ),
+    paid AS (
+      SELECT coalesce(sum(a.amount), 0)      AS amount_paid,
+             coalesce(sum(a.base_amount), 0) AS base_amount_paid
+        FROM payment_allocations a WHERE a.bill_id = ${billId}::uuid
+    )
+    UPDATE bills b
+       SET subtotal    = lt.subtotal,
+           tax_total   = lt.tax_total,
+           total       = lt.subtotal + lt.tax_total,
+           amount_paid = p.amount_paid,
+           amount_due  = (lt.subtotal + lt.tax_total) - p.amount_paid,
+           -- Round each part first, then sum, so base_total stays exact.
+           base_subtotal    = round(lt.subtotal  * b.exchange_rate, 2),
+           base_tax_total   = round(lt.tax_total * b.exchange_rate, 2),
+           base_total       = round(lt.subtotal  * b.exchange_rate, 2)
+                            + round(lt.tax_total * b.exchange_rate, 2),
+           base_amount_paid = p.base_amount_paid,
+           base_amount_due  = round(lt.subtotal  * b.exchange_rate, 2)
+                            + round(lt.tax_total * b.exchange_rate, 2)
+                            - p.base_amount_paid,
+           updated_at = now()
+      FROM line_totals lt, paid p
+     WHERE b.id = ${billId}::uuid
+  `
+}
+
+type BillState = {
+  status: BillStatus
+  currency: string
+  exchange_rate: string
+  vendor_id: string
+  bill_number: string
+  bill_date: string
+  total: string
+  subtotal: string
+  tax_total: string
+  amount_due: string
+  approved_by: string | null
+  line_count: number
+}
+
+async function billState(tx: Tx, id: string): Promise<BillState> {
+  const [row] = await tx<BillState[]>`
+    SELECT b.status, b.currency, b.exchange_rate::text AS exchange_rate,
+           b.vendor_id::text AS vendor_id,
+           b.bill_number,
+           to_char(b.bill_date,'YYYY-MM-DD') AS bill_date,
+           b.total::text      AS total,
+           b.subtotal::text   AS subtotal,
+           b.tax_total::text  AS tax_total,
+           b.amount_due::text AS amount_due,
+           b.approved_by::text AS approved_by,
+           (SELECT count(*)::int FROM bill_lines l WHERE l.bill_id = b.id)
+             AS line_count
+      FROM bills b WHERE b.id = ${id}::uuid
+  `
+  if (!row) throw new AccountingRefused("no_such_bill")
+  return row
+}
+
+/**
+ * Approve a draft bill and recognise the liability — one journal line per
+ * bill_line's own expense account, so a bill that spans several categories
+ * (rent, travel) does not collapse them into one figure.
+ *
+ *   DR <expense account>     per line, by its own amount
+ *   DR Input Tax Recoverable       tax_total   (omitted when zero)
+ *     CR Accounts Payable                  total
+ *
+ * Refused with no lines.
+ */
+export async function approveBill(
+  tx: Tx,
+  tenantId: string,
+  billId: string,
+  actorId: string,
+): Promise<{ from: BillStatus; entryNumber: string }> {
+  const before = await billState(tx, billId)
+  if (before.status !== "draft") {
+    throw new AccountingRefused("wrong_status", `${before.status} is not draft`)
+  }
+  if (before.line_count === 0) throw new AccountingRefused("no_lines")
+
+  // Recompute first so the journal posts figures the lines actually support.
+  await recomputeBillTotals(tx, billId)
+  const current = await billState(tx, billId)
+
+  const lines = await tx<
+    { account_code: string; amount: string; description: string | null }[]
+  >`
+    SELECT a.account_code, l.amount::text AS amount, l.description
+      FROM bill_lines l
+      JOIN chart_of_accounts a ON a.id = l.expense_account_id
+     WHERE l.bill_id = ${billId}::uuid
+     ORDER BY l.line_number NULLS LAST
+  `
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: current.bill_date,
+      sourceType: "bill",
+      sourceId: billId,
+      description: `Bill ${current.bill_number} approved`,
+      reference: current.bill_number,
+      currency: current.currency,
+      exchangeRate: current.exchange_rate,
+      lines: [
+        ...lines.map((l) => ({
+          accountCode: l.account_code,
+          debit: l.amount,
+          credit: null,
+          description: l.description ?? `Bill ${current.bill_number}`,
+        })),
+        {
+          accountCode: ACCOUNTS.inputTax,
+          debit: current.tax_total,
+          credit: null,
+          description: `Recoverable input tax on ${current.bill_number}`,
+        },
+        {
+          accountCode: ACCOUNTS.payable,
+          debit: null,
+          credit: current.total,
+          description: `Bill ${current.bill_number}`,
+        },
+      ],
+    },
+    actorId,
+  )
+
+  await tx`
+    UPDATE bills
+       SET status = 'approved', approved_by = ${actorId}::uuid, approved_at = now(),
+           journal_entry_id = ${entryId}::uuid,
+           updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${billId}::uuid
+  `
+
+  const [entry] = await tx<{ entry_number: string }[]>`
+    SELECT entry_number FROM journal_entries WHERE id = ${entryId}::uuid
+  `
+  return { from: before.status, entryNumber: entry.entry_number }
+}
+
+/**
+ * Pay a vendor against an approved bill.
+ *
+ *   DR Accounts Payable        amount
+ *     CR Cash at Bank                 amount
+ *
+ * Refused if it would overpay, and refused if the payer is the same person
+ * who approved the bill — the same segregation payroll enforces between
+ * calculated_by and approved_by (payroll_runs.repo.ts), applied across two
+ * tables instead of two columns on one row.
+ */
+export async function recordVendorPayment(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    billId: string
+    amount: string
+    paymentDate: string
+    method: string
+    reference: string | null
+    bankAccountId: string | null
+  },
+  actorId: string,
+): Promise<{ paymentNumber: string; status: BillStatus }> {
+  const before = await billState(tx, input.billId)
+  if (
+    before.status === "draft" ||
+    before.status === "void" ||
+    before.status === "cancelled"
+  ) {
+    throw new AccountingRefused(
+      "wrong_status",
+      `${before.status} cannot receive a payment`,
+    )
+  }
+  if (before.approved_by !== null && before.approved_by === actorId) {
+    throw new AccountingRefused(
+      "self_approval",
+      "the person who approved this bill cannot also record its payment",
+    )
+  }
+  // Compared in SQL/NUMERIC, not JS float, since this decides a refusal.
+  const [room] = await tx<{ too_much: boolean }[]>`
+    SELECT ${input.amount}::numeric > ${before.amount_due}::numeric AS too_much
+  `
+  if (room.too_much) {
+    throw new AccountingRefused("overpayment", before.amount_due)
+  }
+
+  const [numbering] = await tx<{ n: number }[]>`
+    SELECT coalesce(max(nullif(substring(payment_number from '[0-9]+$'),
+                                '')::int), 0) + 1 AS n
+      FROM payments WHERE payment_number LIKE 'VPAY-%'
+  `
+  const year = input.paymentDate.slice(0, 4)
+  const paymentNumber = `VPAY-${year}-${String(numbering.n).padStart(3, "0")}`
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.paymentDate,
+      sourceType: "payment",
+      sourceId: input.billId,
+      description: `Payment against ${before.bill_number}`,
+      reference: paymentNumber,
+      currency: before.currency,
+      exchangeRate: before.exchange_rate,
+      lines: [
+        {
+          accountCode: ACCOUNTS.payable,
+          debit: input.amount,
+          credit: null,
+          description: `Against ${before.bill_number}`,
+        },
+        {
+          accountCode: ACCOUNTS.cash,
+          debit: null,
+          credit: input.amount,
+          description: paymentNumber,
+        },
+      ],
+    },
+    actorId,
+  )
+
+  const [payment] = await tx<{ id: string }[]>`
+    INSERT INTO payments (
+      tenant_id, payment_number, payment_date, reference, vendor_id,
+      currency, amount, exchange_rate, base_amount, payment_method,
+      bank_account_id, status, journal_entry_id, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${paymentNumber}, ${input.paymentDate}::date,
+      ${input.reference}, ${before.vendor_id}::uuid,
+      ${before.currency}, ${input.amount}::numeric,
+      ${before.exchange_rate}::numeric,
+      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2),
+      ${input.method}::payment_method,
+      ${input.bankAccountId}::uuid, 'completed', ${entryId}::uuid,
+      ${actorId}::uuid
+    )
+    RETURNING id
+  `
+
+  await tx`
+    INSERT INTO payment_allocations (
+      tenant_id, payment_id, bill_id, amount, base_amount
+    ) VALUES (
+      ${tenantId}::uuid, ${payment.id}::uuid, ${input.billId}::uuid,
+      ${input.amount}::numeric,
+      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2)
+    )
+  `
+
+  await recomputeBillTotals(tx, input.billId)
+
+  const [settled] = await tx<{ due: string }[]>`
+    SELECT amount_due::text AS due FROM bills WHERE id = ${input.billId}::uuid
+  `
+  // Decided in SQL against NUMERIC zero, not by parsing the string.
+  const [state] = await tx<{ fully_paid: boolean }[]>`
+    SELECT ${settled.due}::numeric = 0 AS fully_paid
+  `
+  const status: BillStatus = state.fully_paid ? "paid" : "partial"
+
+  await tx`
+    UPDATE bills
+       SET status = ${status},
+           updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${input.billId}::uuid
+  `
+
+  return { paymentNumber, status }
 }
