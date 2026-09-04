@@ -1,27 +1,26 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, instant, localeForCurrency, money } from "$lib/format"
+  import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
-  import type { Tone } from "$lib/components/status-tone"
+  import { bankTransactionStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
-  let { data } = $props()
+  let { data, form } = $props()
+
+  const err = $derived(fieldErrors(form))
+
+  /** Which transaction's match modal is open, if any. */
+  let matching = $state<string | null>(null)
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
 
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
-
-  const statusTone = (s: string | null): Tone =>
-    s === "reconciled"
-      ? "positive"
-      : s === "unmatched"
-        ? "caution"
-        : s === "ignored"
-          ? "neutral"
-          : "progress"
 
   /** Bank vs. imported balance; null means nothing imported yet, not a zero gap. */
   const gap = (a: {
@@ -43,6 +42,18 @@
       { label: "Banking", active: true },
     ]}
   />
+
+  {#if form?.matched}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Matched.</span>
+    </div>
+  {:else if form?.message}
+    <div role="alert" class="alert alert-error mt-4">
+      <span class="iconify lucide--circle-alert size-5"></span>
+      <span>{form.message}</span>
+    </div>
+  {/if}
 
   <!-- No account number shown anywhere; identifier columns are ciphertext. -->
   <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -151,11 +162,13 @@
               <th class="text-right">Amount</th>
               <th class="text-right">Balance</th>
               <th>State</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {#each data.transactions as t (t.id)}
               {@const locale = localeFor(t.currency)}
+              {@const candidates = data.candidates[t.id] ?? []}
               <tr class="hover:bg-base-200/40">
                 <td class="text-sm tabular-nums">
                   {calendarDate(t.transaction_date, locale)}
@@ -184,6 +197,21 @@
                     {t.status}
                   </StatusBadge>
                 </td>
+                <td class="text-right">
+                  {#if data.mayWrite && t.status === "unmatched"}
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      disabled={candidates.length === 0}
+                      title={candidates.length === 0
+                        ? "No same-currency payment moving the same way is on the books yet."
+                        : undefined}
+                      onclick={() => (matching = t.id)}
+                    >
+                      Match
+                    </button>
+                  {/if}
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -192,3 +220,64 @@
     </div>
   {/if}
 </div>
+
+<!-- Match a transaction ---------------------------------------------------- -->
+{#if matching}
+  {@const t = data.transactions.find((x) => x.id === matching)}
+  {#if t}
+    {@const locale = localeFor(t.currency)}
+    <div class="modal modal-open" role="dialog" aria-label="Match transaction">
+      <div class="modal-box">
+        <h3 class="text-lg font-medium">Match transaction</h3>
+        <p class="text-base-content/70 mt-1 text-sm">
+          {t.description ?? "This transaction"} · {money(
+            t.amount,
+            t.currency,
+            locale,
+          )} on {calendarDate(t.transaction_date, locale)}
+        </p>
+        <form
+          method="POST"
+          action="?/match"
+          class="mt-4 grid gap-4"
+          use:enhance={closeOnSuccess(() => (matching = null))}
+        >
+          <input type="hidden" name="transaction_id" value={t.id} />
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Payment</legend>
+            <select
+              name="payment_id"
+              aria-invalid={err.aria("payment_id")}
+              class={`select w-full ${err.select("payment_id")}`}
+              required
+            >
+              <option value="" disabled selected>Choose one</option>
+              {#each data.candidates[t.id] ?? [] as c (c.id)}
+                <option value={c.id}>
+                  {c.payment_number} · {c.counterparty_name ?? "—"} · {money(
+                    c.amount,
+                    c.currency ?? t.currency,
+                    locale,
+                  )}
+                </option>
+              {/each}
+            </select>
+          </fieldset>
+          <div class="modal-action">
+            <button
+              type="button"
+              class="btn btn-ghost"
+              onclick={() => (matching = null)}>Cancel</button
+            >
+            <button type="submit" class="btn btn-primary">Match</button>
+          </div>
+        </form>
+      </div>
+      <button
+        class="modal-backdrop"
+        aria-label="Close"
+        onclick={() => (matching = null)}
+      ></button>
+    </div>
+  {/if}
+{/if}

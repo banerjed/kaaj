@@ -23,6 +23,22 @@ export const BILL_STATUSES = [
 ] as const
 export type BillStatus = (typeof BILL_STATUSES)[number]
 
+/**
+ * What a bank_transaction's status may be. Plain `varchar` with no CHECK
+ * behind it, so this list IS the constraint (L57) — `ignored` is kept even
+ * though no write here produces it, matching module-accounting.md's own
+ * rule that a statement cannot be reconciled with unmatched transactions
+ * "unless marked ignore".
+ */
+export const BANK_TRANSACTION_STATUSES = [
+  "unmatched",
+  "matched",
+  "categorized",
+  "reconciled",
+  "ignored",
+] as const
+export type BankTransactionStatus = (typeof BANK_TRANSACTION_STATUSES)[number]
+
 /** The accounts the payables cycle posts to, by code rather than by id. */
 const ACCOUNTS = {
   cash: "1000",
@@ -537,4 +553,142 @@ export async function recordVendorPayment(
   `
 
   return { paymentNumber, status }
+}
+
+// ---------------------------------------------------------------------------
+// Writes — matching a bank_transaction to a payment already on the books
+// ---------------------------------------------------------------------------
+//
+// No postJournal here, deliberately: the cash movement was already posted by
+// recordPayment/recordVendorPayment when the payment was recorded. Posting
+// again would double-count cash. There is therefore no period_closed check
+// either — that gate lives inside postJournal, and this write never calls it.
+
+export type CandidatePayment = {
+  id: string
+  payment_number: string | null
+  payment_date: string | null
+  amount: string | null
+  currency: string | null
+  counterparty_name: string | null
+}
+
+/**
+ * Payments that could plausibly be each of a set of unmatched bank
+ * transactions: same currency, and the right DIRECTION — a credit (money
+ * in) can only match a customer payment, a debit (money out) only a vendor
+ * payment, since a payment's `amount` is always positive and direction
+ * lives in which id is set. Also excludes any payment already matched to a
+ * different transaction. This is the picker's filter; `matchBankTransaction`
+ * re-checks all of it, since a filter is UX and a crafted POST can name any
+ * payment id. One query for the whole set, to avoid N+1 as the unmatched
+ * list grows (mirrors `ledgerLinesForEntries`).
+ */
+export async function candidatePaymentsForTransactions(
+  tx: Tx,
+  transactionIds: string[],
+): Promise<Record<string, CandidatePayment[]>> {
+  if (transactionIds.length === 0) return {}
+  const rows = await tx<(CandidatePayment & { transaction_id: string })[]>`
+    SELECT t.id AS transaction_id,
+           p.id, p.payment_number,
+           to_char(p.payment_date,'YYYY-MM-DD') AS payment_date,
+           p.amount::text AS amount, p.currency,
+           coalesce(c.customer_name, v.vendor_name) AS counterparty_name
+      FROM bank_transactions t
+      JOIN bank_accounts a ON a.id = t.bank_account_id
+      JOIN payments p ON p.currency = a.currency
+       AND ((t.amount > 0 AND p.customer_id IS NOT NULL)
+            OR (t.amount < 0 AND p.vendor_id IS NOT NULL))
+      LEFT JOIN customers c ON c.id = p.customer_id
+      LEFT JOIN vendors v   ON v.id = p.vendor_id
+     WHERE t.id = ANY(${transactionIds}::uuid[])
+       AND NOT EXISTS (
+             SELECT 1 FROM bank_transactions o
+              WHERE o.matched_to_type = 'payment' AND o.matched_to_id = p.id
+           )
+     ORDER BY t.id, abs(p.amount - abs(t.amount)) ASC, p.payment_date DESC
+  `
+  const out: Record<string, CandidatePayment[]> = {}
+  for (const r of rows) {
+    const { transaction_id, ...candidate } = r
+    ;(out[transaction_id] ??= []).push(candidate)
+  }
+  return out
+}
+
+/**
+ * Tag a bank_transaction as matched to a payment already recorded. Refuses
+ * anything but an unmatched transaction, a currency or direction that
+ * cannot agree with the payment, or a payment already claimed by another
+ * transaction.
+ */
+export async function matchBankTransaction(
+  tx: Tx,
+  transactionId: string,
+  paymentId: string,
+): Promise<{ from: BankTransactionStatus }> {
+  const [txn] = await tx<
+    { status: BankTransactionStatus; currency: string; amount: string }[]
+  >`
+    SELECT t.status, a.currency, t.amount::text AS amount
+      FROM bank_transactions t
+      JOIN bank_accounts a ON a.id = t.bank_account_id
+     WHERE t.id = ${transactionId}::uuid
+  `
+  if (!txn) throw new AccountingRefused("no_such_bank_transaction")
+  if (txn.status !== "unmatched") {
+    throw new AccountingRefused(
+      "wrong_status",
+      `${txn.status} is not unmatched`,
+    )
+  }
+
+  const [payment] = await tx<
+    {
+      currency: string
+      customer_id: string | null
+      vendor_id: string | null
+    }[]
+  >`
+    SELECT currency, customer_id::text AS customer_id,
+           vendor_id::text AS vendor_id
+      FROM payments WHERE id = ${paymentId}::uuid
+  `
+  if (!payment) throw new AccountingRefused("no_such_payment")
+  if (payment.currency !== txn.currency) {
+    throw new AccountingRefused(
+      "currency_mismatch",
+      `${txn.currency} against ${payment.currency}`,
+    )
+  }
+
+  const isCredit = Number(txn.amount) > 0
+  const isCustomerPayment = payment.customer_id !== null
+  if (isCredit !== isCustomerPayment) {
+    throw new AccountingRefused(
+      "direction_mismatch",
+      isCredit
+        ? "a credit can only match money received"
+        : "a debit can only match money paid out",
+    )
+  }
+
+  const [already] = await tx<{ id: string }[]>`
+    SELECT id FROM bank_transactions
+     WHERE matched_to_type = 'payment' AND matched_to_id = ${paymentId}::uuid
+       AND id <> ${transactionId}::uuid
+  `
+  if (already) throw new AccountingRefused("already_matched")
+
+  await tx`
+    UPDATE bank_transactions
+       SET status = 'matched', matched_to_type = 'payment',
+           matched_to_id = ${paymentId}::uuid,
+           match_confidence = 1.00, matching_rule_id = NULL,
+           updated_at = now()
+     WHERE id = ${transactionId}::uuid
+  `
+
+  return { from: txn.status }
 }

@@ -26,6 +26,22 @@ const DRAFT_CLOSED = "4ad6a70c-4bf5-4d20-be0c-82cc758009fa"
 /** BILL-AWS-2026-01 — approved, 1981.53 outstanding, approved by Sarah Johnson. */
 const APPROVED = "fdab0a8b-c4d8-5601-bf23-59c3028e9359"
 
+/** ACH-ACME-002 — unmatched USD credit, +10000.00. */
+const CREDIT_TXN = "180b42f3-73b0-4e6b-b85c-c6420293cfb2"
+/** WIRE-AWS-BATCH-001 — unmatched USD debit, -2500.00. */
+const DEBIT_TXN = "c76154a4-758d-44ae-acb6-fdde20b20cb3"
+/** ACH-ACME-001 — already reconciled, matched to PAY-2026-001. */
+const RECONCILED_TXN = "ba95034d-6bfa-57cb-95ec-74c7779a11a4"
+/** FPS-UNKNOWN-002 — unmatched GBP credit. */
+const GBP_TXN = "dc9d747d-7760-5046-b1bf-27c2c482305a"
+
+/** PAY-2026-002 — a customer payment, USD 10000.00, unmatched to any transaction. */
+const CUSTOMER_PAYMENT = "4c3b0a1e-770f-55b6-820d-d6ba91c6bf73"
+/** VPAY-2026-001 — a vendor payment, USD 2500.00, unmatched to any transaction. */
+const VENDOR_PAYMENT = "c147933d-3de1-5a49-b045-3645d4bc5eaf"
+/** PAY-2026-001 — a customer payment already matched to RECONCILED_TXN. */
+const ALREADY_MATCHED_PAYMENT = "26361e4b-8a87-5b2a-a692-10ec68e02875"
+
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
   try {
@@ -341,5 +357,123 @@ describe("the header is a cache of the lines", () => {
     })
     expect(typeof row.total).toBe("string")
     expect(row.total).toBe("3634.00")
+  })
+})
+
+describe("matching a bank transaction to a payment", () => {
+  it("matches a credit to a customer payment", async () => {
+    const row = await inRollback(async (tx) => {
+      await pay.matchBankTransaction(tx, CREDIT_TXN, CUSTOMER_PAYMENT)
+      const [r] = await tx<
+        { status: string; matched_to_type: string; matched_to_id: string }[]
+      >`
+        SELECT status, matched_to_type, matched_to_id::text AS matched_to_id
+          FROM bank_transactions WHERE id = ${CREDIT_TXN}::uuid
+      `
+      return r
+    })
+    expect(row.status).toBe("matched")
+    expect(row.matched_to_type).toBe("payment")
+    expect(row.matched_to_id).toBe(CUSTOMER_PAYMENT)
+  })
+
+  it("matches a debit to a vendor payment", async () => {
+    const row = await inRollback(async (tx) => {
+      await pay.matchBankTransaction(tx, DEBIT_TXN, VENDOR_PAYMENT)
+      const [r] = await tx<{ status: string }[]>`
+        SELECT status FROM bank_transactions WHERE id = ${DEBIT_TXN}::uuid
+      `
+      return r
+    })
+    expect(row.status).toBe("matched")
+  })
+
+  it("refuses a transaction that is not unmatched", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(tx, RECONCILED_TXN, CUSTOMER_PAYMENT),
+        ),
+      "wrong_status",
+    )
+  })
+
+  it("refuses a payment in a different currency", async () => {
+    // GBP credit against a USD customer payment — same direction, wrong currency.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(tx, GBP_TXN, CUSTOMER_PAYMENT),
+        ),
+      "currency_mismatch",
+    )
+  })
+
+  it("refuses a credit matched to a vendor payment", async () => {
+    // Money IN cannot be a payment the firm made OUT.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(tx, CREDIT_TXN, VENDOR_PAYMENT),
+        ),
+      "direction_mismatch",
+    )
+  })
+
+  it("refuses a payment already claimed by another transaction", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(tx, CREDIT_TXN, ALREADY_MATCHED_PAYMENT),
+        ),
+      "already_matched",
+    )
+  })
+
+  it("refuses a transaction that does not exist", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(
+            tx,
+            "00000000-0000-0000-0000-000000000000",
+            CUSTOMER_PAYMENT,
+          ),
+        ),
+      "no_such_bank_transaction",
+    )
+  })
+
+  it("refuses a payment that does not exist", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.matchBankTransaction(
+            tx,
+            CREDIT_TXN,
+            "00000000-0000-0000-0000-000000000000",
+          ),
+        ),
+      "no_such_payment",
+    )
+  })
+})
+
+describe("candidate payments for the matching picker", () => {
+  it("offers only same-currency, same-direction, still-unmatched payments", async () => {
+    const candidates = await inRollback((tx) =>
+      pay.candidatePaymentsForTransactions(tx, [CREDIT_TXN]),
+    )
+    const ids = (candidates[CREDIT_TXN] ?? []).map((c) => c.id)
+    expect(ids).toContain(CUSTOMER_PAYMENT)
+    expect(ids).not.toContain(VENDOR_PAYMENT) // wrong direction
+    expect(ids).not.toContain(ALREADY_MATCHED_PAYMENT) // already spoken for
+  })
+
+  it("returns nothing for an empty set of transactions, without a query", async () => {
+    const candidates = await inRollback((tx) =>
+      pay.candidatePaymentsForTransactions(tx, []),
+    )
+    expect(candidates).toEqual({})
   })
 })

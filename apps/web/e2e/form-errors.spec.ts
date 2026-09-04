@@ -165,3 +165,46 @@ test("logging time without a description is refused, hours survive", async ({
   await expect(description).toHaveClass(/textarea-error/)
   await expect(description).toHaveAttribute("aria-invalid", "true")
 })
+
+test("a vendor payment with a third decimal is refused, not rounded", async ({
+  page,
+}) => {
+  // BILL-AWS-2026-01: approved, outstanding, so "Pay vendor" is on screen.
+  await page.goto("/accounting/bills/fdab0a8b-c4d8-5601-bf23-59c3028e9359")
+  await openModal(page, /pay vendor/i, 'input[name="amount"]')
+
+  const amount = page.locator('input[name="amount"]')
+  const date = page.locator('input[name="payment_date"]')
+
+  // Same shape as the compensation case: numeric(15,2) refuses a third
+  // decimal rather than silently rounding it away.
+  await amount.fill("123.456")
+  await date.fill("2026-03-15")
+  await submitPastTheBrowser(page, "?/recordPayment")
+
+  await expect(amount).toHaveClass(/input-error/)
+  await expect(amount).toHaveAttribute("aria-invalid", "true")
+  await expect(amount).toHaveValue("123.456")
+  // The modal is still open and the good field survived.
+  await expect(date).toHaveValue("2026-03-15")
+})
+
+test("matching a bank transaction with no payment chosen is refused", async ({
+  page,
+}) => {
+  await page.goto("/accounting/banking")
+  await openModal(page, /^match$/i, 'select[name="payment_id"]')
+
+  // The placeholder option is left selected — required, and empty past the
+  // browser once noValidate is set.
+  await submitPastTheBrowser(page, "?/match")
+
+  await expect(page.locator(".alert").first()).toContainText("Missing payment")
+  await expect(page.locator('select[name="payment_id"]')).toHaveClass(
+    /select-error/,
+  )
+  await expect(page.locator('select[name="payment_id"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  )
+})

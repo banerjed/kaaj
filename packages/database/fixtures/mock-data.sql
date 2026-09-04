@@ -853,7 +853,15 @@ INSERT INTO bank_transactions (id, tenant_id, bank_account_id, transaction_date,
     ('ba95034d-6bfa-57cb-95ec-74c7779a11a4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-01-22', '2026-01-22', 'ACME PAYMENT INV-2026-001', 'ACH-ACME-001', 42300.00, 248500.00, 'credit', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 'reconciled', 'payment', '26361e4b-8a87-5b2a-a692-10ec68e02875', 0.98, NULL, '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z'),
     ('ee8b9238-21a3-5c86-9a26-b3d121526ecf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-01-23', '2026-01-23', 'JetBrains subscription', 'CARD-JB-001', -299.00, 248201.00, 'debit', '030e294b-88ad-544e-841a-cfda187885ac', 'categorized', NULL, NULL, 0.91, '73d3f520-f923-54bd-aab7-9f75d145f087', '2026-01-23T09:00:00Z', '2026-01-23T09:00:00Z', '2026-01-23T09:00:00Z'),
     ('77706d29-15b8-5bcd-9e80-0f07016e582b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', '2026-02-07', '2026-02-07', 'Britannia partial payment', 'FPS-BRITCO-001', 10000.00, 71200.00, 'credit', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 'matched', 'payment', 'f615bb1d-dc3a-563f-b1ff-7205a9f70587', 0.94, NULL, '2026-02-07T14:00:00Z', '2026-02-07T14:00:00Z', '2026-02-07T14:00:00Z'),
-    ('dc9d747d-7760-5046-b1bf-27c2c482305a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', '2026-02-08', '2026-02-08', 'Unidentified client remittance', 'FPS-UNKNOWN-002', 12000.00, 83200.00, 'credit', NULL, 'unmatched', NULL, NULL, 0.62, NULL, '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z');
+    ('dc9d747d-7760-5046-b1bf-27c2c482305a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', '2026-02-08', '2026-02-08', 'Unidentified client remittance', 'FPS-UNKNOWN-002', 12000.00, 83200.00, 'credit', NULL, 'unmatched', NULL, NULL, 0.62, NULL, '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z', '2026-02-08T09:00:00Z'),
+    -- Two more unmatched lines, deliberately one of each direction: the only
+    -- other unmatched transaction above (dc9d747d) is a GBP credit with no
+    -- unmatched USD payment on either side to pair with, which left
+    -- direction_mismatch with nothing real to refuse (L50, L51). PAY-2026-002
+    -- (a customer payment) and VPAY-2026-001 (a vendor payment) are both
+    -- already on the books and both still unmatched to any transaction.
+    ('180b42f3-73b0-4e6b-b85c-c6420293cfb2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-02-07', '2026-02-07', 'ACME REMITTANCE', 'ACH-ACME-002', 10000.00, 258201.00, 'credit', NULL, 'unmatched', NULL, NULL, NULL, NULL, '2026-02-07T09:00:00Z', '2026-02-07T09:00:00Z', '2026-02-07T09:00:00Z'),
+    ('c76154a4-758d-44ae-acb6-fdde20b20cb3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-02-10', '2026-02-10', 'AWS BATCH WIRE', 'WIRE-AWS-BATCH-001', -2500.00, 255701.00, 'debit', NULL, 'unmatched', NULL, NULL, NULL, NULL, '2026-02-10T09:00:00Z', '2026-02-10T09:00:00Z', '2026-02-10T09:00:00Z');
 
 UPDATE bank_transactions SET
     bank_transaction_id = CASE reference
@@ -861,9 +869,11 @@ UPDATE bank_transactions SET
         WHEN 'CARD-JB-001' THEN 'bnk_txn_jetbrains_001'
         WHEN 'FPS-BRITCO-001' THEN 'bnk_txn_britco_001'
         WHEN 'FPS-UNKNOWN-002' THEN 'bnk_txn_unknown_002'
+        WHEN 'ACH-ACME-002' THEN 'bnk_txn_acme_002'
+        WHEN 'WIRE-AWS-BATCH-001' THEN 'bnk_txn_aws_batch_001'
         ELSE bank_transaction_id
     END
-WHERE reference IN ('ACH-ACME-001','CARD-JB-001','FPS-BRITCO-001','FPS-UNKNOWN-002');
+WHERE reference IN ('ACH-ACME-001','CARD-JB-001','FPS-BRITCO-001','FPS-UNKNOWN-002','ACH-ACME-002','WIRE-AWS-BATCH-001');
 
 -- Accounting periods, one closed to exercise period-close logic
 INSERT INTO accounting_periods (id, tenant_id, period_name, period_type, start_date, end_date, fiscal_year, status, closed_at, closed_by, created_at, updated_at) VALUES

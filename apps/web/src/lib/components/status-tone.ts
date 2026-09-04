@@ -80,3 +80,13 @@ export const timeEntryStatusTone = (s: string | null): Tone =>
       : s === "rejected"
         ? "critical"
         : "neutral"
+
+/** `bank_transactions.status` — unmatched/matched/categorized/reconciled/ignored. */
+export const bankTransactionStatusTone = (s: string | null): Tone =>
+  s === "reconciled"
+    ? "positive"
+    : s === "unmatched"
+      ? "caution"
+      : s === "ignored"
+        ? "neutral"
+        : "progress"

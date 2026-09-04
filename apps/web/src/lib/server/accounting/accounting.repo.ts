@@ -309,7 +309,18 @@ export class AccountingRefused extends Error {
       // The approver may not also be the payer — same rule as payroll's
       // calculated_by/approved_by, applied across bills and payments instead
       // of within one row (payroll_runs.repo.ts).
-      | "self_approval",
+      | "self_approval"
+      | "no_such_bank_transaction"
+      | "no_such_payment"
+      | "currency_mismatch"
+      // A credit can only match money IN (a customer payment) and a debit
+      // only money OUT (a vendor payment) — the sign of bank_transactions.amount
+      // against which id is set on the payment.
+      | "direction_mismatch"
+      // A payment already tied to a different bank_transaction — no unique
+      // constraint enforces this (matched_to_id is polymorphic, not an FK),
+      // so it is a repo-layer check, same shape as self_approval.
+      | "already_matched",
     readonly detail?: string,
   ) {
     super(reason)
