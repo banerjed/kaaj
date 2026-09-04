@@ -247,6 +247,12 @@ code. See [docs/06-customization-model.md](docs/06-customization-model.md).
 
 ## Before building a module
 
+Read **[CODING_GUIDELINES.md](CODING_GUIDELINES.md)** — the patterns for
+authorizing a new API call, RLS on a new table, money, timezones, locale,
+audit logging, error handling, UI code and form validation, each with a real
+GOOD/BAD example. It teaches the pattern; this file and `./check` are still
+the authority on the specifics.
+
 Read **[docs/10-lessons-learned.md](docs/10-lessons-learned.md)**. It is a
 running list of the traps in this codebase, each of which failed *silently* —
 an empty page, an unstyled component, a control no keyboard can reach. Comments
