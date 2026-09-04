@@ -2,13 +2,13 @@
 
 **Status:** active
 **Created:** 2026-08-29
-**Last verified against the code:** 2026-09-01, at `8c86539`
+**Last verified against the code:** 2026-09-03, at `50df4a4`
 
 Phases 0–2 of [09-build-plan.md](./09-build-plan.md) are done: the shell, the
 data layer, the firm profile and the employee profile. This document covers what
 is left, and the order to build it in.
 
-30 of the 116 repositories `api-surface.md` enumerates exist. That ratio still
+31 of the 116 repositories `api-surface.md` enumerates exist. That ratio still
 overstates the work remaining — the hard parts (tenancy, the transaction
 wrapper, formatting, the form and table patterns, authorization, the audit
 register) are built and every module below reuses them.
@@ -149,19 +149,55 @@ from a query alone — it needs an explicit audit trail.
 
 ---
 
-## Phase 5 — Time Tracking ⬜ not started
+## Phase 5 — Time Tracking (slice 1 done; timesheets and expenses ahead)
 
-`docs/module-time-tracking.md` · 4 tables. **No repository, no route.**
+`docs/module-time-tracking.md` · the tables (`time_tracking_entries`,
+`time_tracking_hourly_rates`, `time_tracking_timesheets`,
+`time_tracking_billable_expenses`) turned out to already exist — a schema
+coverage pass created them from the module spec with no application code on
+top, which is what "not started" actually meant here.
 
 **`/attendance` is not this module.** `hr_attendance` belongs to HR, and the
-existence of an attendance page has twice been read as Phase 5 having begun. It
-has not. Timesheets, billable hours and hourly rates are all still ahead, and
-they feed both payroll (overtime, against the Phase 1 policies) and accounting
-(billable expenses).
+existence of an attendance page has twice been read as Phase 5 having begun.
+Manual time entries are, now — but timesheets and billable expenses are not.
 
-**The hard part is rounding.** `firm_payroll_policies.time_rounding` already
-exists and is respected nowhere yet. Rounding must happen once, at a defined
-boundary, or the same week totals differently on a timesheet and on an invoice.
+1. **Manual time entries — ✅ done.** `/time-tracking` renders and writes:
+   log a draft against a project (and optionally a task), submit, approve or
+   reject. `hourly_rate` resolves from `time_tracking_hourly_rates`
+   (effective-dated on the entry date, falling back to the project's own
+   rate — never the employee's `_pvt` default) at creation; `billable_amount`
+   is snapshotted only at approval, through the office's
+   `firm_payroll_policies.time_rounding`. `tasks.actual_hours` /
+   `billable_hours` / `non_billable_hours` and `projects.actual_hours`
+   recompute in the same transaction, never incremented (L58), guarded by
+   `staleHours()`.
+
+   **The hard part was rounding**, and it is solved: `hours` is stored raw
+   and never rewritten; only the derived `billable_amount` is rounded, at
+   approval rather than at entry time, because the applicable policy can
+   change between the two and there is no raw figure to recompute from if it
+   snapshotted early.
+
+2. **Timesheets** — ⬜ not started. `time_tracking_timesheets` exists but
+   `period_start`/`period_end` are `TEXT`, not `DATE` — fix that before
+   building a UI on top, or every date comparison is a string comparison.
+
+3. **Billable expenses** — ⬜ not started. `time_tracking_billable_expenses`
+   exists, unused.
+
+4. **Real-time timers** — ⬜ not started, deliberately deferred. Manual entry
+   covers the billing need; a start/stop timer is a UI feature on the same
+   table, not a schema change.
+
+**Found, not yet resolved: a duplicate table.** `pm_task_time_entries` is a
+second, narrower time-entry table (task/project both `NOT NULL`, no
+timesheet, no submit step) — a project-management coverage pass that didn't
+know about the time-tracking module's own tables. It has one fixture row and
+no application code either way. `time_tracking_entries` is the one this slice
+built on (richer, matches the module spec, and its nullable `project_id`/
+`task_id` is required by a real fixture row — a non-project entry
+`pm_task_time_entries` cannot represent). Deciding what to do with
+`pm_task_time_entries` — drop it, or repurpose it — is still open.
 
 ---
 
