@@ -38,3 +38,34 @@ export async function signInAs(
     await expect(page).not.toHaveURL(/\/login\/sign_in/, { timeout: 2_000 })
   }).toPass({ timeout: 15_000 })
 }
+
+/**
+ * Click the button that opens a modal, and be sure it actually opened.
+ * Same helper as form-errors.spec.ts's — duplicated rather than imported so
+ * that file stays untouched; shared here for specs written after it.
+ */
+export async function openModal(page: Page, button: RegExp, field: string) {
+  await expect(async () => {
+    await page.getByRole("button", { name: button }).first().click()
+    await expect(page.locator(field)).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
+}
+
+/**
+ * Submit a form the browser would otherwise refuse to send — bypasses
+ * native `required`/`type` validation so the ACTION sees exactly what was
+ * typed, which is the point of an authorization probe: a client-side gate
+ * silently blocking submission must never be mistaken for a server-side
+ * refusal (TESTPLAN.md SEC-06 found this the hard way).
+ */
+export async function submitPastTheBrowser(page: Page, formSelector = "form") {
+  await page
+    .locator(formSelector)
+    .first()
+    .evaluate((f: HTMLFormElement) => (f.noValidate = true))
+  await page
+    .locator(formSelector)
+    .first()
+    .locator('button[type="submit"]')
+    .click()
+}

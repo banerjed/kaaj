@@ -196,6 +196,25 @@ describe("tenant isolation still holds underneath", () => {
     expect(c.employees).toBe(0)
     expect(c.pay).toBe(0)
   })
+
+  // TESTPLAN.md SEC-09 — ticketing is new (2026-09-05) and had no isolation
+  // test of its own. There's no second populated tenant in the fixture, so
+  // this mirrors the test above: a bogus tenant claim must see zero rows,
+  // not every row (fail closed, per L74 — "no claim" and "not staff" are
+  // different questions, and both must land on "nothing").
+  it("shows no tickets for another tenant, even a role that reads all of Northwind's", async () => {
+    const c = await asRole(
+      {
+        employeeId: MARCUS,
+        role: "employee",
+        functionalRoles: ["it_admin"],
+        tenantId: "00000000-0000-0000-0000-0000000000ff",
+      },
+      (tx) =>
+        tx<{ n: number }[]>`SELECT count(*)::int AS n FROM ticketing_tickets`,
+    )
+    expect(c[0].n).toBe(0)
+  })
 })
 
 // -----------------------------------------------------------------------------

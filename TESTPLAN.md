@@ -105,6 +105,21 @@ missing.
   copying the pattern from, rather than inventing a new one, when this gets
   fixed.
 
+**Broadened by `rbac-boundaries.spec.ts` (SEC-05):** `/settings/company`'s
+gap is not portal-specific either. Signed in as `marcus.chen` — an ordinary
+staff `employee` with no functional role at all, who legitimately belongs
+in `(app)` — the page still returns **200 with full content**, not 403.
+`firm.settings.read` is nowhere in the plain-`employee` permission bundle
+(`packages/authz`), and the page's own `load()` (confirmed by reading
+`(app)/settings/company/+page.server.ts`) checks only `locals.tenantId` —
+no `requireCan` call at all. This means **two separate fixes are needed**,
+not one: a role check in `(app)/+layout.server.ts` closes the
+customer-portal boundary (redirects `customer` away from every route at
+once), but it would **not** stop Marcus, who is legitimately staff — that
+requires `requireCan(ctx, "firm.settings.read")` added to the page's own
+`load()`, the same pattern the 6 correctly-refusing routes below evidently
+already use.
+
 This should almost certainly be fixed by adding a role check to
 `(app)/+layout.server.ts` (redirect `customer` to `/portal`), which would
 close it for every route at once rather than patching the remaining 16
@@ -133,11 +148,12 @@ lifecycle/access testing) has no persona for it today — flagged as
 | SEC-02 | Customer contact cannot reach any `(app)` route | dana.whitcombe (+ felix, imogen, theo) | Redirected to `/portal` on any `(app)/**` URL, not just blocked data. Today: lands on `/employees`, full shell renders (DEFECT-02). | `apps/web/e2e/portal.spec.ts` | **Confirmed failing** (run: 1 failed, as expected) |
 | SEC-03 | Sweep every `(app)` route as `customer` | dana.whitcombe | For each of the ~22 routes in `smoke.spec.ts`'s `PAGES` list plus `/settings/*`: does the page 403/redirect, render empty (RLS held), or leak real data? | `apps/web/e2e/portal.spec.ts` (`expect.soft` sweep) | **Done — 17/22 leak, 6 refuse.** Full list in §0/DEFECT-02 above. |
 | SEC-04 | Role-boundary sweep, positive half | Each persona in the roster | For every screen its role bundle should reach, it reaches it and sees real data (not a blank RLS-starved page passing by accident — L21). | Existing `smoke.spec.ts` (owner only) + extend | Partial (owner only) |
-| SEC-05 | Role-boundary sweep, negative half | Each persona against a screen/action it should be refused | Refusal is real: checked against the **network response**, not just the DOM (L44 — a hidden link is not a permission). Priority targets: compensation detail as a plain employee viewing a colleague; payroll runs as a non-payroll_admin; accounting as a non-finance role. | New e2e: `apps/web/e2e/rbac-boundaries.spec.ts` | Not started |
-| SEC-06 | Auditor cannot write, anywhere, including through a control the UI still shows | lena.fischer | `lena.fischer` (auditor) can open `/employees/new` — the "New Employee" button is not hidden or disabled for her. **Inconclusive this cycle**: filled the form and clicked submit twice; no `POST` was observed (`read_network_requests` showed nothing matching `employees`) and no row was created in the database — client-side validation silently blocked it (likely an unfilled required select — Department/Office/Level — with no visible error, itself worth a UX-track finding). Need `submitPastTheBrowser`-style raw submission (`form-errors.spec.ts`'s pattern: `form.noValidate = true` then click) to actually reach the server and confirm `employee.create` is refused server-side, not just gated by a silent client validator. | New e2e case in `rbac-boundaries.spec.ts` | Started, inconclusive |
-| SEC-07 | Segregation-of-duties CHECK constraints hold at the DB, not just in `packages/authz` | N/A (DB-level) | Attempt `functional_roles = {hr_admin, payroll_admin}` and `functional_roles = {auditor, sales_admin}` directly via SQL; confirm both raise `tenant_users_pay_setter_is_not_pay_approver` / `tenant_users_auditor_writes_nothing`. | `packages/spec-tests` or a one-off psql check | Not started (constraints exist; watching them actually fire is the L48 "never observed failing is not evidence" rule) |
-| SEC-08 | IDOR — cross-persona UUID substitution | Any employee vs. another employee's compensation/PII UUID; portal contact vs. another customer's ticket UUID | Substituting a real, valid UUID belonging to someone else into a URL/form field for an otherwise-authorized action is refused server-side. | New e2e case, `rbac-boundaries.spec.ts` | Not started |
-| SEC-09 | Tenant isolation for the new ticketing tables | Any Northwind persona vs. a second tenant's ticket (needs a second tenant — none in the fixture today) | No cross-tenant ticket read via direct ID. | Vitest — mirror `row-visibility.test.ts`'s pattern for `ticketing_tickets` | Not started |
+| SEC-04 | Role-boundary sweep, positive half | marcus.chen (compensation redaction control) | Confirmed correct: `/compensation/<colleague>` shows the explicit `EmptyState` "You cannot see this person's compensation." rather than an ambiguous blank (L21 done right). | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** Still only one persona/screen pair exercised; broader sweep remains future work. |
+| SEC-05 | Role-boundary sweep, negative half | marcus.chen | Two cases run: (1) `/settings/company` as a plain employee — **fails**, confirming the gap is broader than the customer-portal boundary (see DEFECT-02 addendum above); (2) compensation redaction — **passes** (same as SEC-04's row). | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — 1 new confirmed defect, 1 pass.** |
+| SEC-06 | Auditor cannot write, anywhere, including through a control the UI still shows | lena.fischer | Resolved: a `noValidate`-bypassed, empty submission to `/employees/new` gets a real 403 and no redirect — `requireCan(ctx, "employee.create")` runs before any form parsing and correctly refuses her regardless of what the client-side validator had been silently blocking. | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** (Was "inconclusive"; root cause of the earlier inconclusive result was an unfilled native-`required` `employee_id` field, invisible because its placeholder text reads like a value.) |
+| SEC-07 | Segregation-of-duties CHECK constraints hold at the DB, not just in `packages/authz` | N/A (DB-level) | Attempt `functional_roles = {hr_admin, payroll_admin}` and `functional_roles = {auditor, sales_admin}` directly via SQL; confirm both raise `tenant_users_pay_setter_is_not_pay_approver` / `tenant_users_auditor_writes_nothing`. | `packages/database/tests/verify-invariants.sql`'s `authz/constraint-refuses` probes | **Already done — pre-existing.** Runs as part of `./check`'s "schema invariants" step (142 assertions, already green); manually re-verified live via `psql` (all 3 forbidden combos raised the expected constraint name; a legal combo — `it_admin`+`finance_admin` — succeeded as a control). Corrected from "Not started" — should have been checked against existing infra before being planned as new work. |
+| SEC-08 | IDOR — cross-persona UUID substitution | marcus.chen, targeting Priya's `employeeId` | A raw `POST` to `/compensation/<priya>?/raise`, bypassing the UI entirely (the "Record a change" control never renders for Marcus, but the action is reachable regardless) — refused with 403. | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** Only one target (compensation write) exercised; PII and ticketing IDOR remain open. |
+| SEC-09 | Tenant isolation for the new ticketing tables | Fabricated tenant claim (no second populated tenant in the fixture — same limitation the pre-existing "tenant isolation still holds underneath" test already accepts) | `SELECT count(*) FROM ticketing_tickets` returns 0 for a bogus `tenant_id`, even for a role (`it_admin`) that reads all of Northwind's own tickets. | `apps/web/src/lib/server/db/row-visibility.test.ts` (extended) | **Done — passes.** 173/173 in that file, including this new case. |
 
 ---
 
@@ -323,11 +339,17 @@ the 12-employee fixture). Per TESTING_GUIDELINES §8:
 |---|---|---|
 | `apps/web/e2e/portal.spec.ts` | SEC-02, SEC-03, FUNC-TIX-02 (read side), UX-02 (portal routes) | **Written and run.** 5 tests: 2 fail (correctly, documenting DEFECT-02), 3 pass. Ticket-write cases (ADV-08, FUNC-TIX-02 write side) still open — need their own serial project. |
 | `apps/web/e2e/access-lifecycle.spec.ts` | SEC-01, FUNC-EMP-02 | **Written and run.** 1 test, fails (correctly, documenting DEFECT-01). |
-| `apps/web/e2e/helpers.ts` | Shared `signInAs()` used by both files above — signs in a persona other than the suite's default owner within a single test, with the same hydration-race retry `form-errors.spec.ts` already uses for clicks | **Written.** Not a spec file itself; no tests of its own. |
+| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04, SEC-05, SEC-06, SEC-08 | **Written and run.** 4 tests: 1 fails (new confirmed defect — DEFECT-02 addendum), 3 pass (SEC-06 resolved, IDOR and redaction controls both hold). |
+| `apps/web/e2e/helpers.ts` | Shared `signInAs()`, `openModal()`, `submitPastTheBrowser()` — the last two duplicated from `form-errors.spec.ts` rather than imported, so that file stays untouched | **Written.** Not a spec file itself; no tests of its own. |
 | `apps/web/src/lib/server/rich-text.test.ts` | ADV-12 | **Written and run.** 9/9 passing (vitest — cheaper than a browser for a pure function). |
-| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04–SEC-06, SEC-08 | Not started |
+| `apps/web/src/lib/server/db/row-visibility.test.ts` (extended, not new) | SEC-09 | **Done.** One case added to the existing "tenant isolation still holds underneath" `describe` block; 173/173 passing in the file. |
+| `packages/database/tests/verify-invariants.sql` (pre-existing) | SEC-07 | **Already covered** — see SEC-07's row above. |
 | Extend `apps/web/e2e/form-errors.spec.ts` | ADV-04–ADV-07, ADV-09 | Not started |
-| Vitest, mirroring `row-visibility.test.ts` | SEC-07, SEC-09, FUNC-EMP-03 | Not started |
+
+**Current full-suite result:** `pnpm --filter @kaaj/web e2e` — 49 passed, 4
+failed (all 4 are confirmed-defect regressions, failing on purpose:
+`access-lifecycle.spec.ts` ×1, `portal.spec.ts` ×2, `rbac-boundaries.spec.ts`
+×1). `./check` (21 steps) and the two vitest files above are fully green.
 
 **A note on `signInAs`'s own bug, found writing it:** the first version
 resolved success by `waitForURL(/\/(portal|employees|login)/)` — a regex
