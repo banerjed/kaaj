@@ -86,6 +86,37 @@ export const actions: Actions = {
           module: "employee-profile",
           changes: audit.diff(before, parsed.input, EMPLOYMENT_FIELDS),
         })
+
+        // Directory status and access are two different things — marking
+        // someone terminated/retired must revoke the login, not just their
+        // place in the org chart (DEFECT-01, TESTPLAN.md §0). Deliberately
+        // one-directional: un-terminating someone does not restore the old
+        // membership, since what role they should come back as is a product
+        // decision this fix doesn't make.
+        const wasGoing =
+          before?.employment_status === "terminated" ||
+          before?.employment_status === "retired"
+        const isGoing =
+          parsed.input.employment_status === "terminated" ||
+          parsed.input.employment_status === "retired"
+        if (isGoing && !wasGoing) {
+          const [membership] = await tx<{ id: string }[]>`
+            UPDATE tenant_users SET is_active = FALSE
+             WHERE tenant_id = ${locals.tenantId}
+               AND employee_id = ${params.id}
+               AND is_active
+            RETURNING id
+          `
+          if (membership) {
+            await audit.record(tx, contextFrom(locals)!, {
+              action: "role_revoke",
+              entityType: "tenant_users",
+              entityId: membership.id,
+              module: "employee-profile",
+              changes: { is_active: { from: "true", to: "false" } },
+            })
+          }
+        }
         return false
       })
     } catch (e) {

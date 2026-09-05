@@ -30,6 +30,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     redirect(303, "/account?no_tenant=1")
   }
 
+  // A portal contact's tenant_users row satisfies both checks above just as
+  // trivially as staff does — nothing else here distinguishes them. Route
+  // them to the portal they're meant for, not the internal application
+  // (DEFECT-02, TESTPLAN.md §0).
+  if (locals.tenantRole === "customer") {
+    redirect(303, "/portal")
+  }
+
   // Loaded once here since it's needed on every screen. Typed deliberately — an untyped row is `any` downstream (L53).
   const tenant = await withTenant(actorFrom(locals), async (tx) => {
     const [row] = await tx<TenantSettings[]>`

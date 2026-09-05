@@ -22,6 +22,7 @@ import { sanitizeEmail, sanitizePhoneNumber } from "@kaaj/validation"
 /** /settings/company — module-firm-profile.md § Company Profile Page. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
 
   const tenant = await withTenant(actorFrom(locals), (tx) =>
     tenants.getCurrent(tx),

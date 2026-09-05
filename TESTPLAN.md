@@ -16,7 +16,7 @@ straight down the tables.
 
 ## 0. Confirmed defects (found writing this plan — fix before the rest matters)
 
-### DEFECT-01 — A terminated employee keeps a fully working login
+### DEFECT-01 — A terminated employee keeps a fully working login — **FIXED**
 
 **R0. Confirmed live**, not inferred.
 
@@ -38,13 +38,38 @@ straight down the tables.
   the Supabase Auth session itself is presumably not revoked either (untested
   — see SEC-01 below).
 
-**Regression test written and run:** `apps/web/e2e/access-lifecycle.spec.ts`
-— **fails**, confirming the defect
-(`page.url()` still matches `/employees` after signing in as Nadia). Left
-red on purpose per TESTING_GUIDELINES.md; will flip green the day this is
-fixed.
+**Fixed:** `employees/[id]/edit/+page.server.ts`'s `default` action now
+deactivates the matching `tenant_users` row, in the same transaction as the
+employee update, whenever `employment_status` transitions into
+`terminated`/`retired` (and records a `role_revoke` audit entry —
+`docs/10-lessons-learned.md` L79 territory but not the same lesson; see
+below). `custom_access_token_hook` already filtered memberships on
+`is_active`, so revoking the row is sufficient — no session-invalidation
+mechanism was needed. Deliberately one-directional: reactivating someone
+does not restore a prior membership, since what role they should come back
+as is a product decision this fix doesn't make.
 
-### DEFECT-02 — A customer-portal contact can reach the entire staff application
+The fixture itself modeled a *pre-existing* inconsistent state (terminated
+via raw SQL, membership left active) that the fixed application can no
+longer produce going forward; `packages/database/fixtures/mock-data.sql` now
+derives Nadia's seeded `tenant_users.is_active` from her employment status
+instead of hardcoding `TRUE`, and `dev-users.sql` was corrected to still
+seed her a working Supabase Auth login despite the inactive membership — see
+`docs/10-lessons-learned.md` L78, a real trap this surfaced (an inactive
+seeded membership silently deleted the login itself, not just the access, so
+the test read as a click-race flake until traced).
+
+**Verified:**
+- `apps/web/e2e/access-lifecycle.spec.ts` — was failing, now **passes**.
+- The transition path itself (not just the fixture's already-terminated
+  state) was verified live with a throwaway spec: POSTed a real termination
+  through the edit action for an otherwise-active employee, confirmed
+  `tenant_users.is_active` flipped and a `role_revoke` audit row landed with
+  `{"is_active": {"from": "true", "to": "false"}}`, then reseeded. Not kept
+  as a permanent spec — it writes, and the suite has no serial-write project
+  yet (same gap blocking ADV-01/02/08/09).
+
+### DEFECT-02 — A customer-portal contact can reach the entire staff application — **FIXED**
 
 **R0. Confirmed live.** More severe than DEFECT-01 — this is the boundary
 CLAUDE.md and `docs/17-customer-portal.md` are most explicit about ("a portal
@@ -120,11 +145,32 @@ requires `requireCan(ctx, "firm.settings.read")` added to the page's own
 `load()`, the same pattern the 6 correctly-refusing routes below evidently
 already use.
 
-This should almost certainly be fixed by adding a role check to
-`(app)/+layout.server.ts` (redirect `customer` to `/portal`), which would
-close it for every route at once rather than patching the remaining 16
-individually — worth flagging to whoever fixes it, though the fix itself is
-out of scope for this plan.
+**Fixed, both halves:**
+- `(app)/+layout.server.ts` now redirects any session with `tenantRole ===
+  "customer"` to `/portal`, right after the existing `tenantId` check —
+  closing the portal-contact boundary for all ~22 routes at once rather than
+  patching each individually.
+- All 8 `/settings/*` pages' `load()` functions now call
+  `requireCan(contextFrom(locals), "firm.settings.read")` as their first
+  statement, matching the `can()` + `error(403)` pattern already used by
+  `payroll/runs`, every `accounting/*` page and `ticketing` — confirmed by
+  reading those routes before writing this fix, so it extends an existing
+  convention rather than adding a second one. This is the general form of
+  the gap: a page's `load()` had no read-permission check of its own, only
+  its write `actions` did. Recorded as `docs/10-lessons-learned.md` L79 and
+  a new rule in `CLAUDE.md`'s "Rules that are easy to get wrong", since nine
+  other `(app)` pages could plausibly have had the identical gap and weren't
+  individually audited — only the 8 settings pages and the layout-level
+  portal boundary were addressed by this fix.
+
+**Verified:**
+- `apps/web/e2e/portal.spec.ts`'s sweep (SEC-03) — was 17/22 leaking, now
+  **0/22 leak** (all pass).
+- `apps/web/e2e/rbac-boundaries.spec.ts`'s Marcus-vs-`/settings/company` case
+  (SEC-05) — was failing, now **passes** (403).
+- Full `./check` (21 steps) and the full e2e suite (60/60) both green after
+  the fix, including `smoke.spec.ts`'s owner-authenticated visits to all 8
+  settings pages (owner holds `firm.settings.read`, so no regression there).
 
 ---
 
@@ -144,12 +190,12 @@ lifecycle/access testing) has no persona for it today — flagged as
 
 | ID | Case | Persona(s) | Expected | Vehicle | Status |
 |---|---|---|---|---|---|
-| SEC-01 | Terminated employee's session/login | nadia.hassan | Either the login itself is refused, or an existing session is invalidated once `employees.is_active` flips to false. Today: neither — login succeeds (DEFECT-01). | `apps/web/e2e/access-lifecycle.spec.ts` | **Confirmed failing** (run: 1 failed, as expected) |
-| SEC-02 | Customer contact cannot reach any `(app)` route | dana.whitcombe (+ felix, imogen, theo) | Redirected to `/portal` on any `(app)/**` URL, not just blocked data. Today: lands on `/employees`, full shell renders (DEFECT-02). | `apps/web/e2e/portal.spec.ts` | **Confirmed failing** (run: 1 failed, as expected) |
-| SEC-03 | Sweep every `(app)` route as `customer` | dana.whitcombe | For each of the ~22 routes in `smoke.spec.ts`'s `PAGES` list plus `/settings/*`: does the page 403/redirect, render empty (RLS held), or leak real data? | `apps/web/e2e/portal.spec.ts` (`expect.soft` sweep) | **Done — 17/22 leak, 6 refuse.** Full list in §0/DEFECT-02 above. |
+| SEC-01 | Terminated employee's session/login | nadia.hassan | Either the login itself is refused, or an existing session is invalidated once `employees.is_active` flips to false. | `apps/web/e2e/access-lifecycle.spec.ts` | **Fixed — passes.** DEFECT-01: the edit action now revokes `tenant_users.is_active` on termination; the token hook already filtered logins on it. |
+| SEC-02 | Customer contact cannot reach any `(app)` route | dana.whitcombe (+ felix, imogen, theo) | Redirected to `/portal` on any `(app)/**` URL, not just blocked data. | `apps/web/e2e/portal.spec.ts` | **Fixed — passes.** DEFECT-02: `(app)/+layout.server.ts` redirects `tenantRole === "customer"` to `/portal`. |
+| SEC-03 | Sweep every `(app)` route as `customer` | dana.whitcombe | For each of the ~22 routes in `smoke.spec.ts`'s `PAGES` list plus `/settings/*`: does the page 403/redirect, render empty (RLS held), or leak real data? | `apps/web/e2e/portal.spec.ts` (`expect.soft` sweep) | **Fixed — 0/22 leak.** Was 17/22; the layout redirect closes all of them at once. See §0/DEFECT-02. |
 | SEC-04 | Role-boundary sweep, positive half | Each persona in the roster | For every screen its role bundle should reach, it reaches it and sees real data (not a blank RLS-starved page passing by accident — L21). | Existing `smoke.spec.ts` (owner only) + extend | Partial (owner only) |
 | SEC-04 | Role-boundary sweep, positive half | marcus.chen (compensation redaction control) | Confirmed correct: `/compensation/<colleague>` shows the explicit `EmptyState` "You cannot see this person's compensation." rather than an ambiguous blank (L21 done right). | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** Still only one persona/screen pair exercised; broader sweep remains future work. |
-| SEC-05 | Role-boundary sweep, negative half | marcus.chen | Two cases run: (1) `/settings/company` as a plain employee — **fails**, confirming the gap is broader than the customer-portal boundary (see DEFECT-02 addendum above); (2) compensation redaction — **passes** (same as SEC-04's row). | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — 1 new confirmed defect, 1 pass.** |
+| SEC-05 | Role-boundary sweep, negative half | marcus.chen | Two cases run: (1) `/settings/company` as a plain employee — refused (403); (2) compensation redaction — **passes** (same as SEC-04's row). | `apps/web/e2e/rbac-boundaries.spec.ts` | **Fixed — both pass.** (1) was the DEFECT-02 addendum: all 8 settings pages now call `requireCan(ctx, "firm.settings.read")` in `load()`. |
 | SEC-06 | Auditor cannot write, anywhere, including through a control the UI still shows | lena.fischer | Resolved: a `noValidate`-bypassed, empty submission to `/employees/new` gets a real 403 and no redirect — `requireCan(ctx, "employee.create")` runs before any form parsing and correctly refuses her regardless of what the client-side validator had been silently blocking. | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** (Was "inconclusive"; root cause of the earlier inconclusive result was an unfilled native-`required` `employee_id` field, invisible because its placeholder text reads like a value.) |
 | SEC-07 | Segregation-of-duties CHECK constraints hold at the DB, not just in `packages/authz` | N/A (DB-level) | Attempt `functional_roles = {hr_admin, payroll_admin}` and `functional_roles = {auditor, sales_admin}` directly via SQL; confirm both raise `tenant_users_pay_setter_is_not_pay_approver` / `tenant_users_auditor_writes_nothing`. | `packages/database/tests/verify-invariants.sql`'s `authz/constraint-refuses` probes | **Already done — pre-existing.** Runs as part of `./check`'s "schema invariants" step (142 assertions, already green); manually re-verified live via `psql` (all 3 forbidden combos raised the expected constraint name; a legal combo — `it_admin`+`finance_admin` — succeeded as a control). Corrected from "Not started" — should have been checked against existing infra before being planned as new work. |
 | SEC-08 | IDOR — cross-persona UUID substitution | marcus.chen, targeting Priya's `employeeId` | A raw `POST` to `/compensation/<priya>?/raise`, bypassing the UI entirely (the "Record a change" control never renders for Marcus, but the action is reachable regardless) — refused with 403. | `apps/web/e2e/rbac-boundaries.spec.ts` | **Done — passes.** Only one target (compensation write) exercised; PII and ticketing IDOR remain open. |
@@ -337,9 +383,9 @@ the 12-employee fixture). Per TESTING_GUIDELINES §8:
 
 | File | Covers | Status |
 |---|---|---|
-| `apps/web/e2e/portal.spec.ts` | SEC-02, SEC-03, FUNC-TIX-02 (read side), UX-02 (portal routes) | **Written and run.** 5 tests: 2 fail (correctly, documenting DEFECT-02), 3 pass. Ticket-write cases (ADV-08, FUNC-TIX-02 write side) still open — need their own serial project. |
-| `apps/web/e2e/access-lifecycle.spec.ts` | SEC-01, FUNC-EMP-02 | **Written and run.** 1 test, fails (correctly, documenting DEFECT-01). |
-| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04, SEC-05, SEC-06, SEC-08 | **Written and run.** 4 tests: 1 fails (new confirmed defect — DEFECT-02 addendum), 3 pass (SEC-06 resolved, IDOR and redaction controls both hold). |
+| `apps/web/e2e/portal.spec.ts` | SEC-02, SEC-03, FUNC-TIX-02 (read side), UX-02 (portal routes) | **Written and run — all 5 pass.** Documented DEFECT-02, then verified fixed (was 2 failing). Ticket-write cases (ADV-08, FUNC-TIX-02 write side) still open — need their own serial project. |
+| `apps/web/e2e/access-lifecycle.spec.ts` | SEC-01, FUNC-EMP-02 | **Written and run — passes.** Documented DEFECT-01, then verified fixed. |
+| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04, SEC-05, SEC-06, SEC-08 | **Written and run — all 4 pass.** Documented the DEFECT-02 addendum (plain employee vs. `/settings/company`), then verified fixed; SEC-06, IDOR and redaction controls all held throughout. |
 | `apps/web/e2e/helpers.ts` | Shared `signInAs()`, `openModal()`, `submitPastTheBrowser()` — the last two duplicated from `form-errors.spec.ts` rather than imported, so that file stays untouched | **Written.** Not a spec file itself; no tests of its own. |
 | `apps/web/src/lib/server/rich-text.test.ts` | ADV-12 | **Written and run.** 9/9 passing (vitest — cheaper than a browser for a pure function). |
 | `apps/web/src/lib/server/db/row-visibility.test.ts` (extended, not new) | SEC-09 | **Done.** One case added to the existing "tenant isolation still holds underneath" `describe` block; 173/173 passing in the file. |
@@ -356,10 +402,9 @@ the tenant's one company-profile row, which several already-passing tests
 read from — do these in a serial project with a reseed, not folded into the
 read-only suites above.
 
-**Current full-suite result:** `pnpm --filter @kaaj/web e2e` — 56 passed, 4
-failed (all 4 are confirmed-defect regressions, failing on purpose:
-`access-lifecycle.spec.ts` ×1, `portal.spec.ts` ×2, `rbac-boundaries.spec.ts`
-×1). `./check` (21 steps) and all vitest files are fully green.
+**Current full-suite result:** `pnpm --filter @kaaj/web e2e` — **60/60
+passing.** DEFECT-01 and DEFECT-02 (and its broadened addendum) are fixed;
+see §0. `./check` (21 steps) and all vitest files are fully green.
 
 **A note on `signInAs`'s own bug, found writing it:** the first version
 resolved success by `waitForURL(/\/(portal|employees|login)/)` — a regex

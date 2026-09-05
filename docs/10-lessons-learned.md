@@ -1825,6 +1825,75 @@ pass or fail for the wrong reason on every SvelteKit form action in this
 codebase — check which of `fail()` or `error()` the target action actually
 uses before writing the assertion, not after it passes unexpectedly.
 
+### L78 — Seeding an inactive `tenant_users` row silently deletes the login along with the access
+
+Fixing DEFECT-01 (a terminated employee kept full access) meant seeding one
+membership — Nadia's — as `is_active = FALSE`, to model someone whose
+termination the application has already caught up with. The e2e test written
+against it (`access-lifecycle.spec.ts`) failed anyway, but not on the
+assertion: `signInAs` never got her past `/login/sign_in` at all, retried the
+sign-in click for the full 15s, and gave up. It read exactly like the L76
+click race.
+
+It wasn't. `dev-users.sql` builds `auth.users` and `auth.identities` — the
+rows GoTrue actually authenticates against — by selecting `FROM tenant_users
+tu ... WHERE tu.is_active`. That filter was written when every seeded
+membership was active, to mean "every membership gets a login." Once one
+membership wasn't, it silently meant "every *active* membership gets a
+login" instead — Nadia had no `auth.users` row at all, so Supabase Auth
+rejected her password outright and the page never left `/login/sign_in`.
+Nothing raised: `dev-users.sql`'s own verification block only checks for
+orphans among *active* memberships, so an inactive one missing a login
+passed it without being examined.
+
+The fix inverts the filter's assumption: `is_active` on `tenant_users` is an
+application-level access decision, not a statement about whether the person
+can authenticate at all — a terminated employee's Supabase Auth account is
+exactly what has to survive so the *application* can be the thing that
+refuses them. Both `auth.users` and `auth.identities` are now seeded for
+every `tenant_users` row regardless of `is_active`; only the orphan check
+stays scoped to active rows, since that's the one that should still fail if
+someone who's supposed to have working access doesn't.
+
+Seeding any fixture row in a state a real user could reach — inactive,
+archived, revoked — needs the same question asked of every seed script it
+touches: does this filter assume the state that's changing?
+
+### L79 — A page's `load()` inherits nothing from its own `actions`
+
+DEFECT-02's sweep (`rbac-boundaries.spec.ts`) found eight `/settings/*` pages
+whose `load()` checked only `if (!locals.tenantId)` — no role, no
+permission — while every one of their write `actions` already called
+`requireCan(ctx, "firm.settings.write")`. A plain employee with zero admin
+hats could read all eight pages; the sidebar just didn't link to them, which
+is not a permission (L44). The layout gate one level up
+(`(app)/+layout.server.ts`) only separated staff from portal contacts — it
+was never meant to, and can't, express a page-specific read permission.
+
+`load()` and `actions` are separate functions, checked separately, and nothing
+connects them. Writing a permission check into `actions` protects exactly the
+POST — the GET that renders the page first is a different code path with no
+guard unless it has its own. This is the same shape as L34 (browser
+attributes vanish on a crafted request) one level up: the thing that looks
+like protection (a write check, a hidden sidebar link) covers a different
+surface than the one being judged safe.
+
+The fix is one line, first in `load()`, matching the pattern already used by
+`payroll/runs`, every `accounting/*` page and `ticketing`:
+
+```ts
+export const load: PageServerLoad = async ({ locals }) => {
+  if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
+  ...
+```
+
+Adding a new `(app)` page: give `load()` its own `requireCan` for whatever it
+reads, even when the module's only mutating action already checks write
+access. A read permission and a write permission are different strings in
+`packages/authz` for exactly this reason — reusing the write check in `load()`
+would have been the second version of this bug, one page-load ago.
+
 ---
 
 ## Conventions

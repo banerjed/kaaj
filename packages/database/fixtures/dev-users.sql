@@ -25,7 +25,9 @@
 --   yuki.tanaka@northwind.example      employee, functional_roles: {marketing_admin}
 --   rachel.adeyemi@northwind.example   employee, functional_roles: {hr_admin}
 --   oliver.grant@northwind.example     employee, functional_roles: {it_admin}
---   nadia.hassan@northwind.example     contractor (matches her employment_type)
+--   nadia.hassan@northwind.example     contractor — membership deliberately
+--                                      revoked (employment_status='terminated',
+--                                      DEFECT-01); this login does not work
 --
 -- PORTAL LOGINS (docs/17-customer-portal.md) — role 'customer', no employee_id
 --   dana.whitcombe@acme.example        Acme Manufacturing, primary contact
@@ -82,7 +84,10 @@ SELECT
 FROM tenant_users tu
 LEFT JOIN employees e ON e.id = tu.employee_id
 LEFT JOIN customer_contacts cc ON cc.id = tu.customer_contact_id
-WHERE tu.is_active
+-- Not filtered on is_active: a revoked membership (DEFECT-01 — a terminated
+-- employee) means Supabase Auth still authenticates them, and the app is
+-- what has to refuse them past that point. An inactive row with no login at
+-- all would test the wrong thing entirely.
 ON CONFLICT (id) DO NOTHING;
 
 
@@ -111,8 +116,8 @@ FROM auth.users u
 -- Every user this script itself just created (staff AND portal contacts),
 -- not a domain-name guess — the set of "our seeded users" is exactly
 -- tenant_users.user_id, which is what the auth.users INSERT above sourced
--- its rows from.
-WHERE u.id IN (SELECT user_id FROM tenant_users WHERE is_active)
+-- its rows from (active or not — see that INSERT's comment).
+WHERE u.id IN (SELECT user_id FROM tenant_users)
 ON CONFLICT (provider_id, provider) DO NOTHING;
 
 

@@ -485,6 +485,19 @@ shared with the unit suites, so a spec that writes needs its own serial project
 and a reseed. Run with `pnpm --filter @kaaj/web e2e` — deliberately NOT in
 `./check`, which is 24 seconds and worth keeping that way.
 
+**A page's `load()` checks its own read permission — a `requireCan` in that
+page's `actions`, or a guard in a parent layout, covers neither.** Eight
+`/settings/*` pages had `requireCan(ctx, "firm.settings.write")` in their
+write action and nothing but `if (!locals.tenantId)` in `load()`, so any
+signed-in staff member — no admin hat required — could read all eight; the
+sidebar simply didn't link there, which is not a permission (L44). The
+shared `(app)/+layout.server.ts` gate is for coarse identity (a signed-in
+session, staff vs. portal contact), not a page's specific permission, and a
+write check protects only the POST. Add `requireCan(contextFrom(locals),
+"<module>.<thing>.read")` as the first line of `load()`, right after the
+tenant check — the read and write permission are deliberately different
+strings in `@kaaj/authz` ([L79](docs/10-lessons-learned.md)).
+
 **An error is never logged raw — it goes through `safeError`
 (`$lib/errors.ts`), and unexpected ones through `handleError`.** A
 `PostgresError` carries the offending row in `detail`, and `where`, `query`

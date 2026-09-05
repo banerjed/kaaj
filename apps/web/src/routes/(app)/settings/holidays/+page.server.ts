@@ -11,6 +11,7 @@ import { constraintFailure } from "$lib/server/db/constraints"
 /** /settings/holidays — module-firm-profile.md § Holiday Calendar. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
 
   // Filter state lives in the URL so the view is shareable and survives a reload.
   const yearParam = url.searchParams.get("year")

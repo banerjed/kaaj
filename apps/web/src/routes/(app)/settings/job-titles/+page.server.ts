@@ -14,6 +14,7 @@ import { allEnumerations } from "@kaaj/enums"
 /** /settings/job-titles — module-firm-profile.md § Job Titles Page. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
 
   const { jobTitles, jobLevels, locations } = await withTenant(
     actorFrom(locals),

@@ -1126,7 +1126,13 @@ SELECT
         WHEN 'E011' THEN ARRAY['it_admin']::text[]
         ELSE '{}'::text[]
     END,
-    TRUE, TRUE, '2026-01-01T09:00:00Z'
+    -- Termination revokes access (DEFECT-01): a login for someone already
+    -- terminated/retired at seed time is exactly the state the app itself
+    -- now prevents (employees/[id]/edit/+page.server.ts), so the fixture
+    -- shouldn't be able to produce it either. E012 (Nadia) is terminated
+    -- below and lands here inactive.
+    e.employment_status NOT IN ('terminated', 'retired'),
+    TRUE, '2026-01-01T09:00:00Z'
 FROM employees e
 -- Every employee is a tenant member. E003 (Priya) is additionally the
 -- subject of the one review still in `draft` — the only login that

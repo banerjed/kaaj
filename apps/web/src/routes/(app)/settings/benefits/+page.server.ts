@@ -26,6 +26,7 @@ const BENEFIT_TYPES = [
 /** /settings/benefits — module-firm-profile.md § FR-FP-006. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
 
   return withTenant(actorFrom(locals), async (tx) => ({
     packages: await packages.list(tx),

@@ -10,6 +10,7 @@ import { constraintFailure } from "$lib/server/db/constraints"
 /** /settings/departments — module-firm-profile.md § Departments Page. */
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "firm.settings.read")
 
   return withTenant(actorFrom(locals), async (tx) => ({
     departments: await departments.list(tx),
