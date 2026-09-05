@@ -23,3 +23,22 @@ export const keepValues: SubmitFunction =
   async ({ update }) => {
     await update({ reset: false })
   }
+
+/**
+ * A native form reset never reaches a `contenteditable` — `RichTextEditor`
+ * isn't a form control the browser knows how to clear. Wrap it in
+ * `{#key n}` and bump `n` here on success; a refused submission leaves both
+ * alone, so the draft survives exactly like every other field (L68).
+ *
+ * ```svelte
+ * <form method="POST" use:enhance={resetOnSuccess(() => richTextKey++)}>
+ *   {#key richTextKey}<RichTextEditor name="content" />{/key}
+ * ```
+ */
+export function resetOnSuccess(clear: () => void): SubmitFunction {
+  return () =>
+    async ({ update, result }) => {
+      await update()
+      if (result.type === "success" || result.type === "redirect") clear()
+    }
+}

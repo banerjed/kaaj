@@ -5,9 +5,12 @@
   import { instant } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import { ticketStatusTone as statusTone } from "$lib/components/status-tone"
+  import RichTextEditor from "$lib/components/RichTextEditor.svelte"
+  import { resetOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
 
+  let replyKey = $state(0)
   const err = $derived(fieldErrors(form))
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
@@ -39,10 +42,11 @@
   {/if}
 
   <div class="card bg-base-100 mt-4 shadow">
-    <div class="card-body p-4">
-      <p class="text-sm">
-        {data.ticket.external_summary ?? data.ticket.description}
-      </p>
+    <div
+      class="card-body p-4 text-sm [&_ol]:list-inside [&_ol]:list-decimal [&_ul]:list-inside [&_ul]:list-disc"
+    >
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeRichText() ran server-side in ticketById() -->
+      {@html data.ticket.external_summary ?? data.ticket.description}
     </div>
   </div>
 
@@ -50,7 +54,12 @@
     {#each data.updates as u (u.id)}
       <div class="card bg-base-100 shadow">
         <div class="card-body p-4">
-          <p class="text-sm">{u.content_text}</p>
+          <div
+            class="text-sm [&_ol]:list-inside [&_ol]:list-decimal [&_ul]:list-inside [&_ul]:list-disc"
+          >
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeRichText() ran server-side in ticketUpdates() -->
+            {@html u.content_text}
+          </div>
           <p class="text-base-content/70 mt-1 text-xs">
             {u.author_name ?? "—"} · {fmt(u.created_at)}
           </p>
@@ -59,17 +68,22 @@
     {/each}
   </div>
 
-  <form method="POST" action="?/reply" use:enhance class="mt-4 grid gap-3">
+  <form
+    method="POST"
+    action="?/reply"
+    use:enhance={resetOnSuccess(() => replyKey++)}
+    class="mt-4 grid gap-3"
+  >
     <fieldset class="fieldset">
       <legend class="fieldset-legend">Reply</legend>
-      <textarea
-        name="content"
-        aria-invalid={err.aria("content")}
-        class={`textarea w-full ${err.textarea("content")}`}
-        rows="3"
-        maxlength="5000"
-        required
-      ></textarea>
+      {#key replyKey}
+        <RichTextEditor
+          name="content"
+          required
+          placeholder="Write a reply"
+          invalid={err.has("content")}
+        />
+      {/key}
     </fieldset>
     <button type="submit" class="btn btn-primary btn-sm self-start">Send</button
     >

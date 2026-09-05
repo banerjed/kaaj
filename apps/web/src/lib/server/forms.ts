@@ -1,5 +1,6 @@
 import { allEnumerations } from "@kaaj/enums"
 import { compareDecimal } from "$lib/decimal"
+import { sanitizeRichText } from "$lib/server/rich-text"
 
 /**
  * Reading and validating form fields. Every action writes through this — the
@@ -122,6 +123,23 @@ export class FormReader {
       if (opts.min !== undefined && [...v].length < opts.min) return undefined
       if (opts.pattern && !opts.pattern.test(v)) return undefined
       return v
+    })
+    return opts.required ? (value ?? "") : value
+  }
+
+  /**
+   * A `RichTextEditor` field. `max` gates the RAW submitted markup (which
+   * runs longer than its visible text), then `sanitizeRichText` strips
+   * anything outside its fixed allowlist before the value is ever stored —
+   * the one write-side path, mirrored by a read-side pass in
+   * `ticketing.repo.ts` (`$lib/server/rich-text.ts`'s doc comment).
+   */
+  html(name: string, opts: Base & { max: number; required: true }): string
+  html(name: string, opts: Base & { max: number }): string | null
+  html(name: string, opts: Base & { max: number }): string | null {
+    const value = this.read(name, opts.required ?? false, (raw) => {
+      if ([...raw].length > opts.max) return undefined
+      return sanitizeRichText(raw)
     })
     return opts.required ? (value ?? "") : value
   }

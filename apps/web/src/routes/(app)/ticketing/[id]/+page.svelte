@@ -6,9 +6,12 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import { ticketStatusTone as statusTone } from "$lib/components/status-tone"
+  import RichTextEditor from "$lib/components/RichTextEditor.svelte"
+  import { resetOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
 
+  let updateKey = $state(0)
   const err = $derived(fieldErrors(form))
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
@@ -67,7 +70,12 @@
           {data.ticket.status.replace(/_/g, " ")}
         </StatusBadge>
       </div>
-      <p class="text-sm">{data.ticket.description}</p>
+      <div
+        class="text-sm [&_ol]:list-inside [&_ol]:list-decimal [&_ul]:list-inside [&_ul]:list-disc"
+      >
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeRichText() ran server-side in ticketById(), $lib/server/rich-text.ts -->
+        {@html data.ticket.description}
+      </div>
 
       {#if data.mayWrite}
         <form
@@ -99,7 +107,12 @@
       {#each data.updates as u (u.id)}
         <li class="list-row">
           <div class="list-col-grow">
-            <p class="text-sm">{u.content_text}</p>
+            <div
+              class="text-sm [&_ol]:list-inside [&_ol]:list-decimal [&_ul]:list-inside [&_ul]:list-disc"
+            >
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitizeRichText() ran server-side in ticketUpdates() -->
+              {@html u.content_text}
+            </div>
             <p class="text-base-content/70 mt-1 text-xs">
               {u.author_name ?? "—"} · {fmt(u.created_at)}
               {#if u.visibility === "internal"}
@@ -120,19 +133,19 @@
     <form
       method="POST"
       action="?/addUpdate"
-      use:enhance
+      use:enhance={resetOnSuccess(() => updateKey++)}
       class="mt-4 grid gap-3"
     >
       <fieldset class="fieldset">
         <legend class="fieldset-legend">Add an update</legend>
-        <textarea
-          name="content"
-          aria-invalid={err.aria("content")}
-          class={`textarea w-full ${err.textarea("content")}`}
-          rows="3"
-          maxlength="5000"
-          required
-        ></textarea>
+        {#key updateKey}
+          <RichTextEditor
+            name="content"
+            required
+            placeholder="Write an update"
+            invalid={err.has("content")}
+          />
+        {/key}
       </fieldset>
       <div class="flex items-center gap-3">
         <select

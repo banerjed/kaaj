@@ -1,6 +1,7 @@
 <script lang="ts">
   import PageHead from "$lib/components/PageHead.svelte"
   import { fieldErrors } from "$lib/form-errors"
+  import RichTextEditor from "$lib/components/RichTextEditor.svelte"
 
   let { data, form } = $props()
 
@@ -54,14 +55,12 @@
     </fieldset>
     <fieldset class="fieldset">
       <legend class="fieldset-legend">Description</legend>
-      <textarea
+      <RichTextEditor
         name="description"
-        aria-invalid={err.aria("description")}
-        class={`textarea w-full ${err.textarea("description")}`}
-        rows="4"
         required
-        maxlength="5000"
-      ></textarea>
+        placeholder="Describe the issue"
+        invalid={err.has("description")}
+      />
     </fieldset>
     <fieldset class="fieldset">
       <legend class="fieldset-legend">Needed by</legend>

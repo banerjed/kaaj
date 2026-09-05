@@ -27,7 +27,7 @@ export const actions: Actions = {
     const f = new FormReader(await request.formData())
     const businessAreaId = f.uuid("business_area_id", { required: true })
     const title = f.text("title", { required: true, max: 255 })
-    const description = f.text("description", { required: true, max: 5000 })
+    const description = f.html("description", { required: true, max: 20000 })
     const category = f.text("category", { required: true, max: 100 })
     const dueDate = f.date("due_date", { required: true })
     if (!f.ok) return fail(400, f.problem("That ticket is not valid."))

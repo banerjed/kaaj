@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { sanitizeRichText } from "../rich-text"
 
 /**
  * Tickets — one repository, two callers. Staff and portal routes both read
@@ -124,6 +125,7 @@ export type TicketDetail = TicketRow & {
   business_area_id: string
 }
 
+/** Sanitized again on the way out — defense in depth for any row a `RichTextEditor` didn't write (fixtures, a future direct SQL insert). */
 export async function ticketById(
   tx: Tx,
   id: string,
@@ -134,7 +136,15 @@ export async function ticketById(
     ${tx.unsafe(TICKET_FROM)}
      WHERE t.id = ${id}::uuid
   `
-  return row ?? null
+  if (!row) return null
+  return {
+    ...row,
+    description: row.description && sanitizeRichText(row.description),
+    external_summary:
+      row.external_summary && sanitizeRichText(row.external_summary),
+    internal_summary:
+      row.internal_summary && sanitizeRichText(row.internal_summary),
+  }
 }
 
 export type TicketUpdateRow = {
@@ -145,12 +155,16 @@ export type TicketUpdateRow = {
   created_at: Date
 }
 
-/** Internal updates are already filtered out for a portal contact by RLS — never re-checked here. */
+/**
+ * Internal updates are already filtered out for a portal contact by RLS —
+ * never re-checked here. `content_text` is sanitized again on the way out —
+ * defense in depth for any row a `RichTextEditor` didn't write.
+ */
 export async function ticketUpdates(
   tx: Tx,
   ticketId: string,
 ): Promise<TicketUpdateRow[]> {
-  return tx<TicketUpdateRow[]>`
+  const rows = await tx<TicketUpdateRow[]>`
     SELECT u.id,
            coalesce(u.author_name, e.first_name || ' ' || e.last_name,
                     cc.first_name || ' ' || cc.last_name) AS author_name,
@@ -161,6 +175,10 @@ export async function ticketUpdates(
      WHERE u.ticket_id = ${ticketId}::uuid
      ORDER BY u.created_at
   `
+  return rows.map((r) => ({
+    ...r,
+    content_text: r.content_text && sanitizeRichText(r.content_text),
+  }))
 }
 
 /** Who is creating this ticket — exactly one of the two, mirrors tenant_users. */

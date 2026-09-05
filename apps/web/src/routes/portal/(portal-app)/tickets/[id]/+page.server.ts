@@ -30,7 +30,7 @@ export const actions: Actions = {
     requireCan(ctx, "ticket.submit")
 
     const f = new FormReader(await request.formData())
-    const content = f.text("content", { required: true, max: 5000 })
+    const content = f.html("content", { required: true, max: 20000 })
     if (!f.ok) return fail(400, f.problem("Write something before posting."))
 
     return withTenant(actorFrom(locals), async (tx) => {

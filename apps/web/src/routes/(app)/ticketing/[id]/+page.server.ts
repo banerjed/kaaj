@@ -35,7 +35,7 @@ export const actions: Actions = {
     requireCan(ctx, "ticketing.write.own")
 
     const f = new FormReader(await request.formData())
-    const content = f.text("content", { required: true, max: 5000 })
+    const content = f.html("content", { required: true, max: 20000 })
     const visibility = f.choice("visibility", ["internal", "external"], {
       required: true,
     })
