@@ -38,7 +38,11 @@ straight down the tables.
   the Supabase Auth session itself is presumably not revoked either (untested
   — see SEC-01 below).
 
-**Regression test to write:** `SEC-01` below.
+**Regression test written and run:** `apps/web/e2e/access-lifecycle.spec.ts`
+— **fails**, confirming the defect
+(`page.url()` still matches `/employees` after signing in as Nadia). Left
+red on purpose per TESTING_GUIDELINES.md; will flip green the day this is
+fixed.
 
 ### DEFECT-02 — A customer-portal contact can reach the entire staff application
 
@@ -79,12 +83,33 @@ missing.
   has no row-visibility policy restricting it by role at all — only tenant
   isolation).
 
-**Regression test to write, and the scope question to answer:** `SEC-02` and
-`SEC-03` below. This should almost certainly be fixed by adding a role check
-to `(app)/+layout.server.ts` (redirect `customer` to `/portal`), which would
-close it for every route at once rather than patching pages individually —
-worth flagging to whoever fixes it, though the fix itself is out of scope for
-this plan.
+**Regression tests written and run:** `apps/web/e2e/portal.spec.ts` —
+**fails**, confirming the defect and its exact scope. A full sweep of the
+`(app)` route list (SEC-03) shows this is not uniform:
+
+- **17 of 22 routes fully render the staff page (HTTP 200, no redirect) for
+  a `customer` session**: `/employees`, `/time-off`, `/attendance`,
+  `/performance`, `/onboarding`, `/compensation`, `/projects`,
+  `/time-tracking`, `/payroll/payslips`, and **all six** `/settings/*`
+  routes tested (`company`, `departments`, `locations`, `job-titles`,
+  `holidays`, `benefits`, `payroll/policies`, `payroll/schedules`). For most
+  of these, RLS still blanks the underlying rows (e.g. `/employees` shows
+  "0 people" — the row-visibility policy holds even though the shell
+  shouldn't have rendered at all). **`/settings/company` is the one
+  confirmed to leak real data anyway**, because `tenants` carries no
+  row-visibility policy narrower than tenant membership.
+- **6 routes correctly refuse**: `/payroll/runs`, `/accounting/invoices`,
+  `/accounting/bills`, `/accounting/ledger`, `/accounting/banking`,
+  `/ticketing`. These modules evidently have their own page-level
+  permission check independent of the shared layout — worth finding and
+  copying the pattern from, rather than inventing a new one, when this gets
+  fixed.
+
+This should almost certainly be fixed by adding a role check to
+`(app)/+layout.server.ts` (redirect `customer` to `/portal`), which would
+close it for every route at once rather than patching the remaining 16
+individually — worth flagging to whoever fixes it, though the fix itself is
+out of scope for this plan.
 
 ---
 
@@ -104,9 +129,9 @@ lifecycle/access testing) has no persona for it today — flagged as
 
 | ID | Case | Persona(s) | Expected | Vehicle | Status |
 |---|---|---|---|---|---|
-| SEC-01 | Terminated employee's session/login | nadia.hassan | Either the login itself is refused, or an existing session is invalidated once `employees.is_active` flips to false. Today: neither — login succeeds (DEFECT-01). | New e2e: `apps/web/e2e/access-lifecycle.spec.ts` | **Confirmed failing** |
-| SEC-02 | Customer contact cannot reach any `(app)` route | dana.whitcombe (+ felix, imogen, theo) | Redirected to `/portal` on any `(app)/**` URL, not just blocked data. Today: lands on `/employees`, full shell renders (DEFECT-02). | New e2e: `apps/web/e2e/portal.spec.ts` | **Confirmed failing** |
-| SEC-03 | Sweep every `(app)` route as `customer` | dana.whitcombe | For each of the ~25 routes in `smoke.spec.ts`'s `PAGES` list plus `/settings/*`: does the page 403/redirect, render empty (RLS held), or leak real data (like `/settings/company` does)? Build the full list — this scopes how bad DEFECT-02 is. | Manual this cycle → codify as a loop in `portal.spec.ts` | Not started |
+| SEC-01 | Terminated employee's session/login | nadia.hassan | Either the login itself is refused, or an existing session is invalidated once `employees.is_active` flips to false. Today: neither — login succeeds (DEFECT-01). | `apps/web/e2e/access-lifecycle.spec.ts` | **Confirmed failing** (run: 1 failed, as expected) |
+| SEC-02 | Customer contact cannot reach any `(app)` route | dana.whitcombe (+ felix, imogen, theo) | Redirected to `/portal` on any `(app)/**` URL, not just blocked data. Today: lands on `/employees`, full shell renders (DEFECT-02). | `apps/web/e2e/portal.spec.ts` | **Confirmed failing** (run: 1 failed, as expected) |
+| SEC-03 | Sweep every `(app)` route as `customer` | dana.whitcombe | For each of the ~22 routes in `smoke.spec.ts`'s `PAGES` list plus `/settings/*`: does the page 403/redirect, render empty (RLS held), or leak real data? | `apps/web/e2e/portal.spec.ts` (`expect.soft` sweep) | **Done — 17/22 leak, 6 refuse.** Full list in §0/DEFECT-02 above. |
 | SEC-04 | Role-boundary sweep, positive half | Each persona in the roster | For every screen its role bundle should reach, it reaches it and sees real data (not a blank RLS-starved page passing by accident — L21). | Existing `smoke.spec.ts` (owner only) + extend | Partial (owner only) |
 | SEC-05 | Role-boundary sweep, negative half | Each persona against a screen/action it should be refused | Refusal is real: checked against the **network response**, not just the DOM (L44 — a hidden link is not a permission). Priority targets: compensation detail as a plain employee viewing a colleague; payroll runs as a non-payroll_admin; accounting as a non-finance role. | New e2e: `apps/web/e2e/rbac-boundaries.spec.ts` | Not started |
 | SEC-06 | Auditor cannot write, anywhere, including through a control the UI still shows | lena.fischer | `lena.fischer` (auditor) can open `/employees/new` — the "New Employee" button is not hidden or disabled for her. **Inconclusive this cycle**: filled the form and clicked submit twice; no `POST` was observed (`read_network_requests` showed nothing matching `employees`) and no row was created in the database — client-side validation silently blocked it (likely an unfilled required select — Department/Office/Level — with no visible error, itself worth a UX-track finding). Need `submitPastTheBrowser`-style raw submission (`form-errors.spec.ts`'s pattern: `form.noValidate = true` then click) to actually reach the server and confirm `employee.create` is refused server-side, not just gated by a silent client validator. | New e2e case in `rbac-boundaries.spec.ts` | Started, inconclusive |
@@ -132,7 +157,8 @@ masks what the server actually does.
 | ADV-05 | Employee "Date of birth" / any date field | `2026-13-45`, `2026-02-31` | Refused via `f.date()`'s round-trip check, not silently rolled to a nearby real date (L67) | New e2e case |
 | ADV-06 | `/employees/new` — Employee ID field | A value colliding with an existing `employee_id`, and a value with SQL-special characters | UNIQUE constraint refusal surfaces a sentence naming the field (per the constraint registry), not an Internal Error | New e2e case |
 | ADV-07 | Any select-backed field (Gender, Marital status, Status, Type) | A value outside the rendered `<option>` list, submitted via a raw request bypassing the `<select>` | Refused by `FormReader`'s `enumValue`/`choice`, not stored as free text | New e2e case, raw fetch |
-| ADV-08 | Portal ticket creation (`/portal/tickets`, "New ticket") | XSS payload in subject/body; a `customer_id`/`customer_contact_id` field added to the POST body that doesn't belong to the signed-in contact (mass assignment / IDOR) | Payload inert on render; foreign IDs ignored — ticket is created under the actual session's identity regardless of what the body claims | New e2e: `portal.spec.ts` |
+| ADV-08 | Portal ticket creation (`/portal/tickets`, "New ticket") | XSS payload in subject/body; a `customer_id`/`customer_contact_id` field added to the POST body that doesn't belong to the signed-in contact (mass assignment / IDOR) | Payload inert on render; foreign IDs ignored — ticket is created under the actual session's identity regardless of what the body claims | New e2e: `portal.spec.ts` (not yet written — this specific case needs a real write, so it needs its own serial project + reseed per TESTING_GUIDELINES §3, unlike the read-only cases already added to that file) |
+| ADV-12 | Ticket description/comment rich text (`sanitizeRichText`, applied on both write via `FormReader.html()` and read via `ticketing.repo.ts`) | `<script>`, `onerror=`/`onclick=` attributes, `javascript:` URIs, an out-of-palette color, an out-of-allowlist style property | Stripped in every case; allowed tags (`b`/`i`/`ul`/`li`/etc.) and the fixed 6-color/4-size palette survive unchanged | **Done** — `apps/web/src/lib/server/rich-text.test.ts`, 9/9 passing (vitest, not e2e — a pure function, cheaper to test directly than through a browser per TESTING_GUIDELINES §3) |
 | ADV-09 | Company Profile translations (`/settings/company`, en-US/en-GB/en-IN/fr-FR/de-DE fields) | XSS payload in a translation field | Inert on every page that renders the localized company name | New e2e case |
 | ADV-10 | Login form | SQL-special characters in the email field, and a very long password (denial-of-resource check, not a crash) | Ordinary "invalid credentials," no 500, no timing oracle worth escalating | Manual / new e2e case |
 | ADV-11 | Repeated failed logins | 10+ failed attempts against one seeded account | Establish whether there's any throttling at all today (this cycle didn't check) — if none exists, that's a finding, not necessarily a fix-now item | Manual |
@@ -210,13 +236,15 @@ evidence to check (not "the page loaded"). `R0`/`R1` per
   ticket creation (missing subject/description) and an SLA-breach display
   check (`sla_response_breached`/`sla_resolution_breached` columns exist per
   `mock-data.sql`).
-- **FUNC-TIX-02**: Portal side (`/portal/tickets`) — **zero e2e coverage
-  today**. Confirmed live: list renders, scoped to the signed-in contact's
-  own tickets (`CS-0003`, `CS-0001` for Dana/Acme). Add: create a ticket,
-  confirm it's attributed to the right `customer_id`/`customer_contact_id`
-  (see ADV-08), confirm a second Acme contact (`felix.ndiaye`) sees the
-  *same* tickets (shared per-customer visibility per
-  `docs/17-customer-portal.md`) while `imogen.faulkner` (Britannia) does not.
+- **FUNC-TIX-02**: Portal side (`/portal/tickets`) — **read-side now covered**
+  in `apps/web/e2e/portal.spec.ts`, all passing: the list is scoped to the
+  signed-in contact's own tickets (`CS-0001`, `CS-0003`); a second Acme
+  contact (`felix.ndiaye`) sees the *same* tickets (shared per-customer
+  visibility per `docs/17-customer-portal.md` holds); `imogen.faulkner`
+  (Britannia — a different customer) sees neither. **Still open:** create a
+  ticket and confirm it's attributed to the right `customer_id`/
+  `customer_contact_id` (ADV-08) — that needs a real write, so it needs its
+  own serial project + reseed rather than joining the read-only tests above.
 
 ### 4.6 Settings / Company Profile — `R1`, `R0` for the access question
 
@@ -289,16 +317,35 @@ the 12-employee fixture). Per TESTING_GUIDELINES §8:
 
 ---
 
-## 8. New spec files this plan implies
+## 8. New spec files
 
-| File | Covers |
-|---|---|
-| `apps/web/e2e/portal.spec.ts` | SEC-02, SEC-03, FUNC-TIX-02, ADV-08, UX-02 (portal routes) — **does not exist today** |
-| `apps/web/e2e/access-lifecycle.spec.ts` | SEC-01, FUNC-EMP-02 — the terminated-employee-access regression |
-| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04–SEC-06, SEC-08 |
-| Extend `apps/web/e2e/form-errors.spec.ts` | ADV-04–ADV-07, ADV-09 |
-| Extend `apps/web/e2e/smoke.spec.ts` | Add `/portal`, `/portal/tickets` to a portal-specific persona sweep (needs its own project — the existing file's storage state is the owner's) |
-| Vitest, mirroring `row-visibility.test.ts` | SEC-07, SEC-09, FUNC-EMP-03 |
+| File | Covers | Status |
+|---|---|---|
+| `apps/web/e2e/portal.spec.ts` | SEC-02, SEC-03, FUNC-TIX-02 (read side), UX-02 (portal routes) | **Written and run.** 5 tests: 2 fail (correctly, documenting DEFECT-02), 3 pass. Ticket-write cases (ADV-08, FUNC-TIX-02 write side) still open — need their own serial project. |
+| `apps/web/e2e/access-lifecycle.spec.ts` | SEC-01, FUNC-EMP-02 | **Written and run.** 1 test, fails (correctly, documenting DEFECT-01). |
+| `apps/web/e2e/helpers.ts` | Shared `signInAs()` used by both files above — signs in a persona other than the suite's default owner within a single test, with the same hydration-race retry `form-errors.spec.ts` already uses for clicks | **Written.** Not a spec file itself; no tests of its own. |
+| `apps/web/src/lib/server/rich-text.test.ts` | ADV-12 | **Written and run.** 9/9 passing (vitest — cheaper than a browser for a pure function). |
+| `apps/web/e2e/rbac-boundaries.spec.ts` | SEC-04–SEC-06, SEC-08 | Not started |
+| Extend `apps/web/e2e/form-errors.spec.ts` | ADV-04–ADV-07, ADV-09 | Not started |
+| Vitest, mirroring `row-visibility.test.ts` | SEC-07, SEC-09, FUNC-EMP-03 | Not started |
+
+**A note on `signInAs`'s own bug, found writing it:** the first version
+resolved success by `waitForURL(/\/(portal|employees|login)/)` — a regex
+loose enough to match the URL you're *already on* before a click even
+fires. Combined with a submit button whose handler attaches on hydration (a
+known race — `form-errors.spec.ts`'s `openModal` exists for the same
+reason), a click that lands too early leaves the page exactly where it was,
+`waitForURL` resolves immediately against the stale `/login/sign_in` URL,
+and the test proceeds as if sign-in had already finished. This produced
+one false PASS (`access-lifecycle.spec.ts`, before the fix — it looked like
+Nadia's access *was* being refused, for the wrong reason: her login never
+actually submitted) and one false FAIL (`portal.spec.ts`'s first test,
+which reported landing at `/login/sign_in` when the real question — did she
+reach `/portal` or the staff app — was never actually tested). Fixed by
+retrying the click itself until the URL demonstrably leaves
+`/login/sign_in`, mirroring `openModal`'s pattern. Recorded as
+[L76](docs/10-lessons-learned.md) for whoever next writes a Playwright
+helper that logs in as someone other than the suite's default persona.
 
 ---
 

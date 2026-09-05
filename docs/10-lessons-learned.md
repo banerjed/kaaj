@@ -1749,6 +1749,45 @@ opt-out env var for this check is the identical footgun one level up. The
 "point dev at prod for one run" workflow this doc used to document is gone;
 use the hosted project's own Supabase Studio instead.
 
+### L76 — A loose `waitForURL` regex after a racy click resolves against the URL you were already on
+
+Writing a Playwright helper to sign in as someone other than the suite's
+default owner (`e2e/helpers.ts`'s `signInAs`, for `access-lifecycle.spec.ts`
+and `portal.spec.ts`), the sign-in button was clicked once and the test moved
+on to `waitForURL(/\/(portal|employees|login)/)`. That regex was written to
+be lenient — sign-in landing back on `/login` is itself a legitimate outcome
+for a persona whose access should be refused — but it also matches the
+`/login/sign_in` URL the browser was *already on* before the click. The
+auth-ui-svelte form's submit handler attaches on hydration
+(`auth.setup.ts`'s `openModal`-adjacent comment already names this race for
+form fills); a click landing before that leaves the page exactly where it
+was, and the loose regex resolves immediately against the stale URL instead
+of waiting for a real navigation.
+
+This produced two different silent failures from the same root cause: a
+false PASS (a terminated employee's access looked refused, because her
+sign-in never actually submitted — not because anything revoked her
+session) and a false FAIL (a customer contact's landing page read as
+`/login/sign_in` when the real question — staff app or `/portal` — was
+never exercised). Both looked like real results; neither was.
+
+Fix: retry the click itself until the URL demonstrably leaves
+`/login/sign_in`, the same `toPass`-wrapped-click pattern `openModal` uses
+for a race on the other end of a form:
+
+```ts
+await expect(async () => {
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+  await expect(page).not.toHaveURL(/\/login\/sign_in/, { timeout: 2_000 })
+}).toPass({ timeout: 15_000 })
+```
+
+A `waitForURL` regex that includes the page's own starting URL as an
+acceptable destination cannot tell "arrived" from "never left" — write it to
+exclude the starting URL, or verify the click's effect some other way,
+whenever the outcome you're waiting for is allowed to include "no
+navigation happened."
+
 ---
 
 ## Conventions
