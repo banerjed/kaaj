@@ -208,3 +208,95 @@ test("matching a bank transaction with no payment chosen is refused", async ({
     "true",
   )
 })
+
+/**
+ * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
+ * browser in a different sense than `submitPastTheBrowser` above: a native
+ * `<input type="date">` refuses to even HOLD "2026-02-30" — setting
+ * `.value` to a calendar-invalid date leaves it empty, confirmed live
+ * (`input.value = '2026-02-30'` → `""`). So this exact payload can only
+ * reach the server from something that isn't a browser date picker — a
+ * modified request, an old client, a different form entirely — which is
+ * exactly the client `f.date()`'s round-trip check (L67) exists for. A raw
+ * `page.request.post` reaches the same `default` action a real submission
+ * would, without a UI control standing in the way of the probe.
+ *
+ * A raw `page.request.post` isn't treated as a full-page form submission,
+ * so a `fail(400, ...)` result comes back as HTTP 200 with the real status
+ * embedded in the JSON body (`{"type":"failure","status":400,"data":...}`)
+ * — confirmed live; only an `error()`-thrown refusal (an authorization
+ * check, not a validation one) gets a genuine non-200 status either way.
+ * Parse it rather than trusting `response.status()` for a `fail()` path.
+ */
+const employeeProbe = (overrides: Record<string, string>) => ({
+  first_name: "AdvProbe",
+  last_name: "Probe",
+  email: "adv-probe@example.test",
+  start_date: "2026-09-04",
+  employment_status: "active",
+  employment_type: "full_time",
+  ...overrides,
+})
+
+async function actionStatus(response: { text(): Promise<string> }) {
+  const raw = await response.text()
+  const parsed = JSON.parse(raw) as { type: string; status: number }
+  return { status: parsed.status, ok: parsed.type !== "failure", raw }
+}
+
+test("a syntactically-valid but nonexistent birth date is refused, not rolled to a real one", async ({
+  page,
+}) => {
+  const response = await page.request.post("/employees/new", {
+    form: employeeProbe({
+      employee_id: "ADVPROBE05",
+      birth_date: "2026-02-30",
+    }),
+  })
+  const result = await actionStatus(response)
+  expect(
+    result.status,
+    "f.date()'s round-trip check must refuse a nonexistent calendar date",
+  ).toBe(400)
+
+  await page.goto("/employees?q=ADVPROBE05")
+  await expect(page.getByText("No one matches these filters")).toBeVisible()
+})
+
+test("a duplicate employee ID is refused with a named message, not a crash", async ({
+  page,
+}) => {
+  const response = await page.request.post("/employees/new", {
+    // E001 is Sarah Johnson's real employee_id in the fixture.
+    form: employeeProbe({ employee_id: "E001" }),
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/already has that employee ID/i)
+})
+
+test("SQL-special characters in the employee ID are refused by format, never reach a query", async ({
+  page,
+}) => {
+  const response = await page.request.post("/employees/new", {
+    form: employeeProbe({ employee_id: "E999`--" }),
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+})
+
+test("an employment_status outside the enum is refused, never stored as free text", async ({
+  page,
+}) => {
+  const response = await page.request.post("/employees/new", {
+    form: employeeProbe({
+      employee_id: "ADVPROBE07",
+      employment_status: "vibing",
+    }),
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+
+  await page.goto("/employees?q=ADVPROBE07")
+  await expect(page.getByText("No one matches these filters")).toBeVisible()
+})

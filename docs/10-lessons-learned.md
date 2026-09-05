@@ -1788,6 +1788,43 @@ exclude the starting URL, or verify the click's effect some other way,
 whenever the outcome you're waiting for is allowed to include "no
 navigation happened."
 
+### L77 — `fail()` answers HTTP 200 with the real status inside the body, for anything that isn't a full-page form submission
+
+Writing adversarial e2e cases against `/employees/new` (`ADV-05`–`ADV-07`,
+`form-errors.spec.ts`), a raw `page.request.post()` carrying a deliberately
+invalid `birth_date` came back `response.status() === 200` — read as "the
+bad value was accepted," which would have been a real, serious finding, if
+it had been true.
+
+It wasn't. The body was
+`{"type":"failure","status":400,"data":[...,"employee_id","Someone already
+has that employee ID...`. SvelteKit's `fail(400, ...)` is built for
+progressive enhancement: a full browser form submission (the shape every
+other test in that file already uses, via a real `<form>` and a real click)
+gets a genuine non-200 status and a re-rendered page, but a request that
+looks like a `fetch` — which a raw `page.request.post` is — gets the
+`ActionResult` serialized as JSON with the transport status pinned at 200
+and the real status embedded inside. `error()`-thrown refusals (an
+authorization check, not a validation one — `requireCan`, used by
+`rbac-boundaries.spec.ts`) are unaffected: those throw all the way out and
+carry a genuine HTTP status either way, which is why those tests' plain
+`response.status()` checks were correct without needing this.
+
+`response.status()` is therefore not a reliable signal for whether a
+`fail()`-returning form action refused a raw, non-browser POST. Parse the
+body:
+
+```ts
+const raw = await response.text()
+const parsed = JSON.parse(raw) as { type: string; status: number }
+// parsed.status is the one that matters; response.status() is always 200 here.
+```
+
+A test asserting `response.status() === 400` against a `fail()` path will
+pass or fail for the wrong reason on every SvelteKit form action in this
+codebase — check which of `fail()` or `error()` the target action actually
+uses before writing the assertion, not after it passes unexpectedly.
+
 ---
 
 ## Conventions
