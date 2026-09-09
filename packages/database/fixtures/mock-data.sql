@@ -50,8 +50,22 @@ UPDATE tenants SET
     primary_contact_email = 'sarah.johnson@northwind.example',
     city = 'New York',
     state_province = 'NY',
-    billing_country = 'US'
+    billing_country = 'US',
+    brand_color = 'violet'
 WHERE id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
+
+-- tenant_registry (ADR-009's control plane): Northwind stays on the shared
+-- tier, which is the default for any tenant nobody has deliberately
+-- provisioned onto a dedicated database. schema_version is read from
+-- Supabase's own migration bookkeeping rather than hardcoded, so it never
+-- goes stale as migrations are added.
+INSERT INTO tenant_registry (tenant_id, subdomain, tier, schema_version)
+    VALUES (
+        '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1',
+        'northwind',
+        'shared',
+        (SELECT MAX(version) FROM supabase_migrations.schema_migrations)
+    );
 
 -- Tier 3 customization: behaviour settings
 INSERT INTO tenant_settings (tenant_id, namespace, key, value) VALUES

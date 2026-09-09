@@ -3,10 +3,26 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as entries from "$lib/server/time-tracking/time_tracking_entries.repo"
 import { TimeEntryWriteRefused } from "$lib/server/time-tracking/time_tracking_entries.repo"
 import * as projects from "$lib/server/projects/projects.repo"
-import { withTenant, actorFrom } from "$lib/server/db/tenant"
+import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+
+/**
+ * tenant_users stays in the control-plane database regardless of tier
+ * (ADR-009) — a dedicated tenant's own database never has these rows.
+ */
+async function resolveEmployeeId(
+  locals: App.Locals,
+  userId: string | null | undefined,
+): Promise<string | null> {
+  return withControlPlane(actorFrom(locals), async (tx) => {
+    const [me] = await tx<{ employee_id: string | null }[]>`
+      SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
+    `
+    return me?.employee_id ?? null
+  })
+}
 
 /** /time-tracking — module-time-tracking.md (Phase 5), slice 1: manual entries only. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -17,12 +33,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const status = url.searchParams.get("status") ?? ""
   const mineOnly = url.searchParams.get("mine") === "1"
 
-  return withTenant(actorFrom(locals), async (tx) => {
-    const [me] = await tx<{ employee_id: string | null }[]>`
-      SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
-    `
-    const myEmployeeId = me?.employee_id ?? null
+  const myEmployeeId = await resolveEmployeeId(locals, userId)
 
+  return withTenant(actorFrom(locals), async (tx) => {
     return {
       entries: await entries.list(tx, {
         status,
@@ -94,18 +107,16 @@ export const actions: Actions = {
     const description = f.text("description", { max: 2000, required: true })
     if (!f.ok) return fail(400, f.problem())
 
+    const myEmployeeId = await resolveEmployeeId(locals, userId)
+    if (!myEmployeeId) error(403, "No employee record for this user")
+
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        const [me] = await tx<{ employee_id: string | null }[]>`
-          SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
-        `
-        if (!me?.employee_id) error(403, "No employee record for this user")
-
         const created = await entries.create(
           tx,
           locals.tenantId!,
           {
-            employee_id: me.employee_id,
+            employee_id: myEmployeeId,
             project_id: projectId!,
             task_id: taskId,
             entry_date: entryDate!,
@@ -113,7 +124,7 @@ export const actions: Actions = {
             is_billable: isBillable,
             description: description!,
           },
-          me.employee_id,
+          myEmployeeId,
         )
         return { logged: created.id }
       })
@@ -135,13 +146,12 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem())
 
+    const myEmployeeId = await resolveEmployeeId(locals, userId)
+    if (!myEmployeeId) error(403, "No employee record for this user")
+
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        const [me] = await tx<{ employee_id: string | null }[]>`
-          SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
-        `
-        if (!me?.employee_id) error(403, "No employee record for this user")
-        await entries.submit(tx, id!, me.employee_id)
+        await entries.submit(tx, id!, myEmployeeId)
         return { submitted: id }
       })
     } catch (e) {
@@ -166,18 +176,16 @@ export const actions: Actions = {
     const rejectionReason = f.text("rejection_reason", { max: 1000 })
     if (!f.ok) return fail(400, f.problem())
 
+    const myEmployeeId = await resolveEmployeeId(locals, userId)
+    if (!myEmployeeId) error(403, "No employee record for this user")
+
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        const [me] = await tx<{ employee_id: string | null }[]>`
-          SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
-        `
-        if (!me?.employee_id) error(403, "No employee record for this user")
-
         await entries.decide(
           tx,
           id!,
           decision as entries.Decision,
-          me.employee_id,
+          myEmployeeId,
           rejectionReason,
         )
 

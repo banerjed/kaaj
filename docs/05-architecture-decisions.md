@@ -799,7 +799,37 @@ We are not adopting it now for three reasons:
 **Reconsider Better Auth when any of these become true:** a tier-C customer
 signs and objects to identity centralisation; self-service IdP registration is
 blocking deals; or a customer requires **OIDC** specifically, which Supabase's
-enterprise SSO does not cover.
+enterprise SSO does not cover. A Windows-shop enterprise (AD FS or Entra ID) is
+a concrete example of a buyer who can hit this: Supabase's SAML SSO already
+lists Microsoft Active Directory and Azure AD / Entra by name, so the common
+case (their admin registers us as a SAML app) needs no change — but an admin
+who insists on an **OIDC** app registration, or asks for **SCIM** provisioning
+through Entra, lands on both open gaps below at once.
+
+### Verified 2026-09-08 — Better Auth has moved since this ADR was written
+
+- **SCIM is no longer a gap in both — it's a gap in Supabase Auth alone.**
+  Better Auth now ships `@better-auth/scim`, a real SCIM server plugin
+  (Okta/Entra can provision and deactivate users directly).
+- **"Self-service IdP registration" is split by a paywall.** The
+  `registerSSOProvider` API is free/OSS and could back our own settings page;
+  Better Auth's *own* self-service dashboard for customer admins is a paid,
+  hosted product (from $20/mo + per-connection fees).
+- **Better Auth is a library, not a bound service — unlike GoTrue.**
+  `betterAuth({ database })` takes a connection as a parameter, so (unverified,
+  not a documented pattern) it may be possible to run one instance per tenant
+  database in-process. If so, tier C's identity-on-customer-infrastructure
+  problem is more tractable than reason 2 above assumed. Needs a throwaway
+  prototype before it informs any decision.
+- **Its organization plugin owns its own tenancy tables** (`organization`,
+  `member`, `team`) and would compete with `tenants`/`tenant_users`. Any future
+  adoption should use Better Auth for core auth only, not that plugin.
+- **Maturity has changed the calculus somewhat:** MIT, v1.7.3, ~29.9k GitHub
+  stars, ~7.3M weekly npm downloads — a widely-adopted library now, not the
+  fringe bet it may have looked like when reason 1 above was written.
+
+None of this changes the decision — reasons 1 and 2 above still hold for tiers
+A and B — but it strengthens the case for revisiting once tier C is real.
 
 > **A note on sources.** A widely-cited third-party comparison states that Better
 > Auth has no enterprise SSO. That conflicts with the vendor's current
@@ -807,11 +837,12 @@ enterprise SSO does not cover.
 > and it originates from a vendor selling enterprise SSO. Verify against the
 > primary source before relying on either claim.
 
-### SCIM is a gap in both — and enterprises ask for it
+### SCIM is a gap in Supabase Auth — and enterprises ask for it
 
-Neither Supabase Auth nor Better Auth provides SCIM directory sync. In practice
-this means **no automatic deprovisioning**: when someone leaves the customer's
-company, their IdP account is disabled but their record in our system is not.
+Supabase Auth provides no SCIM directory sync (Better Auth now does, via
+`@better-auth/scim` — see "Verified 2026-09-08" above). On Supabase, this means
+**no automatic deprovisioning**: when someone leaves the customer's company,
+their IdP account is disabled but their record in our system is not.
 
 Mitigations, in order of effort:
 

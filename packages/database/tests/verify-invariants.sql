@@ -41,6 +41,8 @@ INSERT INTO _index_exempt VALUES
    'partial unique WHERE tenant_id IS NULL — statutory rates are global'),
   ('idx_tenant_users_user',
    'login resolves a user across tenants before a tenant is known'),
+  ('tenant_registry_subdomain_key',
+   'routing resolves a tenant from its subdomain before tenant_id is known — the whole point of this table (ADR-009)'),
   ('idx_employees_custom_fields',
    'GIN jsonb_path_ops; could take (tenant_id, custom_fields) via btree_gin'),
   ('idx_projects_custom_fields',

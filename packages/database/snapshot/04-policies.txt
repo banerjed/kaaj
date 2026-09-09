@@ -221,6 +221,7 @@ pm_task_attachments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_
 pm_task_comments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 projects	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tasks	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+tenant_registry	tenant_registry_self	SELECT	app_user	(tenant_id = app.current_tenant_id())	
 tenant_settings	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_users	auth_admin_reads_memberships	SELECT	supabase_auth_admin	true	
 tenant_users	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())

@@ -35,7 +35,7 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** 21 steps, about 25 seconds; `./check --all` adds the
+production.** 22 steps, about 25 seconds; `./check --all` adds the
 browser suite. Non-zero exit means do not
 push.
 
@@ -54,27 +54,28 @@ directory in the repo.
 
 | Step | Proves | Count |
 |---|---|---|
-| tenant isolation | every RLS policy actually filters, per table | 587 |
+| tenant isolation | every RLS policy actually filters, per table | 600 |
 | specification | the schema answers the module specs | 167 |
-| schema invariants | ADR design rules hold, and a bad claim fails closed | 142 |
-| structure snapshot | the schema is exactly what was committed | 3,823 lines |
+| schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
+| structure snapshot | the schema is exactly what was committed | 3,980 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 45 |
+| authorization | every form action authorizes; no DELETE in app code | 56 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
-| writes are audited | every action is in the audit register, either list | 31 + 6 |
-| refusals have a message | every constraint a form can trip answers with a sentence | 23 |
-| service role quarantined | nothing outside a committed list bypasses RLS | 5 files |
+| writes are audited | every action is in the audit register, either list | 35 + 10 |
+| refusals have a message | every constraint a form can trip answers with a sentence | 24 |
+| service role quarantined | nothing outside a committed list bypasses RLS | 6 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
-| security | authorization, PII and tenant isolation, both suites | 357 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 964 tests |
+| dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
+| security | authorization, PII and tenant isolation, both suites | 360 |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,121 tests |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-03.
+column. They were last verified 2026-09-09.
 
 These are complementary and none substitutes for another:
 

@@ -33,6 +33,18 @@ const EXPECTED_SPARSE = new Map([
     "profiles.id",
     "the CMSaasStarter profile table is not part of the product's data model",
   ],
+  [
+    "tenant_registry.connection_secret_ref",
+    "NULL for every 'shared' tier row by design (ADR-009); populated only " +
+      "once a tenant is provisioned onto a dedicated database via " +
+      "packages/database/scripts/provision-dedicated-db.sh, an explicit " +
+      "operator action outside the baseline fixture",
+  ],
+  [
+    "tenant_registry.last_health_check_at",
+    "populated by a periodic health-check job (ADR-009), which is not built " +
+      "— out of scope for the routing mechanism this table exists to prove",
+  ],
 ])
 
 const url = process.env.DATABASE_URL

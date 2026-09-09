@@ -47,20 +47,25 @@ const notAudited = new Set(NOT_AUDITED)
 /**
  * Does every `audit.record` share the transaction of the write beside it?
  * (L40 — an entry written outside the transaction can diverge from what
- * actually happened.) Finds each `withTenant(..., async (P) => {` region by
- * brace-matching and requires `audit.record(A, ...)` inside it to use `A ===
- * P`. A lexical check: a `tx` passed into a helper it can't see into is
- * reported as "outside any withTenant" for review, not silently passed.
+ * actually happened.) Finds each `withTenant(..., async (P) => {` or
+ * `withControlPlane(..., async (P) => {` region by brace-matching and
+ * requires `audit.record(A, ...)` inside it to use `A === P`.
+ * `withControlPlane` (ADR-009) is the same transaction/claims mechanism as
+ * `withTenant`, just against the control-plane database rather than a
+ * tenant-routed one — an equally valid enclosing transaction, not a loophole.
+ * A lexical check: a `tx` passed into a helper it can't see into is reported
+ * as "outside any withTenant/withControlPlane callback" for review, not
+ * silently passed.
  */
 function auditTransactionProblems(body, key) {
   const problems = []
 
-  // Every `withTenant(..., <async> (PARAM) => {` and the span it encloses.
+  // Every `withTenant(..., <async> (PARAM) => {` / `withControlPlane(...)` and the span it encloses.
   const regions = []
   // Bounded look-ahead, not `[^)]*?` — the first arg is `actorFrom(locals)`,
   // which contains parens and would otherwise match nothing.
   const opener =
-    /withTenant\s*\([\s\S]{0,200}?\(\s*([A-Za-z_$][\w$]*)\s*\)\s*=>\s*\{/g
+    /with(?:Tenant|ControlPlane)\s*\([\s\S]{0,200}?\(\s*([A-Za-z_$][\w$]*)\s*\)\s*=>\s*\{/g
   for (const m of body.matchAll(opener)) {
     let depth = 0
     let i = m.index + m[0].length - 1 // at the opening brace
@@ -80,7 +85,7 @@ function auditTransactionProblems(body, key) {
 
     if (!enclosing) {
       problems.push(
-        `${key}: audit.record(${arg}, …) is outside any withTenant callback`,
+        `${key}: audit.record(${arg}, …) is outside any withTenant/withControlPlane callback`,
       )
     } else if (arg !== enclosing.param) {
       problems.push(
@@ -191,8 +196,8 @@ report(
   "  L40: an entry written outside the transaction that made the change\n" +
     "  records what the application BELIEVED happened, and the two diverge\n" +
     "  exactly when it matters. Pass the `tx` from the enclosing withTenant\n" +
-    "  callback. If the call is inside a helper this check cannot see into,\n" +
-    "  that is a review question, not an exemption.",
+    "  or withControlPlane callback. If the call is inside a helper this\n" +
+    "  check cannot see into, that is a review question, not an exemption.",
 )
 
 report(

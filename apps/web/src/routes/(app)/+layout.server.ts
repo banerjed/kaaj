@@ -17,6 +17,7 @@ export type TenantSettings = {
   time_format: string | null
   supported_locales: string[] | null
   supported_currencies: string[] | null
+  brand_color: string
 }
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
@@ -49,7 +50,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
              date_format,
              time_format,
              supported_locales,
-             supported_currencies
+             supported_currencies,
+             brand_color
         FROM tenants
        WHERE id = ${locals.tenantId}
     `

@@ -104,9 +104,9 @@ fi
 
 if [ "$RUN_DB" = 1 ]; then
   echo "${B}Database${N}"
-  step "tenant isolation (587)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
+  step "tenant isolation (600)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
   step "specification (167)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
-  step "schema invariants (142)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
+  step "schema invariants (155)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
   step "structure snapshot"        packages/database/scripts/db-snapshot.sh --check
   step "enum fixture is current"   bash -c 'pnpm --filter @kaaj/enums build >/dev/null && git diff --quiet packages/enums/dist/expected-enums.sql'
   step "actions are authorized"    node scripts/verify-authz.mjs
@@ -119,6 +119,7 @@ if [ "$RUN_DB" = 1 ]; then
   step "service role quarantined" node scripts/verify-service-role.mjs
   step "product name not hardcoded" node scripts/verify-product-name.mjs
   step "fixtures are complete"    node scripts/verify-fixture-coverage.mjs
+  step "dedicated targets"       node scripts/verify-dedicated-target.mjs
   echo ""
 fi
 
@@ -136,7 +137,7 @@ if [ "$RUN_APP" = 1 ]; then
   step "format"     pnpm turbo run format:check
   step "lint"       pnpm turbo run lint
   step "typecheck"  pnpm turbo run check-types
-  # Also covered by `test`, but broken out so 346 authz/PII/isolation cases
+  # Also covered by `test`, but broken out so 360 authz/PII/isolation cases
   # have their own auditable line instead of hiding inside "unit tests".
   step "security"   pnpm test:security
   step "unit tests" pnpm turbo run test

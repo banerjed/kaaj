@@ -66,6 +66,32 @@ export const COMPANY_SIZES = [
   "501+",
 ] as const
 
+/**
+ * `tenants.brand_color` is the same shape as `company_size` above: a CHECK
+ * constraint on plain `text`, not a Postgres enum, so this list IS the
+ * constraint. A curated palette rather than a free hex picker — each `hex`
+ * here has been checked to clear 4.5:1 against white text, so the topbar
+ * never needs a runtime contrast computation or a second stored value for
+ * the content colour. `hex: null` for `"default"` means "use the theme's
+ * own primary colour," i.e. no override.
+ */
+export const BRAND_COLORS = [
+  { code: "default", label: "Default", hex: null },
+  { code: "slate", label: "Slate", hex: "#475569" },
+  { code: "emerald", label: "Emerald", hex: "#047857" },
+  { code: "amber", label: "Amber", hex: "#b45309" },
+  { code: "rose", label: "Rose", hex: "#be123c" },
+  { code: "violet", label: "Violet", hex: "#7c3aed" },
+  { code: "cyan", label: "Cyan", hex: "#0e7490" },
+  { code: "charcoal", label: "Charcoal", hex: "#1e293b" },
+] as const
+
+export const BRAND_COLOR_CODES = BRAND_COLORS.map((c) => c.code)
+
+export function brandColorHex(code: string | null | undefined): string | null {
+  return BRAND_COLORS.find((c) => c.code === code)?.hex ?? null
+}
+
 const isLocale = (code: string) =>
   SUPPORTED_LOCALES.some((l) => l.code === code)
 

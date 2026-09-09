@@ -9,7 +9,7 @@
  * L3: `SET LOCAL ROLE` so isolation survives a misconfigured DSN.
  */
 import type { Sql, TransactionSql } from "postgres"
-import { getConnection } from "./client"
+import { getConnection, getSharedPool } from "./client"
 
 export type Tx = TransactionSql<Record<string, never>>
 
@@ -31,20 +31,9 @@ export type Actor =
       functionalRoles?: string[] | null
     }
 
-/** Run `fn` inside a transaction scoped to the actor's tenant. Commits on resolve, rolls back on throw. */
-export async function withTenant<T>(
-  actor: Actor,
-  fn: (tx: Tx) => Promise<T>,
-): Promise<T> {
-  const tenantId = typeof actor === "string" ? actor : actor.tenantId
-  // Should never fire (claim comes from a verified JWT) — fail loudly, not into "no tenant".
-  if (!UUID.test(tenantId)) {
-    throw new Error("withTenant called with a malformed tenant id")
-  }
-
-  const sql: Sql = getConnection(tenantId)
+function actorClaims(actor: Actor, tenantId: string): string {
   // Whole claim, not just the tenant — row-visibility reads app_metadata.role/employee_id.
-  const claims = JSON.stringify({
+  return JSON.stringify({
     app_metadata:
       typeof actor === "string"
         ? { tenant_id: tenantId }
@@ -57,13 +46,60 @@ export async function withTenant<T>(
             functional_roles: actor.functionalRoles ?? [],
           },
   })
+}
 
+async function runInTenantScope<T>(
+  sql: Sql,
+  actor: Actor,
+  tenantId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const claims = actorClaims(actor, tenantId)
   return sql.begin(async (tx) => {
     await tx`SET LOCAL ROLE app_user`
     await tx`SELECT set_config('request.jwt.claims', ${claims}, true)`
 
     return fn(tx as Tx)
   }) as Promise<T>
+}
+
+/**
+ * Run `fn` inside a transaction scoped to the actor's tenant, on whichever
+ * database `tenant_registry` resolves that tenant to (ADR-009). Commits on
+ * resolve, rolls back on throw.
+ */
+export async function withTenant<T>(
+  actor: Actor,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const tenantId = typeof actor === "string" ? actor : actor.tenantId
+  // Should never fire (claim comes from a verified JWT) — fail loudly, not into "no tenant".
+  if (!UUID.test(tenantId)) {
+    throw new Error("withTenant called with a malformed tenant id")
+  }
+
+  const sql = await getConnection(tenantId)
+  return runInTenantScope(sql, actor, tenantId, fn)
+}
+
+/**
+ * Run `fn` against the SHARED/control-plane database specifically, never a
+ * dedicated tenant's own database — for the handful of tables (`tenant_users`
+ * chief among them) that stay central regardless of tier, because
+ * `custom_access_token_hook` can only see the one Postgres GoTrue is bound
+ * to. Everything else about a dedicated tenant's data lives in their own
+ * database; this is the deliberate exception.
+ */
+export async function withControlPlane<T>(
+  actor: Actor,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const tenantId = typeof actor === "string" ? actor : actor.tenantId
+  if (!UUID.test(tenantId)) {
+    throw new Error("withControlPlane called with a malformed tenant id")
+  }
+
+  return runInTenantScope(getSharedPool(), actor, tenantId, fn)
 }
 
 /** The actor for a request, from `locals` — used instead of `locals.tenantId` alone so the database knows WHO is asking. */

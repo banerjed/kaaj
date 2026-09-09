@@ -1848,6 +1848,15 @@ tasks	49	updated_at	timestamp with time zone	t	now()
 tasks	50	completed_at	timestamp with time zone	f	
 tasks	51	created_by	text	t	
 tasks	52	updated_by	text	f	
+tenant_registry	1	tenant_id	uuid	t	
+tenant_registry	2	subdomain	text	t	
+tenant_registry	3	tier	text	t	'shared'::text
+tenant_registry	4	connection_secret_ref	text	f	
+tenant_registry	5	region	text	t	'us-east-1'::text
+tenant_registry	6	schema_version	text	t	
+tenant_registry	7	status	text	t	'active'::text
+tenant_registry	8	last_health_check_at	timestamp with time zone	f	
+tenant_registry	9	created_at	timestamp with time zone	t	now()
 tenant_settings	1	tenant_id	uuid	t	
 tenant_settings	2	namespace	text	t	
 tenant_settings	3	key	text	t	
@@ -1913,6 +1922,7 @@ tenants	41	tax_id	uuid	f
 tenants	42	registration_number	text	f	
 tenants	43	created_by	text	f	
 tenants	44	version	integer	f	1
+tenants	45	brand_color	text	t	'default'::text
 ticketing_attachments	1	id	uuid	t	gen_random_uuid()
 ticketing_attachments	2	tenant_id	uuid	t	
 ticketing_attachments	3	attachment_id	text	f	

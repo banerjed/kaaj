@@ -45,10 +45,16 @@
     <div class="drawer-content">
       <label
         for="topbar-profile-drawer"
-        class="btn btn-ghost max-sm:btn-square text-neutral-content gap-2 px-1.5"
+        class="btn btn-ghost max-sm:btn-square text-[var(--topbar-fg,var(--color-primary-content))] gap-2 px-1.5"
       >
         <div class="avatar avatar-placeholder">
-          <div class="bg-primary text-primary-content mask mask-squircle w-8">
+          <!-- Inverted pair: the topbar itself paints --topbar-bg/--topbar-fg
+               (falling back to primary/primary-content), so the un-inverted
+               pair would blend in. Reads the same custom properties, which
+               inherit from the ancestor #layout-topbar without prop drilling. -->
+          <div
+            class="mask mask-squircle w-8 bg-[var(--topbar-fg,var(--color-primary-content))] text-[var(--topbar-bg,var(--color-primary))]"
+          >
             <span class="text-xs font-medium"
               >{userInitials(user?.fullName, user?.email)}</span
             >
@@ -56,8 +62,10 @@
         </div>
         <div class="text-start max-sm:hidden">
           <p class="text-sm/none">{displayName}</p>
-          <!-- No /70 here: fails AA against neutral (L22). Size carries the hierarchy instead. -->
-          <p class="text-neutral-content mt-0.5 text-xs/none capitalize">
+          <!-- No /70 here: fails AA against primary (L22). Size carries the hierarchy instead. -->
+          <p
+            class="mt-0.5 text-xs/none text-[var(--topbar-fg,var(--color-primary-content))] capitalize"
+          >
             {user?.role ?? ""}
           </p>
         </div>

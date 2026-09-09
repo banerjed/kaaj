@@ -64,6 +64,10 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["company_size"],
     message: "Pick a company size from the list.",
   },
+  tenants_brand_color_check: {
+    errorFields: ["brand_color"],
+    message: "Pick a colour from the list.",
+  },
   firm_payroll_policies_workweek_start_day_check: {
     errorFields: ["workweek_start_day"],
     message: "The week has to start on a real day.",

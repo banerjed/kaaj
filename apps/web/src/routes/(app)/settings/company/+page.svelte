@@ -4,6 +4,7 @@
   import { approxMoney, money, number } from "$lib/format"
   import {
     COMPANY_SIZES,
+    BRAND_COLORS,
     DATE_FORMATS,
     TIME_FORMATS,
     timezoneOptions,
@@ -203,6 +204,53 @@
               <option value={size}>{size} people</option>
             {/each}
           </select>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Data residency</legend>
+          <div>
+            {#if data.dataResidency.tier === "dedicated"}
+              <span class="badge badge-outline"
+                >Dedicated database — {data.dataResidency.region}</span
+              >
+            {:else}
+              <span class="badge badge-outline">Shared database</span>
+            {/if}
+          </div>
+          <p class="label">
+            {#if data.dataResidency.tier === "dedicated"}
+              This tenant's data lives in its own database, physically separate
+              from every other tenant (ADR-009).
+            {:else}
+              This tenant shares a database with other tenants on the shared
+              tier, isolated by row-level security.
+            {/if}
+          </p>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Brand colour</legend>
+          <p class="label">
+            Recolours the header only — buttons keep the product colour.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            {#each BRAND_COLORS as c (c.code)}
+              <label class="cursor-pointer" title={c.label}>
+                <input
+                  type="radio"
+                  name="brand_color"
+                  value={c.code}
+                  class="peer sr-only"
+                  aria-label={c.label}
+                  checked={(company.brand_color ?? "default") === c.code}
+                />
+                <span
+                  class={`ring-offset-base-100 block size-8 rounded-full ring-2 ring-transparent ring-offset-2 peer-checked:ring-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 ${c.hex ? "" : "bg-primary"}`}
+                  style={c.hex ? `background-color:${c.hex}` : undefined}
+                ></span>
+              </label>
+            {/each}
+          </div>
         </fieldset>
       </div>
     </div>

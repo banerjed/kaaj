@@ -161,11 +161,21 @@ ON CONFLICT (id) DO NOTHING;
 -- =============================================================================
 -- Without the fixture check, a table with no rows satisfies "tenant B sees 0"
 -- trivially, degrading this whole file into a vacuous pass.
+--
+-- Baseline is scoped to tenant A (Northwind) specifically, not "every row in
+-- the table" — a table that legitimately holds more than one tenant's rows
+-- regardless of tier (tenant_registry, tenant_users — ADR-009's control
+-- plane, which is central for every tenant, not just the one this fixture
+-- focuses on) would otherwise inflate the baseline past what tenant A's own
+-- app_user view can ever match, failing phase B for reasons that have
+-- nothing to do with isolation.
 DO $$
 DECLARE r RECORD; n BIGINT;
 BEGIN
     FOR r IN SELECT tbl FROM _targets ORDER BY 1 LOOP
-        EXECUTE format('SELECT count(*) FROM public.%I WHERE tenant_id IS NOT NULL', r.tbl)
+        EXECUTE format(
+          'SELECT count(*) FROM public.%I WHERE tenant_id = %L',
+          r.tbl, '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1')
           INTO n;
         INSERT INTO _baseline VALUES (r.tbl, n);
 

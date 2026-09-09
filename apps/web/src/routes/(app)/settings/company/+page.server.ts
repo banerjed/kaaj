@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as tenants from "$lib/server/platform-tenancy/tenants.repo"
 import * as audit from "$lib/server/audit/audit.repo"
-import { withTenant, actorFrom } from "$lib/server/db/tenant"
+import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
   FormReader,
@@ -14,6 +14,7 @@ import { constraintFailure } from "$lib/server/db/constraints"
 import {
   validateRegional,
   COMPANY_SIZES,
+  BRAND_COLOR_CODES,
   DATE_FORMATS,
   TIME_FORMATS,
 } from "$lib/firm-profile/regional"
@@ -29,7 +30,23 @@ export const load: PageServerLoad = async ({ locals }) => {
   )
   if (!tenant) error(404, "Tenant not found")
 
-  return { company: tenant }
+  // tenant_registry (ADR-009's control plane) is central regardless of
+  // tier, same as tenant_users — read-only here, purely so the settings
+  // page can show which database this tenant's data actually lives in.
+  const registry = await withControlPlane(actorFrom(locals), async (tx) => {
+    const [row] = await tx<{ tier: string; region: string }[]>`
+      SELECT tier, region FROM tenant_registry WHERE tenant_id = ${locals.tenantId}
+    `
+    return row ?? null
+  })
+
+  return {
+    company: tenant,
+    dataResidency: {
+      tier: registry?.tier ?? "shared",
+      region: registry?.region ?? null,
+    },
+  }
 }
 
 /** Every figure in the product is formatted against these. */
@@ -43,6 +60,7 @@ const AUDITED_FIELDS = [
   "time_format",
   "supported_locales",
   "supported_currencies",
+  "brand_color",
 ]
 
 export const actions: Actions = {
@@ -85,6 +103,9 @@ export const actions: Actions = {
     const legalEntityName = f.text("legal_entity_name", { max: 255 })
     const industry = f.text("industry", { max: 100 })
     const companySize = f.choice("company_size", COMPANY_SIZES)
+    const brandColor = f.choice("brand_color", BRAND_COLOR_CODES, {
+      fallback: "default",
+    })
     const contactName = f.text("primary_contact_name", { max: 255 })
 
     errorFields.push(...f.errorFields)
@@ -124,6 +145,7 @@ export const actions: Actions = {
       legal_entity_name: legalEntityName,
       industry,
       company_size: companySize,
+      brand_color: brandColor,
       default_locale: defaultLocale,
       supported_locales: supportedLocales,
       default_currency: defaultCurrency,

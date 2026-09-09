@@ -16,6 +16,7 @@ export type Tenant = {
   legal_entity_name: string | null
   industry: string | null
   company_size: string | null
+  brand_color: string
   default_locale: string
   supported_locales: string[] | null
   default_currency: string
@@ -30,7 +31,7 @@ export type Tenant = {
 
 const COLUMNS = `
   id, subdomain, company_name, company_name_i18n,
-  legal_entity_name, industry, company_size,
+  legal_entity_name, industry, company_size, brand_color,
   default_locale, supported_locales,
   default_currency, supported_currencies,
   default_timezone, date_format, time_format,
@@ -49,6 +50,7 @@ export type TenantUpdate = {
   legal_entity_name: string | null
   industry: string | null
   company_size: string | null
+  brand_color: string
   default_locale: string
   supported_locales: string[]
   default_currency: string
@@ -73,6 +75,7 @@ export async function update(tx: Tx, patch: TenantUpdate): Promise<Tenant> {
       legal_entity_name     = ${patch.legal_entity_name},
       industry              = ${patch.industry},
       company_size          = ${patch.company_size},
+      brand_color           = ${patch.brand_color},
       default_locale        = ${patch.default_locale},
       supported_locales     = ${patch.supported_locales},
       default_currency      = ${patch.default_currency},

@@ -452,7 +452,29 @@ CREATE TABLE tenants (
     tax_id                UUID,
     registration_number   TEXT,
     created_by            TEXT,
-    version               INTEGER DEFAULT 1
+    version               INTEGER DEFAULT 1,
+    brand_color           TEXT NOT NULL DEFAULT 'default'
+        CHECK (brand_color IN ('default', 'slate', 'emerald', 'amber', 'rose', 'violet', 'cyan', 'charcoal'))
+);
+
+-- ADR-009's control plane: which database a tenant's business data lives in.
+-- tenant_users is deliberately excluded from what "business data" means here
+-- — it stays in the shared database for every tier (see
+-- apps/web/src/lib/server/db/tenant.ts's withControlPlane).
+CREATE TABLE tenant_registry (
+    tenant_id             UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    subdomain             TEXT NOT NULL UNIQUE,
+    tier                  TEXT NOT NULL DEFAULT 'shared'
+                            CHECK (tier IN ('shared', 'dedicated')),
+    connection_secret_ref TEXT,
+    CONSTRAINT dedicated_tenant_has_a_secret_ref
+        CHECK (tier = 'shared' OR connection_secret_ref IS NOT NULL),
+    region                TEXT NOT NULL DEFAULT 'us-east-1',
+    schema_version        TEXT NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'active'
+        CHECK (status IN ('provisioning', 'active', 'suspended', 'migrating', 'unreachable')),
+    last_health_check_at  TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE firm_locations (

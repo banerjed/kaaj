@@ -74,40 +74,39 @@ to change, which then requires a migration and a release to alter one row of
 someone's configuration. When adding any new module, check every enum against
 this rule before it ships.
 
-### Brand colour: the seam exists, the delivery does not
+### Brand colour
 
-The topbar is `bg-neutral text-neutral-content` — daisyUI's semantic pair for
-"interface areas that always use a dark style". That makes `--color-neutral`
-the single token a tenant's brand colour would set, and the bar the only
-surface it would recolour.
+The topbar is `bg-primary text-primary-content` — the same pair as
+`btn-primary`, by explicit design feedback. A tenant may override it, from
+`/settings/company`, with a colour of their own — scoped to the topbar alone,
+never the 38+ `btn-primary`/`text-primary` sites elsewhere, and never
+`success`/`warning`/`error`/`info`, which carry meaning a firm's colour must
+not collide with.
 
-**Recolour the CHROME, never the semantics.** `success`, `warning`, `error` and
-`info` carry meaning, so a firm with a red logo must not end up with a product
-that reads as permanently alarmed. `neutral` carries no meaning, which is
-exactly why it is the right slot.
-
-Three things have to be settled before this ships, and none of them is code
-volume:
+The three open questions this used to record are now settled:
 
 1. **Delivery.** daisyUI themes compile at BUILD time, so a per-tenant value
-   cannot come from a theme block. It has to be a custom property set on the
-   shell from tenant data at request time — which daisyUI's own guidance
-   argues against ("do not define brand or interface colors as `:root` custom
-   properties", "do not use arbitrary color utilities for theme-aware UI").
-   Setting only `--color-neutral`, on the app shell, from a validated column,
-   is the narrowest possible version of that trade.
-2. **Contrast is not optional and cannot be assumed.** A customer's brand
-   colour is chosen for a logo, not for carrying 14px text. Whatever is stored
-   must be checked against `neutral-content` at 4.5:1 before it is applied,
-   with a documented fallback. The light theme changed from `nord` to
-   `corporate`, whose `neutral`/`neutral-content` pair is pure black on pure
-   white — 21:1, the maximum possible — so the light theme is no longer the
-   tight side of this check. `night`'s bar is unchanged at 9.45:1, and a
-   mid-bright brand colour can still fail there. This is L22's rule and the
-   reason the badge palette had to be replaced.
-3. **Where it lives.** A `tenants.brand_color` column is Tier 1
-   configuration data, so it belongs with `company_name` and the locale
-   settings — one validated value, no per-tenant code, no per-tenant schema.
+   cannot come from a theme block, and daisyUI's own guidance argues against
+   global custom properties for theme-aware colour. The actual delivery is
+   narrower than that: `Topbar.svelte` sets `--topbar-bg`/`--topbar-fg` as an
+   inline `style` on `#layout-topbar` itself (not `:root`), and every colour
+   class on the bar and its children (`TopbarProfileMenu` included, via CSS
+   inheritance) reads `var(--topbar-bg, var(--color-primary))` /
+   `var(--topbar-fg, var(--color-primary-content))` — one scoped pair, with
+   the theme's own primary as the fallback when no tenant colour is set.
+2. **Contrast is not optional and cannot be assumed.** Rather than a free
+   colour picker with a runtime luminance check, the admin picks from a
+   curated palette (`BRAND_COLORS` in
+   `apps/web/src/lib/firm-profile/regional.ts`) — each hex pre-checked to
+   clear 4.5:1 against a fixed white content colour, so there is no
+   per-tenant contrast computation and no second stored value for the
+   content colour.
+3. **Where it lives.** `tenants.brand_color` is a `TEXT` column with a CHECK
+   constraint against that same palette (the same shape as
+   `tenants.company_size` — a closed vocabulary on plain text, not a Postgres
+   enum), read via `FormReader.choice()` in the company-settings action —
+   Tier 1 configuration data, one validated value, no per-tenant code, no
+   per-tenant schema.
 
 ### Seeding
 

@@ -28,7 +28,11 @@
         companyName={data.tenant?.company_name}
       />
       <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
-        <Topbar user={data.user} companyName={data.tenant?.company_name} />
+        <Topbar
+          user={data.user}
+          companyName={data.tenant?.company_name}
+          brandColor={data.tenant?.brand_color}
+        />
         <div id="layout-content">{@render children?.()}</div>
         <Footer />
       </div>

@@ -5,7 +5,7 @@ import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as titles from "$lib/server/firm-profile/firm_job_titles.repo"
 import * as audit from "$lib/server/audit/audit.repo"
-import { withTenant, actorFrom } from "$lib/server/db/tenant"
+import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import {
   employeeEnums,
@@ -63,9 +63,9 @@ export const actions: Actions = {
       })
     }
 
-    let cycle
+    let result: { cycle: true } | { cycle: false; revokeAccess: boolean }
     try {
-      cycle = await withTenant(actorFrom(locals), async (tx) => {
+      result = await withTenant(actorFrom(locals), async (tx) => {
         if (
           await employees.wouldReportToSelf(
             tx,
@@ -73,7 +73,7 @@ export const actions: Actions = {
             parsed.input.manager_id,
           )
         ) {
-          return true
+          return { cycle: true }
         }
         // Read before writing so the audit entry captures the prior value.
         const before = await employees.getById(tx, params.id)
@@ -99,25 +99,7 @@ export const actions: Actions = {
         const isGoing =
           parsed.input.employment_status === "terminated" ||
           parsed.input.employment_status === "retired"
-        if (isGoing && !wasGoing) {
-          const [membership] = await tx<{ id: string }[]>`
-            UPDATE tenant_users SET is_active = FALSE
-             WHERE tenant_id = ${locals.tenantId}
-               AND employee_id = ${params.id}
-               AND is_active
-            RETURNING id
-          `
-          if (membership) {
-            await audit.record(tx, contextFrom(locals)!, {
-              action: "role_revoke",
-              entityType: "tenant_users",
-              entityId: membership.id,
-              module: "employee-profile",
-              changes: { is_active: { from: "true", to: "false" } },
-            })
-          }
-        }
-        return false
+        return { cycle: false, revokeAccess: isGoing && !wasGoing }
       })
     } catch (e) {
       const refused = constraintFailure(e)
@@ -125,10 +107,38 @@ export const actions: Actions = {
       throw e
     }
 
-    if (cycle) {
+    if (result.cycle) {
       return fail(400, {
         errorFields: ["manager_id"],
         message: "That manager reports to this person, directly or indirectly.",
+      })
+    }
+
+    // tenant_users lives in the control-plane database regardless of tier
+    // (ADR-009), so this is necessarily a separate transaction from the
+    // employee update above — a dedicated tenant's business data and its
+    // access records are on different databases, and there is no
+    // cross-database atomicity. Ordered deliberately after the employee
+    // update commits: the safer failure direction is a revoked employee
+    // briefly keeping access, not an active one losing it.
+    if (result.revokeAccess) {
+      await withControlPlane(actorFrom(locals), async (tx) => {
+        const [membership] = await tx<{ id: string }[]>`
+          UPDATE tenant_users SET is_active = FALSE
+           WHERE tenant_id = ${locals.tenantId}
+             AND employee_id = ${params.id}
+             AND is_active
+          RETURNING id
+        `
+        if (membership) {
+          await audit.record(tx, contextFrom(locals)!, {
+            action: "role_revoke",
+            entityType: "tenant_users",
+            entityId: membership.id,
+            module: "employee-profile",
+            changes: { is_active: { from: "true", to: "false" } },
+          })
+        }
       })
     }
 

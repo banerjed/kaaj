@@ -5,7 +5,7 @@ import { DecisionRefused } from "$lib/server/hr/hr_time_off_requests.repo"
 import * as balances from "$lib/server/hr/hr_time_off_balances.repo"
 import * as policies from "$lib/server/hr/hr_time_off_policies.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
-import { withTenant, actorFrom } from "$lib/server/db/tenant"
+import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import {
@@ -22,12 +22,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const status = url.searchParams.get("status") ?? ""
 
-  return withTenant(actorFrom(locals), async (tx) => {
+  // tenant_users stays in the control-plane database regardless of tier
+  // (ADR-009) — a dedicated tenant's own database never has these rows.
+  const myEmployeeId = await withControlPlane(actorFrom(locals), async (tx) => {
     const [me] = await tx<{ employee_id: string | null }[]>`
-      SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
-    `
-    const myEmployeeId = me?.employee_id ?? null
+        SELECT employee_id FROM tenant_users WHERE user_id = ${userId ?? null}
+      `
+    return me?.employee_id ?? null
+  })
 
+  return withTenant(actorFrom(locals), async (tx) => {
     return {
       requests: await requests.list(tx, { status }),
       myBalances: myEmployeeId
@@ -62,14 +66,26 @@ export const actions: Actions = {
 
     if (!f.ok) return fail(400, f.problem("Missing request."))
 
-    try {
-      await withTenant(actorFrom(locals), async (tx) => {
-        // Approver is an employee, not an auth user — resolved here to keep the repository auth-free.
+    // Approver is an employee, not an auth user — resolved from the
+    // control-plane database, which is where tenant_users lives regardless
+    // of the tenant's tier (ADR-009).
+    const approverEmployeeId = await withControlPlane(
+      actorFrom(locals),
+      async (tx) => {
         const [me] = await tx<{ employee_id: string | null }[]>`
           SELECT employee_id FROM tenant_users WHERE user_id = ${userId}
         `
-        if (!me?.employee_id) throw new DecisionRefused("self_approval")
+        return me?.employee_id ?? null
+      },
+    )
+    if (!approverEmployeeId) {
+      return fail(400, {
+        message: "You cannot decide your own leave request.",
+      })
+    }
 
+    try {
+      await withTenant(actorFrom(locals), async (tx) => {
         // Needed before the reporting-line check.
         const [subject] = await tx<
           { employee_id: string; total_hours: string }[]
@@ -91,7 +107,7 @@ export const actions: Actions = {
           tx,
           id,
           decision as requests.Decision,
-          me.employee_id,
+          approverEmployeeId,
           denialReason,
         )
 

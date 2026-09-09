@@ -23,6 +23,11 @@ supabase/.branches/
 supabase/.env*
 **/supabase/.temp/
 
+# The demo's second, dedicated-tier Postgres cluster (ADR-009 tier B) — local
+# runtime state, provisioned by packages/database/scripts/provision-dedicated-db.sh.
+packages/database/.dedicated-demo-pgdata/
+packages/database/.dedicated-demo-sock/
+
 # Environment
 .env
 .env.*
