@@ -359,6 +359,7 @@ custom_field_definitions	14	default_value	jsonb	f
 custom_field_definitions	15	is_active	boolean	t	true
 custom_field_definitions	16	created_at	timestamp with time zone	t	now()
 custom_field_definitions	17	updated_at	timestamp with time zone	t	now()
+custom_field_definitions	18	business_area_id	uuid	f	
 customer_contacts	1	id	uuid	t	gen_random_uuid()
 customer_contacts	2	tenant_id	uuid	t	
 customer_contacts	3	customer_id	uuid	t	
@@ -1940,6 +1941,13 @@ ticketing_attachments	14	uploaded_by	text	t
 ticketing_attachments	15	uploaded_by_name	text	f	
 ticketing_attachments	16	uploaded_at	timestamp with time zone	t	
 ticketing_attachments	17	description	text	f	
+ticketing_business_area_members	1	id	uuid	t	gen_random_uuid()
+ticketing_business_area_members	2	tenant_id	uuid	t	
+ticketing_business_area_members	3	business_area_id	uuid	t	
+ticketing_business_area_members	4	employee_id	uuid	t	
+ticketing_business_area_members	5	is_active	boolean	t	true
+ticketing_business_area_members	6	added_at	timestamp with time zone	t	now()
+ticketing_business_area_members	7	added_by	text	t	
 ticketing_business_areas	1	id	uuid	t	gen_random_uuid()
 ticketing_business_areas	2	tenant_id	uuid	t	
 ticketing_business_areas	3	prefix	text	f	
@@ -1947,14 +1955,60 @@ ticketing_business_areas	4	name	text	t
 ticketing_business_areas	5	description	text	f	
 ticketing_business_areas	6	active	boolean	f	true
 ticketing_business_areas	7	current_sequence	integer	f	0
-ticketing_business_areas	8	categories	jsonb	t	'[]'::jsonb
-ticketing_business_areas	9	custom_fields	jsonb	t	'{}'::jsonb
 ticketing_business_areas	10	roles	jsonb	t	'{}'::jsonb
 ticketing_business_areas	11	settings	jsonb	t	'{}'::jsonb
 ticketing_business_areas	12	is_active	boolean	f	true
 ticketing_business_areas	13	created_at	timestamp with time zone	t	now()
 ticketing_business_areas	14	created_by	text	t	
 ticketing_business_areas	15	updated_at	timestamp with time zone	t	now()
+ticketing_categories	1	id	uuid	t	gen_random_uuid()
+ticketing_categories	2	tenant_id	uuid	t	
+ticketing_categories	3	business_area_id	uuid	t	
+ticketing_categories	4	name	text	t	
+ticketing_categories	5	is_active	boolean	t	true
+ticketing_categories	6	created_at	timestamp with time zone	t	now()
+ticketing_categories	7	created_by	text	t	
+ticketing_subcategories	1	id	uuid	t	gen_random_uuid()
+ticketing_subcategories	2	tenant_id	uuid	t	
+ticketing_subcategories	3	category_id	uuid	t	
+ticketing_subcategories	4	name	text	t	
+ticketing_subcategories	5	is_active	boolean	t	true
+ticketing_subcategories	6	created_at	timestamp with time zone	t	now()
+ticketing_subcategories	7	created_by	text	t	
+ticketing_ticket_assignees	1	id	uuid	t	gen_random_uuid()
+ticketing_ticket_assignees	2	tenant_id	uuid	t	
+ticketing_ticket_assignees	3	ticket_id	uuid	t	
+ticketing_ticket_assignees	4	employee_id	uuid	t	
+ticketing_ticket_assignees	5	is_active	boolean	t	true
+ticketing_ticket_assignees	6	added_at	timestamp with time zone	t	now()
+ticketing_ticket_assignees	7	added_by	text	t	
+ticketing_ticket_links	1	id	uuid	t	gen_random_uuid()
+ticketing_ticket_links	2	tenant_id	uuid	t	
+ticketing_ticket_links	3	ticket_id	uuid	t	
+ticketing_ticket_links	4	linked_ticket_id	uuid	t	
+ticketing_ticket_links	5	is_active	boolean	t	true
+ticketing_ticket_links	6	created_at	timestamp with time zone	t	now()
+ticketing_ticket_links	7	created_by	text	t	
+ticketing_ticket_subscribers	1	id	uuid	t	gen_random_uuid()
+ticketing_ticket_subscribers	2	tenant_id	uuid	t	
+ticketing_ticket_subscribers	3	ticket_id	uuid	t	
+ticketing_ticket_subscribers	4	employee_id	uuid	t	
+ticketing_ticket_subscribers	5	is_active	boolean	t	true
+ticketing_ticket_subscribers	6	added_at	timestamp with time zone	t	now()
+ticketing_ticket_subscribers	7	added_by	text	t	
+ticketing_ticket_tasks	1	id	uuid	t	gen_random_uuid()
+ticketing_ticket_tasks	2	tenant_id	uuid	t	
+ticketing_ticket_tasks	3	ticket_id	uuid	t	
+ticketing_ticket_tasks	4	title	text	t	
+ticketing_ticket_tasks	5	assignee_employee_id	uuid	f	
+ticketing_ticket_tasks	6	due_date	date	f	
+ticketing_ticket_tasks	7	is_done	boolean	t	false
+ticketing_ticket_tasks	8	is_active	boolean	t	true
+ticketing_ticket_tasks	9	display_order	integer	t	0
+ticketing_ticket_tasks	10	done_at	timestamp with time zone	f	
+ticketing_ticket_tasks	11	done_by	text	f	
+ticketing_ticket_tasks	12	created_at	timestamp with time zone	t	now()
+ticketing_ticket_tasks	13	created_by	text	t	
 ticketing_tickets	1	id	uuid	t	gen_random_uuid()
 ticketing_tickets	2	tenant_id	uuid	t	
 ticketing_tickets	3	business_area_id	uuid	f	
@@ -1964,8 +2018,7 @@ ticketing_tickets	6	sequence_number	integer	t
 ticketing_tickets	7	title	text	t	
 ticketing_tickets	8	description	text	f	
 ticketing_tickets	9	subject	text	t	
-ticketing_tickets	10	category	text	t	
-ticketing_tickets	11	status	text	t	'Pending'::text
+ticketing_tickets	11	status	text	t	'open'::text
 ticketing_tickets	12	priority	text	f	
 ticketing_tickets	13	severity	text	t	'medium'::text
 ticketing_tickets	14	request_type	text	t	'support'::text
@@ -1981,16 +2034,11 @@ ticketing_tickets	23	reported_by_email	text	f
 ticketing_tickets	24	logger_employee_id	uuid	f	
 ticketing_tickets	25	last_updated_by	text	t	
 ticketing_tickets	26	closed_by	text	f	
-ticketing_tickets	27	assignees	jsonb	f	'[]'::jsonb
-ticketing_tickets	28	subscribers	jsonb	f	'[]'::jsonb
 ticketing_tickets	29	resolution_notes	text	f	
 ticketing_tickets	30	is_public	boolean	f	
 ticketing_tickets	31	internal_summary	text	f	
 ticketing_tickets	32	external_summary	text	f	
 ticketing_tickets	33	custom_fields	jsonb	f	'{}'::jsonb
-ticketing_tickets	34	parent_ticket_number	text	f	
-ticketing_tickets	35	linked_tickets	jsonb	f	'[]'::jsonb
-ticketing_tickets	36	tasks	jsonb	f	'[]'::jsonb
 ticketing_tickets	37	version	integer	f	1
 ticketing_tickets	38	tags	jsonb	f	'[]'::jsonb
 ticketing_tickets	39	created_at	timestamp with time zone	t	now()
@@ -2003,6 +2051,9 @@ ticketing_tickets	45	sla_resolution_breached	boolean	f
 ticketing_tickets	46	sla_response_breached	boolean	f	
 ticketing_tickets	47	customer_id	uuid	f	
 ticketing_tickets	48	logger_contact_id	uuid	f	
+ticketing_tickets	49	category_id	uuid	t	
+ticketing_tickets	50	subcategory_id	uuid	f	
+ticketing_tickets	51	parent_ticket_id	uuid	f	
 ticketing_updates	1	id	uuid	t	gen_random_uuid()
 ticketing_updates	2	tenant_id	uuid	t	
 ticketing_updates	3	update_id	text	f	

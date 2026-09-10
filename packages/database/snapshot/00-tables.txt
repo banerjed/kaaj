@@ -91,7 +91,14 @@ tenant_settings	t	t
 tenant_users	t	t
 tenants	t	t
 ticketing_attachments	t	t
+ticketing_business_area_members	t	t
 ticketing_business_areas	t	t
+ticketing_categories	t	t
+ticketing_subcategories	t	t
+ticketing_ticket_assignees	t	t
+ticketing_ticket_links	t	t
+ticketing_ticket_subscribers	t	t
+ticketing_ticket_tasks	t	t
 ticketing_tickets	t	t
 ticketing_updates	t	t
 time_tracking_billable_expenses	t	t

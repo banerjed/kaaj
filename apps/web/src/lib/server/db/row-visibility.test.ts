@@ -764,7 +764,11 @@ describe("ticketing", () => {
       return rows.map((r) => r.visibility)
     })
 
-  it("shows staff every ticket, whatever customer it belongs to", async () => {
+  // 20260909120000_ticketing_visibility.sql — Marcus is seeded as a member
+  // of all three business areas, so this also covers the old customer-
+  // blindness case (CS/IT/FAC tickets belong to different customers, and
+  // membership doesn't care).
+  it("shows a business-area member every non-private ticket in their areas", async () => {
     expect(
       await ticketNumbers({ employeeId: MARCUS, role: "employee" }),
     ).toEqual([
@@ -774,7 +778,59 @@ describe("ticketing", () => {
       "FAC-0001",
       "IT-0001",
       "IT-0002",
+      "IT-0004",
+    ])
+  })
+
+  // IT-0003 is private: business-area membership stops being sufficient,
+  // and only logger/assignee/subscriber (or ticketing.read.all) still see
+  // it — asserting both halves per CLAUDE.md, not just the refused one.
+  it("narrows a private ticket below business-area membership", async () => {
+    // Marcus is a member of IT but neither its logger, assignee nor subscriber.
+    expect(
+      await ticketNumbers({ employeeId: MARCUS, role: "employee" }),
+    ).not.toContain("IT-0003")
+
+    // Priya is IT-0003's logger.
+    expect(
+      await ticketNumbers({ employeeId: PRIYA, role: "employee" }),
+    ).toContain("IT-0003")
+
+    // Sarah is an explicit subscriber, and a member of no business area at all.
+    expect(
+      await ticketNumbers({ employeeId: SARAH, role: "employee" }),
+    ).toContain("IT-0003")
+  })
+
+  it("shows nothing to an employee with no role on any ticket and no business-area membership", async () => {
+    expect(
+      await ticketNumbers({ employeeId: NADIA, role: "employee" }),
+    ).toEqual([])
+  })
+
+  it("a subscriber sees a ticket in a business area they don't belong to — the 'extra user' grant", async () => {
+    // Sarah is subscribed to IT-0002 but is not an IT business-area member.
+    expect(
+      await ticketNumbers({ employeeId: SARAH, role: "employee" }),
+    ).toContain("IT-0002")
+  })
+
+  it("ticketing.read.all sees every ticket regardless of membership", async () => {
+    expect(
+      await ticketNumbers({
+        employeeId: NADIA,
+        role: "employee",
+        functionalRoles: ["it_admin"],
+      }),
+    ).toEqual([
+      "CS-0001",
+      "CS-0002",
+      "CS-0003",
+      "FAC-0001",
+      "IT-0001",
+      "IT-0002",
       "IT-0003",
+      "IT-0004",
     ])
   })
 
@@ -795,17 +851,33 @@ describe("ticketing", () => {
   })
 
   it("filters internal updates for a portal contact, but not for staff", async () => {
+    // CS-0001 carries 10 updates in the fixture (3 external, 7 internal) —
+    // added for the efficient-updates-feed collapse boundary
+    // (ticketing.repo's ticketUpdatesSummary/ticketUpdatesMiddle); this
+    // asserts RLS still separates internal/external across all of them, not
+    // just the original 3.
     const staffSees = await updateVisibilities(
       { employeeId: MARCUS, role: "employee" },
       CS_0001,
     )
-    expect(staffSees.sort()).toEqual(["external", "internal", "internal"])
+    expect(staffSees.sort()).toEqual([
+      "external",
+      "external",
+      "external",
+      "internal",
+      "internal",
+      "internal",
+      "internal",
+      "internal",
+      "internal",
+      "internal",
+    ])
 
     const danaSees = await updateVisibilities(
       { customerContactId: DANA, customerId: ACME, role: "customer" },
       CS_0001,
     )
-    expect(danaSees).toEqual(["external"])
+    expect(danaSees).toEqual(["external", "external", "external"])
   })
 
   it("shows a portal contact no tickets with no customer claim at all", async () => {

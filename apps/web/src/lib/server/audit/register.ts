@@ -202,6 +202,18 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "update",
     why: "Default currency, timezone and locale. Every figure in the product is formatted against these, and the timezone moves date boundaries.",
   },
+
+  // -- Ticketing: grants that change who may READ a ticket -------------------
+  {
+    route: "ticketing/[id]",
+    action: "saveTicket",
+    why: "The unified ticket-edit form (subject/status/due date/summary/parent/comment plus assignees/subscribers/links in one submit). Unlike a comment or a status flip, an assignee or subscriber change here still moves who staff_ticket_visibility lets read the ticket — a rights change, recorded only when one of those two actually moved (audit.diff shape), never for a save that touched neither.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "saveMembers",
+    why: "A business area's default-visible list decides who reads every non-private ticket in it — changing it is a bulk rights change.",
+  },
 ]
 
 /** Writes that deliberately do NOT audit, each with a reason — not "not got round to it". */
@@ -247,13 +259,73 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "The logging employee's own status flip, not a decision by anyone else. What decide() does to it is audited; this step just queues it.",
   },
   {
-    route: "ticketing/[id]",
-    action: "addUpdate",
-    why: "A support-ticket comment, same shape as a board movement — it changes nobody's money, employment or rights, and a line per comment would bury the pay changes the trail exists to make findable.",
+    route: "ticketing/new",
+    action: "default",
+    why: "Raising a ticket is self-service (see EVERYONE's ticketing.write.own in @kaaj/authz) — same shape as addUpdate. The ticket's own existence is the record; StatusBadge and the list page are what anyone would check.",
   },
   {
     route: "ticketing/[id]",
-    action: "setStatus",
-    why: "A support ticket's own lifecycle, not a decision about a person. StatusBadge and the list page are the record anyone would actually check.",
+    action: "loadMoreUpdates",
+    why: "A read, not a write — pagination for the updates feed.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "addTask",
+    why: "A checklist item appearing on a ticket changes nobody's money, employment or rights — same reasoning as projects/[id]::addTask.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "toggleTask",
+    why: "Marking a checklist item done/undone, same shape as projects/[id]::moveTask — high-frequency, no trail anyone would read.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "archiveTask",
+    why: "Removing a checklist item someone no longer needs — configuration of the ticket's own working list, not a rights or pay change.",
+  },
+  {
+    route: "settings/ticketing",
+    action: "save",
+    why: "A business area's name/prefix/description. Renaming it does not retroactively change who could see its tickets.",
+  },
+  {
+    route: "settings/ticketing",
+    action: "archive",
+    why: "Deactivating a business area stops new tickets, same shape as settings/departments' archive.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "addCategory",
+    why: "Ticket categories are Tier-1 configuration data (docs/06-customization-model.md), same shape as adding a department.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "archiveCategory",
+    why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "addSubcategory",
+    why: "Same as addCategory, one level down.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "archiveSubcategory",
+    why: "Same as archiveCategory.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "addCustomField",
+    why: "Tier 2 customization (docs/06-customization-model.md), same shape as addCategory — a field definition, not a value belonging to any person.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "archiveCustomField",
+    why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "setCustomFields",
+    why: "Ticket attributes (asset tag, account tier, ...) — the same category as severity/priority, which already change with no audit entry via addUpdate's status-change path.",
   },
 ]

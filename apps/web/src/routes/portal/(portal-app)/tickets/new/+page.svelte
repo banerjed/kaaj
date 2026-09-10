@@ -6,6 +6,21 @@
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  // `$state(data...)` only captures the value at first mount — this needs
+  // to track `data` on every load, so it's an `$effect` instead.
+  let businessAreaId = $state("")
+  let categoryId = $state("")
+  $effect(() => {
+    businessAreaId = data.businessAreas[0]?.id ?? ""
+  })
+  const categories = $derived(
+    data.categoriesByArea[businessAreaId]?.categories ?? [],
+  )
+  const subcategories = $derived(
+    (data.categoriesByArea[businessAreaId]?.subcategories ?? []).filter(
+      (s) => s.category_id === categoryId,
+    ),
+  )
 </script>
 
 <PageHead title="New ticket" />
@@ -27,6 +42,8 @@
         name="business_area_id"
         aria-invalid={err.aria("business_area_id")}
         class={`select w-full ${err.select("business_area_id")}`}
+        bind:value={businessAreaId}
+        onchange={() => (categoryId = "")}
         required
       >
         {#each data.businessAreas as ba (ba.id)}
@@ -36,13 +53,34 @@
     </fieldset>
     <fieldset class="fieldset">
       <legend class="fieldset-legend">Category</legend>
-      <input
-        name="category"
-        aria-invalid={err.aria("category")}
-        class={`input w-full ${err.input("category")}`}
+      <select
+        name="category_id"
+        aria-invalid={err.aria("category_id")}
+        class={`select w-full ${err.select("category_id")}`}
+        bind:value={categoryId}
         required
-      />
+      >
+        <option value="" disabled selected>Choose a category</option>
+        {#each categories as c (c.id)}
+          <option value={c.id}>{c.name}</option>
+        {/each}
+      </select>
     </fieldset>
+    {#if subcategories.length > 0}
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Subcategory</legend>
+        <select
+          name="subcategory_id"
+          aria-invalid={err.aria("subcategory_id")}
+          class={`select w-full ${err.select("subcategory_id")}`}
+        >
+          <option value="">None</option>
+          {#each subcategories as s (s.id)}
+            <option value={s.id}>{s.name}</option>
+          {/each}
+        </select>
+      </fieldset>
+    {/if}
     <fieldset class="fieldset">
       <legend class="fieldset-legend">Title</legend>
       <input

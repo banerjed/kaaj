@@ -300,3 +300,24 @@ test("an employment_status outside the enum is refused, never stored as free tex
   await page.goto("/employees?q=ADVPROBE07")
   await expect(page.getByText("No one matches these filters")).toBeVisible()
 })
+
+test("the unified ticket-edit form stays open, and marked, on a refused submission", async ({
+  page,
+}) => {
+  // IT-0001 — any staff-visible ticket in the fixture does.
+  await page.goto("/ticketing/a22f6d41-d654-5951-a043-e174f7e1a258")
+  await openModal(page, /add an update/i, 'input[name="title"]')
+
+  // Posting a comment is optional here (a save that only changes the due
+  // date must not be forced to write one) — due_date is the field that is
+  // still required, so blanking it is what triggers a refusal.
+  await page.locator('input[name="due_date"]').fill("")
+  await submitPastTheBrowser(page, "?/saveTicket")
+  await expect(page.locator(".alert").first()).toContainText("Due date")
+
+  // Still open, not reset back to the "Add an update" button, and marked.
+  await expect(page.locator('input[name="title"]')).toBeVisible()
+  await expect(page.locator('input[name="due_date"]')).toHaveClass(
+    /input-error/,
+  )
+})

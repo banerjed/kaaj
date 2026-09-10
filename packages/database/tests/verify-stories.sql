@@ -410,17 +410,33 @@ SELECT _check('TIX-private','DATA','ticketing',
   $$SELECT count(*)>0 FROM ticketing_tickets WHERE private$$);
 SELECT _check('TIX-subscribers','DATA','ticketing',
   'Ticket subscribers/watchers are represented',
-  $$SELECT count(*)>0 FROM ticketing_tickets
-     WHERE jsonb_array_length(coalesce(subscribers,'[]'::jsonb))>0$$);
+  $$SELECT count(*)>0 FROM ticketing_ticket_subscribers$$);
+SELECT _check('TIX-assignees','DATA','ticketing',
+  'Ticket assignees are represented',
+  $$SELECT count(*)>0 FROM ticketing_ticket_assignees$$);
 SELECT _check('TIX-linking','DATA','ticketing',
   'Tickets can reference parent or linked tickets',
-  $$SELECT count(*)>0 FROM ticketing_tickets
-     WHERE parent_ticket_number IS NOT NULL
-        OR jsonb_array_length(coalesce(linked_tickets,'[]'::jsonb))>0$$);
-SELECT _check('TIX-workflow','DATA','ticketing',
-  'Business-area categories and custom fields can drive workflows',
-  $$SELECT count(*)>0 FROM ticketing_business_areas
-     WHERE jsonb_array_length(categories)>0 AND custom_fields <> '{}'::jsonb$$);
+  $$(SELECT count(*)>0 FROM ticketing_tickets WHERE parent_ticket_id IS NOT NULL)
+     OR (SELECT count(*)>0 FROM ticketing_ticket_links)$$);
+SELECT _check('TIX-categories','DATA','ticketing',
+  'Business-area categories, with subcategories, can drive workflows',
+  $$SELECT count(*)>0 FROM ticketing_categories c
+     JOIN ticketing_subcategories s ON s.category_id = c.id$$);
+SELECT _check('TIX-visibility','DATA','ticketing',
+  'Business areas have default-visible members, distinct from per-ticket assignment',
+  $$SELECT count(*)>0 FROM ticketing_business_area_members$$);
+SELECT _check('TIX-custom-fields','SCHEMA','ticketing',
+  'Custom fields are per-BUSINESS-AREA, not just per-entity-type (Tier 2 customization)',
+  $$SELECT count(DISTINCT business_area_id)>1 FROM custom_field_definitions
+     WHERE entity_type='ticket'$$);
+SELECT _check('TIX-custom-values','DATA','ticketing',
+  'Ticket custom field values use keys that have a definition for THAT ticket''s own business area',
+  $$SELECT bool_and(t.custom_fields ?| (SELECT array_agg(field_key) FROM custom_field_definitions
+      WHERE entity_type='ticket' AND business_area_id = t.business_area_id))
+    FROM ticketing_tickets t WHERE t.custom_fields <> '{}'::jsonb$$);
+SELECT _check('TIX-tasks','DATA','ticketing',
+  'Tickets can carry a checklist of tasks, in both done and not-done states',
+  $$SELECT count(DISTINCT is_done)>1 FROM ticketing_ticket_tasks$$);
 
 -- =============================================================================
 -- PROJECTS & TIME TRACKING  (module-project-management-v2.md, module-time-tracking.md)

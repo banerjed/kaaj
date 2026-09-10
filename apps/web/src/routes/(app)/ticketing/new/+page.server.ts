@@ -3,18 +3,16 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as ticketing from "$lib/server/ticketing/ticketing.repo"
 import { TicketingRefused } from "$lib/server/ticketing/ticketing.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
-import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
+/** /ticketing/new — the staff-side counterpart to the portal's own ticket-submission page. Every business area, not just portal-visible ones. */
 export const load: PageServerLoad = async ({ locals }) => {
-  if (!locals.customerContactId) error(403, "No portal session")
-  const ctx = contextFrom(locals)
-  if (!can(ctx, "ticket.submit")) error(403, "You cannot submit a ticket.")
+  if (!locals.tenantId) error(403, "No tenant")
+  requireCan(contextFrom(locals), "ticketing.write.own")
 
   return withTenant(actorFrom(locals), async (tx) => {
-    const businessAreas = await ticketing.businessAreas(tx, {
-      portalVisibleOnly: true,
-    })
+    const businessAreas = await ticketing.businessAreas(tx)
     const categoriesByArea: Record<
       string,
       Awaited<ReturnType<typeof ticketing.categoriesFor>>
@@ -28,9 +26,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals }) => {
-    if (!locals.customerContactId) error(403, "No portal session")
+    if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
-    requireCan(ctx, "ticket.submit")
+    requireCan(ctx, "ticketing.write.own")
 
     const f = new FormReader(await request.formData())
     const businessAreaId = f.uuid("business_area_id", { required: true })
@@ -54,13 +52,10 @@ export const actions: Actions = {
             subcategoryId: subcategoryId,
             dueDate: dueDate!,
           },
-          {
-            contactId: locals.customerContactId!,
-            customerId: locals.customerId!,
-          },
+          { employeeId: ctx!.employeeId ?? ctx!.userId },
         ),
       )
-      redirect(303, `/portal/tickets/${id}`)
+      redirect(303, `/ticketing/${id}`)
     } catch (e) {
       if (e instanceof TicketingRefused) {
         return fail(400, { message: "That business area isn't available." })

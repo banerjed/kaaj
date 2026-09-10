@@ -39,6 +39,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/accounting/ledger", heading: "Ledger" },
   { path: "/accounting/banking", heading: "Banking" },
   { path: "/ticketing", heading: "Ticketing" },
+  { path: "/ticketing/new", heading: "New ticket" },
   { path: "/settings/company", heading: "Company" },
   { path: "/settings/departments", heading: "Departments" },
   { path: "/settings/locations", heading: "Locations" },
@@ -47,6 +48,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/settings/benefits", heading: "Benefits" },
   { path: "/settings/payroll/policies", heading: "Payroll Policies" },
   { path: "/settings/payroll/schedules", heading: "Pay Schedules" },
+  { path: "/settings/ticketing", heading: "Ticketing" },
 ]
 
 /** Console errors, minus the noise a dev server makes on every page. */

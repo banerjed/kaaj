@@ -266,6 +266,11 @@ export const appMenuItems: ISidebarMenuItem[] = [
         label: "Payroll Policies",
         url: "/settings/payroll/policies",
       },
+      {
+        id: "settings-ticketing",
+        label: "Ticketing",
+        url: "/settings/ticketing",
+      },
     ],
   },
 ]
