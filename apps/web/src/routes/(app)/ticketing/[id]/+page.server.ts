@@ -8,7 +8,7 @@ import {
 import * as employees from "$lib/server/employee-profile/employees.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader, formList } from "$lib/server/forms"
+import { FormReader, formList, formString } from "$lib/server/forms"
 import * as audit from "$lib/server/audit/audit.repo"
 
 /** A picker (parent/link candidates) never needs the whole tenant's ticket table. */
@@ -33,33 +33,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const ticket = await ticketing.ticketById(tx, params.id)
     if (!ticket) error(404, "No such ticket")
-    const [
-      updates,
-      siblingTickets,
-      linkCandidates,
-      people,
-      customFieldDefinitions,
-      tasks,
-    ] = await Promise.all([
+    // Parent/linked-ticket candidates are no longer preloaded here: the
+    // `Combobox` pickers search on demand via `?/searchTickets`, and the
+    // ticket's OWN current parent/links already arrive on `ticket` itself
+    // (ticketById), so there's no "merge the current value back into a
+    // capped candidate list" step to do — unlike a plain `<select>`, a
+    // Combobox's selected item doesn't need to appear in its own options.
+    const [updates, people, customFieldDefinitions, tasks] = await Promise.all([
       ticketing.ticketUpdatesSummary(tx, ticket.id),
-      // Same business area only — a parent must live there (updateTicketCore
-      // enforces it server-side too). Capped: a business area can still run
-      // to thousands of tickets.
-      ticketing.listTickets(tx, {
-        businessAreaId: ticket.business_area_id,
-        excludeIds: [ticket.id],
-        limit: PICKER_LIMIT,
-      }),
-      // Cross-business-area, so unlike the parent picker this can't scope by
-      // area — capped to the most recently logged tickets instead of the
-      // whole tenant table (advisor note: this used to fetch every ticket).
-      // Deliberately NOT excluding already-linked tickets: the template
-      // merges this with `ticket.linked` so an existing link outside the
-      // most-recent 50 still has an option to stay selected.
-      ticketing.listTickets(tx, {
-        excludeIds: [ticket.id],
-        limit: PICKER_LIMIT,
-      }),
       employees.managerOptions(tx),
       ticketing.customFieldDefinitionsFor(tx, ticket.business_area_id),
       ticketing.ticketTasksFor(tx, ticket.id),
@@ -70,8 +51,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       customFieldDefinitions,
       tasks,
       statuses: TICKET_STATUSES,
-      possibleParents: siblingTickets,
-      linkCandidates,
+      // A value, not a type — `updatesMiddlePageSize` has to travel through
+      // `load`'s return rather than a direct import, since a `+page.svelte`
+      // may only import a `$lib/server/*` VALUE if it's erased at compile
+      // time (`import type`); this one is read at runtime to size a page.
+      updatesMiddlePageSize: ticketing.UPDATES_MIDDLE_PAGE_SIZE,
       people,
       mayWrite:
         can(ctx, "ticketing.write.own") || can(ctx, "ticketing.write.all"),
@@ -235,6 +219,41 @@ export const actions: Actions = {
     }
   },
 
+  /**
+   * Backs the Parent/Linked-tickets `Combobox` (item 2): the picker options
+   * shipped by `load` are capped at `PICKER_LIMIT` most-recently-logged, so
+   * an autocomplete that only ever searched THAT list would report "no
+   * results" for a real ticket sitting just outside it. This runs the same
+   * `listTickets` query the picker's default list uses, but scoped to
+   * whatever was actually typed.
+   */
+  searchTickets: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "ticketing.read.own")
+    const data = await request.formData()
+    const scope = formString(data, "scope") === "parent" ? "parent" : "link"
+    const q = formString(data, "q")
+
+    return withTenant(actorFrom(locals), async (tx) => {
+      const ticket = await ticketing.ticketById(tx, params.id)
+      if (!ticket) error(404, "No such ticket")
+      const rows = await ticketing.listTickets(tx, {
+        businessAreaId:
+          scope === "parent" ? ticket.business_area_id : undefined,
+        excludeIds: [ticket.id],
+        search: q || undefined,
+        limit: PICKER_LIMIT,
+      })
+      return {
+        results: rows.map((t) => ({
+          id: t.id,
+          label: `${t.ticket_number} — ${t.title}`,
+          sublabel: t.status,
+        })),
+      }
+    })
+  },
+
   loadMoreUpdates: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "ticketing.read.own")
@@ -309,10 +328,14 @@ export const actions: Actions = {
     requireCan(ctx, "ticketing.write.own")
     const tenantId = locals.tenantId
 
+    // Named task_title/task_due_date, not title/due_date — the unified edit
+    // form above has fields by those exact names, and a shared `form` prop
+    // means a collision here would highlight (or auto-open) the WRONG form
+    // on a refusal.
     const f = new FormReader(await request.formData())
-    const title = f.text("title", { required: true, max: 255 })
+    const title = f.text("task_title", { required: true, max: 255 })
     const assigneeId = f.uuid("assignee_id")
-    const dueDate = f.date("due_date")
+    const dueDate = f.date("task_due_date")
     if (!f.ok) return fail(400, f.problem("Name the task."))
 
     await withTenant(actorFrom(locals), (tx) =>

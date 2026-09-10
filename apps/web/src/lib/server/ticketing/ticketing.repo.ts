@@ -17,8 +17,10 @@ import { sanitizeRichText } from "../rich-text"
  */
 export const TICKET_STATUSES = [
   "open",
-  "in_progress",
-  "resolved",
+  "active",
+  "awaiting_response",
+  "suspended",
+  "duplicate",
   "closed",
 ] as const
 export type TicketStatus = (typeof TICKET_STATUSES)[number]
@@ -137,7 +139,7 @@ export type TicketFilters = {
   loggerEmployeeId?: string
   assigneeEmployeeId?: string
   subscriberEmployeeId?: string
-  /** Matches subject or any update's text — both search_vector columns already exist and are indexed. */
+  /** Matches subject or any update's text (search_vector, both already indexed), or the ticket number directly — search_vector doesn't tokenize "IT-0002" usefully, and a picker's most common query is the number itself. */
   search?: string
   /** Set for `ticketing.read.own` — only tickets this employee raised or is assigned/subscribed to. */
   ownedByEmployeeId?: string
@@ -204,7 +206,7 @@ export async function listTickets(
        AND (${subscriberId}::uuid IS NULL OR EXISTS (
               SELECT 1 FROM ticketing_ticket_subscribers s
                WHERE s.ticket_id = t.id AND s.employee_id = ${subscriberId}::uuid AND s.is_active))
-       AND (${search} = '' OR t.search_vector @@ plainto_tsquery('simple', ${search}))
+       AND (${search} = '' OR t.search_vector @@ plainto_tsquery('simple', ${search}) OR t.ticket_number ILIKE ${"%" + search + "%"})
        AND (${ownedBy}::uuid IS NULL
             OR t.logger_employee_id = ${ownedBy}::uuid
             OR EXISTS (SELECT 1 FROM ticketing_ticket_assignees a
@@ -247,7 +249,7 @@ export async function countTickets(
        AND (${subscriberId}::uuid IS NULL OR EXISTS (
               SELECT 1 FROM ticketing_ticket_subscribers s
                WHERE s.ticket_id = t.id AND s.employee_id = ${subscriberId}::uuid AND s.is_active))
-       AND (${search} = '' OR t.search_vector @@ plainto_tsquery('simple', ${search}))
+       AND (${search} = '' OR t.search_vector @@ plainto_tsquery('simple', ${search}) OR t.ticket_number ILIKE ${"%" + search + "%"})
        AND (${ownedBy}::uuid IS NULL
             OR t.logger_employee_id = ${ownedBy}::uuid
             OR EXISTS (SELECT 1 FROM ticketing_ticket_assignees a
@@ -452,19 +454,34 @@ export async function ticketUpdatesSummary(
   }
 }
 
-/** The collapsed middle, oldest-of-the-hidden-range first, paginated — never the whole set at once. */
+/** Every page of the hidden middle is this many rows — shared with the client so the "did that exhaust it" check in `+page.svelte` can't drift from what the server actually paginates by. */
+export const UPDATES_MIDDLE_PAGE_SIZE = 20
+
+/**
+ * The collapsed middle, most-recent-of-the-hidden-range first, paginated —
+ * never the whole set at once (item 6: the feed reads newest-to-oldest
+ * throughout, so the hidden section must too, not just the top 3).
+ * `afterId` is the fixed floor (the ticket's opening update); `beforeId` is
+ * the moving cursor, starting at the boundary of the visible "latest 3" and
+ * walking backward in time one page at a time.
+ *
+ * The WHERE clause compares the full `(created_at, id)` pair, matching the
+ * ORDER BY tiebreak — comparing `created_at` alone would drop or repeat rows
+ * that share a timestamp (the fixture has several, e.g. the bulk-generated
+ * IT-0004 updates).
+ */
 export async function ticketUpdatesMiddle(
   tx: Tx,
   ticketId: string,
   opts: { afterId: string; beforeId: string; limit?: number },
 ): Promise<TicketUpdateRow[]> {
-  const limit = opts.limit ?? 20
+  const limit = opts.limit ?? UPDATES_MIDDLE_PAGE_SIZE
   const rows = await tx<TicketUpdateRow[]>`
     ${tx.unsafe(UPDATE_SELECT)}
      WHERE u.ticket_id = ${ticketId}::uuid
-       AND u.created_at > (SELECT created_at FROM ticketing_updates WHERE id = ${opts.afterId}::uuid)
-       AND u.created_at < (SELECT created_at FROM ticketing_updates WHERE id = ${opts.beforeId}::uuid)
-     ORDER BY u.created_at ASC, u.id ASC
+       AND (u.created_at, u.id) > (SELECT created_at, id FROM ticketing_updates WHERE id = ${opts.afterId}::uuid)
+       AND (u.created_at, u.id) < (SELECT created_at, id FROM ticketing_updates WHERE id = ${opts.beforeId}::uuid)
+     ORDER BY u.created_at DESC, u.id DESC
      LIMIT ${limit}
   `
   return sanitizeUpdates(rows)
@@ -637,7 +654,11 @@ export type TicketCoreBefore = {
  * move when status is actually CHANGING (`status IS DISTINCT FROM`) — the old
  * per-action setStatus only ran on a deliberate status edit, so a save that
  * merely touches the due date must not re-stamp resolved_at on an already-
- * resolved ticket.
+ * closed ticket. The vocabulary has no separate "resolved" step anymore
+ * (TICKET_STATUSES) — `closed` is the one completion state, so both columns
+ * stamp together on the move to it; `resolved_at` is kept rather than
+ * dropped so any existing reader of "time to resolution" (the fixture's SLA
+ * check among them) still gets a value.
  */
 export async function updateTicketCore(
   tx: Tx,
@@ -670,7 +691,7 @@ export async function updateTicketCore(
     UPDATE ticketing_tickets
        SET title = ${input.title}, subject = ${input.title},
            status = ${input.status},
-           resolved_at = CASE WHEN ${input.status} = 'resolved' AND status IS DISTINCT FROM ${input.status} THEN now() ELSE resolved_at END,
+           resolved_at = CASE WHEN ${input.status} = 'closed' AND status IS DISTINCT FROM ${input.status} THEN now() ELSE resolved_at END,
            closed_at   = CASE WHEN ${input.status} = 'closed'   AND status IS DISTINCT FROM ${input.status} THEN now() ELSE closed_at   END,
            due_date = ${input.dueDate}::date,
            external_summary = ${input.externalSummary},

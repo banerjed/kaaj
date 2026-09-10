@@ -618,7 +618,7 @@ UPDATE ticketing_tickets t SET parent_ticket_id = p.id
 -- hardcodes expected-visible-update-count arrays for those two, and adding
 -- to either would mean touching that test again for no reason.
 INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, prefix, sequence_number, title, subject, description, category_id, subcategory_id, status, priority, severity, internal_summary, external_summary, private, due_date, logged_at, updated_at, resolved_at, reported_by, logger_employee_id, logger_contact_id, customer_id, last_updated_by, custom_fields, version, created_at) VALUES
-    ('d4000000-0000-5000-9000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0004', 'IT', 4, 'Ongoing network switch replacement', 'Ongoing network switch replacement', 'A long-running project to replace the core network switch, tracked as one ticket with frequent status updates.', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'in_progress', 'medium', 'medium', 'Internal notes for Ongoing network switch replacement', 'Ongoing network switch replacement', FALSE, '2026-04-30', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '6d466aa9-e51a-5d52-9015-152600855932', '6d466aa9-e51a-5d52-9015-152600855932', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+    ('d4000000-0000-5000-9000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0004', 'IT', 4, 'Ongoing network switch replacement', 'Ongoing network switch replacement', 'A long-running project to replace the core network switch, tracked as one ticket with frequent status updates.', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'active', 'medium', 'medium', 'Internal notes for Ongoing network switch replacement', 'Ongoing network switch replacement', FALSE, '2026-04-30', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '6d466aa9-e51a-5d52-9015-152600855932', '6d466aa9-e51a-5d52-9015-152600855932', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
 
 -- Inserted with a literal sequence_number, same reason as CS-0003 above.
 UPDATE ticketing_business_areas SET current_sequence = 4 WHERE prefix = 'IT';
@@ -2400,10 +2400,11 @@ UPDATE ticketing_tickets SET closed_at = NULL, status = 'open';
 -- original INSERT above; this keeps that intent, just coarser.
 UPDATE ticketing_tickets SET closed_at = '2026-04-02T14:20:00Z', status = 'closed'
  WHERE ticket_number IN ('IT-0002', 'CS-0002');
--- Both were 'in_progress' in their original INSERT too — kept, so that
--- status has a real row (a status filter with zero matches for a value in
--- its own vocabulary is exactly the L50/L51 shape).
-UPDATE ticketing_tickets SET status = 'in_progress'
+-- Both were 'in_progress' in their original INSERT too — kept as 'active'
+-- (TICKET_STATUSES' replacement for it), so that status has a real row (a
+-- status filter with zero matches for a value in its own vocabulary is
+-- exactly the L50/L51 shape).
+UPDATE ticketing_tickets SET status = 'active'
  WHERE ticket_number IN ('CS-0001', 'FAC-0001');
 
 -- A second objective, archived — with only one row, setting `archived_at`

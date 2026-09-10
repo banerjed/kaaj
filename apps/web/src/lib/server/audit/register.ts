@@ -270,6 +270,11 @@ export const NOT_AUDITED: AuditedOperation[] = [
   },
   {
     route: "ticketing/[id]",
+    action: "searchTickets",
+    why: "A read, not a write — backs the parent/linked-ticket autocomplete pickers.",
+  },
+  {
+    route: "ticketing/[id]",
     action: "addTask",
     why: "A checklist item appearing on a ticket changes nobody's money, employment or rights — same reasoning as projects/[id]::addTask.",
   },

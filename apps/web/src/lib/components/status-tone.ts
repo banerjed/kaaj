@@ -91,12 +91,12 @@ export const bankTransactionStatusTone = (s: string | null): Tone =>
         ? "neutral"
         : "progress"
 
-/** `ticketing_tickets.status` — open/in_progress/resolved/closed. */
+/** `ticketing_tickets.status` — open/active/awaiting_response/suspended/duplicate/closed. */
 export const ticketStatusTone = (s: string | null): Tone =>
-  s === "resolved" || s === "closed"
+  s === "closed" || s === "duplicate"
     ? "positive"
-    : s === "in_progress"
+    : s === "active"
       ? "progress"
-      : s === "open"
+      : s === "open" || s === "awaiting_response"
         ? "caution"
         : "neutral"
