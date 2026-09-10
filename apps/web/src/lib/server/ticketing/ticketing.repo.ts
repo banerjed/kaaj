@@ -95,7 +95,6 @@ export type TicketRow = {
   category_name: string
   subcategory_name: string | null
   status: string
-  priority: string | null
   severity: string
   due_date: string | null
   logged_at: Date
@@ -110,7 +109,7 @@ const TICKET_COLUMNS = `
   t.id, t.ticket_number,
   ba.name AS business_area_name,
   t.title, cat.name AS category_name, sub.name AS subcategory_name,
-  t.status, t.priority, t.severity,
+  t.status, t.severity,
   to_char(t.due_date,'YYYY-MM-DD') AS due_date,
   t.logged_at,
   c.customer_name,
@@ -139,7 +138,7 @@ export type TicketFilters = {
   loggerEmployeeId?: string
   assigneeEmployeeId?: string
   subscriberEmployeeId?: string
-  /** Matches subject or any update's text (search_vector, both already indexed), or the ticket number directly — search_vector doesn't tokenize "IT-0002" usefully, and a picker's most common query is the number itself. */
+  /** Matches title or any update's text (search_vector, both already indexed), or the ticket number directly — search_vector doesn't tokenize "IT-0002" usefully, and a picker's most common query is the number itself. */
   search?: string
   /** Set for `ticketing.read.own` — only tickets this employee raised or is assigned/subscribed to. */
   ownedByEmployeeId?: string
@@ -273,7 +272,6 @@ export type TicketRef = {
 export type TicketDetail = TicketRow & {
   description: string | null
   external_summary: string | null
-  internal_summary: string | null
   business_area_id: string
   category_id: string
   subcategory_id: string | null
@@ -299,7 +297,6 @@ export async function ticketById(
     (TicketRow & {
       description: string | null
       external_summary: string | null
-      internal_summary: string | null
       business_area_id: string
       category_id: string
       subcategory_id: string | null
@@ -312,7 +309,7 @@ export async function ticketById(
     })[]
   >`
     SELECT ${tx.unsafe(TICKET_COLUMNS)},
-           t.description, t.external_summary, t.internal_summary,
+           t.description, t.external_summary,
            t.business_area_id, t.category_id, t.subcategory_id, t.private,
            t.parent_ticket_id, p.ticket_number AS parent_ticket_number,
            p.title AS parent_ticket_title, p.status AS parent_ticket_status,
@@ -359,8 +356,6 @@ export async function ticketById(
     description: row.description && sanitizeRichText(row.description),
     external_summary:
       row.external_summary && sanitizeRichText(row.external_summary),
-    internal_summary:
-      row.internal_summary && sanitizeRichText(row.internal_summary),
     assignees,
     subscribers,
     linked,
@@ -495,7 +490,7 @@ async function nextTicketNumber(
   tx: Tx,
   tenantId: string,
   businessAreaId: string,
-): Promise<{ ticketNumber: string; prefix: string; sequence: number }> {
+): Promise<{ ticketNumber: string }> {
   const [area] = await tx<{ prefix: string; next: number }[]>`
     UPDATE ticketing_business_areas
        SET current_sequence = current_sequence + 1
@@ -505,8 +500,6 @@ async function nextTicketNumber(
   if (!area) throw new TicketingRefused("no_such_business_area")
   return {
     ticketNumber: `${area.prefix}-${String(area.next).padStart(4, "0")}`,
-    prefix: area.prefix,
-    sequence: area.next,
   }
 }
 
@@ -538,7 +531,7 @@ export async function createTicket(
   `
   if (!category) throw new TicketingRefused("no_such_category")
 
-  const { ticketNumber, prefix, sequence } = await nextTicketNumber(
+  const { ticketNumber } = await nextTicketNumber(
     tx,
     tenantId,
     input.businessAreaId,
@@ -570,14 +563,14 @@ export async function createTicket(
 
   const [ticket] = await tx<{ id: string }[]>`
     INSERT INTO ticketing_tickets (
-      tenant_id, business_area_id, ticket_number, prefix, sequence_number,
-      title, subject, description, category_id, subcategory_id, status,
+      tenant_id, business_area_id, ticket_number,
+      title, description, category_id, subcategory_id, status,
       severity, due_date, logged_at, updated_at, logger_employee_id,
       logger_contact_id, customer_id, last_updated_by, reported_by_name,
       reported_by_email
     ) VALUES (
-      ${tenantId}::uuid, ${input.businessAreaId}::uuid, ${ticketNumber}, ${prefix}, ${sequence},
-      ${input.title}, ${input.title}, ${input.description},
+      ${tenantId}::uuid, ${input.businessAreaId}::uuid, ${ticketNumber},
+      ${input.title}, ${input.description},
       ${input.categoryId}::uuid, ${input.subcategoryId}::uuid, 'open', 'medium',
       ${input.dueDate}::date,
       now(), now(), ${loggerEmployeeId}::uuid, ${loggerContactId}::uuid,
@@ -624,12 +617,12 @@ export async function addUpdate(
   await tx`
     INSERT INTO ticketing_updates (
       tenant_id, ticket_id, ticket_number, update_type,
-      author_id, author_employee_id, author_contact_id, author_name,
-      content_text, comment_text, visibility, is_internal, created_at
+      author_employee_id, author_contact_id, author_name,
+      content_text, visibility, created_at
     ) VALUES (
       ${tenantId}::uuid, ${ticketId}::uuid, ${ticketNumber}, 'comment',
-      ${authorId}::uuid, ${authorEmployeeId}::uuid, ${authorContactId}::uuid, ${authorName},
-      ${content}, ${content}, ${visibility}, ${visibility === "internal"}, now()
+      ${authorEmployeeId}::uuid, ${authorContactId}::uuid, ${authorName},
+      ${content}, ${visibility}, now()
     )
   `
   await tx`
@@ -689,7 +682,7 @@ export async function updateTicketCore(
 
   await tx`
     UPDATE ticketing_tickets
-       SET title = ${input.title}, subject = ${input.title},
+       SET title = ${input.title},
            status = ${input.status},
            resolved_at = CASE WHEN ${input.status} = 'closed' AND status IS DISTINCT FROM ${input.status} THEN now() ELSE resolved_at END,
            closed_at   = CASE WHEN ${input.status} = 'closed'   AND status IS DISTINCT FROM ${input.status} THEN now() ELSE closed_at   END,
@@ -841,9 +834,9 @@ export async function createBusinessArea(
 ): Promise<{ id: string }> {
   const [row] = await tx<{ id: string }[]>`
     INSERT INTO ticketing_business_areas
-      (tenant_id, prefix, name, description, active, is_active, created_at, created_by, updated_at)
+      (tenant_id, prefix, name, description, is_active, created_at, created_by, updated_at)
     VALUES (${tenantId}::uuid, ${input.prefix}, ${input.name}, ${input.description},
-            TRUE, TRUE, now(), ${actorId}, now())
+            TRUE, now(), ${actorId}, now())
     RETURNING id
   `
   return row
@@ -867,7 +860,7 @@ export async function archiveBusinessArea(
   id: string,
 ): Promise<boolean> {
   const [row] = await tx<{ id: string }[]>`
-    UPDATE ticketing_business_areas SET is_active = FALSE, active = FALSE
+    UPDATE ticketing_business_areas SET is_active = FALSE
      WHERE id = ${id}::uuid
     RETURNING id
   `

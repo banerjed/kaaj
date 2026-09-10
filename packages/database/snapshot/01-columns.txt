@@ -1953,7 +1953,6 @@ ticketing_business_areas	2	tenant_id	uuid	t
 ticketing_business_areas	3	prefix	text	f	
 ticketing_business_areas	4	name	text	t	
 ticketing_business_areas	5	description	text	f	
-ticketing_business_areas	6	active	boolean	f	true
 ticketing_business_areas	7	current_sequence	integer	f	0
 ticketing_business_areas	10	roles	jsonb	t	'{}'::jsonb
 ticketing_business_areas	11	settings	jsonb	t	'{}'::jsonb
@@ -2013,13 +2012,9 @@ ticketing_tickets	1	id	uuid	t	gen_random_uuid()
 ticketing_tickets	2	tenant_id	uuid	t	
 ticketing_tickets	3	business_area_id	uuid	f	
 ticketing_tickets	4	ticket_number	text	f	
-ticketing_tickets	5	prefix	text	t	
-ticketing_tickets	6	sequence_number	integer	t	
 ticketing_tickets	7	title	text	t	
 ticketing_tickets	8	description	text	f	
-ticketing_tickets	9	subject	text	t	
 ticketing_tickets	11	status	text	t	'open'::text
-ticketing_tickets	12	priority	text	f	
 ticketing_tickets	13	severity	text	t	'medium'::text
 ticketing_tickets	14	request_type	text	t	'support'::text
 ticketing_tickets	15	private	boolean	f	false
@@ -2028,15 +2023,10 @@ ticketing_tickets	17	logged_at	timestamp with time zone	t
 ticketing_tickets	18	updated_at	timestamp with time zone	t	now()
 ticketing_tickets	19	resolved_at	timestamp with time zone	f	
 ticketing_tickets	20	closed_at	timestamp with time zone	f	
-ticketing_tickets	21	reported_by	text	f	
 ticketing_tickets	22	reported_by_name	text	f	
 ticketing_tickets	23	reported_by_email	text	f	
 ticketing_tickets	24	logger_employee_id	uuid	f	
 ticketing_tickets	25	last_updated_by	text	t	
-ticketing_tickets	26	closed_by	text	f	
-ticketing_tickets	29	resolution_notes	text	f	
-ticketing_tickets	30	is_public	boolean	f	
-ticketing_tickets	31	internal_summary	text	f	
 ticketing_tickets	32	external_summary	text	f	
 ticketing_tickets	33	custom_fields	jsonb	f	'{}'::jsonb
 ticketing_tickets	37	version	integer	f	1
@@ -2056,23 +2046,16 @@ ticketing_tickets	50	subcategory_id	uuid	f
 ticketing_tickets	51	parent_ticket_id	uuid	f	
 ticketing_updates	1	id	uuid	t	gen_random_uuid()
 ticketing_updates	2	tenant_id	uuid	t	
-ticketing_updates	3	update_id	text	f	
 ticketing_updates	4	ticket_id	uuid	f	
 ticketing_updates	5	ticket_number	text	t	
 ticketing_updates	6	update_type	text	f	
 ticketing_updates	7	author_employee_id	uuid	f	
 ticketing_updates	8	author_name	text	f	
-ticketing_updates	9	author_id	uuid	t	
-ticketing_updates	10	comment_text	text	f	
-ticketing_updates	11	content_html	text	f	
 ticketing_updates	12	content_text	text	f	
 ticketing_updates	13	visibility	text	f	'external'::text
 ticketing_updates	14	created_at	timestamp with time zone	t	now()
-ticketing_updates	15	edited_at	timestamp with time zone	f	
-ticketing_updates	16	edited_by	text	f	
 ticketing_updates	17	changes	jsonb	f	'{}'::jsonb
 ticketing_updates	18	attachments	jsonb	f	
-ticketing_updates	19	is_internal	boolean	f	false
 ticketing_updates	20	search_vector	tsvector	f	
 ticketing_updates	21	author_contact_id	uuid	f	
 time_tracking_billable_expenses	1	id	uuid	t	gen_random_uuid()

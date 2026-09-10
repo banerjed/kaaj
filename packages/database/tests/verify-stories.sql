@@ -378,7 +378,7 @@ SELECT _check('TIX-areas','DATA','ticketing',
   $$SELECT count(*)>1 FROM ticketing_business_areas$$);
 SELECT _check('TIX-numbering','DATA','ticketing',
   'Ticket numbers are scoped per business area prefix',
-  $$SELECT count(DISTINCT prefix)>1 FROM ticketing_tickets$$);
+  $$SELECT count(DISTINCT split_part(ticket_number,'-',1))>1 FROM ticketing_tickets$$);
 SELECT _check('TIX-states','DATA','ticketing',
   'Tickets exist in multiple statuses',
   $$SELECT count(DISTINCT status)>1 FROM ticketing_tickets$$);

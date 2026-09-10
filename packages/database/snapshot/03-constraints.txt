@@ -420,7 +420,6 @@ ticketing_updates	fk_ticketing_updates_ticket_id	f	FOREIGN KEY (ticket_id) REFER
 ticketing_updates	ticketing_updates_author_contact_id_fkey	f	FOREIGN KEY (author_contact_id) REFERENCES customer_contacts(id)
 ticketing_updates	ticketing_updates_pkey	p	PRIMARY KEY (id)
 ticketing_updates	ticketing_updates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-ticketing_updates	ticketing_updates_tenant_id_update_id_key	u	UNIQUE (tenant_id, update_id)
 time_tracking_billable_expenses	time_tracking_billable_expenses_pkey	p	PRIMARY KEY (id)
 time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_expense_id_key	u	UNIQUE (tenant_id, expense_id)
 time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
