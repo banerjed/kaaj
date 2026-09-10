@@ -12,7 +12,7 @@
   <div></div>
 {:else}
   <div class="ms-auto inline-flex gap-2">
-    {#each badges as badge, index (index)}
+    {#each badges as badge (badge)}
       {#if badge === "new"}
         <div
           class="border-primary/20 bg-primary/10 text-primary rounded-box border px-1.5 text-[12px]"

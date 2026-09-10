@@ -1,8 +1,6 @@
 <script lang="ts" module>
   import { browser } from "$app/environment"
   import { getContext, setContext } from "svelte"
-  import { get, writable } from "svelte/store"
-  import type { Writable } from "svelte/store"
 
   /**
    * Two themes and `system`.
@@ -43,13 +41,34 @@
 
   const localStorageKey = "__NEXUS_CONFIG_v3.0__"
 
-  type ConfigContext = {
-    config: Writable<IConfig>
-    toggleTheme: () => void
-    changeTheme: (theme: IConfig["theme"]) => void
-  }
-
   const configContextKey = Symbol("kaaj-config")
+
+  /**
+   * A runes class, not a `svelte/store` — nothing reads `theme` reactively
+   * outside this file (both consumers only call the two actions below), and
+   * a class field needs no `get()`/`subscribe()` boilerplate to read or
+   * react to.
+   */
+  class ConfigStore {
+    theme = $state<IConfig["theme"]>(readStoredConfig().theme)
+
+    changeTheme = (theme: IConfig["theme"]) => {
+      this.theme = theme
+    }
+
+    /**
+     * Anything that is not already an explicit dark choice becomes dark.
+     *
+     * `system` goes to dark rather than to the opposite of the OS setting.
+     * That is deliberate and unchanged from before the theme cull: the first
+     * press has to move somewhere predictable, and a toggle that depends on
+     * an OS setting the page cannot see would land differently for two
+     * people pressing the same button.
+     */
+    toggleTheme = () => {
+      this.theme = this.theme === "night" ? "corporate" : "night"
+    }
+  }
 
   const readStoredConfig = (): IConfig => {
     if (!browser) return defaultConfig
@@ -87,47 +106,19 @@
   }
 
   export const useConfig = () => {
-    return getContext<ConfigContext>(configContextKey)
+    return getContext<ConfigStore>(configContextKey)
   }
 </script>
 
 <script lang="ts">
   let { children } = $props()
 
-  const config = writable<IConfig>(readStoredConfig())
+  const config = new ConfigStore()
 
-  const changeTheme = (theme: IConfig["theme"]) => {
-    config.update((c) => {
-      return { ...c, theme }
-    })
-  }
-
-  /**
-   * Anything that is not already an explicit dark choice becomes dark.
-   *
-   * `system` goes to dark rather than to the opposite of the OS setting. That
-   * is deliberate and unchanged from before the theme cull: the first press
-   * has to move somewhere predictable, and a toggle that depends on an OS
-   * setting the page cannot see would land differently for two people
-   * pressing the same button.
-   */
-  const toggleTheme = () => {
-    const theme: IConfig["theme"] =
-      get(config).theme === "night" ? "corporate" : "night"
-    config.update((c) => {
-      return { ...c, theme }
-    })
-  }
-
-  setContext(configContextKey, {
-    config,
-    toggleTheme,
-    changeTheme,
-  })
+  setContext(configContextKey, config)
 
   $effect(() => {
-    const unsubscribe = config.subscribe(applyConfig)
-    return unsubscribe
+    applyConfig({ theme: config.theme })
   })
 </script>
 

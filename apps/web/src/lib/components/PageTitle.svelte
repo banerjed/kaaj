@@ -31,7 +31,7 @@
         <li>
           <a href="/">Home</a>
         </li>
-        {#each items as item, index (index)}
+        {#each items as item (item.label)}
           <li class={`${item.active ? "opacity-80" : ""}`}>
             {#if item.path}
               <a href={item.path}>

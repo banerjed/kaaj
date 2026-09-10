@@ -17,7 +17,9 @@
     threshold: 0.3,
   }
 
-  let fuse: Fuse<SearchDocument> | undefined = $state()
+  // Only ever wholesale-reassigned, never mutated field-by-field — $state.raw
+  // skips proxying an object this library owns.
+  let fuse: Fuse<SearchDocument> | undefined = $state.raw()
   let loadPromise: Promise<void> | undefined
   let searchInput: HTMLInputElement | undefined = $state()
   let resultLinks: HTMLAnchorElement[] = $state([])
@@ -59,23 +61,20 @@
     return loadPromise
   }
 
-  onMount(() => {
-    const syncFromHash = () => {
-      const hashQuery = decodeURIComponent(window.location.hash.slice(1))
-      if (hashQuery !== searchQuery) {
-        searchQuery = hashQuery
-      }
+  function syncFromHash() {
+    const hashQuery = decodeURIComponent(window.location.hash.slice(1))
+    if (hashQuery !== searchQuery) {
+      searchQuery = hashQuery
     }
+  }
 
+  onMount(() => {
     syncFromHash()
     searchInput?.focus()
 
     if (searchQuery.trim()) {
       void ensureSearchLoaded()
     }
-
-    window.addEventListener("hashchange", syncFromHash)
-    return () => window.removeEventListener("hashchange", syncFromHash)
   })
 
   // The shape of an indexed document, i.e. what /search/api.json contains.
@@ -152,7 +151,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} onhashchange={syncFromHash} />
 
 <svelte:head>
   <title>Search</title>

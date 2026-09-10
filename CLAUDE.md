@@ -57,7 +57,7 @@ directory in the repo.
 | tenant isolation | every RLS policy actually filters, per table | 600 |
 | specification | the schema answers the module specs | 167 |
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
-| structure snapshot | the schema is exactly what was committed | 3,980 lines |
+| structure snapshot | the schema is exactly what was committed | 4,119 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 56 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
@@ -75,7 +75,7 @@ directory in the repo.
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-09.
+column. They were last verified 2026-09-10.
 
 These are complementary and none substitutes for another:
 
@@ -522,6 +522,86 @@ exempt tables and indexes by name with reasons. A new violation fails, and so
 does removing a justified one — both require a reviewed edit. A `NOT IN` pattern
 silently absorbs future violations, which is how a suite quietly stops testing
 anything.
+
+---
+
+## Svelte
+
+Svelte 5, runes only. These are the ones worth stating as rules — from
+[svelte.dev/docs/svelte/best-practices](https://svelte.dev/docs/svelte/best-practices)
+— because a reasonable-looking alternative compiles, runs, and is wrong.
+
+**`$state` is for a value a template, `$effect` or `$derived` reads
+reactively — not every local variable.** `$state({...})`/`$state([...])`
+deep-proxies the whole object graph. An object or class instance that is only
+ever REPLACED, never mutated through Svelte (a fetch response, a third-party
+library instance held for its methods), wants `$state.raw` instead — no
+proxy, no per-field overhead, and no risk of a library's own internal state
+being wrapped in a Proxy it never expected.
+
+**Prefer `$derived` to `$effect` for anything computed from other state.**
+`$derived` takes an expression (`$derived.by` for a multi-statement body) and
+recomputes when its inputs change; it cannot itself write to state, so it
+cannot start the state→effect→state loop an `$effect` can. `$effect` is for
+syncing OUT to something outside Svelte's reactivity — the DOM directly
+(`{@attach ...}` or an `$effect` for a `contenteditable`, a chart library,
+`localStorage`) — never for deriving one piece of state from another that
+could just be `$derived`.
+
+**A value derived from a prop is `$derived`, never a `let` seeded from the
+prop once.** Props are reactive; `let color = $state(type === "danger" ?
+"red" : "green")` freezes at mount and stops tracking `type`. When a
+component genuinely needs its OWN copy that then diverges from the prop (a
+draft the user edits, a DOM mirror), seed it explicitly with
+`// svelte-ignore state_referenced_locally` and a comment saying why —
+`RichTextEditor.svelte` and `Combobox.svelte` do this for exactly that reason.
+When the copy instead needs to keep tracking the prop (a URL-driven filter, a
+`load()` result), use an `$effect` that reassigns it, not the `$state`
+initializer — `ticketing/+page.svelte` and `ticketing/new/+page.svelte` do
+this deliberately, with the pitfall spelled out in a comment.
+
+**A `window`/`document` listener is `<svelte:window on... />` /
+`<svelte:document on... />`, not `onMount` + `addEventListener`.** The
+element owns its own cleanup; a manual listener needs a manual
+`removeEventListener` returned from the same `onMount` callback, and a
+forgotten one leaks. Reserve `onMount` for work that genuinely only happens
+once at mount (an initial focus, an initial fetch) — a listener that lives
+for the component's lifetime belongs on the element.
+
+**Keyed `{#each}` for anything that can reorder, insert or remove — and the
+key is never the loop index.** `{#each rows as row (row.id)}`. An index key
+makes Svelte patch the WRONG element in place when a row leaves the middle of
+the list, which stays invisible until a `bind:` or a transition attaches to
+the wrong row. A `{#each}` over a small, static, never-reordered literal
+(marketing copy, a fixed feature list) is the one place this is cosmetic
+rather than a bug — still worth a real key, never worth a rewrite on its own.
+
+**Reach for `{@attach}` over `use:` on new code** that syncs a DOM node to an
+external library — it composes with `{#if}`/`{#each}` the way an action
+cannot. Existing `use:` actions are not being migrated for the sake of it.
+
+**Module-scope `$state` is shared across every request the server handles.**
+SvelteKit runs one Node process for many tenants; a `let cache = $state(...)`
+at the top level of a `.svelte.ts` file is server-wide, not per-request —
+exactly the shape of a cross-tenant leak this codebase spends a whole section
+on preventing at the database layer. Request- or user-scoped reactive state
+belongs in Svelte context (`setContext`/`getContext`, ideally wrapping a
+runes class the way `ConfigProvider.svelte` does), never a shared module.
+
+**No `svelte/store` in new code — a class with `$state` fields instead.** A
+store needs `get()`/`.subscribe()`/`$store` auto-subscription to read
+reactively and `.update()` to write; a runes class reads and writes as plain
+field access, which is also what makes it safe to destructure a bound method
+off it (`const { toggleTheme } = useConfig()` in `ThemeToggle.svelte`) without
+losing `this`. `svelte/store` is legacy Svelte 4 API kept only for
+interop; do not reach for it going forward.
+
+**Legacy patterns stay out of new code**, even though `svelte-check` and
+`./check` don't fail on them: `export let` / `$$props` / `$$restProps`
+instead of `$props()`, `on:click` instead of `onclick`, `<slot>` instead of
+`{#snippet}`/`{@render}`, and a bare `$:` instead of `$derived`/`$effect`.
+None of these currently appear in `apps/web/src` — keep it that way rather
+than letting one in as a copy-paste starting point for the next component.
 
 ---
 
