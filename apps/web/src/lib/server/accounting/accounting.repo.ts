@@ -508,6 +508,164 @@ export async function balanceSheetTotals(
   return row
 }
 
+export type CashFlowAdjustmentRow = {
+  account_code: string
+  account_name: string
+  account_type: "asset" | "liability" | "equity"
+  /** Signed as a cash IMPACT — positive is a source of cash, negative a use — not as the account's own balance change. */
+  amount: string
+}
+
+/**
+ * The indirect-method reconciling items for a period: every non-cash
+ * working-capital account's change, signed as its impact ON CASH rather
+ * than its own balance movement — a decrease in an asset is a source of
+ * cash (positive), an increase in a liability is a source of cash
+ * (positive). `cashFlowTotals()` sums these same rows into
+ * `operating_cash_flow`; `financing_cash_flow` there covers the `equity`
+ * rows this function also returns (a direct posting to an equity account,
+ * outside of net income — this fixture has none, but a future capital
+ * contribution would show up here).
+ *
+ * The account-balances CTE below is duplicated in `cashFlowTotals()` rather
+ * than shared as a `tx.unsafe()` fragment: postgres.js's fragment merging
+ * only forwards a SINGLE arg from a nested `unsafe()` query into the outer
+ * one (confirmed empirically — a two-parameter nested fragment silently
+ * drops the second bind value), so a shared parameterized fragment across
+ * two `from`/`to` values is not actually safe here, only tidy-looking.
+ *
+ * `begin_bal` treats a NULL `from` as "before any activity" (0), not "no
+ * filter" — the opposite of `end_bal`'s NULL `to`, which means "through
+ * today." Getting these backwards would make an unbounded period's
+ * beginning balance equal its ending balance, silently zeroing every
+ * working-capital adjustment.
+ */
+export async function cashFlowStatement(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<CashFlowAdjustmentRow[]> {
+  const from = filters.from || null
+  const to = filters.to || null
+  return tx<CashFlowAdjustmentRow[]>`
+    WITH acct AS (
+      SELECT a.id, a.account_code, a.account_name, a.account_type::text AS account_type,
+             COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS begin_bal,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS end_bal
+        FROM chart_of_accounts a
+        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE a.account_type IN ('asset', 'liability', 'equity')
+       GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.is_bank_account
+    )
+    SELECT account_code, account_name, account_type,
+           (CASE account_type
+              WHEN 'asset'     THEN begin_bal - end_bal
+              WHEN 'liability' THEN end_bal - begin_bal
+              ELSE                  end_bal - begin_bal
+            END)::text AS amount
+      FROM acct
+     WHERE NOT is_bank_account
+       AND begin_bal <> end_bal
+     ORDER BY CASE account_type WHEN 'asset' THEN 1 WHEN 'liability' THEN 2 ELSE 3 END,
+              account_code
+  `
+}
+
+export type CashFlowTotals = {
+  beginning_cash: string
+  net_income: string
+  working_capital_change: string
+  operating_cash_flow: string
+  /**
+   * Always "0" — this chart of accounts has no fixed-asset/investment
+   * account category to draw from — but it's a real additive term in
+   * `net_change_in_cash`/`computed_ending_cash` below, not just a label:
+   * a future investing-category account would only need its own CASE arm
+   * added to this term, not a rewire of the sum it participates in.
+   */
+  investing_cash_flow: string
+  financing_cash_flow: string
+  net_change_in_cash: string
+  ending_cash: string
+  /** `beginning_cash + net_change_in_cash` recomputed independently, checked against the real Cash-account balance. */
+  computed_ending_cash: string
+  reconciles: boolean
+}
+
+/**
+ * The indirect method: operating cash flow is net income adjusted for the
+ * period's change in every non-cash working-capital account, not a sum of
+ * actual cash-account transactions (this schema has no per-line activity
+ * classification to sort those into operating/investing/financing). Proven
+ * self-consistent, the same way `balanceSheetTotals`'s identity is: this
+ * is algebraically forced by the same double-entry identity, so
+ * `reconciles` failing would mean the underlying ledger itself doesn't
+ * balance — not a bug in this report.
+ */
+export async function cashFlowTotals(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<CashFlowTotals> {
+  const from = filters.from || null
+  const to = filters.to || null
+  const [row] = await tx<CashFlowTotals[]>`
+    WITH acct AS (
+      SELECT a.account_type::text AS account_type,
+             COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS begin_bal,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS end_bal
+        FROM chart_of_accounts a
+        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE a.account_type IN ('asset', 'liability', 'equity')
+       GROUP BY a.id, a.account_type, a.is_bank_account
+    ),
+    t AS (
+      SELECT
+        COALESCE(sum(begin_bal) FILTER (WHERE is_bank_account), 0) AS beginning_cash,
+        COALESCE(sum(end_bal) FILTER (WHERE is_bank_account), 0)   AS ending_cash,
+        COALESCE(sum(CASE account_type
+                        WHEN 'asset'     THEN begin_bal - end_bal
+                        WHEN 'liability' THEN end_bal - begin_bal
+                      END) FILTER (WHERE NOT is_bank_account AND account_type IN ('asset', 'liability')), 0)
+          AS working_capital_change,
+        COALESCE(sum(end_bal - begin_bal) FILTER (WHERE account_type = 'equity'), 0) AS financing_cash_flow,
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND (${from}::date IS NULL OR je2.entry_date >= ${from}::date)
+            AND (${to}::date   IS NULL OR je2.entry_date <= ${to}::date)) AS net_income
+        FROM acct
+    )
+    SELECT beginning_cash::text, ending_cash::text,
+           net_income::text, working_capital_change::text,
+           (net_income + working_capital_change)::text AS operating_cash_flow,
+           0::numeric::text AS investing_cash_flow,
+           financing_cash_flow::text,
+           (net_income + working_capital_change + 0::numeric + financing_cash_flow)::text AS net_change_in_cash,
+           (beginning_cash + net_income + working_capital_change + 0::numeric + financing_cash_flow)::text AS computed_ending_cash,
+           ending_cash = beginning_cash + net_income + working_capital_change + 0::numeric + financing_cash_flow AS reconciles
+      FROM t
+  `
+  return row
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null

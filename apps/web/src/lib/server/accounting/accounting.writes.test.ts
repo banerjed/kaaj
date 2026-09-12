@@ -10,6 +10,7 @@ import {
   controlAccountTieOut,
   balanceSheetTotals,
   trialBalanceTotals,
+  cashFlowTotals,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -468,7 +469,7 @@ describe("the control-account tie-out reflects a clean write", () => {
 /** Cash at Bank (1000) — a real fixture account, used by its id for the raw INSERT below. */
 const CASH_ACCOUNT = "eef02e95-6acb-5039-8acc-56340013e53a"
 
-describe("the balance sheet and trial balance's equity/balance checks are real, not vacuous", () => {
+describe("the balance sheet, trial balance and cash flow statement's balance checks are real, not vacuous", () => {
   afterAll(async () => {
     await closeConnections()
   })
@@ -530,10 +531,14 @@ describe("the balance sheet and trial balance's equity/balance checks are real, 
   // The same insert also proves trialBalanceTotals().balances (accounting.
   // test.ts's "the trial balance") is a live check and not just a boolean
   // that has only ever been asked a question with one answer — it sums the
-  // same journal_entry_lines, so the one-sided row moves both at once.
-  it("a one-sided posted entry — bypassing postJournal's own balance guard — makes `balances` false", async () => {
-    const { balanceSheetBalances, trialBalanceBalances } = await inRollback(
-      async (tx) => {
+  // same journal_entry_lines, so the one-sided row moves both at once. And
+  // since the debit lands on Cash (is_bank_account), it inflates the real
+  // Cash balance with no offsetting change anywhere else — proving
+  // cashFlowTotals().reconciles is a live check too, not one that has only
+  // ever seen a ledger where the identity happens to hold.
+  it("a one-sided posted entry — bypassing postJournal's own balance guard — makes `balances`/`reconciles` false", async () => {
+    const { balanceSheetBalances, trialBalanceBalances, cashFlowReconciles } =
+      await inRollback(async (tx) => {
         const [entry] = await tx<{ id: string }[]>`
         INSERT INTO journal_entries (
           tenant_id, entry_number, entry_date, description, status
@@ -555,10 +560,11 @@ describe("the balance sheet and trial balance's equity/balance checks are real, 
         return {
           balanceSheetBalances: (await balanceSheetTotals(tx)).balances,
           trialBalanceBalances: (await trialBalanceTotals(tx)).balances,
+          cashFlowReconciles: (await cashFlowTotals(tx)).reconciles,
         }
-      },
-    )
+      })
     expect(balanceSheetBalances).toBe(false)
     expect(trialBalanceBalances).toBe(false)
+    expect(cashFlowReconciles).toBe(false)
   })
 })

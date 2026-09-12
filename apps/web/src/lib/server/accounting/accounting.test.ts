@@ -471,3 +471,86 @@ describe("the balance sheet", () => {
     expect(ownerRows.length).toBeGreaterThan(0)
   })
 })
+
+describe("the cash flow statement", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("reconciles — beginning cash plus net change equals the real Cash-account balance", async () => {
+    const totals = await withTenant(AS_OWNER, (tx) => acc.cashFlowTotals(tx))
+    expect(totals.reconciles).toBe(true)
+    expect(totals.beginning_cash).toBe("0")
+    expect(totals.ending_cash).toBe("48900.00")
+    expect(totals.net_income).toBe("-56920.00")
+    expect(totals.working_capital_change).toBe("105820.00")
+    expect(totals.operating_cash_flow).toBe("48900.00")
+    expect(totals.investing_cash_flow).toBe("0")
+    expect(totals.financing_cash_flow).toBe("0")
+    expect(totals.computed_ending_cash).toBe(totals.ending_cash)
+  })
+
+  it("a period's beginning cash is the prior balance, not zero — proving `from` is a real lower bound, not just a report label", async () => {
+    // Feb 1 onward: beginning cash is what Jan 21's activity already left in
+    // the bank (42300.00), not 0 — the same distinction the balance sheet's
+    // as-of and the P&L's period filters draw, applied here to a running
+    // balance rather than a point-in-time or period-summed figure.
+    const feb = await withTenant(AS_OWNER, (tx) =>
+      acc.cashFlowTotals(tx, { from: "2026-02-01" }),
+    )
+    expect(feb.reconciles).toBe(true)
+    expect(feb.beginning_cash).toBe("42300.00")
+    expect(feb.ending_cash).toBe("48900.00")
+    expect(feb.net_income).toBe("-900.00")
+    expect(feb.working_capital_change).toBe("7500.00")
+    expect(feb.operating_cash_flow).toBe("6600.00")
+    expect(feb.computed_ending_cash).toBe("48900.00")
+  })
+
+  it("lists the working-capital accounts driving the period's operating adjustment, signed as cash impact", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) =>
+      acc.cashFlowStatement(tx, { from: "2026-02-01" }),
+    )
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    // AR fell (a receipt), which is a SOURCE of cash — positive, even
+    // though the account itself is an asset whose balance went down.
+    expect(byCode["1100"]).toMatchObject({
+      account_type: "asset",
+      amount: "10000.00",
+    })
+    // AP fell (a payment), which is a USE of cash — negative, on a
+    // liability account whose balance also went down.
+    expect(byCode["2000"]).toMatchObject({
+      account_type: "liability",
+      amount: "-2500.00",
+    })
+    // Cash itself, and any account with no change in the period, are absent.
+    expect(byCode["1000"]).toBeUndefined()
+    expect(byCode["1200"]).toBeUndefined()
+  })
+
+  it("is visible to the finance function only", async () => {
+    const [refusedRows, refusedTotals] = await withTenant(
+      AS_PLAIN_EMPLOYEE,
+      (tx) => Promise.all([acc.cashFlowStatement(tx), acc.cashFlowTotals(tx)]),
+    )
+    expect(refusedRows).toEqual([])
+    expect(refusedTotals).toEqual({
+      beginning_cash: "0",
+      ending_cash: "0",
+      net_income: "0",
+      working_capital_change: "0",
+      operating_cash_flow: "0",
+      investing_cash_flow: "0",
+      financing_cash_flow: "0",
+      net_change_in_cash: "0",
+      computed_ending_cash: "0",
+      reconciles: true,
+    })
+
+    const ownerRows = await withTenant(AS_OWNER, (tx) =>
+      acc.cashFlowStatement(tx),
+    )
+    expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})

@@ -1978,6 +1978,39 @@ is very likely why — not a defect in whatever you just wrote.
 
 ---
 
+### L82 — A `tx.unsafe()` fragment with more than one bind parameter, nested inside another query via `${...}`, doesn't bind past the first
+
+Two repo functions (`cashFlowStatement`/`cashFlowTotals`, both taking
+`from`/`to`) shared one SQL shape — the per-account begin/end balance CTE —
+differing only in which two values filled its two placeholders. The natural
+move was to factor it into one `tx.unsafe(sql, [from, to])` fragment and
+interpolate it into both queries with `` tx`WITH ${frag}...` ``, the same way
+this codebase already interpolates a plain, *parameter-free* `tx.unsafe(SELECT)`
+string dozens of times (`accounting.repo.ts`'s `INVOICE_SELECT`,
+`LEDGER_SELECT`; the same pattern across `hr_*`, `payroll_runs`,
+`ticketing.repo.ts`). Nothing about that existing pattern hints that adding
+parameters changes anything.
+
+It does. `postgres.js`'s fragment-merging code
+(`node_modules/postgres/cjs/src/types.js`, `fragment()`/`stringify()`) only
+forwards `q.args[0]` — the FIRST bind value — from a nested `Query` into the
+outer one; it isn't built to splice a multi-argument `unsafe()` call into
+another template's own parameter list. The failure is loud, not silent —
+`bind message supplies 0 parameters, but prepared statement requires 2` —
+but only if you actually run the query. `svelte-check`, `./check`'s SQL
+static checks, and TypeScript all pass a broken query built this way; nothing
+type-checks the shape of a template string.
+
+Confirmed with a five-line throwaway script against the real local database
+before it reached committed code — this is exactly the case for testing a
+library composition empirically rather than trusting that a working single-
+parameter pattern generalizes to two. The fix was to stop trying to share
+the fragment: `cashFlowStatement`/`cashFlowTotals` each inline their own copy
+of the CTE, using ordinary `${from}`/`${to}` template interpolation (the
+well-tested path), accepting the duplication.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

@@ -246,19 +246,19 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 
 ---
 
-## 5. Financial Statement Reports — Trial balance, P&L and Balance Sheet **[PARTIAL]**; Cash Flow and Statement of Changes in Equity **[MISSING]**
+## 5. Financial Statement Reports — Trial balance, P&L, Balance Sheet and Cash Flow **[PARTIAL]**; Statement of Changes in Equity **[MISSING]**
 - Profit & Loss (Income Statement). **[PARTIAL]** (2026-09-12)
   *`/accounting/profit-loss` — `acc.profitAndLoss()` lists revenue/expense accounts with posted activity in a `from`/`to` period (both optional; blank means all-time), and `acc.profitAndLossTotals()` is an independent SQL aggregation, not a JS reduction of the first's rows — summing `debits`/`credits` as strings in JS would be silent concatenation (CLAUDE.md's money rule). Tested in `accounting.test.ts` ("the profit and loss statement", 5 cases) including RLS as a refused plain employee. What's missing against FR-ACC-007's fuller spec: no COGS subtotal/gross margin (the fixture's chart of accounts has no COGS vs. operating-expense distinction to group by), no comparison periods (MoM/YoY), no department/location segmentation, no drill-down to transaction detail, no export, and no cash-vs-accrual toggle.*
 - Balance Sheet. **[PARTIAL]** (2026-09-12)
   *`/accounting/balance-sheet` — `acc.balanceSheet()` lists real, posted asset/liability/equity accounts as of a date (cumulative, like the trial balance's `asOf`), and `acc.balanceSheetTotals()` is an independent SQL aggregation asserting the accounting identity directly: assets = liabilities + equity + net income. This codebase has no closing-entry process rolling revenue/expense into retained earnings, so `equity` alone understates what a real balance sheet needs — `balanceSheetTotals()` folds the current period's net income back in as `total_equity`/`total_liabilities_and_equity`, shown as its own "Current period earnings (no closing entry has run)" line, which is what actually ties to assets. Verified against the real fixture: assets `39061.53` = liabilities `95981.53` + equity `0` + net income `-56920.00`. Tested in `accounting.test.ts` ("the balance sheet", 4 cases) including RLS as a refused plain employee, plus 2 write-path positive controls in `accounting.writes.test.ts` ("the balance sheet's equity term and balance check are real, not vacuous") proving `equity` actually moves when Retained Earnings is posted to, and that `balances` actually goes `false` for a one-sided posted entry — both guards were previously unexercised (every fixture equity account has zero activity, and the fixture never contains an unbalanced posted entry), so a green assertion alone wasn't evidence either worked (CLAUDE.md L48/L50). Missing against FR-ACC-007's fuller spec: no comparison periods, no department/location segmentation, no drill-down, no export.*
-- Cash Flow Statement, Statement of Changes in Equity. **[MISSING]**
-  *No route, no repo function, no test for either.
-  `rg -il 'cash.?flow.?statement'` across `apps/web/src` and `packages`
-  returns nothing. This is a **base-spec gap, not a roadmap wish**:
-  `module-accounting.md`'s FR-ACC-007 (Financial Reporting: P&L, Balance
-  Sheet, Cash Flow, Trial Balance, AR/AP Aging) is part of the original
-  functional spec, not `accounting-gap-analysis.md`'s aspirational feature
-  list.*
+- Cash Flow Statement. **[PARTIAL]** (2026-09-12)
+  *`/accounting/cash-flow` — the indirect method: `acc.cashFlowTotals()` computes net income for the period plus the period's change in every non-cash working-capital account (`acc.cashFlowStatement()` lists those adjustments, signed as their impact ON CASH — a decrease in an asset or an increase in a liability is a source), and asserts `reconciles`: beginning cash + net change = the real Cash-account balance (identified by `chart_of_accounts.is_bank_account`, not a hardcoded account code). This is algebraically forced by the same double-entry identity `balanceSheetTotals` asserts, verified against the real fixture (`48900.00` both ways, unfiltered; `42300.00` → `48900.00` for the Feb-only period). Investing and Financing sections are structurally present but always `0`/near-empty: this chart of accounts has no fixed-asset, investment, or financing (loan/capital-contribution) account category to draw from — a real, documented schema gap, not an unfinished computation; a `financing_cash_flow` term exists and would show a direct equity-account posting if one ever occurred; direct-method cash flow (categorizing actual cash transactions) isn't attempted at all, since nothing in this schema tags a `journal_entry_line` with an activity type. Tested in `accounting.test.ts` ("the cash flow statement", 4 cases) including RLS as a refused plain employee, plus a write-path positive control in `accounting.writes.test.ts` proving `reconciles` actually goes `false` for a one-sided posted entry (folded into the same insert that proves `balanceSheetTotals`/`trialBalanceTotals`'s own balance checks aren't vacuous — CLAUDE.md L48/L50).*
+- Statement of Changes in Equity. **[MISSING]**
+  *No route, no repo function, no test. This is a **base-spec gap, not a
+  roadmap wish**: `module-accounting.md`'s FR-ACC-007 (Financial Reporting:
+  P&L, Balance Sheet, Cash Flow, Trial Balance, AR/AP Aging) is part of the
+  original functional spec, not `accounting-gap-analysis.md`'s aspirational
+  feature list.*
 
 ---
 

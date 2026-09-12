@@ -42,6 +42,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   { path: "/accounting/profit-loss", heading: "Profit & Loss" },
   { path: "/accounting/balance-sheet", heading: "Balance Sheet" },
+  { path: "/accounting/cash-flow", heading: "Cash Flow" },
   { path: "/accounting/banking", heading: "Banking" },
   { path: "/ticketing", heading: "Ticketing" },
   { path: "/ticketing/new", heading: "New ticket" },

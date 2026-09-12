@@ -198,6 +198,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-cash-flow",
+        label: "Cash Flow",
+        url: "/accounting/cash-flow",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-banking",
         label: "Banking",
         url: "/accounting/banking",

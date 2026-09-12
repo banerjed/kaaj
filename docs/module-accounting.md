@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.7
+**Version:** 2.8
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -280,7 +280,7 @@ than repeated per story.
 
 ### Financial Reporting
 
-*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, and Balance Sheet (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
+*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, Balance Sheet, and Cash Flow (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
 
 **US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[PARTIAL]** (2026-09-12)
 *`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
@@ -288,7 +288,8 @@ than repeated per story.
 **US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[PARTIAL]** (2026-09-12)
 *`/accounting/balance-sheet` generates it live, as of any date, from `journal_entry_lines`. Missing against the fuller wish: no comparison periods, no department filter, no export. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
 
-**US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period. **[MISSING]**
+**US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period. **[PARTIAL]** (2026-09-12)
+*`/accounting/cash-flow` generates it live, indirect method, for a `from`/`to` period. Investing and Financing sections are structurally present but always near-empty — this chart of accounts has no fixed-asset/investment/loan account category to draw from, a real schema gap rather than an unfinished computation. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
 
 **US-ACC-041**: As a Business Owner, I want to compare financial reports across periods (month-over-month, year-over-year), so that I can identify trends. **[MISSING]**
 
@@ -2113,7 +2114,34 @@ either way.
       (CLAUDE.md L48/L50: a green assertion over a zero/never-triggered
       subject isn't evidence). 1 new `smoke.spec.ts` row, 1 new nav entry.
       `./check` and the full e2e suite pass. US-ACC-039, FR-ACC-007.
-- [ ] Cash Flow statement. US-ACC-040, FR-ACC-007.
+- [x] Cash Flow statement (2026-09-12). `/accounting/cash-flow` —
+      `acc.cashFlowStatement()`/`acc.cashFlowTotals()` in
+      `accounting.repo.ts`, the indirect method: net income for the period
+      plus the period's change in every non-cash working-capital account
+      (identified by `account_type IN ('asset','liability')` excluding
+      `chart_of_accounts.is_bank_account`), reconciled against the real
+      Cash-account balance change. `reconciles` is algebraically forced by
+      the same double-entry identity `balanceSheetTotals` asserts — proven
+      against the real fixture (`48900.00` beginning-plus-change equals the
+      real Cash balance, both unfiltered and for the Feb-only period).
+      Investing and Financing sections exist structurally but are always
+      `0`/near-empty: no fixed-asset, investment, or loan account category
+      exists in this chart of accounts to populate them — a real, stated
+      schema gap. Tests: 4 new cases in `accounting.test.ts` ("the cash
+      flow statement"), including RLS as a refused plain employee, plus 1
+      write-path positive control in `accounting.writes.test.ts` (folded
+      into the existing one-sided-entry insert) proving `reconciles`
+      actually goes `false`, not just `balanceSheetTotals`/
+      `trialBalanceTotals`'s own checks. Also discovered and worked around
+      a real postgres.js limitation while building this: a `tx.unsafe()`
+      fragment with more than one bind parameter, embedded via `${...}`
+      inside another tagged-template query, throws (`bind message
+      supplies 0 parameters, but prepared statement requires 2`) rather
+      than binding correctly — confirmed empirically with a throwaway
+      script before it reached committed code, not shipped as a bug; the
+      two functions duplicate their shared account-balances CTE inline
+      instead. 1 new `smoke.spec.ts` row, 1 new nav entry. `./check` and
+      the full e2e suite pass. US-ACC-040, FR-ACC-007.
 - [ ] Statement of Changes in Equity. §5.4.
 - [ ] Period comparison (MoM/YoY) and department/location filtering on the
       above. US-ACC-041, US-ACC-044.
@@ -2244,6 +2272,7 @@ either way.
 | 2.5 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted. |
 | 2.6 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 | 2.7 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
+| 2.8 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3. |
 
 ### References
 

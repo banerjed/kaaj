@@ -466,3 +466,18 @@ test("the unified ticket-edit form stays open, and marked, on a refused submissi
     /input-error/,
   )
 })
+
+test("an inverted date range on the cash flow statement is refused, not rendered as a false ledger-imbalance alert", async ({
+  page,
+}) => {
+  // from > to leaves begin_bal/end_bal/net_income each well-defined but
+  // mutually inconsistent, so cashFlowTotals().reconciles would go false
+  // and the page would accuse the LEDGER of not balancing — for a problem
+  // that is really just the date range. A GET with a bad query string is
+  // read-only, so this needs no serial project or reseed.
+  await page.goto("/accounting/cash-flow?from=2026-03-01&to=2026-01-31")
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/'from' date must be on or before the 'to' date/i),
+  ).toBeVisible()
+})
