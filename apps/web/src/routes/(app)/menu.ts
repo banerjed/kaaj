@@ -186,6 +186,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-profit-loss",
+        label: "Profit & Loss",
+        url: "/accounting/profit-loss",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-banking",
         label: "Banking",
         url: "/accounting/banking",

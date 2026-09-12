@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.5
+**Version:** 2.6
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -280,9 +280,10 @@ than repeated per story.
 
 ### Financial Reporting
 
-*Status for this entire section: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report exists anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This is base spec (FR-ACC-007 below), not a roadmap wish — 0% built. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md) for the full detail. Every story below is MISSING for the same reason.*
+*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance (2026-09-12) and Profit & Loss (2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
 
-**US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[MISSING]**
+**US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[PARTIAL]** (2026-09-12)
+*`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
 
 **US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[MISSING]**
 
@@ -2071,12 +2072,26 @@ either way.
       zero net drift: a fresh invoice/bill taken to fully paid through the
       real functions changes the AR/AP difference by exactly zero. See §1.5/§6 in
       [19-accounting-test-plan.md](19-accounting-test-plan.md) for the exact
-      figures and citations. Tests: 4 new cases in `accounting.test.ts`
-      ("the trial balance"), 2 new cases in `accounting.writes.test.ts`
+      figures and citations. Tests: 5 new cases in `accounting.test.ts`
+      ("the trial balance", including a refused-actor RLS check for a plain
+      employee), 2 new cases in `accounting.writes.test.ts`
       ("the control-account tie-out reflects a clean write"), 1 new
       `smoke.spec.ts` row, 1 new nav entry. `./check` (app + db, 22 steps)
       and the full e2e suite (71 tests) pass.
-- [ ] Profit & Loss statement. US-ACC-038, FR-ACC-007.
+- [x] Profit & Loss statement (2026-09-12). `/accounting/profit-loss` —
+      `acc.profitAndLoss()`/`acc.profitAndLossTotals()` in `accounting.repo.ts`,
+      summing `journal_entry_lines` for `revenue`/`expense` accounts in base
+      currency over an optional `from`/`to` period (periodic, unlike the
+      trial balance's cumulative `asOf`). Revenue is signed
+      credits-minus-debits, expense debits-minus-credits, so both read
+      positive for the ordinary case and net income is a plain subtraction.
+      Totals are a second, independent SQL aggregation — not a JS reduction
+      of the per-account rows, which would silently concatenate money
+      strings instead of adding them. Tests: 5 new cases in
+      `accounting.test.ts` ("the profit and loss statement"), including RLS
+      as a refused plain employee. 1 new `smoke.spec.ts` row, 1 new nav
+      entry. `./check` (22 steps) and the full e2e suite (72 tests) pass.
+      US-ACC-038, FR-ACC-007.
 - [ ] Balance Sheet. US-ACC-039, FR-ACC-007.
 - [ ] Cash Flow statement. US-ACC-040, FR-ACC-007.
 - [ ] Statement of Changes in Equity. §5.4.
@@ -2207,6 +2222,7 @@ either way.
 | 2.3 | 2026-09-12 | Claude Sonnet 5 | Shipped both Tier 1 items: invoice creation and bill entry UIs, each with real test coverage (see the roadmap checkboxes for the exact citations). US-ACC-021 moved MISSING → PARTIAL. Tier 1 is now complete. |
 | 2.4 | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete. |
 | 2.5 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted. |
+| 2.6 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 
 ### References
 

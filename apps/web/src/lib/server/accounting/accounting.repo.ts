@@ -328,6 +328,88 @@ export async function controlAccountTieOut(
   `
 }
 
+export type ProfitAndLossRow = {
+  account_code: string
+  account_name: string
+  account_type: "revenue" | "expense"
+  amount: string
+}
+
+/**
+ * Revenue and expense activity for a period — a P&L is periodic, unlike the
+ * trial balance's cumulative-to-date `asOf`. `from`/`to` are both optional
+ * (NULL rather than '', per L37) but a caller showing this as a *statement*
+ * should always supply both; unbounded is the aggregate-across-all-time
+ * shape, useful mainly for testing this against the trial balance's own
+ * revenue/expense rows.
+ *
+ * `amount` is signed the way each type is naturally positive: revenue is
+ * credit-heavy (credits − debits), expense is debit-heavy (debits − credits)
+ * — so both read as a positive number for the ordinary case, and net income
+ * is a plain `sum(revenue) − sum(expense)` rather than needing per-type
+ * sign-flipping at every call site.
+ */
+export async function profitAndLoss(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<ProfitAndLossRow[]> {
+  const from = filters.from || null
+  const to = filters.to || null
+  return tx<ProfitAndLossRow[]>`
+    SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
+           (CASE WHEN a.account_type = 'revenue'
+                 THEN sum(l.base_credit_amount) - sum(l.base_debit_amount)
+                 ELSE sum(l.base_debit_amount) - sum(l.base_credit_amount)
+            END)::text AS amount
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      JOIN chart_of_accounts a ON a.id = l.account_id
+     WHERE a.account_type IN ('revenue', 'expense')
+       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+     GROUP BY a.id, a.account_code, a.account_name, a.account_type
+     ORDER BY a.account_type DESC, a.account_code
+  `
+}
+
+export type ProfitAndLossTotals = {
+  revenue: string
+  expenses: string
+  net_income: string
+}
+
+/**
+ * Sums in SQL rather than from `profitAndLoss()`'s own rows — money strings
+ * are added in JS as silent concatenation, never arithmetic, so the total
+ * is an independent aggregation over the same lines, not a reduction of the
+ * per-account report.
+ */
+export async function profitAndLossTotals(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<ProfitAndLossTotals> {
+  const from = filters.from || null
+  const to = filters.to || null
+  const [row] = await tx<ProfitAndLossTotals[]>`
+    SELECT
+      COALESCE(sum(CASE WHEN a.account_type = 'revenue'
+                         THEN l.base_credit_amount - l.base_debit_amount END), 0)::text AS revenue,
+      COALESCE(sum(CASE WHEN a.account_type = 'expense'
+                         THEN l.base_debit_amount - l.base_credit_amount END), 0)::text AS expenses,
+      (COALESCE(sum(CASE WHEN a.account_type = 'revenue'
+                          THEN l.base_credit_amount - l.base_debit_amount END), 0)
+       - COALESCE(sum(CASE WHEN a.account_type = 'expense'
+                            THEN l.base_debit_amount - l.base_credit_amount END), 0))::text AS net_income
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      JOIN chart_of_accounts a ON a.id = l.account_id
+     WHERE a.account_type IN ('revenue', 'expense')
+       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+  `
+  return row
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null

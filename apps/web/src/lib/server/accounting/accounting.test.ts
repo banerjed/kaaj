@@ -309,3 +309,81 @@ describe("the trial balance", () => {
     expect(refusedTotals.credits).toBe("0")
   })
 })
+
+describe("the profit and loss statement", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("lists revenue and expense accounts only, each signed positive for its normal side", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => acc.profitAndLoss(tx))
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    expect(byCode["4000"]).toMatchObject({
+      account_type: "revenue",
+      amount: "42300.00",
+    })
+    expect(byCode["5000"]).toMatchObject({
+      account_type: "expense",
+      amount: "96500.00",
+    })
+    expect(byCode["5100"]).toMatchObject({ amount: "900.00" })
+    expect(byCode["5300"]).toMatchObject({ amount: "1820.00" })
+    // No asset/liability/equity account leaks into a P&L.
+    for (const r of rows) {
+      expect(["revenue", "expense"]).toContain(r.account_type)
+    }
+    // Never posted to — the GROUP BY over an inner join should not
+    // fabricate a spurious 0.00 row for an untouched expense account.
+    expect(byCode["5200"]).toBeUndefined()
+  })
+
+  it("net income is revenue minus expenses, summed independently in SQL — not by reducing the per-account rows in JS", async () => {
+    const totals = await withTenant(AS_OWNER, (tx) =>
+      acc.profitAndLossTotals(tx),
+    )
+    expect(totals.revenue).toBe("42300.00")
+    expect(totals.expenses).toBe("99220.00")
+    expect(totals.net_income).toBe("-56920.00")
+  })
+
+  it("a period filter changes both sides independently, unlike the trial balance's cumulative asOf", async () => {
+    const [asOfJan21, unfiltered] = await withTenant(AS_OWNER, async (tx) => [
+      await acc.profitAndLossTotals(tx, { to: "2026-01-21" }),
+      await acc.profitAndLossTotals(tx),
+    ])
+    expect(asOfJan21.revenue).toBe("42300.00")
+    expect(asOfJan21.expenses).toBe("96500.00")
+    expect(asOfJan21.net_income).toBe("-54200.00")
+    expect(Number(asOfJan21.expenses)).toBeLessThan(Number(unfiltered.expenses))
+  })
+
+  it("a `from` filter excludes activity before it, proving the lower bound is enforced independently of `to`", async () => {
+    // 5000 (Jan 21) and 5300 (Jan 25) both fall before Feb 1; only 5100's
+    // Feb 12 contractor bill remains — a from-only filter, no to.
+    const fromFeb1 = await withTenant(AS_OWNER, (tx) =>
+      acc.profitAndLossTotals(tx, { from: "2026-02-01" }),
+    )
+    // No revenue row matches the filter at all, so COALESCE's integer
+    // literal comes through unrounded — "0", not "0.00" (same shape as
+    // trialBalanceTotals' beforeAnyPosting case above).
+    expect(fromFeb1.revenue).toBe("0")
+    expect(fromFeb1.expenses).toBe("900.00")
+    expect(fromFeb1.net_income).toBe("-900.00")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const [refusedRows, refusedTotals] = await withTenant(
+      AS_PLAIN_EMPLOYEE,
+      (tx) => Promise.all([acc.profitAndLoss(tx), acc.profitAndLossTotals(tx)]),
+    )
+    expect(refusedRows).toEqual([])
+    expect(refusedTotals).toEqual({
+      revenue: "0",
+      expenses: "0",
+      net_income: "0",
+    })
+
+    const ownerRows = await withTenant(AS_OWNER, (tx) => acc.profitAndLoss(tx))
+    expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})

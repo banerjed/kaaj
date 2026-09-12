@@ -244,24 +244,19 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 
 ---
 
-## 5. Financial Statement Reports — **[MISSING]**, all of §5.1–§5.5
-No Balance Sheet, Income Statement/P&L, Cash Flow Statement, or Statement of
-Changes in Equity exists anywhere — no route, no repo function, no test.
-`rg -il 'trial.?balance|balance.?sheet|income.?statement|profit.?and.?loss|cash.?flow.?statement'`
-across `apps/web/src` and `packages` returns only one incidental HR comment
-("Leave balances are a balance-sheet liability...") in
-`packages/database/reference/schema.sql` — confirmed by reading that line
-directly; it is not a report. This is a **base-spec gap, not a roadmap
-wish**: `module-accounting.md`'s FR-ACC-007 (Financial Reporting: P&L,
-Balance Sheet, Cash Flow, Trial Balance, AR/AP Aging) is part of the original
-functional spec, not `accounting-gap-analysis.md`'s aspirational feature
-list, and it is 0% built. The only thing resembling a report is the raw
-ledger list at `/accounting/ledger` with an `unbalanced()` flag — not a
-summarized statement, and nothing to drill down *from* since there's no
-summary line in the first place. Cash-basis vs. accrual-basis reporting
-(a toggle both QuickBooks and Xero offer, and one an accountant would expect
-in this section) doesn't exist as a concept either, since it's meaningless
-without any report to apply it to.
+## 5. Financial Statement Reports — Trial balance and P&L **[PARTIAL]**; Balance Sheet, Cash Flow, and Statement of Changes in Equity **[MISSING]**
+- Profit & Loss (Income Statement). **[PARTIAL]** (2026-09-12)
+  *`/accounting/profit-loss` — `acc.profitAndLoss()` lists revenue/expense accounts with posted activity in a `from`/`to` period (both optional; blank means all-time), and `acc.profitAndLossTotals()` is an independent SQL aggregation, not a JS reduction of the first's rows — summing `debits`/`credits` as strings in JS would be silent concatenation (CLAUDE.md's money rule). Tested in `accounting.test.ts` ("the profit and loss statement", 5 cases) including RLS as a refused plain employee. What's missing against FR-ACC-007's fuller spec: no COGS subtotal/gross margin (the fixture's chart of accounts has no COGS vs. operating-expense distinction to group by), no comparison periods (MoM/YoY), no department/location segmentation, no drill-down to transaction detail, no export, and no cash-vs-accrual toggle.*
+- Balance Sheet, Cash Flow Statement, Statement of Changes in Equity. **[MISSING]**
+  *No route, no repo function, no test for any of the three.
+  `rg -il 'balance.?sheet|cash.?flow.?statement'` across `apps/web/src` and
+  `packages` returns only one incidental HR comment ("Leave balances are a
+  balance-sheet liability...") in `packages/database/reference/schema.sql` —
+  confirmed by reading that line directly; it is not a report. This is a
+  **base-spec gap, not a roadmap wish**: `module-accounting.md`'s FR-ACC-007
+  (Financial Reporting: P&L, Balance Sheet, Cash Flow, Trial Balance, AR/AP
+  Aging) is part of the original functional spec, not
+  `accounting-gap-analysis.md`'s aspirational feature list.*
 
 ---
 
