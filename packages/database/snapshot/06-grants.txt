@@ -197,6 +197,8 @@ ticketing_ticket_assignees	app_user	INSERT,SELECT,UPDATE
 ticketing_ticket_assignees	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_ticket_links	app_user	INSERT,SELECT,UPDATE
 ticketing_ticket_links	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+ticketing_ticket_reference_links	app_user	INSERT,SELECT,UPDATE
+ticketing_ticket_reference_links	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_ticket_subscribers	app_user	INSERT,SELECT,UPDATE
 ticketing_ticket_subscribers	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_ticket_tasks	app_user	INSERT,SELECT,UPDATE

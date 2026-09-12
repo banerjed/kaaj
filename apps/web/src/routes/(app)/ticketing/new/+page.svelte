@@ -4,7 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
   import { enhance } from "$app/forms"
-  import RichTextEditor from "$lib/components/RichTextEditor.svelte"
+  import TicketSubjectAndBody from "$lib/components/TicketSubjectAndBody.svelte"
 
   let { data, form } = $props()
 
@@ -48,13 +48,13 @@
     use:enhance={keepValues}
     class="card bg-base-100 mt-4 max-w-lg shadow"
   >
-    <div class="card-body gap-4">
+    <div class="card-body gap-3 p-4">
       <fieldset class="fieldset">
-        <legend class="fieldset-legend">Business area</legend>
+        <legend class="fieldset-legend text-xs">Business area</legend>
         <select
           name="business_area_id"
           aria-invalid={err.aria("business_area_id")}
-          class={`select w-full ${err.select("business_area_id")}`}
+          class={`select select-sm w-full ${err.select("business_area_id")}`}
           bind:value={businessAreaId}
           onchange={() => (categoryId = "")}
           required
@@ -65,11 +65,11 @@
         </select>
       </fieldset>
       <fieldset class="fieldset">
-        <legend class="fieldset-legend">Category</legend>
+        <legend class="fieldset-legend text-xs">Category</legend>
         <select
           name="category_id"
           aria-invalid={err.aria("category_id")}
-          class={`select w-full ${err.select("category_id")}`}
+          class={`select select-sm w-full ${err.select("category_id")}`}
           bind:value={categoryId}
           required
         >
@@ -81,11 +81,11 @@
       </fieldset>
       {#if subcategories.length > 0}
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Subcategory</legend>
+          <legend class="fieldset-legend text-xs">Subcategory</legend>
           <select
             name="subcategory_id"
             aria-invalid={err.aria("subcategory_id")}
-            class={`select w-full ${err.select("subcategory_id")}`}
+            class={`select select-sm w-full ${err.select("subcategory_id")}`}
           >
             <option value="">None</option>
             {#each subcategories as s (s.id)}
@@ -94,36 +94,27 @@
           </select>
         </fieldset>
       {/if}
+
+      <TicketSubjectAndBody
+        {err}
+        bodyName="description"
+        bodyLabel="Description"
+        bodyPlaceholder="Describe the issue"
+        bodyRequired
+      />
+
       <fieldset class="fieldset">
-        <legend class="fieldset-legend">Title</legend>
-        <input
-          name="title"
-          aria-invalid={err.aria("title")}
-          class={`input w-full ${err.input("title")}`}
-          required
-          maxlength="255"
-        />
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">Description</legend>
-        <RichTextEditor
-          name="description"
-          required
-          placeholder="Describe the issue"
-          invalid={err.has("description")}
-        />
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend class="fieldset-legend">Due date</legend>
+        <legend class="fieldset-legend text-xs">Due date</legend>
         <input
           name="due_date"
           type="date"
           aria-invalid={err.aria("due_date")}
-          class={`input w-full ${err.input("due_date")}`}
+          class={`input input-sm w-full ${err.input("due_date")}`}
           required
         />
       </fieldset>
-      <button type="submit" class="btn btn-primary">Create ticket</button>
+      <button type="submit" class="btn btn-primary btn-sm">Create ticket</button
+      >
     </div>
   </form>
 </div>

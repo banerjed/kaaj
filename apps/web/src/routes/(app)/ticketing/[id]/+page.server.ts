@@ -39,17 +39,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     // (ticketById), so there's no "merge the current value back into a
     // capped candidate list" step to do — unlike a plain `<select>`, a
     // Combobox's selected item doesn't need to appear in its own options.
-    const [updates, people, customFieldDefinitions, tasks] = await Promise.all([
-      ticketing.ticketUpdatesSummary(tx, ticket.id),
-      employees.managerOptions(tx),
-      ticketing.customFieldDefinitionsFor(tx, ticket.business_area_id),
-      ticketing.ticketTasksFor(tx, ticket.id),
-    ])
+    const [updates, people, customFieldDefinitions, tasks, referenceLinks] =
+      await Promise.all([
+        ticketing.ticketUpdatesSummary(tx, ticket.id),
+        employees.managerOptions(tx),
+        ticketing.customFieldDefinitionsFor(tx, ticket.business_area_id),
+        ticketing.ticketTasksFor(tx, ticket.id),
+        ticketing.referenceLinksFor(tx, ticket.id),
+      ])
     return {
       ticket,
       updates,
       customFieldDefinitions,
       tasks,
+      referenceLinks,
       statuses: TICKET_STATUSES,
       // A value, not a type — `updatesMiddlePageSize` has to travel through
       // `load`'s return rather than a direct import, since a `+page.svelte`
@@ -128,6 +131,7 @@ export const actions: Actions = {
     const assigneeIds = mayManageAssignees
       ? new Set(idList(f, data, "assignee_ids"))
       : null
+    const isPrivate = f.bool("private")
     if (!f.ok) return fail(400, f.problem())
 
     try {
@@ -135,7 +139,7 @@ export const actions: Actions = {
         const ticket = await ticketing.ticketById(tx, params.id)
         if (!ticket) error(404, "No such ticket")
 
-        await ticketing.updateTicketCore(
+        const { before } = await ticketing.updateTicketCore(
           tx,
           params.id,
           {
@@ -144,9 +148,14 @@ export const actions: Actions = {
             dueDate: dueDate!,
             externalSummary: externalSummary || null,
             parentId: parentId || null,
+            isPrivate,
           },
           actor,
         )
+        const privateChange =
+          before.private !== isPrivate
+            ? { from: String(before.private), to: String(isPrivate) }
+            : null
 
         const subscriberChange = await reconcile(
           new Set(ticket.subscribers.map((s) => s.employee_id)),
@@ -169,11 +178,12 @@ export const actions: Actions = {
           (id) => ticketing.removeLink(tx, params.id, id),
         )
 
-        // Assignee/subscriber changes are the only rights-changing part of
-        // this action (staff_ticket_visibility) — title/status/due
-        // date/parent stay unaudited, exactly as setStatus/setDueDate/
-        // setParent were. audit.diff-shaped: only the fields that moved.
-        if (assigneeChange || subscriberChange) {
+        // Assignee/subscriber changes, and flipping `private`, are the only
+        // rights-changing parts of this action (staff_ticket_visibility) —
+        // title/status/due date/parent stay unaudited, exactly as
+        // setStatus/setDueDate/setParent were. audit.diff-shaped: only the
+        // fields that moved.
+        if (assigneeChange || subscriberChange || privateChange) {
           await audit.record(tx, ctx!, {
             action: "role_grant",
             entityType: "ticketing_tickets",
@@ -181,6 +191,7 @@ export const actions: Actions = {
             changes: {
               ...(assigneeChange ? { assignee_ids: assigneeChange } : {}),
               ...(subscriberChange ? { subscriber_ids: subscriberChange } : {}),
+              ...(privateChange ? { private: privateChange } : {}),
             },
           })
         }
@@ -328,14 +339,11 @@ export const actions: Actions = {
     requireCan(ctx, "ticketing.write.own")
     const tenantId = locals.tenantId
 
-    // Named task_title/task_due_date, not title/due_date — the unified edit
-    // form above has fields by those exact names, and a shared `form` prop
-    // means a collision here would highlight (or auto-open) the WRONG form
-    // on a refusal.
+    // Named task_title, not title — the unified edit form above has a field
+    // by that exact name, and a shared `form` prop means a collision here
+    // would highlight (or auto-open) the WRONG form on a refusal.
     const f = new FormReader(await request.formData())
     const title = f.text("task_title", { required: true, max: 255 })
-    const assigneeId = f.uuid("assignee_id")
-    const dueDate = f.date("task_due_date")
     if (!f.ok) return fail(400, f.problem("Name the task."))
 
     await withTenant(actorFrom(locals), (tx) =>
@@ -343,7 +351,7 @@ export const actions: Actions = {
         tx,
         tenantId,
         params.id,
-        { title: title!, assigneeEmployeeId: assigneeId, dueDate },
+        { title: title! },
         actorId(ctx),
       ),
     )
@@ -379,5 +387,46 @@ export const actions: Actions = {
 
     await withTenant(actorFrom(locals), (tx) => ticketing.archiveTask(tx, id!))
     return { taskArchived: true }
+  },
+
+  // Reference links — not audited (register.ts): a pasted URL, same
+  // reasoning as addTask/archiveTask.
+  addReferenceLink: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "ticketing.write.own")
+    const tenantId = locals.tenantId
+
+    const f = new FormReader(await request.formData())
+    const label = f.text("link_label", { required: true, max: 255 })
+    const url = f.text("link_url", { required: true, max: 2048 })
+    // http(s) only — this becomes a real <a href>, and a javascript:/data:
+    // scheme there is a stored-XSS vector, not a cosmetic validation nicety.
+    if (url && !/^https?:\/\//i.test(url)) f.reject("link_url")
+    if (!f.ok) return fail(400, f.problem("Give the link a label and a URL."))
+
+    await withTenant(actorFrom(locals), (tx) =>
+      ticketing.addReferenceLink(
+        tx,
+        tenantId,
+        params.id,
+        { label: label!, url: url! },
+        actorId(ctx),
+      ),
+    )
+    return { linkAdded: true }
+  },
+
+  archiveReferenceLink: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "ticketing.write.own")
+    const f = new FormReader(await request.formData())
+    const id = f.uuid("id", { required: true })
+    if (!f.ok) return fail(400, f.problem())
+
+    await withTenant(actorFrom(locals), (tx) =>
+      ticketing.archiveReferenceLink(tx, id!),
+    )
+    return { linkArchived: true }
   },
 }

@@ -41,12 +41,27 @@ async function openModal(page: Page, button: RegExp, field: string) {
   }).toPass({ timeout: 15_000 })
 }
 
-/** Submit a form the browser would otherwise refuse to send. */
-async function submitPastTheBrowser(page: Page, action: string) {
+/**
+ * Submit a form the browser would otherwise refuse to send.
+ *
+ * `submitSelector` overrides where the submit button lives — the ticket-edit
+ * form's Save button sits outside its own `<form>` (associated instead via
+ * `form="ticket-edit-form"`, so it can follow every tab rather than only the
+ * two physically inside the element); `novalidate` on the form still governs
+ * it, since the HTML form-association mechanism treats it as a submitter of
+ * that form regardless of where it sits in the DOM.
+ */
+async function submitPastTheBrowser(
+  page: Page,
+  action: string,
+  submitSelector?: string,
+) {
   await page
     .locator(`form[action="${action}"]`)
     .evaluate((f: HTMLFormElement) => (f.noValidate = true))
-  await page.locator(`form[action="${action}"] button[type="submit"]`).click()
+  await page
+    .locator(submitSelector ?? `form[action="${action}"] button[type="submit"]`)
+    .click()
 }
 
 test("a modal form keeps the refused field marked, and stays open", async ({
@@ -306,17 +321,26 @@ test("the unified ticket-edit form stays open, and marked, on a refused submissi
 }) => {
   // IT-0001 — any staff-visible ticket in the fixture does.
   await page.goto("/ticketing/a22f6d41-d654-5951-a043-e174f7e1a258")
-  await openModal(page, /add an update/i, 'input[name="title"]')
+  await openModal(page, /^update$/i, 'input[name="title"]')
+
+  // due_date lives on the "Details" tab, not the one "Update" opens onto.
+  await page.getByRole("tab", { name: "Details" }).click()
 
   // Posting a comment is optional here (a save that only changes the due
   // date must not be forced to write one) — due_date is the field that is
   // still required, so blanking it is what triggers a refusal.
   await page.locator('input[name="due_date"]').fill("")
-  await submitPastTheBrowser(page, "?/saveTicket")
+  await submitPastTheBrowser(
+    page,
+    "?/saveTicket",
+    'button[form="ticket-edit-form"][type="submit"]',
+  )
   await expect(page.locator(".alert").first()).toContainText("Due date")
 
-  // Still open, not reset back to the "Add an update" button, and marked.
-  await expect(page.locator('input[name="title"]')).toBeVisible()
+  // Still open (the "Update" tab is still there, not reset back to the
+  // button), routed to the tab the refused field lives on, and marked.
+  await expect(page.getByRole("tab", { name: "Update" })).toBeVisible()
+  await expect(page.locator('input[name="due_date"]')).toBeVisible()
   await expect(page.locator('input[name="due_date"]')).toHaveClass(
     /input-error/,
   )

@@ -57,7 +57,7 @@ directory in the repo.
 | tenant isolation | every RLS policy actually filters, per table | 600 |
 | specification | the schema answers the module specs | 167 |
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
-| structure snapshot | the schema is exactly what was committed | 4,119 lines |
+| structure snapshot | the schema is exactly what was committed | 4,136 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 56 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
@@ -75,7 +75,7 @@ directory in the repo.
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-10.
+column. They were last verified 2026-09-11.
 
 These are complementary and none substitutes for another:
 

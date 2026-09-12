@@ -634,20 +634,32 @@ SELECT gen_random_uuid(), '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, t.ticket
  WHERE t.ticket_number = 'IT-0004';
 
 -- Ticket tasks — a real per-ticket checklist, replacing the dead `tasks`
--- JSONB column. Covers both an assigned and an unassigned task, a due date
--- present and absent, and a completed task (done_at/done_by populated).
-INSERT INTO ticketing_ticket_tasks (tenant_id, ticket_id, title, assignee_employee_id, due_date, is_done, is_active, display_order, done_at, done_by, created_at, created_by)
-SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.title, v.assignee_id::uuid, v.due_date::date, v.is_done::boolean, TRUE, v.ord::int,
+-- JSONB column. A plain to-do list — no per-item assignee or due date —
+-- covering both an open and a completed task (done_at/done_by populated).
+INSERT INTO ticketing_ticket_tasks (tenant_id, ticket_id, title, is_done, is_active, display_order, done_at, done_by, created_at, created_by)
+SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.title, v.is_done::boolean, TRUE, v.ord::int,
        CASE WHEN v.is_done::boolean THEN '2026-01-03T10:00:00Z'::timestamptz ELSE NULL END,
        CASE WHEN v.is_done::boolean THEN '48ccc5de-9ba7-5461-ab49-160a1146ed85' ELSE NULL END,
        '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'
   FROM ticketing_tickets t
   JOIN (VALUES
-        ('IT-0001', 'Order replacement laptop', 'a87e0200-0849-53b6-a491-e882feace3f5', '2026-01-10', 'true', 1),
-        ('IT-0001', 'Confirm data backup completed', NULL, NULL, 'false', 2),
-        ('CS-0001', 'Escalate to database team', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-02-01', 'false', 1),
-        ('FAC-0001', 'Contact booking-system vendor', 'a87e0200-0849-53b6-a491-e882feace3f5', NULL, 'false', 1)
-       ) AS v(ticket_number, title, assignee_id, due_date, is_done, ord) ON v.ticket_number = t.ticket_number;
+        ('IT-0001', 'Order replacement laptop', 'true', 1),
+        ('IT-0001', 'Confirm data backup completed', 'false', 2),
+        ('CS-0001', 'Escalate to database team', 'false', 1),
+        ('FAC-0001', 'Contact booking-system vendor', 'false', 1)
+       ) AS v(ticket_number, title, is_done, ord) ON v.ticket_number = t.ticket_number;
+
+-- Reference links — a pasted URL, not a file attachment. IT-0001 gets two so
+-- ordering has something to show.
+INSERT INTO ticketing_ticket_reference_links (tenant_id, ticket_id, label, url, display_order, created_by)
+SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.label, v.url, v.ord::int,
+       '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t
+  JOIN (VALUES
+        ('IT-0001', 'Laptop replacement vendor catalog', 'https://vendor.example/catalog/laptops', 1),
+        ('IT-0001', 'IT asset tagging policy', 'https://wiki.example/it/asset-tagging', 2),
+        ('CS-0001', 'Client escalation runbook', 'https://wiki.example/support/escalation-runbook', 1)
+       ) AS v(ticket_number, label, url, ord) ON v.ticket_number = t.ticket_number;
 
 -- Invoices in mixed states, multi-currency with base conversion
 INSERT INTO invoices (id, tenant_id, customer_id, invoice_number, invoice_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, payment_terms) VALUES

@@ -207,7 +207,7 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   {
     route: "ticketing/[id]",
     action: "saveTicket",
-    why: "The unified ticket-edit form (subject/status/due date/summary/parent/comment plus assignees/subscribers/links in one submit). Unlike a comment or a status flip, an assignee or subscriber change here still moves who staff_ticket_visibility lets read the ticket — a rights change, recorded only when one of those two actually moved (audit.diff shape), never for a save that touched neither.",
+    why: "The unified ticket-edit form (subject/status/due date/summary/parent/comment plus assignees/subscribers/links/private in one submit). Unlike a comment or a status flip, an assignee change, a subscriber change, or flipping `private` all move who staff_ticket_visibility lets read the ticket — a rights change, recorded only when one of those actually moved (audit.diff shape), never for a save that touched none of them.",
   },
   {
     route: "settings/ticketing/[businessAreaId]",
@@ -287,6 +287,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "ticketing/[id]",
     action: "archiveTask",
     why: "Removing a checklist item someone no longer needs — configuration of the ticket's own working list, not a rights or pay change.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "addReferenceLink",
+    why: "A pasted URL appearing on a ticket changes nobody's money, employment or rights — same reasoning as addTask.",
+  },
+  {
+    route: "ticketing/[id]",
+    action: "archiveReferenceLink",
+    why: "Removing a reference link someone no longer needs — same reasoning as archiveTask.",
   },
   {
     route: "settings/ticketing",

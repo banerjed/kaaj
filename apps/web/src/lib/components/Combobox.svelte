@@ -32,6 +32,7 @@
     invalid = false,
     disabled = false,
     max,
+    form,
   }: {
     name: string
     multiple?: boolean
@@ -44,6 +45,8 @@
     disabled?: boolean
     /** Multi-select only: refuses another pick once reached (BR: linked tickets cap at 20). */
     max?: number
+    /** Associates the hidden inputs with a `<form>` elsewhere in the DOM — for a picker that lives outside the form it submits with (native `form` attribute, same mechanism as `<button form="...">`). */
+    form?: string
   } = $props()
 
   // Seeded once from the prop, then a locally-owned list — same shape as
@@ -181,14 +184,23 @@
 <div class="relative" bind:this={rootEl}>
   {#if multiple}
     {#each selectedItems as item (item.id)}
-      <input type="hidden" {name} value={item.id} />
+      <input type="hidden" {name} {form} value={item.id} />
     {/each}
   {:else}
-    <input type="hidden" {name} value={selectedItems[0]?.id ?? ""} />
+    <input type="hidden" {name} {form} value={selectedItems[0]?.id ?? ""} />
   {/if}
 
+  <!-- Forwards focus to the real combobox <input> inside it — never
+       independently interactive. Chips wrap onto their own lines as they
+       accumulate, so the input can end up on a later line with visually
+       "empty" space above it (after the last chip, before the wrap) that
+       belongs to this div; without this, a click there does nothing, which
+       reads as "the picker is broken". -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class={`input w-full flex-wrap items-center gap-1 ${multiple ? "h-auto min-h-10 py-1.5" : ""} ${invalid ? "input-error" : ""}`}
+    class={`input w-full min-w-0 flex-wrap items-center gap-1 ${multiple ? "h-auto min-h-10 py-1.5" : ""} ${invalid ? "input-error" : ""}`}
+    onclick={() => inputEl?.focus()}
   >
     {#if multiple}
       {#each selectedItems as item (item.id)}

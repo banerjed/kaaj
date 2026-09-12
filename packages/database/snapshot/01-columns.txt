@@ -1988,6 +1988,15 @@ ticketing_ticket_links	4	linked_ticket_id	uuid	t
 ticketing_ticket_links	5	is_active	boolean	t	true
 ticketing_ticket_links	6	created_at	timestamp with time zone	t	now()
 ticketing_ticket_links	7	created_by	text	t	
+ticketing_ticket_reference_links	1	id	uuid	t	gen_random_uuid()
+ticketing_ticket_reference_links	2	tenant_id	uuid	t	
+ticketing_ticket_reference_links	3	ticket_id	uuid	t	
+ticketing_ticket_reference_links	4	label	text	t	
+ticketing_ticket_reference_links	5	url	text	t	
+ticketing_ticket_reference_links	6	is_active	boolean	t	true
+ticketing_ticket_reference_links	7	display_order	integer	t	0
+ticketing_ticket_reference_links	8	created_at	timestamp with time zone	t	now()
+ticketing_ticket_reference_links	9	created_by	text	t	
 ticketing_ticket_subscribers	1	id	uuid	t	gen_random_uuid()
 ticketing_ticket_subscribers	2	tenant_id	uuid	t	
 ticketing_ticket_subscribers	3	ticket_id	uuid	t	
@@ -1999,8 +2008,6 @@ ticketing_ticket_tasks	1	id	uuid	t	gen_random_uuid()
 ticketing_ticket_tasks	2	tenant_id	uuid	t	
 ticketing_ticket_tasks	3	ticket_id	uuid	t	
 ticketing_ticket_tasks	4	title	text	t	
-ticketing_ticket_tasks	5	assignee_employee_id	uuid	f	
-ticketing_ticket_tasks	6	due_date	date	f	
 ticketing_ticket_tasks	7	is_done	boolean	t	false
 ticketing_ticket_tasks	8	is_active	boolean	t	true
 ticketing_ticket_tasks	9	display_order	integer	t	0

@@ -638,6 +638,7 @@ export type TicketCoreBefore = {
   due_date: string | null
   external_summary: string | null
   parent_ticket_id: string | null
+  private: boolean
 }
 
 /**
@@ -662,6 +663,7 @@ export async function updateTicketCore(
     dueDate: string
     externalSummary: string | null
     parentId: string | null
+    isPrivate: boolean
   },
   actorId: string,
 ): Promise<{ before: TicketCoreBefore }> {
@@ -675,7 +677,7 @@ export async function updateTicketCore(
 
   const [before] = await tx<TicketCoreBefore[]>`
     SELECT title, status, to_char(due_date, 'YYYY-MM-DD') AS due_date,
-           external_summary, parent_ticket_id
+           external_summary, parent_ticket_id, coalesce(private, FALSE) AS private
       FROM ticketing_tickets WHERE id = ${ticketId}::uuid
   `
   if (!before) throw new TicketingRefused("no_such_ticket")
@@ -689,6 +691,7 @@ export async function updateTicketCore(
            due_date = ${input.dueDate}::date,
            external_summary = ${input.externalSummary},
            parent_ticket_id = ${input.parentId}::uuid,
+           private = ${input.isPrivate},
            updated_at = now(), last_updated_by = ${actorId}
      WHERE id = ${ticketId}::uuid
   `
@@ -1085,9 +1088,6 @@ export async function setCustomFieldValues(
 export type TicketTask = {
   id: string
   title: string
-  assignee_employee_id: string | null
-  assignee_name: string | null
-  due_date: string | null
   is_done: boolean
   done_at: Date | null
 }
@@ -1097,13 +1097,10 @@ export async function ticketTasksFor(
   ticketId: string,
 ): Promise<TicketTask[]> {
   return tx<TicketTask[]>`
-    SELECT t.id, t.title, t.assignee_employee_id,
-           e.first_name || ' ' || e.last_name AS assignee_name,
-           to_char(t.due_date, 'YYYY-MM-DD') AS due_date, t.is_done, t.done_at
-      FROM ticketing_ticket_tasks t
-      LEFT JOIN employees e ON e.id = t.assignee_employee_id
-     WHERE t.ticket_id = ${ticketId}::uuid AND t.is_active
-     ORDER BY t.is_done, t.display_order, t.created_at
+    SELECT id, title, is_done, done_at
+      FROM ticketing_ticket_tasks
+     WHERE ticket_id = ${ticketId}::uuid AND is_active
+     ORDER BY is_done, display_order, created_at
   `
 }
 
@@ -1111,19 +1108,14 @@ export async function addTask(
   tx: Tx,
   tenantId: string,
   ticketId: string,
-  input: {
-    title: string
-    assigneeEmployeeId: string | null
-    dueDate: string | null
-  },
+  input: { title: string },
   actorId: string,
 ): Promise<{ id: string }> {
   const [row] = await tx<{ id: string }[]>`
     INSERT INTO ticketing_ticket_tasks
-      (tenant_id, ticket_id, title, assignee_employee_id, due_date, display_order, created_by)
+      (tenant_id, ticket_id, title, display_order, created_by)
     VALUES (
       ${tenantId}::uuid, ${ticketId}::uuid, ${input.title},
-      ${input.assigneeEmployeeId}::uuid, ${input.dueDate}::date,
       coalesce((SELECT max(display_order) + 1 FROM ticketing_ticket_tasks WHERE ticket_id = ${ticketId}::uuid), 1),
       ${actorId}
     )
@@ -1150,6 +1142,63 @@ export async function setTaskDone(
 export async function archiveTask(tx: Tx, taskId: string): Promise<boolean> {
   const [row] = await tx<{ id: string }[]>`
     UPDATE ticketing_ticket_tasks SET is_active = FALSE WHERE id = ${taskId}::uuid
+    RETURNING id
+  `
+  return !!row
+}
+
+// -----------------------------------------------------------------------------
+// Reference links — a label + URL a staff member pastes onto a ticket. Not a
+// file attachment (see 20260911110000_ticketing_reference_links.sql for why),
+// so no storage_key/mime_type/file_size to fake. Visibility is inherited from
+// the ticket, not re-decided here; not audited, same reasoning as the task
+// checklist — a reference link changes nobody's money, employment or rights.
+// -----------------------------------------------------------------------------
+
+export type TicketReferenceLink = {
+  id: string
+  label: string
+  url: string
+}
+
+export async function referenceLinksFor(
+  tx: Tx,
+  ticketId: string,
+): Promise<TicketReferenceLink[]> {
+  return tx<TicketReferenceLink[]>`
+    SELECT id, label, url
+      FROM ticketing_ticket_reference_links
+     WHERE ticket_id = ${ticketId}::uuid AND is_active
+     ORDER BY display_order, created_at
+  `
+}
+
+export async function addReferenceLink(
+  tx: Tx,
+  tenantId: string,
+  ticketId: string,
+  input: { label: string; url: string },
+  actorId: string,
+): Promise<{ id: string }> {
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO ticketing_ticket_reference_links
+      (tenant_id, ticket_id, label, url, display_order, created_by)
+    VALUES (
+      ${tenantId}::uuid, ${ticketId}::uuid, ${input.label}, ${input.url},
+      coalesce((SELECT max(display_order) + 1 FROM ticketing_ticket_reference_links WHERE ticket_id = ${ticketId}::uuid), 1),
+      ${actorId}
+    )
+    RETURNING id
+  `
+  return row
+}
+
+export async function archiveReferenceLink(
+  tx: Tx,
+  linkId: string,
+): Promise<boolean> {
+  const [row] = await tx<{ id: string }[]>`
+    UPDATE ticketing_ticket_reference_links SET is_active = FALSE WHERE id = ${linkId}::uuid
     RETURNING id
   `
   return !!row

@@ -396,12 +396,14 @@ ticketing_ticket_links	ticketing_ticket_links_linked_ticket_id_fkey	f	FOREIGN KE
 ticketing_ticket_links	ticketing_ticket_links_pkey	p	PRIMARY KEY (id)
 ticketing_ticket_links	ticketing_ticket_links_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_ticket_links	ticketing_ticket_links_ticket_id_fkey	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
+ticketing_ticket_reference_links	ticketing_ticket_reference_links_pkey	p	PRIMARY KEY (id)
+ticketing_ticket_reference_links	ticketing_ticket_reference_links_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_ticket_reference_links	ticketing_ticket_reference_links_ticket_id_fkey	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
 ticketing_ticket_subscribers	ticketing_ticket_subscribers_employee_id_fkey	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 ticketing_ticket_subscribers	ticketing_ticket_subscribers_pkey	p	PRIMARY KEY (id)
 ticketing_ticket_subscribers	ticketing_ticket_subscribers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_ticket_subscribers	ticketing_ticket_subscribers_tenant_id_ticket_id_employee_i_key	u	UNIQUE (tenant_id, ticket_id, employee_id)
 ticketing_ticket_subscribers	ticketing_ticket_subscribers_ticket_id_fkey	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
-ticketing_ticket_tasks	ticketing_ticket_tasks_assignee_employee_id_fkey	f	FOREIGN KEY (assignee_employee_id) REFERENCES employees(id)
 ticketing_ticket_tasks	ticketing_ticket_tasks_pkey	p	PRIMARY KEY (id)
 ticketing_ticket_tasks	ticketing_ticket_tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_ticket_tasks	ticketing_ticket_tasks_ticket_id_fkey	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)

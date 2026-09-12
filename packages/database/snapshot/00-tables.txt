@@ -97,6 +97,7 @@ ticketing_categories	t	t
 ticketing_subcategories	t	t
 ticketing_ticket_assignees	t	t
 ticketing_ticket_links	t	t
+ticketing_ticket_reference_links	t	t
 ticketing_ticket_subscribers	t	t
 ticketing_ticket_tasks	t	t
 ticketing_tickets	t	t

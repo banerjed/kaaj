@@ -233,6 +233,10 @@ ticketing_categories	tenant_isolation	ALL	public	(tenant_id = app.current_tenant
 ticketing_subcategories	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_ticket_assignees	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_ticket_links	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+ticketing_ticket_reference_links	staff_reference_link_visibility	SELECT	public	(EXISTS ( SELECT 1
+   FROM ticketing_tickets t
+  WHERE (t.id = ticketing_ticket_reference_links.ticket_id)))	
+ticketing_ticket_reference_links	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_ticket_subscribers	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_ticket_tasks	staff_task_visibility	SELECT	public	(EXISTS ( SELECT 1
    FROM ticketing_tickets t
