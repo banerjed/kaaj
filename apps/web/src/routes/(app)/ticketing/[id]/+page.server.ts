@@ -333,6 +333,17 @@ export const actions: Actions = {
 
   // Tasks — not audited (register.ts): a checklist item, same shape as
   // projects/[id]::addTask/moveTask, changes nobody's money/employment/rights.
+  //
+  // Every action below fetches the ticket (or, for toggleTask/archiveTask,
+  // the task itself, whose SELECT already inherits the ticket's RLS) BEFORE
+  // writing — the same ticketById-first shape saveTicket/setCustomFields
+  // already use. Visibility here was previously enforced only by RLS
+  // incidentally, through Postgres re-checking SELECT policy on a
+  // `RETURNING` clause; that surfaced as a raw 500 for `addTask`/
+  // `addReferenceLink` and, for `toggleTask`, as a write that silently
+  // touched zero rows while still answering `{ taskToggled: true }` — the
+  // exact "a write reports what it did, not that the request arrived" shape
+  // this codebase already has a rule against.
   addTask: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
@@ -346,15 +357,17 @@ export const actions: Actions = {
     const title = f.text("task_title", { required: true, max: 255 })
     if (!f.ok) return fail(400, f.problem("Name the task."))
 
-    await withTenant(actorFrom(locals), (tx) =>
-      ticketing.addTask(
+    await withTenant(actorFrom(locals), async (tx) => {
+      const ticket = await ticketing.ticketById(tx, params.id)
+      if (!ticket) error(404, "No such ticket")
+      await ticketing.addTask(
         tx,
         tenantId,
         params.id,
         { title: title! },
         actorId(ctx),
-      ),
-    )
+      )
+    })
     return { taskAdded: true }
   },
 
@@ -367,15 +380,17 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(actorFrom(locals), (tx) =>
-      ticketing.setTaskDone(
+    const toggled = await withTenant(actorFrom(locals), async (tx) => {
+      const task = await ticketing.taskById(tx, id!)
+      if (!task) error(404, "No such task")
+      return ticketing.setTaskDone(
         tx,
         id!,
         data.get("is_done") === "true",
         actorId(ctx),
-      ),
-    )
-    return { taskToggled: true }
+      )
+    })
+    return { taskToggled: toggled }
   },
 
   archiveTask: async ({ request, locals }) => {
@@ -385,8 +400,12 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(actorFrom(locals), (tx) => ticketing.archiveTask(tx, id!))
-    return { taskArchived: true }
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      const task = await ticketing.taskById(tx, id!)
+      if (!task) error(404, "No such task")
+      return ticketing.archiveTask(tx, id!)
+    })
+    return { taskArchived: archived }
   },
 
   // Reference links — not audited (register.ts): a pasted URL, same
@@ -405,15 +424,17 @@ export const actions: Actions = {
     if (url && !/^https?:\/\//i.test(url)) f.reject("link_url")
     if (!f.ok) return fail(400, f.problem("Give the link a label and a URL."))
 
-    await withTenant(actorFrom(locals), (tx) =>
-      ticketing.addReferenceLink(
+    await withTenant(actorFrom(locals), async (tx) => {
+      const ticket = await ticketing.ticketById(tx, params.id)
+      if (!ticket) error(404, "No such ticket")
+      await ticketing.addReferenceLink(
         tx,
         tenantId,
         params.id,
         { label: label!, url: url! },
         actorId(ctx),
-      ),
-    )
+      )
+    })
     return { linkAdded: true }
   },
 
@@ -424,9 +445,11 @@ export const actions: Actions = {
     const id = f.uuid("id", { required: true })
     if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(actorFrom(locals), (tx) =>
-      ticketing.archiveReferenceLink(tx, id!),
-    )
-    return { linkArchived: true }
+    const archived = await withTenant(actorFrom(locals), async (tx) => {
+      const link = await ticketing.referenceLinkById(tx, id!)
+      if (!link) error(404, "No such link")
+      return ticketing.archiveReferenceLink(tx, id!)
+    })
+    return { linkArchived: archived }
   },
 }

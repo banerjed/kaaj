@@ -277,7 +277,10 @@
         Logged {fmt(data.ticket.logged_at)}
       </p>
 
-      <div role="tablist" class="tabs tabs-lifted mt-1">
+      <div
+        role="tablist"
+        class="tabs tabs-lifted mt-1 flex-nowrap overflow-x-auto"
+      >
         {#if editing}
           <button
             role="tab"

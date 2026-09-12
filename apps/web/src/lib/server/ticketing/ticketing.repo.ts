@@ -1104,6 +1104,24 @@ export async function ticketTasksFor(
   `
 }
 
+/**
+ * The visibility check for actions that only ever receive a TASK id
+ * (toggleTask/archiveTask), never the ticket's — `staff_task_visibility`
+ * inherits the parent ticket's RLS, so this SELECT itself returns nothing
+ * for a ticket the actor can't see. Call this before any write so the
+ * action can answer 404, the same way `ticketById`-gated actions do,
+ * instead of relying on the write silently affecting zero rows.
+ */
+export async function taskById(
+  tx: Tx,
+  taskId: string,
+): Promise<{ id: string; ticket_id: string } | null> {
+  const [row] = await tx<{ id: string; ticket_id: string }[]>`
+    SELECT id, ticket_id FROM ticketing_ticket_tasks WHERE id = ${taskId}::uuid
+  `
+  return row ?? null
+}
+
 export async function addTask(
   tx: Tx,
   tenantId: string,
@@ -1129,14 +1147,16 @@ export async function setTaskDone(
   taskId: string,
   isDone: boolean,
   actorId: string,
-): Promise<void> {
-  await tx`
+): Promise<boolean> {
+  const [row] = await tx<{ id: string }[]>`
     UPDATE ticketing_ticket_tasks
        SET is_done = ${isDone},
            done_at = CASE WHEN ${isDone} THEN now() ELSE NULL END,
            done_by = CASE WHEN ${isDone} THEN ${actorId} ELSE NULL END
      WHERE id = ${taskId}::uuid
+    RETURNING id
   `
+  return !!row
 }
 
 export async function archiveTask(tx: Tx, taskId: string): Promise<boolean> {
@@ -1191,6 +1211,17 @@ export async function addReferenceLink(
     RETURNING id
   `
   return row
+}
+
+/** Same reasoning as `taskById` — lets `archiveReferenceLink` answer 404 for a link on a ticket the actor can't see, instead of a write that silently no-ops. */
+export async function referenceLinkById(
+  tx: Tx,
+  linkId: string,
+): Promise<{ id: string; ticket_id: string } | null> {
+  const [row] = await tx<{ id: string; ticket_id: string }[]>`
+    SELECT id, ticket_id FROM ticketing_ticket_reference_links WHERE id = ${linkId}::uuid
+  `
+  return row ?? null
 }
 
 export async function archiveReferenceLink(
