@@ -21,7 +21,7 @@ on: [push, pull_request]
 env:
   # A browser Supabase client is constructed at import time in a few modules.
   # These suites never contact it.
-  PUBLIC_SUPABASE_URL: "https://fake_test_url.supabase.co"
+  PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
   PUBLIC_SUPABASE_ANON_KEY: "fake_anon_key"
   PRIVATE_SUPABASE_SERVICE_ROLE: "fake_service_role"
   PRIVATE_STRIPE_API_KEY: "fake_strip_api_key"
