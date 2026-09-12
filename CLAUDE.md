@@ -555,6 +555,31 @@ anything.
 
 ---
 
+## Comments
+
+**Default to none. Add one only when it explains a nuance the code itself
+cannot** — a hidden constraint, an invariant that would break silently, a
+reason a plausible-looking alternative is wrong. If a competent reader loses
+nothing when the comment is deleted, delete it.
+
+**Never narrate how the decision was reached.** No "changed from X because Y
+suggested it", no ticket numbers, no "tried three approaches, this one
+works" — that belongs in the commit message, not the code. History narrated
+in a comment rots the moment the reasoning it describes stops mattering, and
+nothing then updates it. A comment describes the code as it stands today,
+never the path that produced it.
+
+**Never restate what the code already says.** A well-named identifier is
+already documentation; a comment repeating it is a second copy of the same
+fact, and the two *will* drift once only one of them gets updated.
+
+**Fewer is better, and a wrong comment is worse than none.** An incorrect
+comment doesn't just fail to help — it actively misleads, and it costs
+trust in every other comment near it. When it's unclear whether a comment
+earns its place, leave it out.
+
+---
+
 ## Svelte
 
 Svelte 5, runes only. These are the ones worth stating as rules — from
