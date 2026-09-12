@@ -139,6 +139,30 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["employee_id"],
     message: "That person no longer has a record. Reload the page.",
   },
+  fk_invoices_customer_id: {
+    errorFields: ["customer_id"],
+    message:
+      "That customer no longer exists. Reload the page and pick one from the current list.",
+  },
+  fk_bills_vendor_id: {
+    errorFields: ["vendor_id"],
+    message:
+      "That vendor no longer exists. Reload the page and pick one from the current list.",
+  },
+  fk_bill_lines_expense_account_id: {
+    errorFields: ["lines"],
+    message:
+      "One of the expense accounts on this bill no longer exists. Reload the page and pick accounts from the current list.",
+  },
+
+  // A unique INDEX, not a named UNIQUE constraint, so the name is the index
+  // name — same shape as idx_firm_locations_hq. Scoped per vendor, not per
+  // tenant: bill_number is the vendor's own free text, not generated.
+  idx_bills_vendor_number: {
+    errorFields: ["bill_number"],
+    message:
+      "This vendor already has a bill with that number. Check for a duplicate, or use a different number.",
+  },
 }
 
 /** Every constraint this file answers for. `./check` compares it to the schema. */

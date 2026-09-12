@@ -224,6 +224,127 @@ test("matching a bank transaction with no payment chosen is refused", async ({
   )
 })
 
+test("creating an invoice with no lines is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Acme Manufacturing (USD) — a real fixture customer, so only line_count
+  // is the thing under test.
+  const response = await page.request.post("/accounting/invoices/new?/create", {
+    form: {
+      customer_id: "e40d0f18-1333-5cd1-a969-f5113df51e70",
+      invoice_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "0",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  // f.problem()'s default names the field ("lines"), not a bare "invalid" —
+  // the friendlier "An invoice needs at least one line." is the UI hint
+  // shown on the page itself (err.has("lines")), not the action's message.
+  expect(result.raw).toMatch(/lines/i)
+})
+
+test("an invoice line with a negative quantity is refused, not stored as a negative charge", async ({
+  page,
+}) => {
+  const response = await page.request.post("/accounting/invoices/new?/create", {
+    form: {
+      customer_id: "e40d0f18-1333-5cd1-a969-f5113df51e70",
+      invoice_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "1",
+      "lines.0.description": "Consulting",
+      "lines.0.quantity": "-1",
+      "lines.0.unit_price": "100.00",
+      "lines.0.discount_percent": "0",
+      "lines.0.tax_amount": "0",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  // Not just "some field failed" (a typo'd field name would also 400 as
+  // "missing") — the indexed reader must name THIS row's quantity.
+  expect(result.raw).toMatch(/lines\.0\.quantity/)
+})
+
+test("creating a bill with no lines is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Amazon Web Services (USD) — a real fixture vendor, so only line_count
+  // is the thing under test.
+  const response = await page.request.post("/accounting/bills/new?/create", {
+    form: {
+      vendor_id: "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92",
+      bill_number: "BILL-AWS-NO-LINES",
+      bill_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "0",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/lines/i)
+})
+
+test("a bill line with a negative quantity is refused, not stored as a negative cost", async ({
+  page,
+}) => {
+  const response = await page.request.post("/accounting/bills/new?/create", {
+    form: {
+      vendor_id: "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92",
+      bill_number: "BILL-AWS-BAD-QTY",
+      bill_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "1",
+      "lines.0.description": "Cloud hosting",
+      "lines.0.quantity": "-1",
+      "lines.0.unit_price": "100.00",
+      "lines.0.tax_amount": "0",
+      "lines.0.expense_account_id": "030e294b-88ad-544e-841a-cfda187885ac",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  // Not just "some field failed" — the indexed reader must name THIS row's
+  // quantity, same proof as the invoice case above.
+  expect(result.raw).toMatch(/lines\.0\.quantity/)
+})
+
+test("a bill number already used by the same vendor is refused, not silently duplicated", async ({
+  page,
+}) => {
+  // BILL-AWS-2026-01 already exists for this exact vendor in the fixture
+  // (idx_bills_vendor_number is unique per tenant+vendor+number) — this
+  // stays read-only: the insert is refused before anything is written.
+  const response = await page.request.post("/accounting/bills/new?/create", {
+    form: {
+      vendor_id: "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92",
+      bill_number: "BILL-AWS-2026-01",
+      bill_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "1",
+      "lines.0.description": "Cloud hosting",
+      "lines.0.quantity": "1",
+      "lines.0.unit_price": "100.00",
+      "lines.0.tax_amount": "0",
+      "lines.0.expense_account_id": "030e294b-88ad-544e-841a-cfda187885ac",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  // The registered constraints.ts message, not just the field name — a
+  // FormReader rejection would also serialize "bill_number" as the errored
+  // field, so this proves the DATABASE constraint (idx_bills_vendor_number)
+  // is what actually fired, same sharpening as the quantity case above.
+  expect(result.raw).toMatch(/already has a bill with that number/i)
+})
+
 /**
  * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
  * browser in a different sense than `submitPastTheBrowser` above: a native

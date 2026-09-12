@@ -254,6 +254,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "Logging a draft changes nobody's money yet — no rate is billed until decide() approves it. Guarded by staleHours() rather than a trail nobody would read.",
   },
   {
+    route: "accounting/invoices/new",
+    action: "create",
+    why: "A draft invoice changes nobody's money yet — no revenue is recognised until issue() posts the journal, and that is already audited. The row carries created_by/created_at, same reasoning as time-tracking's create.",
+  },
+  {
+    route: "accounting/bills/new",
+    action: "create",
+    why: "A draft bill recognises no liability yet — nothing is owed until approve() posts the journal, and that is already audited. The row carries created_by/created_at, same reasoning as invoices/new's create.",
+  },
+  {
     route: "time-tracking",
     action: "submit",
     why: "The logging employee's own status flip, not a decision by anyone else. What decide() does to it is audited; this step just queues it.",

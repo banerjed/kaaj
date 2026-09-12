@@ -84,6 +84,261 @@ async function unbalancedEntries(tx: Tx) {
   `
 }
 
+/** Amazon Web Services — USD. */
+const AWS_VENDOR = "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92"
+/** JetBrains — EUR, so currency-from-vendor is actually exercised. */
+const JETBRAINS_VENDOR = "77464d71-79dd-5490-93a3-a62c9df1d027"
+/** Software Subscriptions, 5300 — an expense account real fixture lines use. */
+const SOFTWARE_ACCOUNT = "030e294b-88ad-544e-841a-cfda187885ac"
+/** Travel & Entertainment, 5200 — a second, distinct expense account. */
+const TRAVEL_ACCOUNT = "c1158fe0-38ae-5741-a84f-a76381cebae3"
+
+function oneBillLine(
+  overrides: Partial<pay.NewBillLine> = {},
+): pay.NewBillLine {
+  return {
+    description: "Cloud hosting",
+    quantity: "1",
+    unitPrice: "100.00",
+    taxAmount: "0",
+    expenseAccountId: SOFTWARE_ACCOUNT,
+    ...overrides,
+  }
+}
+
+describe("creating a bill", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("refuses a bill with no lines", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.createBill(
+            tx,
+            NORTHWIND,
+            {
+              vendorId: AWS_VENDOR,
+              billNumber: "BILL-AWS-TEST-NOLINES",
+              reference: null,
+              billDate: "2026-03-10",
+              dueDate: "2026-04-10",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: [],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("refuses a vendor that does not exist", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.createBill(
+            tx,
+            NORTHWIND,
+            {
+              vendorId: "00000000-0000-0000-0000-000000000000",
+              billNumber: "BILL-GHOST-TEST",
+              reference: null,
+              billDate: "2026-03-10",
+              dueDate: "2026-04-10",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: [oneBillLine()],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_such_vendor",
+    )
+  })
+
+  it("sums line amounts and tax into subtotal, tax_total and total", async () => {
+    const bill = await inRollback(async (tx) => {
+      const { id } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-AWS-TEST-SUM",
+          reference: "AWS-TEST-SUM",
+          billDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: "net_30",
+          notes: null,
+          lines: [
+            oneBillLine({
+              description: "Compute",
+              quantity: "10",
+              unitPrice: "100.00",
+              taxAmount: "50.00",
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            }),
+            oneBillLine({
+              description: "Travel",
+              quantity: "1",
+              unitPrice: "200.00",
+              taxAmount: "0",
+              expenseAccountId: TRAVEL_ACCOUNT,
+            }),
+          ],
+        },
+        ACTOR,
+      )
+      const [row] = await tx<
+        { subtotal: string; tax_total: string; total: string }[]
+      >`
+        SELECT subtotal::text AS subtotal, tax_total::text AS tax_total,
+               total::text AS total
+          FROM bills WHERE id = ${id}::uuid
+      `
+      return row
+    })
+    // 10*100.00 + 1*200.00 = 1200.00 subtotal; 50.00 tax; 1250.00 total.
+    expect(bill.subtotal).toBe("1200.00")
+    expect(bill.tax_total).toBe("50.00")
+    expect(bill.total).toBe("1250.00")
+  })
+
+  it("takes currency from the vendor, base currency from the tenant, and converts at the given rate", async () => {
+    const bill = await inRollback(async (tx) => {
+      const { id } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: JETBRAINS_VENDOR,
+          billNumber: "BILL-JETBRAINS-TEST-CCY",
+          reference: null,
+          billDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.100000",
+          paymentTerms: null,
+          notes: null,
+          // oneBillLine() defaults to qty 1 × 100.00, no tax.
+          lines: [oneBillLine()],
+        },
+        ACTOR,
+      )
+      const [row] = await tx<
+        {
+          currency: string
+          base_currency: string
+          base_subtotal: string
+          base_total: string
+        }[]
+      >`
+        SELECT currency, base_currency,
+               base_subtotal::text AS base_subtotal,
+               base_total::text    AS base_total
+          FROM bills WHERE id = ${id}::uuid
+      `
+      return row
+    })
+    expect(bill.currency).toBe("EUR")
+    expect(bill.base_currency).toBe("USD")
+    // 100.00 * 1.1 — this is the only non-1.0-rate case in this describe
+    // block, so it is the only thing that would catch recomputeBillTotals'
+    // round-then-sum path (each part rounded before summing, per L25) going
+    // wrong; ck_bills_amounts_reconcile does not constrain base_* at all.
+    expect(bill.base_subtotal).toBe("110.00")
+    expect(bill.base_total).toBe("110.00")
+  })
+
+  it("keeps money as strings throughout", async () => {
+    const bill = await inRollback(async (tx) => {
+      const { id } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-AWS-TEST-STRINGS",
+          reference: null,
+          billDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [oneBillLine()],
+        },
+        ACTOR,
+      )
+      return pay.billById(tx, id)
+    })
+    expect(typeof bill?.subtotal).toBe("string")
+    expect(typeof bill?.total).toBe("string")
+    expect(typeof bill?.amount_due).toBe("string")
+  })
+
+  it("creates a draft that approves cleanly — each line posts to its own expense account", async () => {
+    const { posted, unbalanced } = await inRollback(async (tx) => {
+      const { id } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-AWS-TEST-APPROVE",
+          reference: null,
+          billDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            oneBillLine({
+              description: "Cloud hosting",
+              quantity: "1",
+              unitPrice: "300.00",
+              taxAmount: "0",
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            }),
+            oneBillLine({
+              description: "Client site visit",
+              quantity: "1",
+              unitPrice: "150.00",
+              taxAmount: "0",
+              expenseAccountId: TRAVEL_ACCOUNT,
+            }),
+          ],
+        },
+        ACTOR,
+      )
+      const { entryNumber } = await pay.approveBill(tx, NORTHWIND, id, ACTOR)
+      const posted = await tx<
+        { account_code: string; debit: string; credit: string }[]
+      >`
+        SELECT a.account_code,
+               l.debit_amount::text  AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.entry_number = ${entryNumber}
+         ORDER BY l.line_number
+      `
+      return { posted, unbalanced: await unbalancedEntries(tx) }
+    })
+    // DR each line's own expense account (5300, 5200), no input tax line
+    // since tax_total is zero, CR accounts payable for the total — proving
+    // the account each line was CREATED with is the one actually posted to,
+    // not a single hardcoded account the way issueInvoice's revenue side is.
+    expect(posted).toEqual([
+      { account_code: "5300", debit: "300.00", credit: "0.00" },
+      { account_code: "5200", debit: "150.00", credit: "0.00" },
+      { account_code: "2000", debit: "0.00", credit: "450.00" },
+    ])
+    expect(unbalanced).toEqual([])
+  })
+})
+
 describe("approving a bill", () => {
   afterAll(async () => {
     await closeConnections()

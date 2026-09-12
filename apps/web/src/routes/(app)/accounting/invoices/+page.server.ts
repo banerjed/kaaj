@@ -34,6 +34,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     invoices: await acc.listInvoices(tx, { status, overdueOnly }),
     statuses: STATUSES,
     filters: { status, overdueOnly },
+    mayWrite: can(ctx, "accounting.write"),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
   }))

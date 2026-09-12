@@ -81,6 +81,243 @@ async function unbalancedEntries(tx: Tx) {
   `
 }
 
+describe("creating an invoice", () => {
+  /** Acme Manufacturing — USD. */
+  const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+  /** Britannia Retail Group — GBP, so the currency-from-customer path is live. */
+  const BRITCO = "ac7a04b4-a28e-5a15-9993-596db32c8d4e"
+
+  function oneLine(
+    overrides: Partial<acc.NewInvoiceLine> = {},
+  ): acc.NewInvoiceLine {
+    return {
+      description: "Consulting",
+      quantity: "1",
+      unitPrice: "100.00",
+      discountPercent: "0",
+      taxAmount: "0",
+      ...overrides,
+    }
+  }
+
+  it("refuses an invoice with no lines", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.createInvoice(
+            tx,
+            NORTHWIND,
+            {
+              customerId: ACME,
+              invoiceDate: "2026-03-10",
+              dueDate: "2026-04-10",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: [],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("refuses a customer that does not exist", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.createInvoice(
+            tx,
+            NORTHWIND,
+            {
+              customerId: "00000000-0000-0000-0000-000000000000",
+              invoiceDate: "2026-03-10",
+              dueDate: "2026-04-10",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: [oneLine()],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_such_customer",
+    )
+  })
+
+  it("sums line amounts net of each line's discount into the subtotal — the taxonomy's own formula", async () => {
+    const row = await inRollback(async (tx) => {
+      const created = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: "Net 30",
+          notes: null,
+          lines: [
+            // 10 * 100.00 = 1000.00, less 10% discount (100.00) = 900.00.
+            oneLine({
+              quantity: "10",
+              discountPercent: "10",
+              taxAmount: "50.00",
+            }),
+            // 1 * 200.00 = 200.00, no discount.
+            oneLine({ description: "Travel", unitPrice: "200.00" }),
+          ],
+        },
+        ACTOR,
+      )
+      return acc.invoiceById(tx, created.id)
+    })
+    expect(row?.subtotal).toBe("1100.00")
+    expect(row?.tax_total).toBe("50.00")
+    expect(row?.total).toBe("1150.00")
+    expect(row?.amount_due).toBe("1150.00")
+    expect(row?.status).toBe("draft")
+    // The line itself still carries the GROSS amount and its own discount —
+    // netting happens once, in recomputeInvoiceTotals, not on the line.
+  })
+
+  it("takes currency from the customer, base currency from the tenant", async () => {
+    const row = await inRollback(async (tx) => {
+      const created = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: BRITCO,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.270000",
+          paymentTerms: null,
+          notes: null,
+          lines: [oneLine()],
+        },
+        ACTOR,
+      )
+      return acc.invoiceById(tx, created.id)
+    })
+    expect(row?.currency).toBe("GBP")
+  })
+
+  it("generates a unique, sequential invoice number", async () => {
+    const { first, second } = await inRollback(async (tx) => {
+      const a = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [oneLine()],
+        },
+        ACTOR,
+      )
+      const b = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [oneLine()],
+        },
+        ACTOR,
+      )
+      return { first: a.invoiceNumber, second: b.invoiceNumber }
+    })
+    expect(first).not.toBe(second)
+    expect(first).toMatch(/^INV-\d{4}-\d{3}$/)
+    expect(second).toMatch(/^INV-\d{4}-\d{3}$/)
+  })
+
+  it("keeps money as strings throughout", async () => {
+    const row = await inRollback(async (tx) => {
+      const created = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [oneLine({ unitPrice: "1234567.89" })],
+        },
+        ACTOR,
+      )
+      return acc.invoiceById(tx, created.id)
+    })
+    expect(typeof row?.subtotal).toBe("string")
+    expect(row?.subtotal).toBe("1234567.89")
+  })
+
+  it("issues clean through a discount — balanced JE, revenue credited net, no false drift flag", async () => {
+    // The one path where discount-netting (recomputeInvoiceTotals) meets
+    // JE posting (issueInvoice, which credits Revenue at `current.subtotal`)
+    // and the read-side drift check (line_subtotal vs subtotal) — all three
+    // have to agree on what "net" means, not just the create path alone.
+    const result = await inRollback(async (tx) => {
+      const created = await acc.createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          // 10 * 100.00 = 1000.00, less 20% = 800.00 net. No tax, so the
+          // posting is exactly two lines and the revenue figure is the
+          // whole story.
+          lines: [oneLine({ quantity: "10", discountPercent: "20" })],
+        },
+        ACTOR,
+      )
+      await intoOpenPeriod(tx, created.id)
+      const { entryNumber } = await acc.issueInvoice(
+        tx,
+        NORTHWIND,
+        created.id,
+        ACTOR,
+      )
+      const posted = await tx<
+        { account_code: string; debit: string; credit: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.entry_number = ${entryNumber}
+         ORDER BY l.line_number
+      `
+      const row = await acc.invoiceById(tx, created.id)
+      return { posted, unbalanced: await unbalancedEntries(tx), row }
+    })
+    expect(result.unbalanced).toEqual([])
+    expect(result.posted).toEqual([
+      { account_code: "1100", debit: "800.00", credit: "0.00" }, // AR, net
+      { account_code: "4000", debit: "0.00", credit: "800.00" }, // Revenue, net
+    ])
+    expect(result.row?.subtotal).toBe("800.00")
+    // The drift badge (invoices/+page.svelte) compares these two — a
+    // discounted invoice must not look corrupted just for being discounted.
+    expect(result.row?.line_subtotal).toBe(result.row?.subtotal)
+  })
+})
+
 describe("issuing an invoice", () => {
   afterAll(async () => {
     await closeConnections()

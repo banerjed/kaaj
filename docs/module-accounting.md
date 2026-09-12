@@ -1,7 +1,7 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.0
-**Last Updated:** December 3, 2025
+**Version:** 2.4
+**Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
 - [Product Specification](./product-specification.md)
@@ -24,6 +24,7 @@
 11. [Integration Points](#integration-points)
 12. [Reporting Requirements](#reporting-requirements)
 13. [Testing Requirements](#testing-requirements)
+14. [Implementation Roadmap — Remaining Work](#implementation-roadmap--remaining-work)
 
 ---
 
@@ -140,133 +141,196 @@ interface AccountingTenantContext {
 
 ## User Stories
 
+**Status tags below were added 2026-09-11** by reading the actual schema,
+repository code, routes, and tests — not inferred from this document. Full
+leaf-level test evidence (file:line citations) lives in
+[19-accounting-test-plan.md](19-accounting-test-plan.md); this section gives
+the same verdicts at user-story grain. **DONE** = the story's behavior is
+implemented and covered by a real test. **PARTIAL** = part of the story
+works (state below what's real vs. not). **MISSING** = no code path exists,
+even if schema columns for it do. A recurring pattern worth naming once
+here: the schema was designed against nearly the full spec (`invoices.pdf_url`,
+`payment_url`, `payment_gateway`, `viewed_at`, `is_recurring`,
+`tracking_categories`; `bills.file_url`, `ocr_processed`, `ocr_data`,
+`payment_scheduled_date`; `bank_reconciliation_rules`; `exchange_rates`), but
+the repository layer (`accounting.repo.ts`, `payables.repo.ts`) only ever
+reads or writes a narrow slice of those columns — confirmed by grepping each
+column name against the repo files directly. Where a story's gap is exactly
+"the column exists, nothing touches it," that's called out explicitly rather
+than repeated per story.
+
 ### Invoice Management
 
 **US-ACC-001**: As a Business Owner, I want to create professional invoices with my company branding, so that I can bill customers quickly and maintain brand consistency.
+*Status: **PARTIAL** (updated 2026-09-11, was MISSING). `/accounting/invoices/new` now creates a real draft invoice with line items — `createInvoice()` in `accounting.repo.ts`, tested in `receivables.writes.test.ts`. Still **MISSING**: company branding, and any PDF/template output (see US-ACC-008, still MISSING). "Quickly" is a fair description of the create form itself; the promised output document does not exist yet.*
 
 **US-ACC-002**: As an Accountant, I want to send invoices with online payment links (Stripe, PayPal), so that customers can pay immediately and improve cash flow.
+*Status: **MISSING**. `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` are schema columns `issueInvoice` never writes to. Stripe integration in this codebase is wired only to Kaaj's own SaaS subscription billing (`(admin)/account/billing`), not customer invoicing.*
 
 **US-ACC-003**: As a Sales Manager, I want to set up automated payment reminders for overdue invoices, so that I reduce manual follow-up work.
+*Status: **MISSING**. No reminder/notification code exists for accounting. `is_overdue` is computed and tested for display (`accounting.test.ts:132`), but nothing acts on it.*
 
 **US-ACC-004**: As a Business Owner, I want to create recurring invoices for subscription customers, so that billing is automated.
+*Status: **MISSING**. `invoices.is_recurring`/`recurring_schedule_id` exist as columns; there is no `recurring_schedules` table and no code anywhere generates a next invoice from a template. See [19-accounting-test-plan.md §11](19-accounting-test-plan.md).*
 
 **US-ACC-005**: As a Freelancer, I want to invoice in multiple currencies, so that I can bill international clients in their local currency.
+*Status: **DONE**. `issueInvoice`'s base-currency tie-out for a real GBP fixture invoice is tested in `receivables.writes.test.ts:156`, and a real multi-currency invoice's presence is asserted in `accounting.test.ts:102` ("carries more than one currency, so nothing may assume USD").*
 
 **US-ACC-006**: As an Accountant, I want to track invoice status (draft, sent, viewed, paid, overdue), so that I know which invoices need attention.
+*Status: **PARTIAL**. draft → sent (`issueInvoice` sets `status='sent', sent_at=now()`, `accounting.repo.ts:592`) → paid/partial (`recordPayment`, tested) and overdue (computed, tested `accounting.test.ts:132,144,161`) all work. `viewed_at` exists on the schema but nothing ever sets it — there is no customer-facing view to trigger a "viewed" state, so that status never actually occurs.*
 
 **US-ACC-007**: As a Business Owner, I want to add tracking categories to invoices (by region, product, campaign), so that I can analyze revenue by segment.
+*Status: **MISSING**. `invoice_lines.tracking_categories` (JSONB) is never read or written anywhere in `accounting.repo.ts`.*
 
 **US-ACC-008**: As a Customer, I want to receive a professional PDF invoice by email, so that I have documentation for my records.
+*Status: **MISSING**. `invoices.pdf_url` is an unused column; no PDF-generation or email-sending code exists for invoices anywhere in the codebase.*
 
 ### Expense Management
 
-**US-ACC-009**: As an Employee, I want to snap a photo of receipts with my mobile phone, so that I can capture expenses on the go.
+*Status for this entire section: **MISSING**. `expenses` has a fully-designed table — `receipt_url`, `receipt_ocr_data`, `mileage_distance`/`mileage_rate`, `reimbursement_status`, `approved_by`/`approved_at`, `journal_entry_id` — but zero application code references it anywhere (`grep -rln "FROM expenses" apps/web/src/lib/server/` returns nothing: no repo file, no route, no application-level write/read test). Row-level security on it IS tested — `expenses` is the last entry in `row-visibility.test.ts`'s parametrized `ACCOUNTING` table list (`:455-471`), so it gets the same four RLS assertions as every other accounting table (finance_admin sees rows and there ARE rows, a plain employee sees none, another function's admin sees none, an owner sees rows). So the table is schema-complete *and* RLS-tested, but has zero application layer — which is exactly why the gap doesn't show up in `./check`: RLS coverage looks green with nothing behind it to expose. This is a complete, feature-absent module at the app layer; every story below is MISSING for the same reason, not annotated individually.*
 
-**US-ACC-010**: As an Accountant, I want expenses to be automatically categorized using OCR and AI, so that I reduce manual data entry.
+**US-ACC-009**: As an Employee, I want to snap a photo of receipts with my mobile phone, so that I can capture expenses on the go. **[MISSING]**
 
-**US-ACC-011**: As a Finance Manager, I want to track spending patterns by category and vendor, so that I can identify cost-saving opportunities.
+**US-ACC-010**: As an Accountant, I want expenses to be automatically categorized using OCR and AI, so that I reduce manual data entry. **[MISSING]**
 
-**US-ACC-012**: As an Employee, I want to submit expense claims for reimbursement, so that I'm reimbursed for business expenses.
+**US-ACC-011**: As a Finance Manager, I want to track spending patterns by category and vendor, so that I can identify cost-saving opportunities. **[MISSING]**
 
-**US-ACC-013**: As a Manager, I want to approve or reject expense claims, so that spending is controlled.
+**US-ACC-012**: As an Employee, I want to submit expense claims for reimbursement, so that I'm reimbursed for business expenses. **[MISSING]**
 
-**US-ACC-014**: As an Accountant, I want expenses to sync automatically to the general ledger, so that financial reports are accurate.
+**US-ACC-013**: As a Manager, I want to approve or reject expense claims, so that spending is controlled. **[MISSING]**
+
+**US-ACC-014**: As an Accountant, I want expenses to sync automatically to the general ledger, so that financial reports are accurate. **[MISSING]**
 
 ### Accounts Receivable (AR)
 
 **US-ACC-015**: As an Accountant, I want to track all customer invoices and payments in one place, so that AR is organized.
+*Status: **DONE**. `/accounting/invoices` lists every invoice with status, and `paymentsFor()` returns the payment history per invoice — exercised throughout `accounting.test.ts` and `receivables.writes.test.ts`.*
 
 **US-ACC-016**: As a Finance Manager, I want to see an aging report showing overdue invoices, so that I can follow up on collections.
+*Status: **MISSING**. There's an `is_overdue` flag and an overdue filter on the invoice list (`accounting.test.ts:161`), but no aging *report* — no current/30/60/90+ bucketing exists anywhere.*
 
 **US-ACC-017**: As a Business Owner, I want to forecast short-term cash flow (30-day projection), so that I can plan for cash needs.
+*Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt.*
 
 **US-ACC-018**: As an Accountant, I want to apply customer payments to multiple invoices, so that accounts are accurate.
+*Status: **MISSING**. `recordPayment` takes a single `invoiceId`; there is no multi-invoice/lockbox-style allocation.*
 
 **US-ACC-019**: As a Business Owner, I want to see which customers owe money and how much, so that I can manage credit risk.
+*Status: **PARTIAL**. `listInvoices` filters by status/overdue and every row carries `amount_due`, so the information is visible per-invoice — but there's no per-customer aggregate balance view (`listInvoices(tx, filters)` only takes `{ status?, overdueOnly? }`, `accounting.repo.ts:52-55`, no customer grouping).*
 
 **US-ACC-020**: As an Accountant, I want to write off bad debts when invoices are uncollectible, so that AR reflects reality.
+*Status: **MISSING**. No write-off feature exists.*
 
 ### Accounts Payable (AP)
 
 **US-ACC-021**: As an Accountant, I want to enter vendor bills by dragging and dropping PDF files, so that bill entry is faster.
+*Status: **PARTIAL** (2026-09-12). Manual bill entry now exists — `/accounting/bills/new`, `pay.createBill()` in `payables.repo.ts` — with a real per-line expense-account picker, not just a form that types out what OCR would have filled in. `bills.file_url` remains an unused column; there is still no drag-and-drop/file-upload path, so the "faster" half of this story (skip retyping the PDF) is not addressed.*
 
 **US-ACC-022**: As an Accountant, I want the system to automatically read bill data using OCR, so that I don't have to manually type everything.
+*Status: **MISSING**. `bills.ocr_processed`/`ocr_data` are unused columns — confirmed by grep against `payables.repo.ts`.*
 
 **US-ACC-023**: As a Finance Manager, I want to schedule bill payments based on due dates, so that I optimize cash flow and avoid late fees.
+*Status: **MISSING**. `bills.payment_scheduled_date` is an unused column; `recordVendorPayment` pays immediately, on demand, for one bill at a time.*
 
 **US-ACC-024**: As an Accountant, I want to track which bills are due soon, so that I can prioritize payments.
+*Status: **PARTIAL**. `listBills` returns `due_date` on every row and can sort/filter by status or unapproved-only (`payables.repo.ts:97-108`), and overdue bills are flagged and tested (`payables.test.ts:74`) — but there's no forward-looking "due within N days" filter, only present-tense overdue.*
 
 **US-ACC-025**: As a Finance Manager, I want to pay multiple vendor bills in a single batch, so that I save time.
+*Status: **MISSING**. `recordVendorPayment` operates on one bill per call; no batch/payment-run feature exists.*
 
 **US-ACC-026**: As an Accountant, I want to reconcile vendor statements with our records, so that accounts are accurate.
+*Status: **MISSING**. Bank-transaction-to-payment matching exists (see US-ACC-028) but that's a different reconciliation (bank feed vs. internal payments) — there's no vendor-statement-specific reconciliation feature.*
 
 ### Bank Reconciliation
 
 **US-ACC-027**: As an Accountant, I want to connect my bank accounts via secure feed, so that transactions are imported automatically.
+*Status: **MISSING**. `bank_accounts.feed_provider`/`feed_enabled` are unused schema columns — no Plaid/Yodlee or any bank-feed integration exists. Bank transactions in the fixture are seed data, not imported.*
 
 **US-ACC-028**: As an Accountant, I want the system to suggest matches between bank transactions and invoices/bills, so that reconciliation is faster.
+*Status: **DONE**. `candidatePaymentsForTransactions` returns same-currency, same-direction, still-unmatched payments for a set of transactions — a real suggestion mechanism, tested in `payables.writes.test.ts:463` ("offers only same-currency, same-direction, still-unmatched payments"). The human still picks the match (`matchBankTransaction`, tested at `:364`, `:380`, `:401`, `:412`, `:423`) — nothing auto-applies a suggestion, which the story doesn't actually require.*
 
 **US-ACC-029**: As an Accountant, I want to create rules for recurring transactions, so that they're categorized automatically.
+*Status: **MISSING**. `bank_reconciliation_rules` table exists; it is never queried anywhere in `payables.repo.ts`.*
 
 **US-ACC-030**: As a Finance Manager, I want to see which transactions are unreconciled, so that I know what needs attention.
+*Status: **DONE**. `payables.test.ts:143` ("counts what still needs matching") and `:177` ("shows every reconciliation state the screen has to render") — real, tested.*
 
 **US-ACC-031**: As an Accountant, I want to reconcile multiple bank accounts including foreign currency accounts, so that all cash is tracked.
+*Status: **PARTIAL**. Multiple bank accounts are supported and tested (`payables.test.ts:97`, "keeps the bank's balance and the feed's balance as separate facts", run across all accounts). Foreign-currency bank account *revaluation* at period-end does not exist (see US-ACC-053 and [19-accounting-test-plan.md §3.3](19-accounting-test-plan.md)).*
 
 ### General Ledger & Chart of Accounts
 
 **US-ACC-032**: As an Accountant, I want to set up a chart of accounts based on industry templates, so that I don't start from scratch.
+*Status: **MISSING**. No setup wizard or industry-template feature exists — `chart_of_accounts` has no CRUD route at all (see US-ACC-033).*
 
 **US-ACC-033**: As an Accountant, I want to customize account names and codes to match my business, so that reporting is meaningful.
+*Status: **PARTIAL**. `CREATE UNIQUE INDEX idx_chart_of_accounts_code ON chart_of_accounts (tenant_id, account_code)` enforces uniqueness at the DB level, but there is no route or repo function to create, rename, or recode an account at all — the schema supports the story; nothing lets a user act on it.*
 
 **US-ACC-034**: As an Accountant, I want to create manual journal entries for adjustments, so that I can correct errors and make period-end entries.
+*Status: **MISSING**. No manual-JE creation path exists anywhere; `postJournal` is only ever called by `issueInvoice`, `recordPayment`, and `approveBill`.*
 
 **US-ACC-035**: As a Controller, I want to lock accounting periods to prevent changes, so that historical data is protected.
+*Status: **PARTIAL**. The enforcement half is real and well tested: `postJournal` refuses any new posting into a non-`'open'` period (`period_closed`, tested in `receivables.writes.test.ts:262,271` and `payables.writes.test.ts:175`). But there is no route or action that actually *locks* a period — nothing writes to `accounting_periods.status` anywhere in the app. And per the top-of-document correction in [19-accounting-test-plan.md](19-accounting-test-plan.md), a posted entry inside an already-closed period can still be UPDATEd — RLS has no predicate against it — so "historical data is protected" overstates what's actually enforced.*
 
 **US-ACC-036**: As an Accountant, I want to track multi-currency transactions with automatic exchange rate conversion, so that foreign transactions are recorded correctly.
+*Status: **PARTIAL**. Conversion math at the point of invoice issuance is DONE and precisely tested (US-ACC-005). "Automatic" rate *lookup/update* is MISSING — `exchange_rates` is a real table with a `source`/`is_manual` distinction built in, but it's never queried anywhere in `apps/web/src/lib/server/`; every rate used today is a static value already sitting on the invoice/bill row.*
 
 **US-ACC-037**: As an Accountant, I want to see a complete audit trail of all financial transactions, so that I can trace any entry.
+*Status: **DONE**. `issue`, `recordPayment` (×2), `voidInvoice`, `approve`, `match` are all registered in `audit/register.ts:129-158`, each capturing the actor; the trail itself is append-only and tamper-proof (`audit.test.ts:134,140`).*
 
 ### Financial Reporting
 
-**US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly.
+*Status for this entire section: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report exists anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This is base spec (FR-ACC-007 below), not a roadmap wish — 0% built. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md) for the full detail. Every story below is MISSING for the same reason.*
 
-**US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position.
+**US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[MISSING]**
 
-**US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period.
+**US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[MISSING]**
 
-**US-ACC-041**: As a Business Owner, I want to compare financial reports across periods (month-over-month, year-over-year), so that I can identify trends.
+**US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period. **[MISSING]**
 
-**US-ACC-042**: As an Accountant, I want to customize report formats and save templates, so that monthly reporting is consistent.
+**US-ACC-041**: As a Business Owner, I want to compare financial reports across periods (month-over-month, year-over-year), so that I can identify trends. **[MISSING]**
 
-**US-ACC-043**: As a Business Owner, I want to see financial reports in multiple currencies, so that I can understand performance in different markets.
+**US-ACC-042**: As an Accountant, I want to customize report formats and save templates, so that monthly reporting is consistent. **[MISSING]**
 
-**US-ACC-044**: As a Department Manager, I want to filter reports by department or location, so that I can see my area's performance.
+**US-ACC-043**: As a Business Owner, I want to see financial reports in multiple currencies, so that I can understand performance in different markets. **[MISSING]**
 
-**US-ACC-045**: As a Business Owner, I want to export reports to Excel or PDF, so that I can share them with stakeholders.
+**US-ACC-044**: As a Department Manager, I want to filter reports by department or location, so that I can see my area's performance. **[MISSING]**
+
+**US-ACC-045**: As a Business Owner, I want to export reports to Excel or PDF, so that I can share them with stakeholders. **[MISSING]**
 
 ### Tax Management
 
 **US-ACC-046**: As an Accountant, I want to configure sales tax rates by jurisdiction, so that invoices calculate tax correctly.
+*Status: **MISSING**. There is no dedicated accounting tax-rates table or UI — every accounting tax FK (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`) points at `payroll_tax_rates(id)` (confirmed by reading the FK constraints in `supabase/migrations/20260827000001_initial_schema.sql:4108,4122,4143,4181`) — a payroll table, not a sales-tax jurisdiction table, and there's no configuration route regardless.*
 
 **US-ACC-047**: As a UK Accountant, I want to configure VAT rates and handle reverse charge, so that I comply with UK tax law.
+*Status: **MISSING**. No reverse-charge logic and no jurisdiction configuration exist.*
 
 **US-ACC-048**: As an Accountant, I want to generate tax reports (sales tax summary, VAT return), so that I can file returns easily.
+*Status: **MISSING**. No tax report exists. `packages/spec-tests`' `INV-ACC-006` (`summarizeTaxLines`) tests the correct output-minus-input formula as a pure function against hand-built fixture objects — it isn't connected to the real ledger.*
 
 **US-ACC-049**: As an Accountant, I want to track tax paid on bills (input tax) and tax collected on invoices (output tax), so that I can calculate tax liability.
+*Status: **PARTIAL**. Output tax is real and tested: `issueInvoice` splits tax into its own JE line against account `"2200"`, with exact expected figures (`receivables.writes.test.ts:127`). Input tax on bills is carried (`payables.test.ts:45`, "has a bill carrying tax") but there is no aggregate tax-liability calculation (output minus input) anywhere in application code — only the unconnected spec-tests unit test mentioned above.*
 
 **US-ACC-050**: As a Business Owner, I want to track tax-exempt customers, so that their invoices don't include tax.
+*Status: **MISSING**. No exemption flag or exemption-expiry logic exists on `customers` or anywhere in `accounting.repo.ts`. Notably, `customers.tax_rate_id` FKs to `payroll_tax_rates(id)` (same modeling issue as US-ACC-046) rather than a real tax-rate/jurisdiction table — arguably a worse starting point than having no tax-rate association at all, since it looks configured but isn't.*
 
 ### Multi-Currency Operations
 
 **US-ACC-051**: As a Business Owner with international operations, I want to invoice customers in their local currency, so that they can pay easily.
+*Status: **DONE**. Same evidence as US-ACC-005.*
 
 **US-ACC-052**: As an Accountant, I want exchange rates to update automatically, so that valuations are current.
+*Status: **MISSING**. Same finding as US-ACC-036 — `exchange_rates` exists as a schema-only table with no code path in `apps/web/src/lib/server/` that populates or reads it.*
 
 **US-ACC-053**: As a CFO, I want to see unrealized gains/losses on foreign currency balances, so that I understand FX exposure.
+*Status: **MISSING**. No period-end revaluation of open foreign-currency AR/AP/bank balances exists anywhere.*
 
 **US-ACC-054**: As an Accountant, I want to record realized gains/losses when foreign invoices are paid, so that P&L reflects actual FX impact.
+*Status: **MISSING** — and this is dead code, not just an untested feature. `recordPayment` reuses the invoice's *original* `exchange_rate` rather than looking up a new settlement-date rate (confirmed by reading the full function body in `accounting.repo.ts`), so there is no rate delta to realize a gain or loss from. `payment_allocations.fx_gain_loss` is a real column that stays at its schema default of `0` — nothing ever writes to it. No test pays a foreign-currency invoice (the fixture's `GBP` invoice) at a rate different from booking; every `recordPayment` test uses a USD invoice. `INV-ACC-004` in `packages/spec-tests` tests the correct formula as a pure function, disconnected from this real path. See the top-of-document correction in [19-accounting-test-plan.md](19-accounting-test-plan.md).*
 
 **US-ACC-055**: As a Business Owner, I want to run reports in my base currency with automatic conversion, so that I can consolidate multi-currency operations.
+*Status: **MISSING**. Every invoice/bill carries its own `base_total` (converted at its own rate, correctly — see US-ACC-005), but there is no consolidated *report* of any kind to run in base currency (see Financial Reporting section above).*
 
 ---
 
@@ -1880,6 +1944,216 @@ Debits = Credits (always)
 
 ---
 
+## Implementation Roadmap — Remaining Work
+
+**Added 2026-09-11.** Concrete, priority-ordered punch list of what's left,
+derived from the User Stories status annotations above and the leaf-level
+verification in [19-accounting-test-plan.md](19-accounting-test-plan.md).
+Unlike "Future Enhancements" above (which is unranked, aspirational, and
+mixes verified gaps with speculative ideas), every item here maps to a
+specific MISSING/PARTIAL finding that was checked directly against the
+schema, code, and tests as of this date.
+
+**Check items off as they ship** — change `- [ ]` to `- [x]` and add the
+completion date and a link to the commit/PR, e.g.
+`- [x] Invoice creation UI (2026-10-02, #412)`. When a whole tier is
+complete, note it in the Document Change Log below rather than deleting the
+tier, so this stays a record of what was true and when.
+
+**The one real fork in this ordering**: it picks **data-entry-first**
+(make the ledger's data real, since every write path today only ever acts on
+fixture-seeded rows) over **reports-first** (build what an accountant reads
+day-to-day against the existing fixture). If priorities shift toward
+demoable reporting sooner, move Tier 3 ahead of Tier 1 — the dependency
+argument in Tier 3 (trial balance before financial statements) still holds
+either way.
+
+### Tier 1 — Data entry (unblocks everything else)
+
+- [x] Invoice creation UI (new-invoice form + line-item entry) (2026-09-11).
+      `/accounting/invoices/new` — `acc.createInvoice()` in
+      `accounting.repo.ts`, form + dynamic line-item entry in
+      `+page.svelte`. Also, while touching this exact code path: wired
+      `invoice_lines.discount_percent`/`discount_amount` into
+      `recomputeInvoiceTotals` (previously dead columns, per the taxonomy's
+      §2.1 finding) and added the `no_such_customer` `AccountingRefused`
+      reason. Not in scope here, deliberately: PDF/branding, online payment
+      links, per-line revenue-account posting (still hardcoded to one
+      account in `issueInvoice` — a new line's `revenue_account_id` is set
+      but not yet read at posting time) — see US-ACC-001/002/007 in the User
+      Stories section, still MISSING. Tests: 7 new cases in
+      `receivables.writes.test.ts` ("creating an invoice", including the
+      discount-through-issuance case that also fixed `INVOICE_SELECT`'s
+      `line_subtotal` drift check to net discounts the same way `subtotal`
+      does), 3 new e2e cases in `form-errors.spec.ts`, 1 new `smoke.spec.ts`
+      row. `./check` (app + db) and the full `smoke`/`form-errors` e2e
+      suites pass.
+- [x] Bill entry UI (manual line-item entry; drag-drop/OCR deferred to Tier
+      6/7) (2026-09-12). `/accounting/bills/new` — `pay.createBill()` in
+      `payables.repo.ts`, form + dynamic line-item entry in `+page.svelte`.
+      Unlike invoices, `bill_number` is the vendor's own free text, not
+      generated — no numbering retry loop, uniqueness is per (tenant,
+      vendor) via `idx_bills_vendor_number`. Unlike `issueInvoice`'s
+      hardcoded revenue account, `approveBill` already read each line's own
+      `expense_account_id` at posting time, so this form gives every line a
+      real account picker (`listExpenseAccountsForPicker`) — not a
+      cosmetic field with no effect the way a per-line revenue picker on
+      invoices would currently be. Added the `no_such_vendor`
+      `AccountingRefused` reason. Not in scope here: file upload, OCR —
+      US-ACC-021 (now PARTIAL), US-ACC-022 (still MISSING). Tests: 6 new
+      cases in `payables.writes.test.ts` ("creating a bill"), including a
+      create-then-approve integration case proving each line posts to its
+      own expense account; 3 new e2e cases in `form-errors.spec.ts`
+      (no lines, negative quantity, duplicate vendor+number); 1 new
+      `smoke.spec.ts` row. `./check` (app + db) and the full
+      `smoke`/`form-errors` e2e suites pass.
+
+### Tier 2 — Cheap, real correctness fixes
+
+- [x] Posted journal entry immutability (2026-09-12). New migration
+      `20260912060000_journal_entry_immutability.sql` adds a RESTRICTIVE
+      `status <> 'posted'` predicate to `accounting_update` on
+      `journal_entries`, and an equivalent (via its parent's status, an
+      `EXISTS`, not `NOT EXISTS` — an invisible parent must deny, not
+      silently permit) on `journal_entry_lines`. Tested in the new
+      `accounting.writes.test.ts` ("a posted journal entry resists an
+      UPDATE"): both tables return zero rows on a real posted fixture entry,
+      and — the positive control L48 also demands — a `status = 'draft'`
+      row (no CHECK constraint behind the column, so a test can construct
+      one) still permits the UPDATE, proving the predicate discriminates
+      rather than just denying everything. `docs/19-accounting-test-plan.md`'s
+      top-of-document correction and §1.3 bullet updated to reflect this is
+      fixed, not a live finding.
+- [x] `postJournal` zero-line/single-line guard (2026-09-12). Previously
+      relied entirely on its two callers (`issueInvoice`/`approveBill`)
+      checking first — a zero-line entry would otherwise "balance" trivially
+      (0 = 0) and insert a header row for nothing. `postJournal` now refuses
+      `AccountingRefused("no_lines")` when fewer than 2 real (non-zero) lines
+      remain after filtering, before any row is written, so a future third
+      caller can't skip it.
+- [x] A test that feeds `postJournal` a deliberately unbalanced entry and
+      confirms `does_not_balance` actually fires (2026-09-12), per L48 — "a
+      guard never observed failing is not evidence." New
+      `accounting.writes.test.ts` ("posting a journal entry directly") tests
+      this directly, plus the zero/single/all-one-sided-line guard above,
+      plus a genuinely balanced entry to prove neither guard over-rejects.
+      6 new unit tests total for `postJournal`, none of it exercised through
+      a subledger. `./check` (db + app) passes; `supabase db reset` was
+      required for the new migration, which also surfaced
+      [L81](10-lessons-learned.md) (`app_user`'s password must be reset by
+      hand after a bare `db reset`).
+
+### Tier 3 — Trial balance, then financial statements
+
+- [ ] Trial balance report + GL-control-account-to-subledger tie-out
+      (AR control `"1100"` = `sum(invoices.amount_due)`, AP control `"2000"`
+      = `sum(bills.amount_due)`). Build this first: it's the same
+      "sum journal lines by account over a range" query the statements below
+      reuse with different grouping, and it becomes the correctness check
+      that fails loudly while everything after it is built. §1.5, §6.
+- [ ] Profit & Loss statement. US-ACC-038, FR-ACC-007.
+- [ ] Balance Sheet. US-ACC-039, FR-ACC-007.
+- [ ] Cash Flow statement. US-ACC-040, FR-ACC-007.
+- [ ] Statement of Changes in Equity. §5.4.
+- [ ] Period comparison (MoM/YoY) and department/location filtering on the
+      above. US-ACC-041, US-ACC-044.
+
+### Tier 4 — AR/AP reports and lifecycle completion
+
+- [ ] AR aging report (current/30/60/90+). US-ACC-016.
+- [ ] AP "due soon" view (forward-looking, distinct from the existing
+      overdue flag). US-ACC-024.
+- [ ] Credit memos / refunds (AR) — reverses revenue, Dr Revenue / Cr AR.
+      US-ACC-020 (first half).
+- [ ] Bad-debt write-off — a separate entry, Dr Bad Debt Expense (or
+      Allowance) / Cr AR; does not require a credit memo. Independent of the
+      item above; either can ship first. US-ACC-020 (second half). Both need
+      a reversing-entry mechanism that doesn't exist today (§1.1's finding
+      that there's no reversal/credit-note code anywhere) — that's the real
+      shared prerequisite, not each other.
+- [ ] Multi-invoice payment allocation (lockbox-style). US-ACC-018.
+- [ ] Per-customer aggregate balance view (`listInvoices` currently has no
+      customer grouping). US-ACC-019.
+
+### Tier 5 — Manual journal entries and period close
+
+- [ ] Manual journal entry creation (adjustments, corrections), with the
+      same balancing/period/permission checks as system-generated entries.
+      US-ACC-034.
+- [ ] Period close workflow (an actual action that writes
+      `accounting_periods.status`, not just the existing "no posting into a
+      non-open period" enforcement). US-ACC-035.
+- [ ] Period reopen workflow requiring permission, reason, and audit — this
+      is `INV-ACC-002`'s own stated requirement in `packages/spec-tests`,
+      currently untested against real code because there's no real code to
+      reopen a period with. §1.4, §13.
+- [ ] Year-end close (zero revenue/expense into retained earnings). §1.4.
+
+### Tier 6 — Tax model fix and tax reporting
+
+- [ ] A real accounting `tax_rates` table. Every accounting tax FK
+      (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`,
+      `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`,
+      `customers.tax_rate_id`) currently points at `payroll_tax_rates(id)` —
+      fix the model before building reports on top of it. US-ACC-046.
+- [ ] Tax-exempt customers + exemption expiry. US-ACC-050.
+- [ ] Sales tax summary / VAT return reports, tied to real ledger totals
+      (`INV-ACC-006`'s `summarizeTaxLines` already has the correct formula
+      as a pure function — connect it to real data). US-ACC-048, US-ACC-049.
+- [ ] UK VAT reverse charge. US-ACC-047.
+
+### Tier 7 — Multi-currency completeness
+
+- [ ] Populate `exchange_rates` (currently a real, unread table) —
+      automatic rate lookup/update. US-ACC-052, US-ACC-036.
+- [ ] Settlement FX gain/loss. Gated on the above: `recordPayment` needs a
+      real settlement-date rate to realize a gain/loss against — it
+      currently reuses the invoice's booking rate, so `payment_allocations
+      .fx_gain_loss` never leaves its default of `0`. This is a missing
+      feature, not a bug fix — don't schedule it before Tier 7's first item
+      exists. US-ACC-054. §3.2.
+- [ ] Period-end FX revaluation of open AR/AP/bank balances (unrealized
+      gain/loss). US-ACC-053. §3.3.
+- [ ] Foreign-currency bank account reconciliation. US-ACC-031 (second half).
+
+### Tier 8 — Automation
+
+- [ ] Recurring invoices/bills. US-ACC-004.
+- [ ] Accruals (auto-reversing) and deferred revenue/prepaid expense
+      amortization. §11 — flagged as a genuine specification gap, not just
+      an implementation one; neither `module-accounting.md` nor
+      `accounting-gap-analysis.md` names this as a known gap before now.
+- [ ] Bank feed integration (Plaid/Yodlee). US-ACC-027.
+- [ ] Bank reconciliation rules (auto-categorization) —
+      `bank_reconciliation_rules` table exists, unused. US-ACC-029.
+- [ ] Batch vendor payment runs. US-ACC-025.
+- [ ] Automated payment reminders for overdue invoices. US-ACC-003.
+
+### Tier 9 — New modules (largest effort, product decisions)
+
+- [ ] Expense management. Schema is fully designed (`expenses` table:
+      receipts, OCR fields, mileage, reimbursement workflow) with zero
+      application code — confirmed no repo file, route, or app-level test
+      references it. RLS on the table is already tested. US-ACC-009–014.
+- [ ] Fixed assets & depreciation. §2.4.
+- [ ] Inventory / COGS. §2.5.
+- [ ] Budgeting (GL-account-level, distinct from the existing
+      project/task `budget` field). §14.
+- [ ] Multi-entity / consolidation. §3.4.
+- [ ] Purchase orders & three-way match. US-ACC-021 (procurement half).
+
+### Tier 10 — Polish
+
+- [ ] PDF generation + company branding on invoices. US-ACC-001, US-ACC-008.
+- [ ] Online payment links (Stripe/PayPal) on customer invoices — distinct
+      from Kaaj's existing Stripe integration, which is wired only to its
+      own SaaS subscription billing. US-ACC-002.
+- [ ] Report export (Excel/PDF). US-ACC-045.
+- [ ] Central document management for financial records. Gap #11 in
+      `accounting-gap-analysis.md`.
+
+---
+
 ## Appendices
 
 ### Glossary
@@ -1903,6 +2177,10 @@ Debits = Credits (always)
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 2.0 | 2025-12-03 | Initial | Complete accounting module specification based on Xero features |
+| 2.1 | 2026-09-11 | Claude Sonnet 5 | Annotated every User Story (US-ACC-001 to 055) with a DONE/PARTIAL/MISSING status against the actual schema, code, and tests, cross-referenced to [19-accounting-test-plan.md](19-accounting-test-plan.md). This section now describes reality as of that date; the "Testing Requirements" section (unit/integration/E2E coverage targets) and the Functional Requirements below it were not re-verified in this pass and may overstate what exists — e.g. FR-ACC-002 (Expense Management) and FR-ACC-007 (Financial Reporting) both read as live requirements but are 0% built per the User Stories annotations. |
+| 2.2 | 2026-09-11 | Claude Sonnet 5 | Added the "Implementation Roadmap — Remaining Work" section: a priority-ordered, checkable punch list (10 tiers) of every MISSING/PARTIAL item from the v2.1 annotations, in the order we intend to build them. Update the checkboxes in place as items ship; note tier completion here rather than deleting the tier. This partly reconciles the v2.1 row's note about the Functional Requirements: FR-ACC-007 is now explicitly mapped (Tier 3) and FR-ACC-002's scope is covered (Tier 9) — the rest of the FRs below are still as-unverified as v2.1 left them. |
+| 2.3 | 2026-09-12 | Claude Sonnet 5 | Shipped both Tier 1 items: invoice creation and bill entry UIs, each with real test coverage (see the roadmap checkboxes for the exact citations). US-ACC-021 moved MISSING → PARTIAL. Tier 1 is now complete. |
+| 2.4 | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete. |
 
 ### References
 
@@ -1916,7 +2194,9 @@ Debits = Credits (always)
 
 **Document Owner**: Product Management
 **Review Cycle**: Quarterly
-**Next Review Date**: 2026-03-03
+**Next Review Date**: 2026-12-11 (last review 2026-09-11; the prior date of
+2026-03-03 had lapsed unnoticed — six months stale — same class of drift
+this update is trying to close)
 
 ---
 

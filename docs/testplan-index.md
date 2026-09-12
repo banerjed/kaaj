@@ -47,6 +47,15 @@ The central rule is simple:
 8. [testplan-execution-governance.md](./testplan-execution-governance.md)
    - How tests are reviewed, versioned, updated for law changes, and promoted
      from spec plan to automated test suites.
+9. [19-accounting-test-plan.md](./19-accounting-test-plan.md)
+   - Implementation-independent accounting test taxonomy (ledger, subledgers,
+     FX, tax, financial statements, close, reconciliation, controls),
+     supplementing `testplan-high-risk-invariants.md`'s `INV-ACC-*` set with
+     the full accountant's checklist those invariants were drawn from. Every
+     leaf is annotated DONE/PARTIAL/MISSING against the real schema/code/tests,
+     with file:line citations. Overlaps `testplan-role-security.md`'s
+     "Accounting And Finance Security" REMAINING rows — read both together
+     rather than tracking the same gaps twice.
 
 ---
 

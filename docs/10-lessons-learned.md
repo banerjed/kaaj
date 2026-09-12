@@ -1894,6 +1894,88 @@ access. A read permission and a write permission are different strings in
 `packages/authz` for exactly this reason — reusing the write check in `load()`
 would have been the second version of this bug, one page-load ago.
 
+### L80 — `overflow-x-auto` on a table clips an absolutely-positioned dropdown inside it, to a few pixels, with nothing erroring
+
+Building the bill-entry form (`/accounting/bills/new`), the per-line expense
+account `Combobox` sat inside a `<td>` — the first time this component was
+used inside a table cell rather than a top-level `<fieldset>`. Clicking it
+focused the input; typing filtered results; nothing ever appeared. No
+console error, no failed request, no red text — a control no mouse could
+reach, exactly the class of failure this file exists to catch.
+
+The mechanism: CSS resolves `overflow-x: auto` with `overflow-y` left at its
+default `visible` by forcing `overflow-y` to `auto` too — a wrapper cannot
+scroll one axis and clip nothing on the other. The Lines table sits in
+`<div class="overflow-x-auto">` for small-viewport horizontal scrolling, so
+that div is a clipping context, and `Combobox`'s listbox was
+`absolute`, positioned relative to its own `rootEl`. Confirmed directly:
+`document.querySelector('[role="listbox"]').getBoundingClientRect()` showed
+the right row (`"Cash at Bank 1000"`) at `bottom: 636`, while the scroll
+wrapper's own `getBoundingClientRect().bottom` was `602` — the listbox
+existed, with the right content, entirely below its clipping ancestor's
+visible edge.
+
+The invoice-creation form (`/accounting/invoices/new`) was not precedent that
+Combobox works generally: its one picker (customer) lives in a `<fieldset>`
+above the table, never inside a cell, so it never exercised this ancestor.
+Copying that page's shape for a new per-line picker was the natural move and
+would have reproduced the bug.
+
+Fixed in the component, not the call site — `Combobox.svelte` now measures
+`rootEl.getBoundingClientRect()` and renders its listbox `position: fixed` at
+that rect's `bottom`/`left`/`width`, escaping any scrolling ancestor
+(unless one imposes a `transform`/`filter`/`contain`, none of which appear
+between it and any current call site). Repositioned on `open`, and again on
+`scroll`/`resize` — the `scroll` listener is registered on `window` with
+`capture: true`, since `scroll` does not bubble and only the capture phase
+sees it fire on a nested scrollable ancestor.
+
+A new `Combobox` usage inside anything that scrolls or clips (a table
+wrapped in `overflow-x-auto`, a modal body, a sticky panel) needs no special
+handling now — verify it in a real browser anyway; a passing `smoke.spec.ts`
+asserts the page's `<h1>` and nothing about whether an interactive control
+inside it can actually be reached, which is exactly how this one shipped
+undetected.
+
+### L81 — `supabase db reset` leaves `app_user` unable to log in, and the failure reads like a test bug
+
+Adding the journal-entry-immutability RLS policy meant running `supabase db
+reset` to apply the new migration, then `pnpm db:snapshot` per this file's
+own rule ("Regenerate the snapshot only from a migration-built database").
+Every accounting test then failed with `password authentication failed for
+user "app_user"` — seven failures with no connection to anything just
+changed, the kind of error that looks like a broken test harness rather than
+environment state.
+
+The cause: `20260827000002_auth_and_grants.sql` creates the role with `CREATE
+ROLE app_user LOGIN NOINHERIT` — no password — and says so in its own
+comment (`ALTER ROLE app_user WITH PASSWORD '<from your secret store>';`,
+manual, deliberately not in the migration). `./setup` sets the real one
+afterward, once, as its own step:
+
+```bash
+psql "$DATABASE_URL" -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
+```
+
+`supabase db reset` runs only the migrations and the fixture seed — never
+`./setup` — so it silently undoes that password every time. A machine that
+ran `./setup` once and has been fine ever since will still hit this the
+first time anything in the session calls `db reset` directly (a policy
+change, a schema experiment, this Tier), because the reset undoes a step the
+original setup ran that nothing about `db reset` re-runs.
+
+The fix is the same one-liner, run again after any `db reset`:
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
+```
+
+Before concluding a test failure means the change under test is wrong: if
+every accounting/db test fails identically with a connection or auth error
+rather than an assertion mismatch, and `supabase db reset` ran recently, this
+is very likely why — not a defect in whatever you just wrote.
+
 ---
 
 ## Conventions

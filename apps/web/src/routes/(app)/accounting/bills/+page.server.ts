@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     bills: await pay.listBills(tx, { status, unapprovedOnly }),
     statuses: BILL_STATUSES,
     filters: { status, unapprovedOnly },
+    mayWrite: can(ctx, "accounting.write"),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
   }))

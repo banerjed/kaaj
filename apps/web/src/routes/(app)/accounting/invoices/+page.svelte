@@ -25,6 +25,15 @@
     ]}
   />
 
+  {#if data.mayWrite}
+    <div class="mt-4 flex justify-end">
+      <a href="/accounting/invoices/new" class="btn btn-primary btn-sm">
+        <span class="iconify lucide--plus size-4"></span>
+        New invoice
+      </a>
+    </div>
+  {/if}
+
   <form method="GET" class="mt-4 flex flex-wrap items-end gap-3">
     <fieldset class="fieldset">
       <legend class="fieldset-legend text-xs">Status</legend>

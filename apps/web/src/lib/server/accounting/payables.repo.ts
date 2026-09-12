@@ -692,3 +692,129 @@ export async function matchBankTransaction(
 
   return { from: txn.status }
 }
+
+// ---------------------------------------------------------------------------
+// Writes — entering a vendor bill as a draft
+// ---------------------------------------------------------------------------
+
+export type VendorOption = { id: string; vendor_name: string; currency: string }
+
+export async function listVendorsForPicker(tx: Tx): Promise<VendorOption[]> {
+  return tx<VendorOption[]>`
+    SELECT id, vendor_name, currency
+      FROM vendors
+     WHERE is_active
+     ORDER BY vendor_name
+  `
+}
+
+export type ExpenseAccountOption = {
+  id: string
+  account_code: string
+  account_name: string
+}
+
+/**
+ * Every active account, not only `account_type = 'expense'` — a bill can
+ * legitimately debit an asset (capex, a prepaid) or pay down a liability, so
+ * the type name on the column is illustrative, not a restriction the picker
+ * should enforce.
+ */
+export async function listExpenseAccountsForPicker(
+  tx: Tx,
+): Promise<ExpenseAccountOption[]> {
+  return tx<ExpenseAccountOption[]>`
+    SELECT id, account_code, account_name
+      FROM chart_of_accounts
+     WHERE is_active
+     ORDER BY account_code
+  `
+}
+
+export type NewBillLine = {
+  description: string
+  quantity: string
+  unitPrice: string
+  taxAmount: string
+  expenseAccountId: string
+}
+
+/**
+ * A draft bill — no liability is recognised yet (L58: recomputeBillTotals,
+ * not this insert, is what makes the money columns correct). `approveBill`
+ * is the audited, money-moving step; drafting one is not (see
+ * audit/register.ts).
+ *
+ * Unlike `createInvoice`'s generated `invoice_number`, `bill_number` is
+ * whatever the vendor printed on the bill — free text, unique only per
+ * (tenant, vendor) via idx_bills_vendor_number. A collision is therefore a
+ * genuine duplicate, not a numbering race, so there is no retry loop here:
+ * it is left to surface as a constraint failure at the route (constraints.ts).
+ */
+export async function createBill(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    vendorId: string
+    billNumber: string
+    reference: string | null
+    billDate: string
+    dueDate: string
+    exchangeRate: string
+    paymentTerms: string | null
+    notes: string | null
+    lines: NewBillLine[]
+  },
+  actorId: string,
+): Promise<{ id: string }> {
+  if (input.lines.length === 0) throw new AccountingRefused("no_lines")
+
+  const [vendor] = await tx<{ currency: string }[]>`
+    SELECT currency FROM vendors WHERE id = ${input.vendorId}::uuid
+  `
+  if (!vendor) throw new AccountingRefused("no_such_vendor")
+
+  const [tenant] = await tx<{ default_currency: string }[]>`
+    SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
+  `
+  const baseCurrency = tenant?.default_currency ?? "USD"
+
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO bills (
+      tenant_id, vendor_id, bill_number, reference, bill_date, due_date,
+      currency, exchange_rate, base_currency,
+      subtotal, tax_total, total, amount_paid, amount_due,
+      base_subtotal, base_tax_total, base_total,
+      base_amount_paid, base_amount_due,
+      payment_terms, notes, status, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${input.vendorId}::uuid, ${input.billNumber},
+      ${input.reference}, ${input.billDate}::date, ${input.dueDate}::date,
+      ${vendor.currency}, ${input.exchangeRate}::numeric, ${baseCurrency},
+      0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0,
+      ${input.paymentTerms}, ${input.notes}, 'draft', ${actorId}::uuid
+    )
+    RETURNING id
+  `
+  const billId = row.id
+
+  let lineNumber = 0
+  for (const line of input.lines) {
+    lineNumber += 1
+    await tx`
+      INSERT INTO bill_lines (
+        tenant_id, bill_id, line_number, description, quantity, unit_price,
+        amount, tax_amount, expense_account_id
+      ) VALUES (
+        ${tenantId}::uuid, ${billId}::uuid, ${lineNumber}, ${line.description},
+        ${line.quantity}::numeric, ${line.unitPrice}::numeric,
+        round(${line.quantity}::numeric * ${line.unitPrice}::numeric, 2),
+        ${line.taxAmount}::numeric, ${line.expenseAccountId}::uuid
+      )
+    `
+  }
+
+  await recomputeBillTotals(tx, billId)
+  return { id: billId }
+}

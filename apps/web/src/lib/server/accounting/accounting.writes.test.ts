@@ -1,0 +1,327 @@
+import { afterAll, describe, expect, it } from "vitest"
+import { closeConnections } from "../db/client"
+import { withTenant, type Tx } from "../db/tenant"
+import { postJournal, AccountingRefused } from "./accounting.repo"
+
+/**
+ * `postJournal` itself, directly — the shared posting engine both
+ * receivables.writes.test.ts and payables.writes.test.ts exercise only
+ * indirectly, always with entries their own callers already constructed as
+ * balanced. Per this codebase's own L48 ("a guard never observed failing is
+ * not evidence"), the guards below were real but unexercised until now. Every
+ * write-path case rolls back.
+ */
+
+const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [] as string[],
+  employeeId: null,
+}
+const ACTOR = "48ccc5de-9ba7-5461-ab49-160a1146ed85"
+
+/** JE-2026-0001 — a real posted entry, AR 1100 debit / Revenue 4000 credit. */
+const POSTED_ENTRY = "c1c96d31-cfa4-57d3-9048-06e3ae1725e6"
+/** One of JE-2026-0001's own lines — the AR debit. */
+const POSTED_LINE = "34dd6b71-7040-5aa7-98c2-2fb1a0a06e48"
+
+async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const marker = new Error("__rollback__")
+  try {
+    return await withTenant(AS_OWNER, async (tx) => {
+      const result = await fn(tx)
+      throw Object.assign(marker, { result })
+    })
+  } catch (e) {
+    if (e === marker) return (e as { result: T }).result
+    throw e
+  }
+}
+
+/** Assert not merely that a write was refused, but WHY (L60). */
+async function refusedBecause(
+  fn: () => Promise<unknown>,
+  reason: AccountingRefused["reason"],
+): Promise<void> {
+  try {
+    await fn()
+  } catch (e) {
+    expect(e).toBeInstanceOf(AccountingRefused)
+    expect((e as AccountingRefused).reason).toBe(reason)
+    return
+  }
+  throw new Error(`expected a refusal (${reason}) and the write succeeded`)
+}
+
+const baseEntry = {
+  date: "2026-03-10",
+  sourceType: "test",
+  sourceId: "00000000-0000-0000-0000-000000000001",
+  description: "postJournal direct test",
+  reference: null,
+  currency: "USD",
+  exchangeRate: "1.000000",
+}
+
+describe("posting a journal entry directly", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("refuses zero lines, rather than inserting a header that balances 0 = 0", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          postJournal(tx, NORTHWIND, { ...baseEntry, lines: [] }, ACTOR),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("refuses a single line — one side of an entry is not a double entry", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          postJournal(
+            tx,
+            NORTHWIND,
+            {
+              ...baseEntry,
+              lines: [
+                {
+                  accountCode: "1000",
+                  debit: "100.00",
+                  credit: null,
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("treats lines that net to zero after filtering as no lines at all", async () => {
+    // A debit of "0" and a credit of "0" both filter out of `live` — two
+    // lines in, zero real ones, same refusal as an empty array.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          postJournal(
+            tx,
+            NORTHWIND,
+            {
+              ...baseEntry,
+              lines: [
+                {
+                  accountCode: "1000",
+                  debit: "0",
+                  credit: null,
+                  description: "",
+                },
+                {
+                  accountCode: "1100",
+                  debit: null,
+                  credit: "0",
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("refuses an entry whose debits do not equal its credits", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          postJournal(
+            tx,
+            NORTHWIND,
+            {
+              ...baseEntry,
+              lines: [
+                {
+                  accountCode: "1000",
+                  debit: "100.00",
+                  credit: null,
+                  description: "",
+                },
+                {
+                  accountCode: "1100",
+                  debit: null,
+                  credit: "90.00",
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "does_not_balance",
+    )
+  })
+
+  it("refuses two lines that are both debits — never a credit to balance against", async () => {
+    // Structurally caught by the same balance check, not a separate guard —
+    // §1.1's "all-debit/all-credit lines" bullet, closed by the existing
+    // does_not_balance path rather than a new one.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          postJournal(
+            tx,
+            NORTHWIND,
+            {
+              ...baseEntry,
+              lines: [
+                {
+                  accountCode: "1000",
+                  debit: "100.00",
+                  credit: null,
+                  description: "",
+                },
+                {
+                  accountCode: "1100",
+                  debit: "50.00",
+                  credit: null,
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "does_not_balance",
+    )
+  })
+
+  it("posts a genuinely balanced two-line entry", async () => {
+    const entryId = await inRollback((tx) =>
+      postJournal(
+        tx,
+        NORTHWIND,
+        {
+          ...baseEntry,
+          lines: [
+            {
+              accountCode: "1000",
+              debit: "100.00",
+              credit: null,
+              description: "",
+            },
+            {
+              accountCode: "1100",
+              debit: null,
+              credit: "100.00",
+              description: "",
+            },
+          ],
+        },
+        ACTOR,
+      ),
+    )
+    expect(entryId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    )
+  })
+})
+
+describe("a posted journal entry resists an UPDATE", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("silently touches zero rows on the header, even as an owner", async () => {
+    const rows = await inRollback(
+      (tx) => tx<{ id: string }[]>`
+        UPDATE journal_entries SET description = 'tampered'
+         WHERE id = ${POSTED_ENTRY}::uuid
+        RETURNING id
+      `,
+    )
+    // RESTRICTIVE accounting_update now requires status <> 'posted' — this
+    // row is posted, so RLS makes it invisible to the UPDATE rather than
+    // erroring: `rows` comes back empty, not a permission error (L47/L62's
+    // own lesson — a refusal here is a wrong number, not a thrown exception).
+    expect(rows).toEqual([])
+    const [after] = await inRollback(
+      (tx) => tx<{ description: string }[]>`
+        SELECT description FROM journal_entries WHERE id = ${POSTED_ENTRY}::uuid
+      `,
+    )
+    expect(after.description).not.toBe("tampered")
+  })
+
+  it("silently touches zero rows on its lines too, via the parent's status", async () => {
+    const rows = await inRollback(
+      (tx) => tx<{ id: string }[]>`
+        UPDATE journal_entry_lines SET description = 'tampered'
+         WHERE id = ${POSTED_LINE}::uuid
+        RETURNING id
+      `,
+    )
+    expect(rows).toEqual([])
+  })
+
+  // Positive control (L48: "a guard never observed failing is not evidence"
+  // cuts both ways — a guard never observed PERMITTING anything is not
+  // evidence either. Every real row in this table is 'posted', so the two
+  // cases above alone can't tell "immutability enforced" apart from "nobody
+  // can UPDATE this table at all." A status column with no CHECK behind it
+  // (L57) lets a test write the one case production code never does.
+  it("still allows the update on a status that is not posted — the predicate discriminates, not just denies", async () => {
+    const { headerRows, headerAfter, lineRows } = await inRollback(
+      async (tx) => {
+        const [draft] = await tx<{ id: string }[]>`
+          INSERT INTO journal_entries (
+            tenant_id, entry_number, entry_date, description, status
+          ) VALUES (
+            ${NORTHWIND}::uuid, 'JE-TEST-DRAFT', DATE '2026-03-10',
+            'draft entry for the immutability positive control', 'draft'
+          )
+          RETURNING id
+        `
+        const headerRows = await tx<{ id: string }[]>`
+          UPDATE journal_entries SET description = 'edited while draft'
+           WHERE id = ${draft.id}::uuid
+          RETURNING id
+        `
+        const [headerAfter] = await tx<{ description: string }[]>`
+          SELECT description FROM journal_entries WHERE id = ${draft.id}::uuid
+        `
+
+        // The lines policy is the one rewritten from NOT EXISTS to EXISTS
+        // (fail-closed on an invisible parent) — an empty-result test alone
+        // can't tell "the flipped form still permits what it should" apart
+        // from "the flipped form now denies everything." This is that check.
+        const [line] = await tx<{ id: string }[]>`
+          INSERT INTO journal_entry_lines (
+            tenant_id, entry_id, account_id, line_number, currency,
+            debit_amount, base_currency, base_debit_amount
+          ) VALUES (
+            ${NORTHWIND}::uuid, ${draft.id}::uuid,
+            'a6ecad5d-10af-5286-807b-cd31b3266d99'::uuid,
+            1, 'USD', 1.00, 'USD', 1.00
+          )
+          RETURNING id
+        `
+        const lineRows = await tx<{ id: string }[]>`
+          UPDATE journal_entry_lines SET description = 'edited while draft'
+           WHERE id = ${line.id}::uuid
+          RETURNING id
+        `
+        return { headerRows, headerAfter, lineRows }
+      },
+    )
+    expect(headerRows).toHaveLength(1)
+    expect(headerAfter.description).toBe("edited while draft")
+    expect(lineRows).toHaveLength(1)
+  })
+})

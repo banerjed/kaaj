@@ -61,6 +61,19 @@
   let loading = $state(false)
   let inputEl: HTMLInputElement | undefined = $state()
   let rootEl: HTMLDivElement | undefined = $state()
+  // The dropdown is positioned in the viewport (not relative to rootEl) so it
+  // can escape a scrolling ancestor — a Lines table wrapped in
+  // `overflow-x-auto` (accounting's bill/invoice forms) clips an
+  // absolutely-positioned dropdown to that table's own height, a few pixels
+  // tall, with nothing erroring (L-class silent failure: the listbox renders,
+  // with the right rows, just invisible/unreachable).
+  let dropdownRect = $state<{ top: number; left: number; width: number }>()
+
+  function updateDropdownPosition() {
+    if (!rootEl) return
+    const r = rootEl.getBoundingClientRect()
+    dropdownRect = { top: r.bottom, left: r.left, width: r.width }
+  }
 
   const listboxId = $derived(`combobox-listbox-${name}`)
   const atMax = $derived(
@@ -171,8 +184,18 @@
 
   $effect(() => {
     if (!open) return
+    updateDropdownPosition()
     document.addEventListener("click", onDocumentClick)
-    return () => document.removeEventListener("click", onDocumentClick)
+    // `scroll` does not bubble, so a listener on window only sees it during
+    // the CAPTURE phase — which does fire for a scroll inside any nested
+    // scrollable ancestor, not just window/document itself.
+    window.addEventListener("scroll", updateDropdownPosition, true)
+    window.addEventListener("resize", updateDropdownPosition)
+    return () => {
+      document.removeEventListener("click", onDocumentClick)
+      window.removeEventListener("scroll", updateDropdownPosition, true)
+      window.removeEventListener("resize", updateDropdownPosition)
+    }
   })
 
   // Single-select shows the chosen label in the text box itself rather than
@@ -239,11 +262,12 @@
     />
   </div>
 
-  {#if open && !disabled}
+  {#if open && !disabled && dropdownRect}
     <ul
       id={listboxId}
       role="listbox"
-      class="menu bg-base-100 rounded-box border-base-300 absolute z-10 mt-1 max-h-60 w-full flex-nowrap overflow-y-auto border p-1 shadow-lg"
+      class="menu bg-base-100 rounded-box border-base-300 fixed z-50 mt-1 max-h-60 flex-nowrap overflow-y-auto border p-1 shadow-lg"
+      style={`top:${dropdownRect.top}px; left:${dropdownRect.left}px; width:${dropdownRect.width}px;`}
     >
       {#if atMax}
         <li class="text-base-content/60 px-2 py-1.5 text-xs">

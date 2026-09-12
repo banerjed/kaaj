@@ -38,7 +38,11 @@ const INVOICE_SELECT = `
          i.amount_paid::text AS amount_paid,
          i.amount_due::text  AS amount_due,
          i.status,
-         (SELECT sum(l.amount)::text FROM invoice_lines l WHERE l.invoice_id = i.id)
+         -- Net of discount, same as recomputeInvoiceTotals's own subtotal —
+         -- otherwise every discounted invoice trips the "≠ lines" drift
+         -- flag below by design, not by an actual stale total.
+         (SELECT sum(l.amount) - sum(l.discount_amount)
+            FROM invoice_lines l WHERE l.invoice_id = i.id)::text
            AS line_subtotal,
          (SELECT count(*)::int FROM invoice_lines l WHERE l.invoice_id = i.id)
            AS line_count,
@@ -299,6 +303,8 @@ export class AccountingRefused extends Error {
       | "no_such_invoice"
       | "no_such_bill"
       | "no_such_account"
+      | "no_such_customer"
+      | "no_such_vendor"
       | "wrong_status"
       | "no_lines"
       // Kept distinct from no_lines so a broken posting can't pass as it (L60).
@@ -340,6 +346,11 @@ async function accountId(tx: Tx, code: string): Promise<string> {
  * Recompute an invoice's money columns from its lines and payments — recomputed,
  * never adjusted (L58). base_total sums the two rounded parts rather than
  * rounding the total independently, so it stays equal to base_subtotal + base_tax_total (L25).
+ *
+ * `subtotal` nets each line's `discount_amount` here, once, so every
+ * downstream figure (base_subtotal, total, amount_due) is discount-aware
+ * without a separate adjustment — a line with no discount (the only kind
+ * that existed before `createInvoice`) nets against zero and is unchanged.
  */
 export async function recomputeInvoiceTotals(
   tx: Tx,
@@ -347,8 +358,9 @@ export async function recomputeInvoiceTotals(
 ): Promise<void> {
   await tx`
     WITH line_totals AS (
-      SELECT coalesce(sum(l.amount), 0)     AS subtotal,
-             coalesce(sum(l.tax_amount), 0) AS tax_total
+      SELECT coalesce(sum(l.amount), 0)
+               - coalesce(sum(l.discount_amount), 0) AS subtotal,
+             coalesce(sum(l.tax_amount), 0)           AS tax_total
         FROM invoice_lines l WHERE l.invoice_id = ${invoiceId}::uuid
     ),
     paid AS (
@@ -387,6 +399,29 @@ async function nextEntryNumber(tx: Tx, year: number): Promise<string> {
   return `JE-${year}-${String(row.n).padStart(4, "0")}`
 }
 
+/**
+ * The next `INV-YYYY-nnn`, from the numbers already in use — same
+ * scan-and-increment shape as `nextEntryNumber`/`recordPayment`'s
+ * `paymentNumber`, not a locked counter. A race between two concurrent
+ * creates hits `idx_invoices_number` (UNIQUE) rather than sharing a number;
+ * `createInvoice` turns that into `AccountingRefused("number_taken")`.
+ */
+async function nextInvoiceNumber(tx: Tx, year: number): Promise<string> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT coalesce(max(nullif(substring(invoice_number from '[0-9]+$'), '')::int),
+                    0) + 1 AS n
+      FROM invoices WHERE invoice_number LIKE 'INV-%'
+  `
+  return `INV-${year}-${String(row.n).padStart(3, "0")}`
+}
+
+/** postgres.js surfaces the SQLSTATE on the error; 23505 is unique_violation. */
+function isUniqueViolation(e: unknown): boolean {
+  return (
+    typeof e === "object" && e !== null && "code" in e && e.code === "23505"
+  )
+}
+
 /** One side of a journal entry, before it is written. */
 export type JournalLine = {
   accountCode: string
@@ -419,6 +454,19 @@ export async function postJournal(
   const live = entry.lines.filter(
     (l) => Number(l.debit ?? 0) !== 0 || Number(l.credit ?? 0) !== 0,
   )
+
+  // Zero real lines "balances" trivially (0 = 0) and would otherwise insert
+  // a header row for nothing; one line "balances" only if it carries both a
+  // debit AND a credit, which is not a real double-entry line. Both current
+  // callers (issueInvoice/approveBill) already refuse a zero-line
+  // invoice/bill first, so this is unreachable through them today — the
+  // guard belongs here anyway so a future third caller can't skip it.
+  if (live.length < 2) {
+    throw new AccountingRefused(
+      "no_lines",
+      `only ${live.length} line(s) after removing zero-amount ones`,
+    )
+  }
 
   // A closed/locked accounting period refuses new postings (INV-ACC-002). A
   // date in no period at all is allowed — nothing to refuse against.
@@ -525,6 +573,132 @@ async function invoiceState(tx: Tx, id: string): Promise<InvoiceState> {
   `
   if (!row) throw new AccountingRefused("no_such_invoice")
   return row
+}
+
+export type CustomerOption = {
+  id: string
+  customer_name: string
+  currency: string
+}
+
+/** For the invoice-create picker — active customers only. */
+export async function listCustomersForPicker(
+  tx: Tx,
+): Promise<CustomerOption[]> {
+  return tx<CustomerOption[]>`
+    SELECT id, customer_name, currency
+      FROM customers
+     WHERE is_active
+     ORDER BY customer_name
+  `
+}
+
+/** One line as submitted on the create form, before it is priced. */
+export type NewInvoiceLine = {
+  description: string
+  quantity: string
+  unitPrice: string
+  discountPercent: string
+  taxAmount: string
+}
+
+/**
+ * Create a draft invoice with its lines. Posts nothing — `issueInvoice` is
+ * the money-moving step; this only makes the row exist. Refused with no
+ * lines, the same reason `issueInvoice` uses for the same shape (L60: kept
+ * distinct from a broken posting), and with no such customer if the picker
+ * pointed at a row that is gone by the time this write lands.
+ */
+export async function createInvoice(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    customerId: string
+    invoiceDate: string
+    dueDate: string
+    exchangeRate: string
+    paymentTerms: string | null
+    notes: string | null
+    lines: NewInvoiceLine[]
+  },
+  actorId: string,
+): Promise<{ id: string; invoiceNumber: string }> {
+  if (input.lines.length === 0) throw new AccountingRefused("no_lines")
+
+  const [customer] = await tx<{ currency: string }[]>`
+    SELECT currency FROM customers WHERE id = ${input.customerId}::uuid
+  `
+  if (!customer) throw new AccountingRefused("no_such_customer")
+
+  const [tenant] = await tx<{ default_currency: string }[]>`
+    SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
+  `
+  const baseCurrency = tenant?.default_currency ?? "USD"
+
+  // Every line posts to the one revenue account issueInvoice knows about —
+  // per-line revenue_account_id is a real column but issueInvoice always
+  // posts the whole subtotal to ACCOUNTS.revenue, so a per-line choice here
+  // would be a UI promise the posting step does not keep.
+  const revenueAccountId = await accountId(tx, ACCOUNTS.revenue)
+  const year = Number(input.invoiceDate.slice(0, 4))
+
+  // A race between two concurrent creates can compute the same "next"
+  // number (nextInvoiceNumber is a scan, not a lock) — retry a bounded
+  // number of times before actually refusing, rather than looping forever
+  // on a genuine, unrelated bug.
+  let invoiceId: string | undefined
+  let invoiceNumber = ""
+  for (let attempt = 0; attempt < 5 && invoiceId === undefined; attempt++) {
+    invoiceNumber = await nextInvoiceNumber(tx, year)
+    try {
+      const [row] = await tx<{ id: string }[]>`
+        INSERT INTO invoices (
+          tenant_id, customer_id, invoice_number, invoice_date, due_date,
+          currency, exchange_rate, base_currency,
+          subtotal, tax_total, total, amount_paid, amount_due,
+          base_subtotal, base_tax_total, base_total,
+          base_amount_paid, base_amount_due,
+          payment_terms, notes, status, created_by
+        ) VALUES (
+          ${tenantId}::uuid, ${input.customerId}::uuid, ${invoiceNumber},
+          ${input.invoiceDate}::date, ${input.dueDate}::date,
+          ${customer.currency}, ${input.exchangeRate}::numeric, ${baseCurrency},
+          0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0,
+          ${input.paymentTerms}, ${input.notes}, 'draft', ${actorId}::uuid
+        )
+        RETURNING id
+      `
+      invoiceId = row.id
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e
+      // another create took this number; loop and try the next
+    }
+  }
+  if (invoiceId === undefined) throw new AccountingRefused("number_taken")
+
+  let lineNumber = 0
+  for (const line of input.lines) {
+    lineNumber += 1
+    await tx`
+      INSERT INTO invoice_lines (
+        tenant_id, invoice_id, line_number, description, quantity, unit_price,
+        amount, discount_percent, discount_amount, tax_amount, revenue_account_id
+      ) VALUES (
+        ${tenantId}::uuid, ${invoiceId}::uuid, ${lineNumber}, ${line.description},
+        ${line.quantity}::numeric, ${line.unitPrice}::numeric,
+        round(${line.quantity}::numeric * ${line.unitPrice}::numeric, 2),
+        ${line.discountPercent}::numeric,
+        round(${line.quantity}::numeric * ${line.unitPrice}::numeric
+              * ${line.discountPercent}::numeric / 100, 2),
+        ${line.taxAmount}::numeric,
+        ${revenueAccountId}::uuid
+      )
+    `
+  }
+
+  await recomputeInvoiceTotals(tx, invoiceId)
+  return { id: invoiceId, invoiceNumber }
 }
 
 /**

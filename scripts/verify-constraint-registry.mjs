@@ -34,6 +34,8 @@ const FORM_WRITTEN = [
   "compensation_base",
   "invoices",
   "payments",
+  "bills",
+  "bill_lines",
 ]
 
 /**
@@ -68,6 +70,8 @@ const CANNOT_BE_TRIPPED = new Map([
   ["compensation_base_tenant_id_fkey", "tenant_id comes from the session"],
   ["invoices_tenant_id_fkey", "tenant_id comes from the session"],
   ["payments_tenant_id_fkey", "tenant_id comes from the session"],
+  ["bills_tenant_id_fkey", "tenant_id comes from the session"],
+  ["bill_lines_tenant_id_fkey", "tenant_id comes from the session"],
 
   // Answered by the repository, ahead of the constraint, with a domain error.
   [
@@ -123,7 +127,6 @@ const CANNOT_BE_TRIPPED = new Map([
   ],
   ["idx_invoices_number", "invoice numbers are generated"],
   ["idx_payments_number", "payment numbers are generated"],
-  ["fk_invoices_customer_id", "no form creates an invoice yet"],
   ["fk_invoices_journal_entry_id", "set by posting, not by a form"],
   ["fk_payments_journal_entry_id", "set by posting, not by a form"],
   ["fk_payments_customer_id", "copied from the invoice, not posted"],
@@ -131,6 +134,22 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "ck_invoices_amounts_reconcile",
     "the repository recomputes the totals it checks; no form writes them",
+  ],
+  [
+    "ck_bills_amounts_reconcile",
+    "the repository recomputes the totals it checks; no form writes them",
+  ],
+  [
+    "fk_bills_journal_entry_id",
+    "set by approveBill's posting step, not by a form",
+  ],
+  [
+    "fk_bill_lines_bill_id",
+    "bill_id comes from the bill createBill just inserted, not the form",
+  ],
+  [
+    "fk_bill_lines_tax_rate_id",
+    "never set by this form; tax_amount is entered directly, mirroring invoice_lines",
   ],
 ])
 

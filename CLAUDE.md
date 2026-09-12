@@ -57,21 +57,21 @@ directory in the repo.
 | tenant isolation | every RLS policy actually filters, per table | 600 |
 | specification | the schema answers the module specs | 167 |
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
-| structure snapshot | the schema is exactly what was committed | 4,136 lines |
+| structure snapshot | the schema is exactly what was committed | 4,140 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 56 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
-| writes are audited | every action is in the audit register, either list | 35 + 10 |
-| refusals have a message | every constraint a form can trip answers with a sentence | 24 |
+| writes are audited | every action is in the audit register, either list | 37 + 27 |
+| refusals have a message | every constraint a form can trip answers with a sentence | 28 |
 | service role quarantined | nothing outside a committed list bypasses RLS | 6 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
 | security | authorization, PII and tenant isolation, both suites | 360 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,121 tests |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,147 tests |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
@@ -380,6 +380,18 @@ supabase db reset && pnpm db:snapshot
 Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
+
+**`supabase db reset` leaves `app_user` unable to log in.** The role is
+created with no password (`20260827000002_auth_and_grants.sql`); `./setup`
+sets one as its own step afterward, which `db reset` alone never runs. Every
+test then fails with `password authentication failed`, which reads like a
+broken test rather than environment state ([L81](docs/10-lessons-learned.md)).
+After any `db reset` not run via `./setup`:
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
+```
 
 **A restricted column on `employees` is named `_pvt`; ciphertext is named
 `_ct`.** A column on that table carrying neither is directory data, by
