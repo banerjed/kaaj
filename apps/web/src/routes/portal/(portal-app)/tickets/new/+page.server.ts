@@ -15,13 +15,16 @@ export const load: PageServerLoad = async ({ locals }) => {
     const businessAreas = await ticketing.businessAreas(tx, {
       portalVisibleOnly: true,
     })
-    const categoriesByArea: Record<
-      string,
-      Awaited<ReturnType<typeof ticketing.categoriesFor>>
-    > = {}
-    for (const ba of businessAreas) {
-      categoriesByArea[ba.id] = await ticketing.categoriesFor(tx, ba.id)
-    }
+    // Filtered to portal-visible areas: allCategoriesByArea groups every
+    // area's categories, and this page's data reaches the customer portal —
+    // an internal area's category names must not ride along unused.
+    const allCategoriesByArea = await ticketing.allCategoriesByArea(tx)
+    const categoriesByArea = Object.fromEntries(
+      businessAreas.map((ba) => [
+        ba.id,
+        allCategoriesByArea[ba.id] ?? { categories: [], subcategories: [] },
+      ]),
+    )
     return { businessAreas, categoriesByArea }
   })
 }

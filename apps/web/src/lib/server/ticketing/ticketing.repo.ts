@@ -87,6 +87,48 @@ export async function categoriesFor(
   return { categories, subcategories }
 }
 
+/** Every category and subcategory, across every ACTIVE business area, grouped by area — one round trip each, for a filter bar or a create/edit form that needs the whole tree rather than one area at a time. An area with none is simply absent; callers already default with `?? []`. Joined against `ticketing_business_areas.is_active` so the result's keys match `businessAreas(tx)`'s rows exactly, the same invariant a per-area `categoriesFor` call gets for free by only ever being called with an id that function already returned. */
+export async function allCategoriesByArea(
+  tx: Tx,
+): Promise<
+  Record<string, { categories: CategoryRow[]; subcategories: SubcategoryRow[] }>
+> {
+  const categories = await tx<(CategoryRow & { business_area_id: string })[]>`
+    SELECT c.id, c.name, c.is_active, c.business_area_id
+      FROM ticketing_categories c
+      JOIN ticketing_business_areas ba ON ba.id = c.business_area_id
+     WHERE ba.is_active
+     ORDER BY c.name
+  `
+  const subcategories = await tx<
+    (SubcategoryRow & { business_area_id: string })[]
+  >`
+    SELECT s.id, s.name, s.is_active, s.category_id, c.business_area_id
+      FROM ticketing_subcategories s
+      JOIN ticketing_categories c ON c.id = s.category_id
+      JOIN ticketing_business_areas ba ON ba.id = c.business_area_id
+     WHERE ba.is_active
+     ORDER BY s.name
+  `
+  const byArea: Record<
+    string,
+    { categories: CategoryRow[]; subcategories: SubcategoryRow[] }
+  > = {}
+  for (const { business_area_id, ...category } of categories) {
+    ;(byArea[business_area_id] ??= {
+      categories: [],
+      subcategories: [],
+    }).categories.push(category)
+  }
+  for (const { business_area_id, ...subcategory } of subcategories) {
+    ;(byArea[business_area_id] ??= {
+      categories: [],
+      subcategories: [],
+    }).subcategories.push(subcategory)
+  }
+  return byArea
+}
+
 export type TicketRow = {
   id: string
   ticket_number: string

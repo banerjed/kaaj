@@ -60,13 +60,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   return withTenant(actorFrom(locals), async (tx) => {
     const businessAreas = await ticketing.businessAreas(tx)
-    const categoriesByArea: Record<
-      string,
-      Awaited<ReturnType<typeof ticketing.categoriesFor>>
-    > = {}
-    for (const ba of businessAreas) {
-      categoriesByArea[ba.id] = await ticketing.categoriesFor(tx, ba.id)
-    }
+    const categoriesByArea = await ticketing.allCategoriesByArea(tx)
 
     const filters = {
       status,
