@@ -44,6 +44,11 @@ const EXEMPT = new Set([
   "apps/web/src/lib/server/accounting/accounting.repo.ts:for (const line of live) {", // journal_entry_lines
   "apps/web/src/lib/server/accounting/accounting.repo.ts:for (const line of input.lines) {", // invoice_lines
   "apps/web/src/lib/server/accounting/payables.repo.ts:for (const line of input.lines) {", // bill_lines
+
+  // A number-generation race retries a FIXED 5 times, never more, regardless
+  // of how large the invoices table is — the bound is a literal in the loop
+  // head, not a row count.
+  "apps/web/src/lib/server/accounting/accounting.repo.ts:for (let attempt = 0; attempt < 5 && invoiceId === undefined; attempt++) {",
 ])
 
 function* tsFiles(dir) {
@@ -121,10 +126,10 @@ function loopSpans(src) {
   return spans
 }
 
-/** Every `tx\`...\`` / `tx.unsafe(...)` call's start index. */
+/** Every `tx\`...\`` / `tx<Row[]>\`...\`` / `tx.unsafe(...)` call's start index. `tx<...>` is the DOMINANT shape — "type every tx query that crosses into a page" is a stated convention here — so a plain `tx\`` regex silently misses most calls in this codebase, not a rare edge case. No backtick can appear inside the generic's `<...>` (it's a TS type, not a template literal), so greedily matching up to the next `>` before the mandatory backtick is safe even for a nested generic. */
 function queryStarts(src) {
   const starts = []
-  for (const m of src.matchAll(/\btx\s*`/g)) starts.push(m.index)
+  for (const m of src.matchAll(/\btx\s*(?:<[^`]*>)?\s*`/g)) starts.push(m.index)
   for (const m of src.matchAll(/\btx\.unsafe\s*\(/g)) starts.push(m.index)
   return starts
 }
