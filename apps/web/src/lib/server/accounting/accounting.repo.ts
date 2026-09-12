@@ -206,6 +206,128 @@ export async function unbalanced(
   ` as never
 }
 
+export type TrialBalanceRow = {
+  account_code: string
+  account_name: string
+  account_type: string
+  debits: string
+  credits: string
+}
+
+/**
+ * Every account with activity, summed in the tenant's BASE currency
+ * (`base_debit_amount`/`base_credit_amount`) — a raw sum of
+ * `debit_amount`/`credit_amount` would silently mix USD, EUR and GBP
+ * figures from entries posted in different original currencies. Only
+ * `posted` entries count; nothing today produces another status, but a
+ * future draft-JE feature must not appear on a trial balance.
+ */
+export async function trialBalance(
+  tx: Tx,
+  filters: { asOf?: string } = {},
+): Promise<TrialBalanceRow[]> {
+  const asOf = filters.asOf || null
+  return tx<TrialBalanceRow[]>`
+    SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
+           COALESCE(sum(CASE WHEN je.id IS NOT NULL THEN l.base_debit_amount  END), 0)::text AS debits,
+           COALESCE(sum(CASE WHEN je.id IS NOT NULL THEN l.base_credit_amount END), 0)::text AS credits
+      FROM chart_of_accounts a
+      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+      LEFT JOIN journal_entries je
+             ON je.id = l.entry_id
+            AND je.status = 'posted'
+            AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+     WHERE a.is_active
+     GROUP BY a.id, a.account_code, a.account_name, a.account_type
+    HAVING sum(CASE WHEN je.id IS NOT NULL THEN l.base_debit_amount  END) IS NOT NULL
+        OR sum(CASE WHEN je.id IS NOT NULL THEN l.base_credit_amount END) IS NOT NULL
+     ORDER BY a.account_code
+  `
+}
+
+/**
+ * A second aggregation path over the same rows `trialBalance` groups by
+ * account — computed independently rather than by summing that report's own
+ * rows, so a mistake in one is unlikely to be mirrored in the other.
+ */
+export async function trialBalanceTotals(
+  tx: Tx,
+  filters: { asOf?: string } = {},
+): Promise<{ debits: string; credits: string; balances: boolean }> {
+  const asOf = filters.asOf || null
+  const [row] = await tx<
+    { debits: string; credits: string; balances: boolean }[]
+  >`
+    SELECT COALESCE(sum(l.base_debit_amount), 0)::text  AS debits,
+           COALESCE(sum(l.base_credit_amount), 0)::text AS credits,
+           COALESCE(sum(l.base_debit_amount), 0) = COALESCE(sum(l.base_credit_amount), 0)
+             AS balances
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+     WHERE (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+  `
+  return row
+}
+
+export type ControlAccountTieOut = {
+  account_code: string
+  label: string
+  gl_balance: string
+  subledger_total: string
+  difference: string
+  ties_out: boolean
+}
+
+/**
+ * The GL's own AR/AP control-account balances (`1100`/`2000`) against the
+ * independently-maintained subledger totals — `sum(invoices.base_amount_due)`
+ * / `sum(bills.base_amount_due)`. Per 19-accounting-test-plan.md §1.5/§6,
+ * this is the single highest-leverage reconciliation check in the module: a
+ * subledger total drifting from what was actually posted is exactly the
+ * failure a control account exists to catch.
+ *
+ * Filtered on `journal_entry_id IS NOT NULL`, not on `status` — status is a
+ * workflow label an operator can set by hand (or a fixture can hand-author)
+ * independent of whether the row was ever actually run through
+ * `issueInvoice`/`approveBill`, the only step that posts it and stamps this
+ * column. `status NOT IN ('draft', 'void')` was tried first and initially
+ * looked plausible, but it counts an `overdue`/`partial` invoice that was
+ * never issued as if it had been — `journal_entry_id` is the fact of
+ * whether a GL entry exists for this row, which is what a tie-out needs.
+ */
+export async function controlAccountTieOut(
+  tx: Tx,
+): Promise<ControlAccountTieOut[]> {
+  return tx<ControlAccountTieOut[]>`
+    WITH totals AS (
+      SELECT '1100' AS account_code, 'Accounts Receivable' AS label,
+             (SELECT COALESCE(sum(l.base_debit_amount) - sum(l.base_credit_amount), 0)
+                FROM journal_entry_lines l
+                JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                JOIN chart_of_accounts a ON a.id = l.account_id
+               WHERE a.account_code = '1100') AS gl_balance,
+             (SELECT COALESCE(sum(base_amount_due), 0) FROM invoices
+               WHERE journal_entry_id IS NOT NULL) AS subledger_total
+      UNION ALL
+      SELECT '2000', 'Accounts Payable',
+             (SELECT COALESCE(sum(l.base_credit_amount) - sum(l.base_debit_amount), 0)
+                FROM journal_entry_lines l
+                JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                JOIN chart_of_accounts a ON a.id = l.account_id
+               WHERE a.account_code = '2000'),
+             (SELECT COALESCE(sum(base_amount_due), 0) FROM bills
+               WHERE journal_entry_id IS NOT NULL)
+    )
+    SELECT account_code, label,
+           gl_balance::text                     AS gl_balance,
+           subledger_total::text                AS subledger_total,
+           (gl_balance - subledger_total)::text AS difference,
+           gl_balance = subledger_total          AS ties_out
+      FROM totals
+     ORDER BY account_code
+  `
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null

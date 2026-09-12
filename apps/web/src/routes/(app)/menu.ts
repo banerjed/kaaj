@@ -180,6 +180,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-trial-balance",
+        label: "Trial Balance",
+        url: "/accounting/trial-balance",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-banking",
         label: "Banking",
         url: "/accounting/banking",

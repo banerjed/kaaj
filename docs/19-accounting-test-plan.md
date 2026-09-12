@@ -122,12 +122,18 @@ call-outs.
   *Moot without a close process or any report that reads "the current period" (§5).*
 
 ### 1.5 Trial balance & balancing invariants
-- Trial balance total debits = total credits, always, computed independently from the sum of all posted journal lines. **[MISSING]**
-  *No trial balance report, view, or route exists anywhere (`rg -il 'trial.?balance|balance.?sheet|income.?statement|cash.?flow.?statement'` across `apps/web/src` and `packages` returns nothing but one unrelated HR comment). `unbalanced()`/`ledger()` check overall debit=credit on the raw journal, which is the mechanism a trial balance would be built on, but there is no per-account trial balance report itself.*
-- Trial balance ties to the sum of every subledger's control account. **[MISSING]**
-  *No test sums `journal_entry_lines` for the AR control account (`"1100"`) or AP control account (`"2000"`, hardcoded in `accounting.repo.ts:291`/`payables.repo.ts:46`) and compares it to the sum of `invoices.amount_due`/`bills.amount_due`. This is the single highest-value reconciliation check described anywhere in this taxonomy and it does not exist.*
-- A trial balance run for a prior period, after later periods have activity, still reflects only that period's cumulative state. **[MISSING]**
-  *Moot without a trial balance report.*
+- Trial balance total debits = total credits, always, computed independently from the sum of all posted journal lines. **[DONE]** (2026-09-12)
+  *`/accounting/trial-balance` — `acc.trialBalance()` (per-account, grouped) and `acc.trialBalanceTotals()` (a second, independent aggregation over the same `journal_entry_lines`, not a sum of the first report's own rows) both exist and are tested in `accounting.test.ts` ("the trial balance" — "total debits equal total credits, computed independently of the per-account grouping"). Both sum `base_debit_amount`/`base_credit_amount`, not the raw currency-native columns — a raw sum would silently mix USD/EUR/GBP figures from entries posted in different currencies.*
+- Trial balance ties to the sum of every subledger's control account. **[PARTIAL]** — the check now exists and is tested; the invariant it checks for is **currently false** in this tenant's data.
+  *`acc.controlAccountTieOut()` sums `journal_entry_lines` for AR (`"1100"`) and AP (`"2000"`) and compares each to `sum(invoices.base_amount_due)`/`sum(bills.base_amount_due)` WHERE `journal_entry_id IS NOT NULL`, shown on `/accounting/trial-balance` with a "ties out"/"drift" badge per row. The subledger filter is on `journal_entry_id`, not `status` — an early draft filtered `status NOT IN ('draft', 'void')`, which looked plausible but counts a hand-authored `overdue`/`partial` invoice as posted whether or not it was ever actually run through `issueInvoice`. `journal_entry_id` is the fact of whether a GL entry exists for the row, which is what a tie-out needs.*
+
+  *Building it immediately found something real, exactly as this taxonomy predicted ("it becomes the correctness check that fails loudly"): `accounting.test.ts` ("the AR and AP control accounts do not tie to their subledgers today") asserts the exact current drift — AR off by `-10000.00`, AP off by `-2500.00`. These are two distinct, fully-explained gaps, not one aggregate mystery:*
+  - *AR: four of five fixture invoices were hand-authored with a plausible status/`amount_due` and never actually issued (no `journal_entry_id`) — only `INV-2026-001` (paid, `amount_due` 0.00) was. So the AR subledger total is 0.00, and the entire `-10000.00` GL balance is `JE-2026-0004` ("Partial payment allocated across Acme invoices", 2026-02-07): a $10,000 credit-only line with no matching debit and no invoice pointing back to it — an orphaned journal entry.*
+  - *AP: the subledger total (`1981.53`) is exactly what `BILL-AWS-2026-01` and `BILL-UX-2026-001`'s two journal-entry pairs net to on their own. The `-2500.00` difference is entirely `JE-2026-0006` ("AWS batch vendor payment", 2026-02-10): a $2,500 debit with no bill's `journal_entry_id` pointing to it.*
+
+  *Both are fixture data-modeling gaps — hand-authored journal entries and invoice/bill rows that were never actually linked to each other — not an application bug. `accounting.writes.test.ts` ("the control-account tie-out reflects a clean write") proves the mechanism itself is sound: a fresh invoice/bill taken through the real write path to fully paid changes the AR/AP difference by exactly zero.*
+- A trial balance run for a prior period, after later periods have activity, still reflects only that period's cumulative state. **[DONE]** (2026-09-12)
+  *`trialBalance`/`trialBalanceTotals` take an `asOf` date, filtering `journal_entries.entry_date <= asOf` — tested in `accounting.test.ts` ("run as of a prior date reflects only that date's cumulative activity, not later periods'"): as-of the fixture's first posting date includes only that date's three entries, and as-of a date before any posting returns zero, both while still balancing.*
 - Suspense/clearing accounts trend toward zero after processing completes. **[MISSING]**
   *No suspense/clearing account concept exists in the chart of accounts constants or schema.*
 
@@ -261,14 +267,14 @@ without any report to apply it to.
 
 ## 6. Reconciliation & Cross-Checks
 
-- GL control account balance = subledger total, for every subledger. **[MISSING]**
-  *Confirmed directly: no test sums `journal_entry_lines` for account `"1100"` (AR) or `"2000"` (AP) and compares to `sum(invoices.amount_due)`/`sum(bills.amount_due)`. This is the single highest-leverage reconciliation check missing from the suite — cheap to add given the control-account codes are already known constants.*
+- GL control account balance = subledger total, for every subledger. **[PARTIAL]** (2026-09-12) — see §1.5's identical finding
+  *`acc.controlAccountTieOut()` now performs exactly this check for AR and AP, tested and shown on `/accounting/trial-balance`. It found the two control accounts do NOT currently tie to their subledgers — a real, pre-existing fixture data gap (most invoices/bills were never actually posted via `issueInvoice`/`approveBill`), not a bug in the check or in `createInvoice`/`createBill`'s write paths, which a separate test proves add zero net drift. See §1.5 for the exact figures.*
 - Bank reconciliation ties book balance to statement balance with itemized reconciling items that clear in a subsequent period. **[PARTIAL]**
   *The "already claimed" refusal (`payables.writes.test.ts:423`) gives idempotency-flavored coverage for matching, but there's no full reconciliation report (itemized outstanding checks / deposits in transit) and no test of an item clearing in a later statement period.*
 - Intercompany reconciliation run independently of the consolidation elimination logic. **[MISSING]**
   *Moot — no multi-entity feature (§3.4).*
-- A "trial balance drift" job comparing computed vs. stored balances runs and reports zero drift. **[MISSING]**
-  *Moot — no trial balance and no cached balance field is written to by any accounting repo function (`chart_of_accounts.current_balance` is unused, per §1.5).*
+- A "trial balance drift" job comparing computed vs. stored balances runs and reports zero drift. **[PARTIAL]** (2026-09-12)
+  *A trial balance now exists (§1.5) and `chart_of_accounts.current_balance` is still an unused cached column nothing writes to — so there is nothing to compare the computed figure AGAINST, which is what this bullet actually asks for (computed vs. STORED). What exists instead is the control-account tie-out (computed vs. computed, from two different tables), a related but distinct check. No scheduled job of any kind exists in this codebase for anything accounting-related.*
 
 ---
 

@@ -1,7 +1,15 @@
 import { afterAll, describe, expect, it } from "vitest"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
-import { postJournal, AccountingRefused } from "./accounting.repo"
+import {
+  postJournal,
+  AccountingRefused,
+  createInvoice,
+  issueInvoice,
+  recordPayment,
+  controlAccountTieOut,
+} from "./accounting.repo"
+import * as pay from "./payables.repo"
 
 /**
  * `postJournal` itself, directly — the shared posting engine both
@@ -323,5 +331,134 @@ describe("a posted journal entry resists an UPDATE", () => {
     expect(headerRows).toHaveLength(1)
     expect(headerAfter.description).toBe("edited while draft")
     expect(lineRows).toHaveLength(1)
+  })
+})
+
+/** Acme Manufacturing — a real fixture customer, USD. */
+const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+/** Amazon Web Services — a real fixture vendor, USD. */
+const AWS_VENDOR = "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92"
+const SOFTWARE_ACCOUNT = "030e294b-88ad-544e-841a-cfda187885ac"
+const BANK_ACCOUNT = "6d55e7d0-f085-5951-9f28-2fcd1b75c6bc"
+/** A different real employee — recordVendorPayment refuses the same actor who approved. */
+const PAYER = "11f31511-ad53-59c7-9e90-8ee3b553489b"
+
+describe("the control-account tie-out reflects a clean write", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  // The real Northwind fixture does not tie out today (accounting.test.ts's
+  // own "do not tie to their subledgers" case) — most of its invoices/bills
+  // were hand-authored without a matching posted journal entry. That is not
+  // something a single test can construct its way around: the fixture is
+  // shared, and this test cannot delete or fix those rows. So rather than
+  // asserting the WHOLE tenant ties out, this proves the narrower, honest
+  // claim: a fresh invoice taken all the way to fully paid — through the
+  // real write path, not a hand-inserted row — changes the AR difference by
+  // exactly zero. A write path that quietly introduced drift would move
+  // this number; one that doesn't, won't.
+  it("a fresh invoice, issued and paid in full, adds zero net drift to AR", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const [beforeRow] = (await controlAccountTieOut(tx)).filter(
+        (r) => r.account_code === "1100",
+      )
+
+      const { id: invoiceId } = await createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Consulting",
+              quantity: "1",
+              unitPrice: "500.00",
+              discountPercent: "0",
+              taxAmount: "0",
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await issueInvoice(tx, NORTHWIND, invoiceId, ACTOR)
+      await recordPayment(
+        tx,
+        NORTHWIND,
+        {
+          invoiceId,
+          amount: "500.00",
+          paymentDate: "2026-03-15",
+          method: "wire_transfer",
+          reference: "WIRE-TIEOUT-TEST",
+          bankAccountId: BANK_ACCOUNT,
+        },
+        ACTOR,
+      )
+
+      const [afterRow] = (await controlAccountTieOut(tx)).filter(
+        (r) => r.account_code === "1100",
+      )
+      return { before: beforeRow, after: afterRow }
+    })
+    expect(after.difference).toBe(before.difference)
+  })
+
+  it("a fresh bill, approved and paid in full, adds zero net drift to AP", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const [beforeRow] = (await controlAccountTieOut(tx)).filter(
+        (r) => r.account_code === "2000",
+      )
+
+      const { id: billId } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-AWS-TIEOUT-TEST",
+          reference: null,
+          billDate: "2026-03-10",
+          dueDate: "2026-04-10",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Cloud hosting",
+              quantity: "1",
+              unitPrice: "300.00",
+              taxAmount: "0",
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await pay.approveBill(tx, NORTHWIND, billId, ACTOR)
+      await pay.recordVendorPayment(
+        tx,
+        NORTHWIND,
+        {
+          billId,
+          amount: "300.00",
+          paymentDate: "2026-03-15",
+          method: "wire_transfer",
+          reference: "WIRE-TIEOUT-TEST-AP",
+          bankAccountId: BANK_ACCOUNT,
+        },
+        PAYER,
+      )
+
+      const [afterRow] = (await controlAccountTieOut(tx)).filter(
+        (r) => r.account_code === "2000",
+      )
+      return { before: beforeRow, after: afterRow }
+    })
+    expect(after.difference).toBe(before.difference)
   })
 })

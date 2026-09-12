@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.4
+**Version:** 2.5
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2045,12 +2045,37 @@ either way.
 
 ### Tier 3 — Trial balance, then financial statements
 
-- [ ] Trial balance report + GL-control-account-to-subledger tie-out
-      (AR control `"1100"` = `sum(invoices.amount_due)`, AP control `"2000"`
-      = `sum(bills.amount_due)`). Build this first: it's the same
-      "sum journal lines by account over a range" query the statements below
-      reuse with different grouping, and it becomes the correctness check
-      that fails loudly while everything after it is built. §1.5, §6.
+- [x] Trial balance report + GL-control-account-to-subledger tie-out
+      (2026-09-12). `/accounting/trial-balance` — `acc.trialBalance()`,
+      `acc.trialBalanceTotals()` (an independent second aggregation, not a
+      sum of the first's own rows) and `acc.controlAccountTieOut()` in
+      `accounting.repo.ts`. All three sum `base_debit_amount`/
+      `base_credit_amount`/`base_amount_due` — the tenant's base currency —
+      not the raw currency-native columns, which would silently mix USD/EUR/
+      GBP figures from entries posted in different currencies. The subledger
+      side filters on `journal_entry_id IS NOT NULL`, not `status` — status is
+      a hand-set label independent of whether a row was ever actually posted.
+      Building the tie-out immediately found something real, exactly as
+      predicted below: AR and AP do **not** currently tie to their subledgers
+      in this fixture (off by `-10000.00` and `-2500.00`) — two distinct,
+      fully-explained gaps, not one aggregate mystery. AR: most fixture
+      invoices were hand-authored with a plausible status and never actually
+      issued, so the AR subledger total is near-zero and the whole GL
+      difference is one orphaned journal entry (`JE-2026-0004`, a $10,000
+      credit with no matching debit or invoice). AP: the subledger side ties
+      exactly; the whole difference is a second orphaned entry
+      (`JE-2026-0006`, a $2,500 debit with no bill behind it). Both are
+      fixture data-modeling gaps — hand-authored journal entries and
+      invoice/bill rows never actually linked to each other — not an
+      application bug. A separate test proves the write paths themselves add
+      zero net drift: a fresh invoice/bill taken to fully paid through the
+      real functions changes the AR/AP difference by exactly zero. See §1.5/§6 in
+      [19-accounting-test-plan.md](19-accounting-test-plan.md) for the exact
+      figures and citations. Tests: 4 new cases in `accounting.test.ts`
+      ("the trial balance"), 2 new cases in `accounting.writes.test.ts`
+      ("the control-account tie-out reflects a clean write"), 1 new
+      `smoke.spec.ts` row, 1 new nav entry. `./check` (app + db, 22 steps)
+      and the full e2e suite (71 tests) pass.
 - [ ] Profit & Loss statement. US-ACC-038, FR-ACC-007.
 - [ ] Balance Sheet. US-ACC-039, FR-ACC-007.
 - [ ] Cash Flow statement. US-ACC-040, FR-ACC-007.
@@ -2181,6 +2206,7 @@ either way.
 | 2.2 | 2026-09-11 | Claude Sonnet 5 | Added the "Implementation Roadmap — Remaining Work" section: a priority-ordered, checkable punch list (10 tiers) of every MISSING/PARTIAL item from the v2.1 annotations, in the order we intend to build them. Update the checkboxes in place as items ship; note tier completion here rather than deleting the tier. This partly reconciles the v2.1 row's note about the Functional Requirements: FR-ACC-007 is now explicitly mapped (Tier 3) and FR-ACC-002's scope is covered (Tier 9) — the rest of the FRs below are still as-unverified as v2.1 left them. |
 | 2.3 | 2026-09-12 | Claude Sonnet 5 | Shipped both Tier 1 items: invoice creation and bill entry UIs, each with real test coverage (see the roadmap checkboxes for the exact citations). US-ACC-021 moved MISSING → PARTIAL. Tier 1 is now complete. |
 | 2.4 | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete. |
+| 2.5 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted. |
 
 ### References
 
