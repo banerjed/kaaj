@@ -106,6 +106,18 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   bucket_id text REFERENCES storage.buckets(id),
   name text, owner uuid);
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- The CLI's own migration ledger. `supabase db reset` writes one row per
+-- applied migration here; mock-data.sql reads MAX(version) from it to seed
+-- tenant_registry.schema_version, so without this table CI fails at fixture
+-- load, not at migration time — a confusing place to learn the ledger was
+-- ever missing. Populated below, one row per file, as each migration applies.
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+  version    text PRIMARY KEY,
+  statements text[],
+  name       text
+);
 SQL
 
 # -----------------------------------------------------------------------------
@@ -114,8 +126,12 @@ SQL
 # This step IS the migration test: one that is not replayable fails here.
 say "applying migrations"
 for f in supabase/migrations/*.sql; do
-  echo "   $(basename "$f")"
+  name="$(basename "$f")"
+  version="${name%%_*}"
+  echo "   $name"
   psql -v ON_ERROR_STOP=1 -q -f "$f"
+  psql -v ON_ERROR_STOP=1 -q -c \
+    "INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('$version', '$name') ON CONFLICT (version) DO NOTHING"
 done
 
 # -----------------------------------------------------------------------------
