@@ -242,7 +242,7 @@
 
   <div class="card bg-base-100 shadow">
     <div class="card-body gap-3 p-4">
-      <div class="flex flex-wrap items-start justify-between gap-2">
+      <div class="flex flex-wrap items-start gap-2">
         <div>
           <div class="flex flex-wrap items-center gap-2">
             <!-- The only heading on the page (L64) — the breadcrumb and
@@ -254,6 +254,15 @@
             <StatusBadge tone={statusTone(data.ticket.status)} size="sm">
               {data.ticket.status.replace(/_/g, " ")}
             </StatusBadge>
+            {#if data.mayWrite && !editing}
+              <button
+                class="btn btn-primary btn-xs gap-1"
+                onclick={startEditing}
+              >
+                <span class="iconify lucide--pencil size-3.5"></span>
+                Update
+              </button>
+            {/if}
           </div>
           <p class="text-base-content/70 text-sm">
             {data.ticket.business_area_name}
@@ -262,12 +271,6 @@
             {/if}
           </p>
         </div>
-        {#if data.mayWrite && !editing}
-          <button class="btn btn-primary btn-xs gap-1" onclick={startEditing}>
-            <span class="iconify lucide--pencil size-3.5"></span>
-            Update
-          </button>
-        {/if}
       </div>
 
       <p class="text-base-content/70 grow-0 text-xs">

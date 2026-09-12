@@ -1,5 +1,4 @@
 <script lang="ts">
-  import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
@@ -27,15 +26,6 @@
 <PageHead title="New ticket" />
 
 <div class="p-4 lg:p-6">
-  <PageTitle
-    title="New ticket"
-    items={[
-      { label: "Support & Services", path: "/ticketing" },
-      { label: "Ticketing", path: "/ticketing" },
-      { label: "New ticket", active: true },
-    ]}
-  />
-
   {#if form?.message}
     <div role="alert" class="alert alert-error mt-4">
       <span class="iconify lucide--circle-alert size-5"></span>
@@ -49,6 +39,11 @@
     class="card bg-base-100 mt-4 max-w-lg shadow"
   >
     <div class="card-body gap-3 p-4">
+      <!-- The only heading on the page (L64) — matches how the ticket detail
+           page puts its heading inside the card rather than in a page title
+           above it. -->
+      <h1 class="text-lg font-semibold">New ticket</h1>
+
       <fieldset class="fieldset">
         <legend class="fieldset-legend text-xs">Business area</legend>
         <select

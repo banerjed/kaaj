@@ -1,5 +1,4 @@
 <script lang="ts">
-  import PageTitle from "$lib/components/PageTitle.svelte"
   import { instant } from "$lib/format"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import { ticketStatusTone as statusTone } from "$lib/components/status-tone"
@@ -67,13 +66,15 @@
 <PageHead title="Ticketing" />
 
 <div class="p-4 lg:p-6">
-  <PageTitle
-    title="Ticketing"
-    items={[
-      { label: "Support & Services", path: "/ticketing" },
-      { label: "Ticketing", active: true },
-    ]}
-  />
+  <div class="flex items-center justify-between">
+    <!-- The only heading on the page (L64) — the breadcrumb above it was
+         dropped to simplify the page, same as the other ticketing pages. -->
+    <h1 class="text-lg font-semibold">Ticketing</h1>
+    <a href="/ticketing/new" class="btn btn-primary btn-sm gap-1">
+      <span class="iconify lucide--plus size-4"></span>
+      New ticket
+    </a>
+  </div>
 
   <form method="GET" class="mt-4 flex flex-wrap items-end gap-3">
     <fieldset class="fieldset w-48">
@@ -187,10 +188,6 @@
         ? "Showing every ticket"
         : "Showing tickets raised by, assigned to, or subscribed to by you"}
     </p>
-    <a href="/ticketing/new" class="btn btn-outline btn-sm ms-auto">
-      <span class="iconify lucide--plus size-4"></span>
-      New ticket
-    </a>
   </form>
 
   {#if !data.hasFilters}

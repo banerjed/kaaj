@@ -9,11 +9,6 @@ import { FormReader } from "$lib/server/forms"
 
 const PAGE_SIZE = 20
 
-// Below this many tickets, listing everything costs about as much as the
-// count query we already run to decide — so a tenant this small gets a
-// normal list page instead of an empty one asking it to filter first.
-const UNFILTERED_LISTING_THRESHOLD = 500
-
 /** /ticketing — staff view. Top-level filters for every base field; business areas and their category trees for the cascading selects. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -45,10 +40,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const subscriberId = url.searchParams.get("subscriber") || undefined
   const search = url.searchParams.get("q") || undefined
 
-  // Whether the request itself asked for a filter. Below
-  // UNFILTERED_LISTING_THRESHOLD tickets, an unfiltered request still gets a
-  // listing (see below); above it, "show everything" stops being a useful
-  // default and stops being a cheap one too, so it gets nothing instead.
+  // Nothing is queried until at least one filter is set — at tens of
+  // thousands of tickets, "show everything" is not a useful default and not
+  // a cheap one either.
   const hasFilters = Boolean(
     status ||
     businessAreaId ||
@@ -86,35 +80,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       ownedByEmployeeId: readsAll ? undefined : (ctx!.employeeId ?? undefined),
     }
 
-    let tickets: Awaited<ReturnType<typeof ticketing.listTickets>>
-    let total: number
-    let effectiveHasFilters = hasFilters
-
-    if (hasFilters) {
-      ;[tickets, total] = await Promise.all([
-        ticketing.listTickets(tx, {
-          ...filters,
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-        }),
-        ticketing.countTickets(tx, filters),
-      ])
-    } else {
-      const scopeOnly = { ownedByEmployeeId: filters.ownedByEmployeeId }
-      const unfilteredTotal = await ticketing.countTickets(tx, scopeOnly)
-      if (unfilteredTotal <= UNFILTERED_LISTING_THRESHOLD) {
-        tickets = await ticketing.listTickets(tx, {
-          ...scopeOnly,
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-        })
-        total = unfilteredTotal
-        effectiveHasFilters = true
-      } else {
-        tickets = []
-        total = 0
-      }
-    }
+    const [tickets, total] = hasFilters
+      ? await Promise.all([
+          ticketing.listTickets(tx, {
+            ...filters,
+            limit: PAGE_SIZE,
+            offset: (page - 1) * PAGE_SIZE,
+          }),
+          ticketing.countTickets(tx, filters),
+        ])
+      : [[], 0]
 
     return {
       businessAreas,
@@ -124,7 +99,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       total,
       page,
       pageSize: PAGE_SIZE,
-      hasFilters: effectiveHasFilters,
+      hasFilters,
       statuses: TICKET_STATUSES,
       filters: {
         status,
