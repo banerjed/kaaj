@@ -204,6 +204,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-equity",
+        label: "Changes in Equity",
+        url: "/accounting/equity",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-banking",
         label: "Banking",
         url: "/accounting/banking",

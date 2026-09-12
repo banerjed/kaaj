@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.8
+**Version:** 2.9
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -280,7 +280,7 @@ than repeated per story.
 
 ### Financial Reporting
 
-*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, Balance Sheet, and Cash Flow (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
+*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, Balance Sheet, Cash Flow, and Statement of Changes in Equity (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
 
 **US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[PARTIAL]** (2026-09-12)
 *`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
@@ -2142,7 +2142,27 @@ either way.
       two functions duplicate their shared account-balances CTE inline
       instead. 1 new `smoke.spec.ts` row, 1 new nav entry. `./check` and
       the full e2e suite pass. US-ACC-040, FR-ACC-007.
-- [ ] Statement of Changes in Equity. §5.4.
+- [x] Statement of Changes in Equity (2026-09-12). `/accounting/equity` —
+      `acc.equityStatement()`/`acc.equityStatementTotals()` in
+      `accounting.repo.ts`, a period roll-forward per active equity account
+      (beginning balance, direct postings, ending balance), with net income
+      shown as its own line rather than folded into an account's own
+      changes — this codebase has no closing-entry process, so net income
+      never actually reaches an equity account. `ending_equity_including_
+      current_earnings` matches `balanceSheetTotals().total_equity` for the
+      same date exactly, proven in a test. The fixture has essentially
+      nothing to show: Retained Earnings has zero posted activity, so the
+      real proof is a write-path positive control (folded into the existing
+      Retained-Earnings-posting test in `accounting.writes.test.ts`) that
+      posts a real credit and confirms beginning/direct-changes/ending all
+      move correctly — without it every assertion here would be over a
+      permanently-zero subject (CLAUDE.md L50/L51). Unlike every other
+      report in this module, active equity accounts are listed even at
+      zero — the equity section is a small, fixed set of lines, not a
+      large chart to filter down. Tests: 3 new cases in `accounting.test.ts`
+      ("the statement of changes in equity"), including RLS as a refused
+      plain employee. 1 new `smoke.spec.ts` row, 1 new nav entry. `./check`
+      and the full e2e suite pass. §5.4.
 - [ ] Period comparison (MoM/YoY) and department/location filtering on the
       above. US-ACC-041, US-ACC-044.
 
@@ -2273,6 +2293,7 @@ either way.
 | 2.6 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 | 2.7 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 | 2.8 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3. |
+| 2.9 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3. |
 
 ### References
 

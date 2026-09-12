@@ -554,3 +554,66 @@ describe("the cash flow statement", () => {
     expect(ownerRows.length).toBeGreaterThan(0)
   })
 })
+
+describe("the statement of changes in equity", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("lists every active equity account, even with zero activity — the equity section is a fixed set of lines, not a large chart", async () => {
+    // Retained Earnings has never actually been posted to in this fixture
+    // (no closing-entry process exists) — this is the one report in the
+    // module where "shows a real account at zero" is the correct behavior,
+    // not a bug, unlike trial balance/P&L/cash flow's own untouched-account
+    // rows, which are deliberately hidden.
+    const rows = await withTenant(AS_OWNER, (tx) => acc.equityStatement(tx))
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    expect(byCode["3000"]).toMatchObject({
+      account_name: "Retained Earnings",
+      beginning_balance: "0",
+      direct_changes: "0",
+      ending_balance: "0",
+    })
+  })
+
+  it("net income is shown as its own line, never folded into an equity account's direct changes", async () => {
+    const totals = await withTenant(AS_OWNER, (tx) =>
+      acc.equityStatementTotals(tx),
+    )
+    expect(totals.beginning_equity).toBe("0")
+    expect(totals.direct_changes).toBe("0")
+    expect(totals.net_income).toBe("-56920.00")
+    expect(totals.ending_equity).toBe("0")
+    // The figure that actually matches balanceSheetTotals().total_equity
+    // for the same `to` date — proven directly, not just asserted in prose.
+    expect(totals.ending_equity_including_current_earnings).toBe("-56920.00")
+    const bs = await withTenant(AS_OWNER, (tx) => acc.balanceSheetTotals(tx))
+    expect(totals.ending_equity_including_current_earnings).toBe(
+      bs.total_equity,
+    )
+  })
+
+  it("is visible to the finance function only", async () => {
+    // chart_of_accounts itself is RLS-restricted to the finance function
+    // (row-visibility.test.ts), so a refused actor sees no accounts at all
+    // here too — not merely accounts with no activity.
+    const [refusedRows, refusedTotals] = await withTenant(
+      AS_PLAIN_EMPLOYEE,
+      (tx) =>
+        Promise.all([acc.equityStatement(tx), acc.equityStatementTotals(tx)]),
+    )
+    expect(refusedRows).toEqual([])
+    expect(refusedTotals).toEqual({
+      beginning_equity: "0",
+      direct_changes: "0",
+      net_income: "0",
+      ending_equity: "0",
+      ending_equity_including_current_earnings: "0",
+    })
+
+    const ownerRows = await withTenant(AS_OWNER, (tx) =>
+      acc.equityStatement(tx),
+    )
+    expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})

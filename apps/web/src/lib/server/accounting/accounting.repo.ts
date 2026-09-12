@@ -666,6 +666,107 @@ export async function cashFlowTotals(
   return row
 }
 
+export type EquityStatementRow = {
+  account_code: string
+  account_name: string
+  beginning_balance: string
+  /** The account's own posted activity in the period — a direct posting (a capital contribution, a dividend), never net income flowing through it. */
+  direct_changes: string
+  ending_balance: string
+}
+
+/**
+ * Every active equity account's roll-forward for a period: beginning
+ * balance, its own direct postings (never net income — this codebase has
+ * no closing-entry process, so net income never actually reaches an equity
+ * account), and the resulting ending balance. Unlike `cashFlowStatement`'s
+ * adjustment rows, every active equity account is listed even at zero —
+ * the equity section of a real statement is a small, fixed set of lines
+ * (capital, retained earnings, treasury stock), not a large chart an
+ * inactive row should be hidden from.
+ */
+export async function equityStatement(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<EquityStatementRow[]> {
+  const from = filters.from || null
+  const to = filters.to || null
+  return tx<EquityStatementRow[]>`
+    SELECT a.account_code, a.account_name,
+           COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                     FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0)::text
+             AS beginning_balance,
+           (COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                      FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0)
+            - COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                        FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0))::text
+             AS direct_changes,
+           COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                     FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0)::text
+             AS ending_balance
+      FROM chart_of_accounts a
+      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+     WHERE a.account_type = 'equity' AND a.is_active
+     GROUP BY a.id, a.account_code, a.account_name
+     ORDER BY a.account_code
+  `
+}
+
+export type EquityStatementTotals = {
+  beginning_equity: string
+  direct_changes: string
+  net_income: string
+  /** Sum of the equity accounts' own ending balances — never includes net income, since nothing closes it there. */
+  ending_equity: string
+  /** `ending_equity + net_income` — the figure that matches `balanceSheetTotals().total_equity` for the same `to` date. */
+  ending_equity_including_current_earnings: string
+}
+
+/**
+ * Independent SQL aggregation, not a reduction of `equityStatement()`'s
+ * rows. `net_income` is shown as its own line rather than folded into any
+ * account's `direct_changes` — it is real economic equity the company has
+ * earned, but not yet formally closed into Retained Earnings, so crediting
+ * an account with it here would misrepresent what that account's ledger
+ * activity actually was.
+ */
+export async function equityStatementTotals(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<EquityStatementTotals> {
+  const from = filters.from || null
+  const to = filters.to || null
+  const [row] = await tx<EquityStatementTotals[]>`
+    WITH t AS (
+      SELECT
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS beginning_equity,
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS ending_equity,
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND (${from}::date IS NULL OR je2.entry_date >= ${from}::date)
+            AND (${to}::date   IS NULL OR je2.entry_date <= ${to}::date)) AS net_income
+        FROM chart_of_accounts a
+        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE a.account_type = 'equity' AND a.is_active
+    )
+    SELECT beginning_equity::text,
+           (ending_equity - beginning_equity)::text AS direct_changes,
+           net_income::text,
+           ending_equity::text,
+           (ending_equity + net_income)::text AS ending_equity_including_current_earnings
+      FROM t
+  `
+  return row
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null

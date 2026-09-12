@@ -11,6 +11,8 @@ import {
   balanceSheetTotals,
   trialBalanceTotals,
   cashFlowTotals,
+  equityStatement,
+  equityStatementTotals,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -469,7 +471,7 @@ describe("the control-account tie-out reflects a clean write", () => {
 /** Cash at Bank (1000) — a real fixture account, used by its id for the raw INSERT below. */
 const CASH_ACCOUNT = "eef02e95-6acb-5039-8acc-56340013e53a"
 
-describe("the balance sheet, trial balance and cash flow statement's balance checks are real, not vacuous", () => {
+describe("the balance sheet, trial balance, cash flow and equity statement's checks are real, not vacuous", () => {
   afterAll(async () => {
     await closeConnections()
   })
@@ -480,9 +482,19 @@ describe("the balance sheet, trial balance and cash flow statement's balance che
   // would pass identically if the SQL dropped the `equity` term entirely
   // (L50/L51: a green assertion over a zero subject is not evidence). This
   // posts a real equity-side entry through postJournal and proves `equity`
-  // actually moves.
+  // actually moves — and, since the same posting is the only real equity
+  // activity anywhere in this suite, folds in the equivalent proof for
+  // equityStatement()/equityStatementTotals() rather than repeating the
+  // insert in its own describe block.
   it("a posted credit to Retained Earnings shows up in `equity`, and total_equity still adds net_income to it", async () => {
-    const { before, after } = await inRollback(async (tx) => {
+    const {
+      before,
+      after,
+      equityRow,
+      equityTotals,
+      equityRowNextDay,
+      equityTotalsNextDay,
+    } = await inRollback(async (tx) => {
       const before = await balanceSheetTotals(tx)
       await postJournal(
         tx,
@@ -508,7 +520,35 @@ describe("the balance sheet, trial balance and cash flow statement's balance che
         ACTOR,
       )
       const after = await balanceSheetTotals(tx)
-      return { before, after }
+      const [equityRow] = (await equityStatement(tx)).filter(
+        (r) => r.account_code === "3000",
+      )
+      const equityTotals = await equityStatementTotals(tx)
+      // The posting is dated 2026-03-10. Asking for a period starting the
+      // NEXT day is the one case that actually exercises the `from`-set arm
+      // of equityStatement's FILTER — every other assertion here (and every
+      // read-only test in accounting.test.ts) leaves `from` unset, which
+      // always takes the "0" branch of `beginning_balance` regardless of
+      // whether the SQL is even correct (L50: a term never seen non-zero is
+      // not evidence it works).
+      const [equityRowNextDay] = (
+        await equityStatement(tx, { from: "2026-03-11" })
+      ).filter((r) => r.account_code === "3000")
+      // equityStatementTotals() runs its OWN copy of the same FILTER
+      // (L82 forbade sharing a parameterized fragment across functions),
+      // so proving the row-level copy honors `from` says nothing about
+      // this one — it needs its own positive control.
+      const equityTotalsNextDay = await equityStatementTotals(tx, {
+        from: "2026-03-11",
+      })
+      return {
+        before,
+        after,
+        equityRow,
+        equityTotals,
+        equityRowNextDay,
+        equityTotalsNextDay,
+      }
     })
     expect(before.equity).toBe("0")
     expect(after.equity).toBe("500.00")
@@ -517,6 +557,27 @@ describe("the balance sheet, trial balance and cash flow statement's balance che
       2,
     )
     expect(after.balances).toBe(true)
+
+    // Unfiltered (no `from`), so beginning_balance is always "before any
+    // activity" (0) per equityStatement's own NULL-from convention —
+    // direct_changes is what has to move, and by exactly the posting.
+    expect(equityRow.beginning_balance).toBe("0")
+    expect(equityRow.direct_changes).toBe("500.00")
+    expect(equityRow.ending_balance).toBe("500.00")
+    expect(equityTotals.ending_equity).toBe("500.00")
+    expect(equityTotals.ending_equity_including_current_earnings).toBe(
+      after.total_equity,
+    )
+
+    // `from` set to the day after the posting: the posting now falls BEFORE
+    // the period, so it belongs in beginning_balance, not direct_changes.
+    expect(equityRowNextDay.beginning_balance).toBe("500.00")
+    expect(equityRowNextDay.direct_changes).toBe("0.00")
+    expect(equityRowNextDay.ending_balance).toBe("500.00")
+
+    // Same proof, at the totals level — its own copy of the FILTER.
+    expect(equityTotalsNextDay.beginning_equity).toBe("500.00")
+    expect(equityTotalsNextDay.direct_changes).toBe("0.00")
   })
 
   // Every other test observes `balances: true` — including the refused-actor
