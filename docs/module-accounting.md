@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.6
+**Version:** 2.7
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -280,12 +280,13 @@ than repeated per story.
 
 ### Financial Reporting
 
-*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance (2026-09-12) and Profit & Loss (2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
+*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, and Balance Sheet (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
 
 **US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[PARTIAL]** (2026-09-12)
 *`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
 
-**US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[MISSING]**
+**US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[PARTIAL]** (2026-09-12)
+*`/accounting/balance-sheet` generates it live, as of any date, from `journal_entry_lines`. Missing against the fuller wish: no comparison periods, no department filter, no export. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
 
 **US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period. **[MISSING]**
 
@@ -2092,7 +2093,26 @@ either way.
       as a refused plain employee. 1 new `smoke.spec.ts` row, 1 new nav
       entry. `./check` (22 steps) and the full e2e suite (72 tests) pass.
       US-ACC-038, FR-ACC-007.
-- [ ] Balance Sheet. US-ACC-039, FR-ACC-007.
+- [x] Balance Sheet (2026-09-12). `/accounting/balance-sheet` —
+      `acc.balanceSheet()`/`acc.balanceSheetTotals()` in `accounting.repo.ts`,
+      cumulative as of a date like the trial balance, not periodic like the
+      P&L. This codebase has no closing-entry process that rolls
+      revenue/expense into retained earnings, so `equity` alone would
+      understate what a real balance sheet needs — `balanceSheetTotals()`
+      folds the current period's net income back in as its own
+      `total_equity`/`total_liabilities_and_equity` figures, shown as a
+      "Current period earnings (no closing entry has run)" line, which is
+      what actually has to tie to assets. Verified against the real
+      fixture: `39061.53` (assets) = `95981.53` (liabilities) + `0` (equity)
+      + `-56920.00` (net income). Tests: 4 new cases in `accounting.test.ts`
+      ("the balance sheet"), including RLS as a refused plain employee, plus
+      2 write-path positive controls in `accounting.writes.test.ts` proving
+      `equity` actually moves when Retained Earnings is posted to and that
+      `balances` actually goes `false` for a one-sided posted entry — both
+      previously unexercised, since the fixture never does either
+      (CLAUDE.md L48/L50: a green assertion over a zero/never-triggered
+      subject isn't evidence). 1 new `smoke.spec.ts` row, 1 new nav entry.
+      `./check` and the full e2e suite pass. US-ACC-039, FR-ACC-007.
 - [ ] Cash Flow statement. US-ACC-040, FR-ACC-007.
 - [ ] Statement of Changes in Equity. §5.4.
 - [ ] Period comparison (MoM/YoY) and department/location filtering on the
@@ -2223,6 +2243,7 @@ either way.
 | 2.4 | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete. |
 | 2.5 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted. |
 | 2.6 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
+| 2.7 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 
 ### References
 

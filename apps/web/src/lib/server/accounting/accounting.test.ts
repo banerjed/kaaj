@@ -387,3 +387,87 @@ describe("the profit and loss statement", () => {
     expect(ownerRows.length).toBeGreaterThan(0)
   })
 })
+
+describe("the balance sheet", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("lists real asset/liability/equity accounts only, signed positive for their normal balance", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => acc.balanceSheet(tx))
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    expect(byCode["1000"]).toMatchObject({
+      account_type: "asset",
+      amount: "48900.00",
+    })
+    expect(byCode["1100"]).toMatchObject({
+      account_type: "asset",
+      amount: "-10000.00",
+    })
+    expect(byCode["2100"]).toMatchObject({
+      account_type: "liability",
+      amount: "96500.00",
+    })
+    // No revenue/expense account leaks into a balance sheet.
+    for (const r of rows) {
+      expect(["asset", "liability", "equity"]).toContain(r.account_type)
+    }
+    // Retained Earnings (3000) has never been posted to in this fixture —
+    // no closing entry has ever run — so it's absent, not a spurious 0.00.
+    expect(byCode["3000"]).toBeUndefined()
+  })
+
+  it("balances — assets equal liabilities plus equity plus the period's net income", async () => {
+    // This codebase has no closing-entry process rolling P&L into retained
+    // earnings, so `equity` alone is NOT what a balance sheet needs;
+    // balanceSheetTotals() adds net_income back in as its own line, and
+    // that's what actually has to tie to assets — proven against the real
+    // fixture figures, not just the boolean the query itself asserts.
+    const totals = await withTenant(AS_OWNER, (tx) =>
+      acc.balanceSheetTotals(tx),
+    )
+    expect(totals.balances).toBe(true)
+    expect(totals.assets).toBe("39061.53")
+    expect(totals.liabilities).toBe("95981.53")
+    expect(totals.equity).toBe("0")
+    expect(totals.net_income).toBe("-56920.00")
+    expect(totals.total_equity).toBe("-56920.00")
+    expect(totals.total_liabilities_and_equity).toBe("39061.53")
+    expect(
+      Number(totals.liabilities) +
+        Number(totals.equity) +
+        Number(totals.net_income),
+    ).toBeCloseTo(Number(totals.assets), 2)
+  })
+
+  it("as of a prior date reflects only that date's cumulative position, and still balances", async () => {
+    const asOfJan21 = await withTenant(AS_OWNER, (tx) =>
+      acc.balanceSheetTotals(tx, { asOf: "2026-01-21" }),
+    )
+    expect(asOfJan21.balances).toBe(true)
+    expect(asOfJan21.assets).toBe("42300.00")
+    expect(asOfJan21.liabilities).toBe("96500.00")
+    expect(asOfJan21.net_income).toBe("-54200.00")
+    expect(asOfJan21.total_liabilities_and_equity).toBe("42300.00")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const [refusedRows, refusedTotals] = await withTenant(
+      AS_PLAIN_EMPLOYEE,
+      (tx) => Promise.all([acc.balanceSheet(tx), acc.balanceSheetTotals(tx)]),
+    )
+    expect(refusedRows).toEqual([])
+    expect(refusedTotals).toEqual({
+      assets: "0",
+      liabilities: "0",
+      equity: "0",
+      net_income: "0",
+      total_equity: "0",
+      total_liabilities_and_equity: "0",
+      balances: true,
+    })
+
+    const ownerRows = await withTenant(AS_OWNER, (tx) => acc.balanceSheet(tx))
+    expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})

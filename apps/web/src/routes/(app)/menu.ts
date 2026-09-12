@@ -192,6 +192,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-balance-sheet",
+        label: "Balance Sheet",
+        url: "/accounting/balance-sheet",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-banking",
         label: "Banking",
         url: "/accounting/banking",

@@ -8,6 +8,8 @@ import {
   issueInvoice,
   recordPayment,
   controlAccountTieOut,
+  balanceSheetTotals,
+  trialBalanceTotals,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -460,5 +462,103 @@ describe("the control-account tie-out reflects a clean write", () => {
       return { before: beforeRow, after: afterRow }
     })
     expect(after.difference).toBe(before.difference)
+  })
+})
+
+/** Cash at Bank (1000) — a real fixture account, used by its id for the raw INSERT below. */
+const CASH_ACCOUNT = "eef02e95-6acb-5039-8acc-56340013e53a"
+
+describe("the balance sheet and trial balance's equity/balance checks are real, not vacuous", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  // The Northwind fixture never posts to Retained Earnings (accounting.test.ts
+  // asserts byCode["3000"] is undefined), so every existing balanceSheetTotals
+  // assertion has `equity` fixed at 0 — total_equity = equity + net_income
+  // would pass identically if the SQL dropped the `equity` term entirely
+  // (L50/L51: a green assertion over a zero subject is not evidence). This
+  // posts a real equity-side entry through postJournal and proves `equity`
+  // actually moves.
+  it("a posted credit to Retained Earnings shows up in `equity`, and total_equity still adds net_income to it", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const before = await balanceSheetTotals(tx)
+      await postJournal(
+        tx,
+        NORTHWIND,
+        {
+          ...baseEntry,
+          description: "equity-term positive control",
+          lines: [
+            {
+              accountCode: "1000",
+              debit: "500.00",
+              credit: null,
+              description: "",
+            },
+            {
+              accountCode: "3000",
+              debit: null,
+              credit: "500.00",
+              description: "",
+            },
+          ],
+        },
+        ACTOR,
+      )
+      const after = await balanceSheetTotals(tx)
+      return { before, after }
+    })
+    expect(before.equity).toBe("0")
+    expect(after.equity).toBe("500.00")
+    expect(Number(after.total_equity)).toBeCloseTo(
+      Number(after.equity) + Number(after.net_income),
+      2,
+    )
+    expect(after.balances).toBe(true)
+  })
+
+  // Every other test observes `balances: true` — including the refused-actor
+  // case, which is vacuously 0 = 0 + 0 + 0. `unbalanced()`'s own doc comment
+  // says this is "checked at request time, not just by the schema/harness,"
+  // implying no DB-level CHECK stops a one-sided posted entry — so the
+  // `balances: false` branch, and both pages' error-alert markup, have never
+  // actually been observed (CLAUDE.md: "a guard never observed failing is
+  // not evidence"). This inserts one directly, bypassing postJournal (which
+  // would refuse it), the same way the immutability positive control does.
+  //
+  // The same insert also proves trialBalanceTotals().balances (accounting.
+  // test.ts's "the trial balance") is a live check and not just a boolean
+  // that has only ever been asked a question with one answer — it sums the
+  // same journal_entry_lines, so the one-sided row moves both at once.
+  it("a one-sided posted entry — bypassing postJournal's own balance guard — makes `balances` false", async () => {
+    const { balanceSheetBalances, trialBalanceBalances } = await inRollback(
+      async (tx) => {
+        const [entry] = await tx<{ id: string }[]>`
+        INSERT INTO journal_entries (
+          tenant_id, entry_number, entry_date, description, status
+        ) VALUES (
+          ${NORTHWIND}::uuid, 'JE-TEST-ONESIDED', DATE '2026-03-10',
+          'one-sided entry for the balances-false positive control', 'posted'
+        )
+        RETURNING id
+      `
+        await tx`
+        INSERT INTO journal_entry_lines (
+          tenant_id, entry_id, account_id, line_number, currency,
+          debit_amount, base_currency, base_debit_amount
+        ) VALUES (
+          ${NORTHWIND}::uuid, ${entry.id}::uuid, ${CASH_ACCOUNT}::uuid,
+          1, 'USD', 250.00, 'USD', 250.00
+        )
+      `
+        return {
+          balanceSheetBalances: (await balanceSheetTotals(tx)).balances,
+          trialBalanceBalances: (await trialBalanceTotals(tx)).balances,
+        }
+      },
+    )
+    expect(balanceSheetBalances).toBe(false)
+    expect(trialBalanceBalances).toBe(false)
   })
 })

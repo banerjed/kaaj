@@ -410,6 +410,104 @@ export async function profitAndLossTotals(
   return row
 }
 
+export type BalanceSheetRow = {
+  account_code: string
+  account_name: string
+  account_type: "asset" | "liability" | "equity"
+  amount: string
+}
+
+/**
+ * Real, posted asset/liability/equity accounts as of a date — cumulative,
+ * like the trial balance's `asOf`, not periodic like the P&L. `amount` is
+ * signed for each type's normal balance (asset debit-heavy,
+ * liability/equity credit-heavy) so every figure reads positive for the
+ * ordinary case.
+ *
+ * Deliberately excludes the current period's net income — this codebase has
+ * no closing-entry process that rolls revenue/expense into retained
+ * earnings, so `equity` here is understated by exactly `net_income` from
+ * `balanceSheetTotals()` until a close happens. `balanceSheetTotals()`
+ * folds it back in as its own line so the two numbers the sheet must equal
+ * — assets, and liabilities + equity — actually do.
+ */
+export async function balanceSheet(
+  tx: Tx,
+  filters: { asOf?: string } = {},
+): Promise<BalanceSheetRow[]> {
+  const asOf = filters.asOf || null
+  return tx<BalanceSheetRow[]>`
+    SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
+           (CASE WHEN a.account_type = 'asset'
+                 THEN sum(l.base_debit_amount) - sum(l.base_credit_amount)
+                 ELSE sum(l.base_credit_amount) - sum(l.base_debit_amount)
+            END)::text AS amount
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      JOIN chart_of_accounts a ON a.id = l.account_id
+     WHERE a.account_type IN ('asset', 'liability', 'equity')
+       AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+     GROUP BY a.id, a.account_code, a.account_name, a.account_type
+     ORDER BY CASE a.account_type WHEN 'asset' THEN 1 WHEN 'liability' THEN 2 ELSE 3 END,
+              a.account_code
+  `
+}
+
+export type BalanceSheetTotals = {
+  assets: string
+  liabilities: string
+  equity: string
+  net_income: string
+  /** `equity + net_income` — what a page shows as "Total Equity" before a close has run. */
+  total_equity: string
+  /** `liabilities + total_equity` — the figure that actually has to equal `assets`. */
+  total_liabilities_and_equity: string
+  balances: boolean
+}
+
+/**
+ * Independent SQL aggregation, not a reduction of `balanceSheet()`'s rows.
+ * `net_income` is revenue minus expense to date — algebraically just
+ * `sum(base_credit_amount - base_debit_amount)` over both types at once,
+ * since a revenue row's credit-minus-debit is already the figure we want
+ * and an expense row's credit-minus-debit is the negative of the
+ * debit-minus-credit expense figure, which is exactly what subtracting
+ * expenses from revenue needs. `balances` asserts the accounting identity
+ * directly — assets = liabilities + equity + net_income — which is also
+ * the thing the fixture's `journal_entries` CHECK/`unbalanced()` guarantee
+ * holds for every individual entry, so it must hold in aggregate too.
+ */
+export async function balanceSheetTotals(
+  tx: Tx,
+  filters: { asOf?: string } = {},
+): Promise<BalanceSheetTotals> {
+  const asOf = filters.asOf || null
+  const [row] = await tx<BalanceSheetTotals[]>`
+    WITH t AS (
+      SELECT
+        COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                           THEN l.base_debit_amount - l.base_credit_amount END), 0) AS assets,
+        COALESCE(sum(CASE WHEN a.account_type = 'liability'
+                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS liabilities,
+        COALESCE(sum(CASE WHEN a.account_type = 'equity'
+                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS equity,
+        COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
+                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS net_income
+        FROM journal_entry_lines l
+        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        JOIN chart_of_accounts a ON a.id = l.account_id
+       WHERE a.account_type IN ('asset', 'liability', 'equity', 'revenue', 'expense')
+         AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+    )
+    SELECT assets::text, liabilities::text, equity::text, net_income::text,
+           (equity + net_income)::text             AS total_equity,
+           (liabilities + equity + net_income)::text AS total_liabilities_and_equity,
+           assets = liabilities + equity + net_income AS balances
+      FROM t
+  `
+  return row
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null

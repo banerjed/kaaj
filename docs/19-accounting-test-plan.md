@@ -66,6 +66,8 @@ call-outs.
 ### 1.1 Double-entry enforcement
 - Every journal entry's debits equal credits (sum = 0), at insert time, not just at report time. **[DONE]** (2026-09-12)
   *`postJournal` asserts this against the rows actually written and throws `AccountingRefused("does_not_balance", ...)` if not (`accounting.repo.ts`). Read-side balance is tested in `accounting.test.ts:19` ("every entry balances — debits equal credits") and re-asserted after every write in `receivables.writes.test.ts:89-125,319-340` and `payables.writes.test.ts:92-121,207-227` ("...and leaves the ledger balanced"). Per L48 ("a guard never observed failing is not evidence"), `accounting.writes.test.ts` now feeds `postJournal` a deliberately unbalanced set of lines directly ("refuses an entry whose debits do not equal its credits", 100.00 against 90.00) and watches `does_not_balance` actually fire.*
+
+  ***The enforcement boundary is `postJournal`, not the database.*** *There is no CHECK/trigger on `journal_entry_lines`/`journal_entries` requiring an entry's debits to equal its credits — confirmed empirically, not just inferred: `accounting.writes.test.ts` ("a one-sided posted entry — bypassing postJournal's own balance guard — makes `balances` false") inserts a single-line `status='posted'` entry directly via SQL, and it succeeds. `unbalanced()`/`trialBalanceTotals().balances`/`balanceSheetTotals().balances` all then correctly report the drift on read — but nothing stops a second write path that skips `postJournal` (a future manual-JE import, a data-fix script run by hand) from creating one silently. "Every journal entry's debits equal credits" is true of every entry this application's own code has ever posted, not a database-enforced invariant.*
 - A journal entry cannot be posted with zero lines, one line, or all-debit/all-credit lines. **[DONE]** (2026-09-12)
   *`postJournal` now refuses `live.length < 2` (real, non-zero-amount lines) up front with `AccountingRefused("no_lines", ...)`, before any row is inserted — previously it had no such guard and would have inserted a zero-line header that "balances" trivially (0 = 0). Both current callers (`issueInvoice`/`approveBill`) already refuse a zero-line invoice/bill first, so this was unreachable through them, but the guard now lives in `postJournal` itself so a future caller can't skip it. All-debit/all-credit is caught structurally by the existing balance check rather than a separate guard. `accounting.writes.test.ts` ("posting a journal entry directly") tests all four shapes directly: zero lines, one line, two lines that both net to zero after filtering, and two same-side lines — plus a genuinely balanced two-line entry to prove the guard doesn't also reject valid postings.*
 - A journal entry cannot mix currencies within itself without an explicit FX line that balances. **[MISSING]**
@@ -244,19 +246,19 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 
 ---
 
-## 5. Financial Statement Reports — Trial balance and P&L **[PARTIAL]**; Balance Sheet, Cash Flow, and Statement of Changes in Equity **[MISSING]**
+## 5. Financial Statement Reports — Trial balance, P&L and Balance Sheet **[PARTIAL]**; Cash Flow and Statement of Changes in Equity **[MISSING]**
 - Profit & Loss (Income Statement). **[PARTIAL]** (2026-09-12)
   *`/accounting/profit-loss` — `acc.profitAndLoss()` lists revenue/expense accounts with posted activity in a `from`/`to` period (both optional; blank means all-time), and `acc.profitAndLossTotals()` is an independent SQL aggregation, not a JS reduction of the first's rows — summing `debits`/`credits` as strings in JS would be silent concatenation (CLAUDE.md's money rule). Tested in `accounting.test.ts` ("the profit and loss statement", 5 cases) including RLS as a refused plain employee. What's missing against FR-ACC-007's fuller spec: no COGS subtotal/gross margin (the fixture's chart of accounts has no COGS vs. operating-expense distinction to group by), no comparison periods (MoM/YoY), no department/location segmentation, no drill-down to transaction detail, no export, and no cash-vs-accrual toggle.*
-- Balance Sheet, Cash Flow Statement, Statement of Changes in Equity. **[MISSING]**
-  *No route, no repo function, no test for any of the three.
-  `rg -il 'balance.?sheet|cash.?flow.?statement'` across `apps/web/src` and
-  `packages` returns only one incidental HR comment ("Leave balances are a
-  balance-sheet liability...") in `packages/database/reference/schema.sql` —
-  confirmed by reading that line directly; it is not a report. This is a
-  **base-spec gap, not a roadmap wish**: `module-accounting.md`'s FR-ACC-007
-  (Financial Reporting: P&L, Balance Sheet, Cash Flow, Trial Balance, AR/AP
-  Aging) is part of the original functional spec, not
-  `accounting-gap-analysis.md`'s aspirational feature list.*
+- Balance Sheet. **[PARTIAL]** (2026-09-12)
+  *`/accounting/balance-sheet` — `acc.balanceSheet()` lists real, posted asset/liability/equity accounts as of a date (cumulative, like the trial balance's `asOf`), and `acc.balanceSheetTotals()` is an independent SQL aggregation asserting the accounting identity directly: assets = liabilities + equity + net income. This codebase has no closing-entry process rolling revenue/expense into retained earnings, so `equity` alone understates what a real balance sheet needs — `balanceSheetTotals()` folds the current period's net income back in as `total_equity`/`total_liabilities_and_equity`, shown as its own "Current period earnings (no closing entry has run)" line, which is what actually ties to assets. Verified against the real fixture: assets `39061.53` = liabilities `95981.53` + equity `0` + net income `-56920.00`. Tested in `accounting.test.ts` ("the balance sheet", 4 cases) including RLS as a refused plain employee, plus 2 write-path positive controls in `accounting.writes.test.ts` ("the balance sheet's equity term and balance check are real, not vacuous") proving `equity` actually moves when Retained Earnings is posted to, and that `balances` actually goes `false` for a one-sided posted entry — both guards were previously unexercised (every fixture equity account has zero activity, and the fixture never contains an unbalanced posted entry), so a green assertion alone wasn't evidence either worked (CLAUDE.md L48/L50). Missing against FR-ACC-007's fuller spec: no comparison periods, no department/location segmentation, no drill-down, no export.*
+- Cash Flow Statement, Statement of Changes in Equity. **[MISSING]**
+  *No route, no repo function, no test for either.
+  `rg -il 'cash.?flow.?statement'` across `apps/web/src` and `packages`
+  returns nothing. This is a **base-spec gap, not a roadmap wish**:
+  `module-accounting.md`'s FR-ACC-007 (Financial Reporting: P&L, Balance
+  Sheet, Cash Flow, Trial Balance, AR/AP Aging) is part of the original
+  functional spec, not `accounting-gap-analysis.md`'s aspirational feature
+  list.*
 
 ---
 
