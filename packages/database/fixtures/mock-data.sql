@@ -709,6 +709,7 @@ WHERE invoice_number IN ('INV-2026-001','INV-2026-002','INV-2026-004','INV-2026-
 
 -- Journal entries
 INSERT INTO journal_entries (id, tenant_id, entry_number, entry_date, description, source_type, status, accounting_period, fiscal_year, posted_at) VALUES
+    ('e9e00001-0000-5000-9000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0000', '2026-01-01', 'Opening balance: FY2025 retained earnings carried forward', 'opening_balance', 'posted', '2026-01', 2026, '2026-01-01T00:00:00Z'),
     ('c1c96d31-cfa4-57d3-9048-06e3ae1725e6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0001', '2026-01-21', 'Invoice INV-2026-001 raised', 'invoice', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
     ('7d5527ea-8449-5a3c-8819-e93caf4073b5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0002', '2026-01-21', 'Payment received - Acme', 'payment', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
     ('9a2fac71-4b74-5342-8c43-46fb77267929', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'JE-2026-0003', '2026-01-21', 'January payroll accrual', 'payroll', 'posted', '2026-01', 2026, '2026-01-01T09:00:00Z'),
@@ -720,6 +721,8 @@ INSERT INTO journal_entries (id, tenant_id, entry_number, entry_date, descriptio
 
 -- Balanced double-entry lines (each entry nets to zero)
 INSERT INTO journal_entry_lines (tenant_id, id, entry_id, account_id, line_number, currency, debit_amount, credit_amount, exchange_rate, base_currency, base_debit_amount, base_credit_amount, description) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e9e00001-0000-5000-9000-000000000002', 'e9e00001-0000-5000-9000-000000000001', 'eef02e95-6acb-5039-8acc-56340013e53a', 1, 'USD', 20000, 0, 1.0, 'USD', 20000, 0, 'Opening cash balance'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e9e00001-0000-5000-9000-000000000003', 'e9e00001-0000-5000-9000-000000000001', 'f272fefe-ad92-5d94-bf3f-b834568c0586', 2, 'USD', 0, 20000, 1.0, 'USD', 0, 20000, 'FY2025 earnings carried forward'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '34dd6b71-7040-5aa7-98c2-2fb1a0a06e48', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 1, 'USD', 42300, 0, 1.0, 'USD', 42300, 0, 'AR - Acme'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac4e339f-1054-56ed-8137-9079dd19062c', 'c1c96d31-cfa4-57d3-9048-06e3ae1725e6', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 2, 'USD', 0, 42300, 1.0, 'USD', 0, 42300, 'Consulting revenue'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '3e74ed8d-79d4-5a21-b1a1-7c0fda6f5a1b', '7d5527ea-8449-5a3c-8819-e93caf4073b5', 'eef02e95-6acb-5039-8acc-56340013e53a', 1, 'USD', 42300, 0, 1.0, 'USD', 42300, 0, 'Cash received'),

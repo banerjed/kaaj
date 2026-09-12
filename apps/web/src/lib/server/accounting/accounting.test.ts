@@ -196,9 +196,10 @@ describe("the trial balance", () => {
   })
 
   it("run as of a prior date reflects only that date's cumulative activity, not later periods'", async () => {
-    // JE-2026-0001/0002/0003 are dated 2026-01-21; everything else in the
-    // fixture is dated later (0005 on the 25th, 0004/0006/0007/0008 in
-    // February) — an as-of filter that actually works excludes all of it.
+    // JE-2026-0000 is dated 2026-01-01, JE-2026-0001/0002/0003 are dated
+    // 2026-01-21, and everything else in the fixture is dated later (0005 on
+    // the 25th, 0004/0006/0007/0008 in February) — an as-of filter that
+    // actually works excludes all of the later ones.
     const [asOfJan21, beforeAnyPosting, unfiltered] = await withTenant(
       AS_OWNER,
       async (tx) => [
@@ -207,8 +208,8 @@ describe("the trial balance", () => {
         await acc.trialBalanceTotals(tx),
       ],
     )
-    expect(asOfJan21.debits).toBe("181100.00")
-    expect(asOfJan21.credits).toBe("181100.00")
+    expect(asOfJan21.debits).toBe("201100.00")
+    expect(asOfJan21.credits).toBe("201100.00")
     expect(Number(asOfJan21.debits)).toBeLessThan(Number(unfiltered.debits))
     expect(beforeAnyPosting.debits).toBe("0")
     expect(beforeAnyPosting.balances).toBe(true)
@@ -398,7 +399,7 @@ describe("the balance sheet", () => {
     const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
     expect(byCode["1000"]).toMatchObject({
       account_type: "asset",
-      amount: "48900.00",
+      amount: "68900.00",
     })
     expect(byCode["1100"]).toMatchObject({
       account_type: "asset",
@@ -412,9 +413,10 @@ describe("the balance sheet", () => {
     for (const r of rows) {
       expect(["asset", "liability", "equity"]).toContain(r.account_type)
     }
-    // Retained Earnings (3000) has never been posted to in this fixture —
-    // no closing entry has ever run — so it's absent, not a spurious 0.00.
-    expect(byCode["3000"]).toBeUndefined()
+    expect(byCode["3000"]).toMatchObject({
+      account_type: "equity",
+      amount: "20000.00",
+    })
   })
 
   it("balances — assets equal liabilities plus equity plus the period's net income", async () => {
@@ -427,12 +429,12 @@ describe("the balance sheet", () => {
       acc.balanceSheetTotals(tx),
     )
     expect(totals.balances).toBe(true)
-    expect(totals.assets).toBe("39061.53")
+    expect(totals.assets).toBe("59061.53")
     expect(totals.liabilities).toBe("95981.53")
-    expect(totals.equity).toBe("0")
+    expect(totals.equity).toBe("20000.00")
     expect(totals.net_income).toBe("-56920.00")
-    expect(totals.total_equity).toBe("-56920.00")
-    expect(totals.total_liabilities_and_equity).toBe("39061.53")
+    expect(totals.total_equity).toBe("-36920.00")
+    expect(totals.total_liabilities_and_equity).toBe("59061.53")
     expect(
       Number(totals.liabilities) +
         Number(totals.equity) +
@@ -445,10 +447,10 @@ describe("the balance sheet", () => {
       acc.balanceSheetTotals(tx, { asOf: "2026-01-21" }),
     )
     expect(asOfJan21.balances).toBe(true)
-    expect(asOfJan21.assets).toBe("42300.00")
+    expect(asOfJan21.assets).toBe("62300.00")
     expect(asOfJan21.liabilities).toBe("96500.00")
     expect(asOfJan21.net_income).toBe("-54200.00")
-    expect(asOfJan21.total_liabilities_and_equity).toBe("42300.00")
+    expect(asOfJan21.total_liabilities_and_equity).toBe("62300.00")
   })
 
   it("is visible to the finance function only", async () => {
@@ -481,12 +483,15 @@ describe("the cash flow statement", () => {
     const totals = await withTenant(AS_OWNER, (tx) => acc.cashFlowTotals(tx))
     expect(totals.reconciles).toBe(true)
     expect(totals.beginning_cash).toBe("0")
-    expect(totals.ending_cash).toBe("48900.00")
+    expect(totals.ending_cash).toBe("68900.00")
     expect(totals.net_income).toBe("-56920.00")
     expect(totals.working_capital_change).toBe("105820.00")
     expect(totals.operating_cash_flow).toBe("48900.00")
     expect(totals.investing_cash_flow).toBe("0")
-    expect(totals.financing_cash_flow).toBe("0")
+    // The opening-balance entry crediting Retained Earnings (accounting.test.ts
+    // "the statement of changes in equity") is the fixture's only equity-side
+    // posting, so it's also the first time this term has ever been non-zero.
+    expect(totals.financing_cash_flow).toBe("20000.00")
     expect(totals.computed_ending_cash).toBe(totals.ending_cash)
   })
 
@@ -499,12 +504,12 @@ describe("the cash flow statement", () => {
       acc.cashFlowTotals(tx, { from: "2026-02-01" }),
     )
     expect(feb.reconciles).toBe(true)
-    expect(feb.beginning_cash).toBe("42300.00")
-    expect(feb.ending_cash).toBe("48900.00")
+    expect(feb.beginning_cash).toBe("62300.00")
+    expect(feb.ending_cash).toBe("68900.00")
     expect(feb.net_income).toBe("-900.00")
     expect(feb.working_capital_change).toBe("7500.00")
     expect(feb.operating_cash_flow).toBe("6600.00")
-    expect(feb.computed_ending_cash).toBe("48900.00")
+    expect(feb.computed_ending_cash).toBe("68900.00")
   })
 
   it("lists the working-capital accounts driving the period's operating adjustment, signed as cash impact", async () => {
@@ -527,6 +532,19 @@ describe("the cash flow statement", () => {
     // Cash itself, and any account with no change in the period, are absent.
     expect(byCode["1000"]).toBeUndefined()
     expect(byCode["1200"]).toBeUndefined()
+  })
+
+  it("lists an equity-account posting as a financing-activity row, not folded into operating", async () => {
+    // Unfiltered, so the fixture's opening-balance entry crediting Retained
+    // Earnings (see "the statement of changes in equity") is in scope — the
+    // Feb-only period above excludes it, so this is the only case that
+    // exercises the Financing Activities section with a real row at all.
+    const rows = await withTenant(AS_OWNER, (tx) => acc.cashFlowStatement(tx))
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    expect(byCode["3000"]).toMatchObject({
+      account_type: "equity",
+      amount: "20000.00",
+    })
   })
 
   it("is visible to the finance function only", async () => {
@@ -561,18 +579,30 @@ describe("the statement of changes in equity", () => {
   })
 
   it("lists every active equity account, even with zero activity — the equity section is a fixed set of lines, not a large chart", async () => {
-    // Retained Earnings has never actually been posted to in this fixture
-    // (no closing-entry process exists) — this is the one report in the
-    // module where "shows a real account at zero" is the correct behavior,
-    // not a bug, unlike trial balance/P&L/cash flow's own untouched-account
-    // rows, which are deliberately hidden.
+    // As of a date before the fixture's earliest posting, Retained Earnings
+    // has no activity at all — and it still appears, at all zeros, because
+    // every active equity account is listed by construction (a LEFT JOIN
+    // against postings), not because this account happens to have data.
+    const beforeAnyActivity = await withTenant(AS_OWNER, (tx) =>
+      acc.equityStatement(tx, { to: "2025-12-31" }),
+    )
+    const byCodeBefore = Object.fromEntries(
+      beforeAnyActivity.map((r) => [r.account_code, r]),
+    )
+    expect(byCodeBefore["3000"]).toMatchObject({
+      account_name: "Retained Earnings",
+      beginning_balance: "0",
+      direct_changes: "0",
+      ending_balance: "0",
+    })
+
     const rows = await withTenant(AS_OWNER, (tx) => acc.equityStatement(tx))
     const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
     expect(byCode["3000"]).toMatchObject({
       account_name: "Retained Earnings",
       beginning_balance: "0",
-      direct_changes: "0",
-      ending_balance: "0",
+      direct_changes: "20000.00",
+      ending_balance: "20000.00",
     })
   })
 
@@ -581,12 +611,12 @@ describe("the statement of changes in equity", () => {
       acc.equityStatementTotals(tx),
     )
     expect(totals.beginning_equity).toBe("0")
-    expect(totals.direct_changes).toBe("0")
+    expect(totals.direct_changes).toBe("20000.00")
     expect(totals.net_income).toBe("-56920.00")
-    expect(totals.ending_equity).toBe("0")
+    expect(totals.ending_equity).toBe("20000.00")
     // The figure that actually matches balanceSheetTotals().total_equity
     // for the same `to` date — proven directly, not just asserted in prose.
-    expect(totals.ending_equity_including_current_earnings).toBe("-56920.00")
+    expect(totals.ending_equity_including_current_earnings).toBe("-36920.00")
     const bs = await withTenant(AS_OWNER, (tx) => acc.balanceSheetTotals(tx))
     expect(totals.ending_equity_including_current_earnings).toBe(
       bs.total_equity,

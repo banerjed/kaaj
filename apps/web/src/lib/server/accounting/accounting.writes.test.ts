@@ -476,22 +476,19 @@ describe("the balance sheet, trial balance, cash flow and equity statement's che
     await closeConnections()
   })
 
-  // The Northwind fixture never posts to Retained Earnings (accounting.test.ts
-  // asserts byCode["3000"] is undefined), so every existing balanceSheetTotals
-  // assertion has `equity` fixed at 0 — total_equity = equity + net_income
-  // would pass identically if the SQL dropped the `equity` term entirely
-  // (L50/L51: a green assertion over a zero subject is not evidence). This
-  // posts a real equity-side entry through postJournal and proves `equity`
-  // actually moves — and, since the same posting is the only real equity
-  // activity anywhere in this suite, folds in the equivalent proof for
-  // equityStatement()/equityStatementTotals() rather than repeating the
-  // insert in its own describe block.
+  // The fixture's only other equity activity is the opening-balance entry
+  // dated 2026-01-01 (accounting.test.ts, "the statement of changes in
+  // equity"), well before this posting — so every figure here is queried
+  // with `from` set to the posting's own date, isolating exactly what this
+  // test added rather than depending on the fixture carrying zero equity
+  // activity of its own.
   it("a posted credit to Retained Earnings shows up in `equity`, and total_equity still adds net_income to it", async () => {
     const {
       before,
       after,
       equityRow,
       equityTotals,
+      equityTotalsUnfiltered,
       equityRowNextDay,
       equityTotalsNextDay,
     } = await inRollback(async (tx) => {
@@ -520,17 +517,23 @@ describe("the balance sheet, trial balance, cash flow and equity statement's che
         ACTOR,
       )
       const after = await balanceSheetTotals(tx)
-      const [equityRow] = (await equityStatement(tx)).filter(
-        (r) => r.account_code === "3000",
-      )
-      const equityTotals = await equityStatementTotals(tx)
-      // The posting is dated 2026-03-10. Asking for a period starting the
-      // NEXT day is the one case that actually exercises the `from`-set arm
-      // of equityStatement's FILTER — every other assertion here (and every
-      // read-only test in accounting.test.ts) leaves `from` unset, which
-      // always takes the "0" branch of `beginning_balance` regardless of
-      // whether the SQL is even correct (L50: a term never seen non-zero is
-      // not evidence it works).
+      const [equityRow] = (
+        await equityStatement(tx, { from: baseEntry.date })
+      ).filter((r) => r.account_code === "3000")
+      const equityTotals = await equityStatementTotals(tx, {
+        from: baseEntry.date,
+      })
+      // Unfiltered, to cross-check against balanceSheetTotals().total_equity
+      // for the same (unbounded) as-of point — the `from`-filtered totals
+      // above answer a different question ("what did this test add") and
+      // aren't comparable to `after`, which is itself unfiltered.
+      const equityTotalsUnfiltered = await equityStatementTotals(tx)
+      // Asking for a period starting the NEXT day is the one case that
+      // actually exercises the "the posting falls before `from`" arm of the
+      // FILTER — every other assertion here leaves the posting itself on or
+      // after `from`, which never proves the `<` boundary is right rather
+      // than always-true (L50: a comparison never seen both ways is not
+      // evidence it's the right one).
       const [equityRowNextDay] = (
         await equityStatement(tx, { from: "2026-03-11" })
       ).filter((r) => r.account_code === "3000")
@@ -546,37 +549,41 @@ describe("the balance sheet, trial balance, cash flow and equity statement's che
         after,
         equityRow,
         equityTotals,
+        equityTotalsUnfiltered,
         equityRowNextDay,
         equityTotalsNextDay,
       }
     })
-    expect(before.equity).toBe("0")
-    expect(after.equity).toBe("500.00")
+    expect(before.equity).toBe("20000.00")
+    expect(after.equity).toBe("20500.00")
     expect(Number(after.total_equity)).toBeCloseTo(
       Number(after.equity) + Number(after.net_income),
       2,
     )
     expect(after.balances).toBe(true)
 
-    // Unfiltered (no `from`), so beginning_balance is always "before any
-    // activity" (0) per equityStatement's own NULL-from convention —
-    // direct_changes is what has to move, and by exactly the posting.
-    expect(equityRow.beginning_balance).toBe("0")
+    // `from` set to the posting's own date excludes it from
+    // beginning_balance (the FILTER is strictly `<`), so direct_changes is
+    // exactly the $500 this test posted, regardless of the fixture's other
+    // equity activity.
+    expect(equityRow.beginning_balance).toBe("20000.00")
     expect(equityRow.direct_changes).toBe("500.00")
-    expect(equityRow.ending_balance).toBe("500.00")
-    expect(equityTotals.ending_equity).toBe("500.00")
-    expect(equityTotals.ending_equity_including_current_earnings).toBe(
-      after.total_equity,
-    )
+    expect(equityRow.ending_balance).toBe("20500.00")
+    expect(equityTotals.beginning_equity).toBe("20000.00")
+    expect(equityTotals.direct_changes).toBe("500.00")
+    expect(equityTotals.ending_equity).toBe("20500.00")
+    expect(
+      equityTotalsUnfiltered.ending_equity_including_current_earnings,
+    ).toBe(after.total_equity)
 
     // `from` set to the day after the posting: the posting now falls BEFORE
     // the period, so it belongs in beginning_balance, not direct_changes.
-    expect(equityRowNextDay.beginning_balance).toBe("500.00")
+    expect(equityRowNextDay.beginning_balance).toBe("20500.00")
     expect(equityRowNextDay.direct_changes).toBe("0.00")
-    expect(equityRowNextDay.ending_balance).toBe("500.00")
+    expect(equityRowNextDay.ending_balance).toBe("20500.00")
 
     // Same proof, at the totals level — its own copy of the FILTER.
-    expect(equityTotalsNextDay.beginning_equity).toBe("500.00")
+    expect(equityTotalsNextDay.beginning_equity).toBe("20500.00")
     expect(equityTotalsNextDay.direct_changes).toBe("0.00")
   })
 

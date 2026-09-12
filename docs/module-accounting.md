@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.9
+**Version:** 2.10
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2104,16 +2104,18 @@ either way.
       `total_equity`/`total_liabilities_and_equity` figures, shown as a
       "Current period earnings (no closing entry has run)" line, which is
       what actually has to tie to assets. Verified against the real
-      fixture: `39061.53` (assets) = `95981.53` (liabilities) + `0` (equity)
-      + `-56920.00` (net income). Tests: 4 new cases in `accounting.test.ts`
-      ("the balance sheet"), including RLS as a refused plain employee, plus
-      2 write-path positive controls in `accounting.writes.test.ts` proving
-      `equity` actually moves when Retained Earnings is posted to and that
-      `balances` actually goes `false` for a one-sided posted entry — both
-      previously unexercised, since the fixture never does either
-      (CLAUDE.md L48/L50: a green assertion over a zero/never-triggered
-      subject isn't evidence). 1 new `smoke.spec.ts` row, 1 new nav entry.
-      `./check` and the full e2e suite pass. US-ACC-039, FR-ACC-007.
+      fixture: `59061.53` (assets) = `95981.53` (liabilities) + `20000.00`
+      (equity) + `-56920.00` (net income) — `equity` moved off `0` on
+      2026-09-12 when the fixture gained a real opening-balance entry (see
+      the Statement of Changes in Equity item below). Tests: 4 new cases in
+      `accounting.test.ts` ("the balance sheet"), including RLS as a refused
+      plain employee, plus 2 write-path positive controls in
+      `accounting.writes.test.ts` proving `equity` moves further when a
+      second credit is posted and that `balances` actually goes `false` for
+      a one-sided posted entry (CLAUDE.md L48/L50: a green assertion over a
+      zero/never-triggered subject isn't evidence). 1 new `smoke.spec.ts`
+      row, 1 new nav entry. `./check` and the full e2e suite pass.
+      US-ACC-039, FR-ACC-007.
 - [x] Cash Flow statement (2026-09-12). `/accounting/cash-flow` —
       `acc.cashFlowStatement()`/`acc.cashFlowTotals()` in
       `accounting.repo.ts`, the indirect method: net income for the period
@@ -2122,12 +2124,15 @@ either way.
       `chart_of_accounts.is_bank_account`), reconciled against the real
       Cash-account balance change. `reconciles` is algebraically forced by
       the same double-entry identity `balanceSheetTotals` asserts — proven
-      against the real fixture (`48900.00` beginning-plus-change equals the
+      against the real fixture (`68900.00` beginning-plus-change equals the
       real Cash balance, both unfiltered and for the Feb-only period).
-      Investing and Financing sections exist structurally but are always
-      `0`/near-empty: no fixed-asset, investment, or loan account category
-      exists in this chart of accounts to populate them — a real, stated
-      schema gap. Tests: 4 new cases in `accounting.test.ts` ("the cash
+      Investing is always `0`: no fixed-asset or investment account category
+      exists in this chart of accounts to populate it — a real, stated
+      schema gap. Financing is no longer always empty: the fixture's
+      opening-balance entry crediting Retained Earnings (2026-09-12; see the
+      Statement of Changes in Equity item below) is a real financing-side
+      posting, so `financing_cash_flow` is a genuine `20000.00` and the
+      Financing Activities section renders a real row. Tests: 4 new cases in `accounting.test.ts` ("the cash
       flow statement"), including RLS as a refused plain employee, plus 1
       write-path positive control in `accounting.writes.test.ts` (folded
       into the existing one-sided-entry insert) proving `reconciles`
@@ -2150,19 +2155,26 @@ either way.
       changes — this codebase has no closing-entry process, so net income
       never actually reaches an equity account. `ending_equity_including_
       current_earnings` matches `balanceSheetTotals().total_equity` for the
-      same date exactly, proven in a test. The fixture has essentially
-      nothing to show: Retained Earnings has zero posted activity, so the
-      real proof is a write-path positive control (folded into the existing
-      Retained-Earnings-posting test in `accounting.writes.test.ts`) that
-      posts a real credit and confirms beginning/direct-changes/ending all
-      move correctly — without it every assertion here would be over a
-      permanently-zero subject (CLAUDE.md L50/L51). Unlike every other
-      report in this module, active equity accounts are listed even at
-      zero — the equity section is a small, fixed set of lines, not a
-      large chart to filter down. Tests: 3 new cases in `accounting.test.ts`
-      ("the statement of changes in equity"), including RLS as a refused
-      plain employee. 1 new `smoke.spec.ts` row, 1 new nav entry. `./check`
-      and the full e2e suite pass. §5.4.
+      same date exactly, proven in a test. The fixture originally had
+      nothing to show (Retained Earnings had zero posted activity), so as a
+      2026-09-12 follow-up it gained a real opening-balance entry
+      (`JE-2026-0000`, dated 2026-01-01: Debit Cash `20000.00` / Credit
+      Retained Earnings `20000.00`, modeling FY2025 earnings carried into
+      the new year) rather than leaving the report permanently over a zero
+      subject (CLAUDE.md L50/L51) — unfiltered, `equityStatementTotals()`
+      now shows `direct_changes` `20000.00` and `ending_equity` `20000.00`
+      against real fixture data. A write-path positive control in
+      `accounting.writes.test.ts` posts a second, incremental credit and
+      uses `from` set to that posting's own date to isolate it from the
+      fixture's opening balance, proving beginning/direct-changes/ending all
+      move by exactly that increment. Unlike every other report in this
+      module, active equity accounts are listed even at zero — proven with
+      a real period query dated before any posting exists — the equity
+      section is a small, fixed set of lines, not a large chart to filter
+      down. Tests: 3 new cases in `accounting.test.ts` ("the statement of
+      changes in equity"), including RLS as a refused plain employee. 1 new
+      `smoke.spec.ts` row, 1 new nav entry. `./check` and the full e2e suite
+      pass. §5.4.
 - [ ] Period comparison (MoM/YoY) and department/location filtering on the
       above. US-ACC-041, US-ACC-044.
 
@@ -2294,6 +2306,7 @@ either way.
 | 2.7 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
 | 2.8 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3. |
 | 2.9 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3. |
+| 2.10 | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is. |
 
 ### References
 
