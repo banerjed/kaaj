@@ -1864,6 +1864,25 @@ tasks	49	updated_at	timestamp with time zone	t	now()
 tasks	50	completed_at	timestamp with time zone	f	
 tasks	51	created_by	text	t	
 tasks	52	updated_by	text	f	
+tax_rates	1	id	uuid	t	gen_random_uuid()
+tax_rates	2	tenant_id	uuid	t	
+tax_rates	3	code	character varying(50)	t	
+tax_rates	4	tax_name	character varying(255)	t	
+tax_rates	5	tax_type	tax_type	t	
+tax_rates	6	rate	numeric(8,5)	t	
+tax_rates	7	country	character varying(2)	t	
+tax_rates	8	region	character varying(100)	f	
+tax_rates	9	jurisdiction	character varying(255)	f	
+tax_rates	10	is_reverse_charge	boolean	t	false
+tax_rates	11	tax_collected_account_id	uuid	f	
+tax_rates	12	tax_paid_account_id	uuid	f	
+tax_rates	13	is_active	boolean	t	true
+tax_rates	14	effective_from	date	t	
+tax_rates	15	effective_to	date	f	
+tax_rates	16	created_at	timestamp with time zone	t	CURRENT_TIMESTAMP
+tax_rates	17	updated_at	timestamp with time zone	t	CURRENT_TIMESTAMP
+tax_rates	18	created_by	uuid	f	
+tax_rates	19	updated_by	uuid	f	
 tenant_registry	1	tenant_id	uuid	t	
 tenant_registry	2	subdomain	text	t	
 tenant_registry	3	tier	text	t	'shared'::text

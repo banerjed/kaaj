@@ -140,6 +140,7 @@ const NOT_SCALE_SENSITIVE = new Map([
   ["pm_objectives", "bounded by teams/cycles; small relative to tasks"],
   ["pm_project_templates", "small, admin-authored config"],
   ["projects", "bounded by how many projects exist, not by activity within them"],
+  ["tax_rates", "small, admin-authored config"],
   ["tenant_registry", "one row per tenant, in the control plane"],
   ["tenant_settings", "one row per tenant setting; small, admin-authored"],
   ["tenant_users", "bounded by headcount"],

@@ -34,6 +34,25 @@ const EXPECTED_SPARSE = new Map([
     "the CMSaasStarter profile table is not part of the product's data model",
   ],
   [
+    "payroll_tax_rates.region",
+    "the fixture's only payroll_tax_rates row is a federal bracket; region " +
+      "only applies to state-level payroll tax, none of which exists here",
+  ],
+  [
+    "tax_rates.effective_to",
+    "none of the fixture's tax rates have been superseded — a real rate " +
+      "change would set this on the row it replaces",
+  ],
+  [
+    "journal_entry_lines.tax_rate_id",
+    "postJournal never writes it — tax is a manually-typed amount on " +
+      "invoice_lines/bill_lines (createInvoice/createBill), not carried " +
+      "onto a journal_entry_lines row. No posted line in the fixture (or in " +
+      "application code) has a nonzero tax_amount to associate a rate with; " +
+      "a prior blanket backfill set this column on every line regardless, " +
+      "which looked configured but wasn't.",
+  ],
+  [
     "invoice_credits.journal_entry_id",
     "the fixture's credit memo and write-off rows are both hand-authored, " +
       "like most of the fixture's invoices/payments (see " +

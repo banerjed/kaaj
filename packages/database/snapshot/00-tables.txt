@@ -87,6 +87,7 @@ pm_task_attachments	t	t
 pm_task_comments	t	t
 projects	t	t
 tasks	t	t
+tax_rates	t	t
 tenant_registry	t	t
 tenant_settings	t	t
 tenant_users	t	t

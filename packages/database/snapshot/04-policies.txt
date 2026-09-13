@@ -230,6 +230,11 @@ pm_task_attachments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_
 pm_task_comments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 projects	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tasks	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+tax_rates	accounting_delete	DELETE	public	( SELECT app.writes_accounting() AS writes_accounting)	
+tax_rates	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS writes_accounting)
+tax_rates	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS reads_all_accounting)	
+tax_rates	accounting_update	UPDATE	public	( SELECT app.writes_accounting() AS writes_accounting)	( SELECT app.writes_accounting() AS writes_accounting)
+tax_rates	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_registry	tenant_registry_self	SELECT	app_user	(tenant_id = app.current_tenant_id())	
 tenant_settings	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_users	auth_admin_reads_memberships	SELECT	supabase_auth_admin	true	

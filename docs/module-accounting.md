@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.22
+**Version:** 2.23
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -291,7 +291,7 @@ the same verdicts at user-story grain.
 ### Tax Management
 
 **US-ACC-046**: As an Accountant, I want to configure sales tax rates by jurisdiction, so that invoices calculate tax correctly.
-*Status: **MISSING**. There is no dedicated accounting tax-rates table or UI — every accounting tax FK (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`) points at `payroll_tax_rates(id)` (confirmed by reading the FK constraints in `supabase/migrations/20260827000001_initial_schema.sql:4108,4122,4143,4181`) — a payroll table, not a sales-tax jurisdiction table, and there's no configuration route regardless.*
+*Status: **PARTIAL** (2026-09-13). A real `tax_rates` table now exists, and all five accounting tax FKs (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) resolve to it — `20260913223213_accounting_tax_rates.sql`. What's still missing: a configuration route (no UI exists to create or edit a rate yet — rows are seeded directly), and invoices/bills still take a manually-typed tax amount rather than computing one from a rate.*
 
 **US-ACC-047**: As a UK Accountant, I want to configure VAT rates and handle reverse charge, so that I comply with UK tax law.
 *Status: **MISSING**. No reverse-charge logic and no jurisdiction configuration exist.*
@@ -303,7 +303,7 @@ the same verdicts at user-story grain.
 *Status: **PARTIAL**. Output tax is real and tested: `issueInvoice` splits tax into its own JE line against account `"2200"`, with exact expected figures (`receivables.writes.test.ts:127`). Input tax on bills is carried (`payables.test.ts:45`, "has a bill carrying tax") but there is no aggregate tax-liability calculation (output minus input) anywhere in application code — only the unconnected spec-tests unit test mentioned above.*
 
 **US-ACC-050**: As a Business Owner, I want to track tax-exempt customers, so that their invoices don't include tax.
-*Status: **MISSING**. No exemption flag or exemption-expiry logic exists on `customers` or anywhere in `accounting.repo.ts`. Notably, `customers.tax_rate_id` FKs to `payroll_tax_rates(id)` (same modeling issue as US-ACC-046) rather than a real tax-rate/jurisdiction table — arguably a worse starting point than having no tax-rate association at all, since it looks configured but isn't.*
+*Status: **MISSING**. No exemption-expiry logic exists on `customers` or anywhere in `accounting.repo.ts`. `customers.tax_rate_id` now FKs to a real `tax_rates` table rather than `payroll_tax_rates(id)` (US-ACC-046, 2026-09-13), but `is_tax_exempt` still carries no expiry and nothing in application code reads it to zero an invoice's tax.*
 
 ### Multi-Currency Operations
 
@@ -2530,11 +2530,42 @@ either way.
 
 ### Tier 6 — Tax model fix and tax reporting
 
-- [ ] A real accounting `tax_rates` table. Every accounting tax FK
-      (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`,
-      `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`,
-      `customers.tax_rate_id`) currently points at `payroll_tax_rates(id)` —
-      fix the model before building reports on top of it. US-ACC-046.
+- [ ] A real accounting `tax_rates` table. US-ACC-046 (PARTIAL — table and FKs
+      fixed; no configuration route yet). (2026-09-13) —
+      `20260913223213_accounting_tax_rates.sql` adds `tax_rates`
+      (tenant-scoped: code, tax_name, tax_type, rate, country/region/
+      jurisdiction, is_reverse_charge, tax_collected_account_id/
+      tax_paid_account_id, is_active, effective_from/to) and repoints all
+      five accounting tax FKs (`invoice_lines.tax_rate_id`,
+      `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`,
+      `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) at it —
+      confirmed via `pg_constraint.confrelid` after `db reset`, before the
+      snapshot was regenerated, and guarded going forward by a new
+      `verify-stories.sql` check (`US-ACC-046-fk`) that reads the same five
+      constraints; it would have failed against the old FK target and passes
+      now. The fixture's three sales-tax/VAT rows move out of
+      `payroll_tax_rates` (which held them only because the FK forced them
+      there) into `tax_rates`, keeping their ids and codes so every row that
+      names them by id needed no change. `payroll_tax_rates` gets its first
+      genuinely payroll row in return — a US federal income-tax bracket —
+      since removing its only three rows would otherwise have emptied it and
+      failed the tenant-isolation harness's "every table has fixture rows"
+      check; `tax_type` has no income-tax value in its enum (every option is
+      a consumption-tax concept), so that row uses `'none'` as the closest
+      fit — a pre-existing payroll-side enum gap, not something this
+      migration fixes. Two blanket backfills that predated this migration
+      did not carry forward: `chart_of_accounts.tax_rate_id` had been set on
+      all seventeen accounts regardless of type (now only the one revenue
+      account real invoicing posts to, `4000`), and
+      `journal_entry_lines.tax_rate_id` had been set on every line even
+      though no posted line — in the fixture or in application code — ever
+      carries a nonzero `tax_amount` to associate a rate with (now left NULL
+      and added to `verify-fixture-coverage.mjs`'s `EXPECTED_SPARSE`, with
+      that reason). Marked partial, not done: there is still no
+      configuration route (`/accounting/tax-rates` does not exist), and
+      invoices/bills still take a manually-typed tax amount rather than
+      computing one from a rate — both deferred to a follow-up commit rather
+      than mixed into the same diff as the schema change.
 - [ ] Tax-exempt customers + exemption expiry. US-ACC-050.
 - [ ] Sales tax summary / VAT return reports, tied to real ledger totals
       (`INV-ACC-006`'s `summarizeTaxLines` already has the correct formula
@@ -2638,6 +2669,7 @@ either way.
 | 2.20 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry). |
 | 2.21 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item. |
 | 2.22 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 5 with its last item: year-end close (US-ACC-051). `/accounting/year-end-close` zeroes every revenue/expense account's cumulative balance as of a chosen date into Retained Earnings (`3000`) in one journal entry, previewing exactly what would be zeroed before a separate confirm posts it. Idempotent by construction — the closing entry's own lines are posted activity too, so a second run at the same date finds nothing left. Not gated on a period being closed first (no close-checklist gate exists, §13); refused the normal way if the date falls in an already-closed period, same as any other `postJournal` caller. Advisor review caught two things. First: the preview and the post are two separate requests with nothing tying them together, so anything posted in between would close on unconfirmed figures — fixed by carrying the previewed net income as a hidden field and refusing (`allocation_mismatch`) if the recomputed figure no longer matches, checked in SQL/NUMERIC the same way a lockbox batch's own total is. Second, on a follow-up review of that fix: the mismatch refusal dead-ended the page, since `use:enhance` only re-runs `load` on success by default, leaving the confirm form stuck on the very figures just refused — fixed with an explicit `invalidateAll()` in the form's submit handler, verified on the wire (a `__data.json` request follows the refusal only with the fix present, since a DOM assertion on the stale field can't distinguish the two cases here). Every figure was verified against the real database via `psql` before being wired into code, and the debit/credit sign logic and both fixes above were break/revert-verified. Tier 5 (manual journal entries, period close/reopen, year-end close) is now fully shipped. |
+| 2.23 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 6 (tax model): fixed the FK model behind US-ACC-046 — a schema-only increment, UI deferred to a follow-up per advisor's explicit recommendation. Every accounting tax FK (`invoice_lines`, `bill_lines`, `chart_of_accounts`, `journal_entry_lines`, `customers`) pointed at `payroll_tax_rates(id)`, a payroll income-tax table, not a sales-tax jurisdiction table. `20260913223213_accounting_tax_rates.sql` adds a real `tax_rates` table and repoints all five, confirmed by reading `pg_constraint.confrelid` after `db reset` before the snapshot was regenerated. Advisor's review caught that the one automated check named after this story (`verify-stories.sql`'s `US-ACC-046`) asserted a fact that was equally true before and after the fix (a sales-tax row exists somewhere) and never actually tested the FK target — added `US-ACC-046-fk`, which reads the five constraints directly and would have failed against the old target. The fixture's three sales-tax/VAT rows move out of `payroll_tax_rates` (which held them only because the FK forced them there) into `tax_rates`, same ids and codes so nothing else needed to change; `payroll_tax_rates` gets its first genuinely payroll row in return, a US federal bracket, since emptying it would have failed the tenant-isolation harness's fixture-row check. Two blanket backfills that predated this migration — every chart-of-accounts row tagged with the same sales-tax rate regardless of type, and every journal-entry line tagged with one despite no posted line ever carrying tax — did not carry forward; scoped to the one revenue account real invoicing uses, and to `EXPECTED_SPARSE` with the honest reason, respectively. `US-ACC-046`/`US-ACC-050`'s status blocks updated to PARTIAL. While correcting the specification check count for this change, found the `./check` step labels for specification, tenant isolation, tables-classified-by-scale and structure-snapshot line count were already stale independent of this work; corrected all four to their current measured values in `CLAUDE.md` and `check`. |
 
 ### References
 

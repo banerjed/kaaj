@@ -54,16 +54,16 @@ directory in the repo.
 
 | Step | Proves | Count |
 |---|---|---|
-| tenant isolation | every RLS policy actually filters, per table | 600 |
-| specification | the schema answers the module specs | 167 |
+| tenant isolation | every RLS policy actually filters, per table | 660 |
+| specification | the schema answers the module specs | 173 |
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
-| structure snapshot | the schema is exactly what was committed | 4,140 lines |
+| structure snapshot | the schema is exactly what was committed | 4,211 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
 | authorization | every form action authorizes; no DELETE in app code | 56 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 3 exempt |
-| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 32 + 77 |
+| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 78 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
 | writes are audited | every action is in the audit register, either list | 37 + 27 |
@@ -77,7 +77,7 @@ directory in the repo.
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-12.
+column. They were last verified 2026-09-13.
 
 These are complementary and none substitutes for another:
 

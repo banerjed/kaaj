@@ -497,10 +497,23 @@ INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, accoun
     ('5a8f3f2e-9c4d-5b1a-8e6f-2d9c7a4b1e35', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5500', 'Bad Debt Expense', '{"en-US": "Bad Debt Expense"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('47289db6-a99e-5207-8f78-a62e982f8e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5600', 'Payment Processing Fees', '{"en-US": "Payment Processing Fees"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0);
 
+-- These three were the fixture's only payroll_tax_rates rows, and none of
+-- them describe payroll: they are sales tax / VAT config, seeded here only
+-- because the accounting FKs (below) pointed at this table. Tier 6 /
+-- US-ACC-046 gives them a real home. Same ids and codes as before, so every
+-- UPDATE further down that names them by id needs no change.
+INSERT INTO tax_rates (id, tenant_id, code, tax_name, tax_type, rate, country, region, jurisdiction, tax_collected_account_id, tax_paid_account_id, is_reverse_charge, effective_from, created_by, updated_by) VALUES
+    ('a1952ec4-9252-5bbf-89aa-9f2e89d7ef53', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-US-NY-2026', 'New York Sales Tax', 'sales_tax', 0.08875, 'US', 'NY', 'US-NY-New York City', 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '2026-01-01', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f740baac-f88d-557d-b54d-ea24fe1a0b91', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-VAT-2026', 'UK VAT Standard', 'vat', 0.20000, 'GB', NULL, 'GB-HMRC', 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '2026-01-01', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('10ef757c-3aa2-5c25-8c18-7f7c19bc0ac3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-RC-2026', 'UK VAT Reverse Charge', 'vat', 0.00000, 'GB', NULL, 'GB-HMRC-REVERSE-CHARGE', 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', TRUE, '2026-01-01', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- payroll_tax_rates keeps its own, genuinely payroll row — a real federal
+-- income-tax bracket, not accounting's sales tax config. tax_type has no
+-- income-tax value in its enum (customs/excise/gst/none/sales_tax/use_tax/vat
+-- are all consumption-tax concepts); 'none' is the closest available fit —
+-- a pre-existing gap in payroll's own model, out of scope for Tier 6.
 INSERT INTO payroll_tax_rates (id, tenant_id, tax_rate_id, tax_name, tax_name_i18n, tax_type, rate, country_code, country, region, jurisdiction, jurisdiction_type, jurisdiction_code, effective_from, tax_year, tax_collected_account_id, tax_paid_account_id, is_reverse_charge, rate_structure, is_active) VALUES
-    ('a1952ec4-9252-5bbf-89aa-9f2e89d7ef53', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-US-NY-2026', 'New York Sales Tax', '{"en-US": "New York Sales Tax"}'::jsonb, 'sales_tax', 0.08875, 'US', 'US', 'NY', 'US-NY-New York City', 'state_local', 'NYC', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '{"components": [{"name": "state", "rate": 0.04}, {"name": "city", "rate": 0.04875}]}'::jsonb, TRUE),
-    ('f740baac-f88d-557d-b54d-ea24fe1a0b91', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-VAT-2026', 'UK VAT Standard', '{"en-US": "UK VAT Standard"}'::jsonb, 'vat', 0.20000, 'GB', 'GB', NULL, 'GB-HMRC', 'country', 'GB', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', FALSE, '{"components": [{"name": "standard_vat", "rate": 0.20}]}'::jsonb, TRUE),
-    ('10ef757c-3aa2-5c25-8c18-7f7c19bc0ac3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-GB-RC-2026', 'UK VAT Reverse Charge', '{"en-US": "UK VAT Reverse Charge"}'::jsonb, 'vat', 0.00000, 'GB', 'GB', NULL, 'GB-HMRC-REVERSE-CHARGE', 'country', 'GB', '2026-01-01', 2026, 'c93f0bd3-06a7-51d0-a670-159daf6420fa', 'b82fcb24-a418-5a43-9e06-2d1f0a4a0f3a', TRUE, '{"reverse_charge": true, "customer_self_assesses": true}'::jsonb, TRUE);
+    ('3d9f6f9e-8c4a-5f1e-9a2b-6c7d8e9f0a1b', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TAX-US-FED-INCOME-2026', 'US Federal Income Tax', '{"en-US": "US Federal Income Tax"}'::jsonb, 'none', 0.22000, 'US', 'US', NULL, 'US-Federal', 'federal', 'US', '2026-01-01', 2026, 'b4399f41-0f93-5eda-8475-df032080505f', 'b4399f41-0f93-5eda-8475-df032080505f', FALSE, '{"brackets": [{"up_to": 11600, "rate": 0.10}, {"up_to": 47150, "rate": 0.12}, {"up_to": 100525, "rate": 0.22}]}'::jsonb, TRUE);
 
 INSERT INTO exchange_rates (id, from_currency, to_currency, rate_date, rate, inverse_rate, source, is_manual, created_at, created_by) VALUES
     ('4f4ff4ab-e64c-50f8-9d84-d926f3494dc1', 'GBP', 'USD', '2026-01-21', 1.270000, 0.787402, 'ECB', FALSE, '2026-01-21T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
@@ -1887,7 +1900,11 @@ UPDATE chart_of_accounts SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85'
 UPDATE chart_of_accounts SET description = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE description IS NULL OR description = '';
 UPDATE chart_of_accounts SET description_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE description_i18n IS NULL OR description_i18n::text IN ('{}','[]','null');
 UPDATE chart_of_accounts SET parent_account_id = 'eef02e95-6acb-5039-8acc-56340013e53a' WHERE parent_account_id IS NULL;
-UPDATE chart_of_accounts SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE tax_rate_id IS NULL;
+-- Only the revenue account real invoicing posts to (createInvoice always
+-- posts the whole subtotal to ACCOUNTS.revenue, "4000") gets a default tax
+-- rate — every other account getting the same one blindly would be exactly
+-- the "looks configured but isn't" shape US-ACC-050 calls out for customers.
+UPDATE chart_of_accounts SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE account_code = '4000';
 UPDATE chart_of_accounts SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
 UPDATE clients SET acquisition_date = '2026-03-01' WHERE acquisition_date IS NULL;
 UPDATE clients SET acquisition_source = 'Acquisition Source 1' WHERE acquisition_source IS NULL OR acquisition_source = '';
@@ -2056,7 +2073,6 @@ UPDATE journal_entries SET reference = 'Reference 1' WHERE reference IS NULL OR 
 UPDATE journal_entries SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
 UPDATE journal_entry_lines SET department_id = '10cfa606-7c38-5de8-b72a-4ec11d9ae922' WHERE department_id IS NULL;
 UPDATE journal_entry_lines SET location_id = '12c07799-28b4-55df-b8cf-df96df0bf40f' WHERE location_id IS NULL;
-UPDATE journal_entry_lines SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE tax_rate_id IS NULL;
 UPDATE journal_entry_lines SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
 UPDATE payments SET check_number = 'Check Number 1' WHERE check_number IS NULL OR check_number = '';
 UPDATE payments SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;

@@ -20,7 +20,7 @@ bill_lines	bill_lines_pkey	p	PRIMARY KEY (id)
 bill_lines	bill_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bill_lines	fk_bill_lines_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
 bill_lines	fk_bill_lines_expense_account_id	f	FOREIGN KEY (expense_account_id) REFERENCES chart_of_accounts(id)
-bill_lines	fk_bill_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+bill_lines	fk_bill_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 bills	bills_pkey	p	PRIMARY KEY (id)
 bills	bills_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bills	ck_bills_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = (total - amount_paid))))
@@ -29,7 +29,7 @@ bills	fk_bills_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
 chart_of_accounts	chart_of_accounts_pkey	p	PRIMARY KEY (id)
 chart_of_accounts	chart_of_accounts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 chart_of_accounts	fk_chart_of_accounts_parent_account_id	f	FOREIGN KEY (parent_account_id) REFERENCES chart_of_accounts(id)
-chart_of_accounts	fk_chart_of_accounts_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+chart_of_accounts	fk_chart_of_accounts_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 clients	clients_client_type_check	c	CHECK ((client_type = ANY (ARRAY['individual'::text, 'small_business'::text, 'corporate'::text, 'enterprise'::text, 'government'::text, 'nonprofit'::text])))
 clients	clients_pkey	p	PRIMARY KEY (id)
 clients	clients_status_check	c	CHECK ((status = ANY (ARRAY['prospect'::text, 'active'::text, 'inactive'::text, 'churned'::text])))
@@ -71,7 +71,7 @@ customer_contacts	customer_contacts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REF
 customers	customers_pkey	p	PRIMARY KEY (id)
 customers	customers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 customers	fk_customers_ar_account_id	f	FOREIGN KEY (ar_account_id) REFERENCES chart_of_accounts(id)
-customers	fk_customers_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+customers	fk_customers_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 employee_assets	employee_assets_pkey	p	PRIMARY KEY (id)
 employee_assets	employee_assets_tenant_id_asset_id_key	u	UNIQUE (tenant_id, asset_id)
 employee_assets	employee_assets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -233,7 +233,7 @@ invoice_credits	invoice_credits_pkey	p	PRIMARY KEY (id)
 invoice_credits	invoice_credits_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 invoice_lines	fk_invoice_lines_invoice_id	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 invoice_lines	fk_invoice_lines_revenue_account_id	f	FOREIGN KEY (revenue_account_id) REFERENCES chart_of_accounts(id)
-invoice_lines	fk_invoice_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+invoice_lines	fk_invoice_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 invoice_lines	invoice_lines_pkey	p	PRIMARY KEY (id)
 invoice_lines	invoice_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 invoices	ck_invoices_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (amount_credited >= (0)::numeric) AND (base_subtotal >= (0)::numeric) AND (base_tax_total >= (0)::numeric) AND (base_total >= (0)::numeric) AND (base_amount_paid >= (0)::numeric) AND (base_amount_due >= (0)::numeric) AND (base_amount_credited >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = ((total - amount_paid) - amount_credited)) AND (base_total = (base_subtotal + base_tax_total)) AND (base_amount_due = ((base_total - base_amount_paid) - base_amount_credited))))
@@ -251,7 +251,7 @@ journal_entry_lines	fk_journal_entry_lines_account_id	f	FOREIGN KEY (account_id)
 journal_entry_lines	fk_journal_entry_lines_department_id	f	FOREIGN KEY (department_id) REFERENCES firm_departments(id)
 journal_entry_lines	fk_journal_entry_lines_entry_id	f	FOREIGN KEY (entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE
 journal_entry_lines	fk_journal_entry_lines_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id)
-journal_entry_lines	fk_journal_entry_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
+journal_entry_lines	fk_journal_entry_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 journal_entry_lines	journal_entry_lines_pkey	p	PRIMARY KEY (id)
 journal_entry_lines	journal_entry_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 payment_allocations	ck_payment_allocations_one_document	c	CHECK (((amount > (0)::numeric) AND (base_amount > (0)::numeric) AND ((((invoice_id IS NOT NULL))::integer + ((bill_id IS NOT NULL))::integer) = 1)))
@@ -351,6 +351,12 @@ projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
 tasks	tasks_pkey	p	PRIMARY KEY (id)
 tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)
+tax_rates	tax_rates_pkey	p	PRIMARY KEY (id)
+tax_rates	tax_rates_rate_check	c	CHECK ((rate >= (0)::numeric))
+tax_rates	tax_rates_tax_collected_account_id_fkey	f	FOREIGN KEY (tax_collected_account_id) REFERENCES chart_of_accounts(id)
+tax_rates	tax_rates_tax_paid_account_id_fkey	f	FOREIGN KEY (tax_paid_account_id) REFERENCES chart_of_accounts(id)
+tax_rates	tax_rates_tenant_id_code_key	u	UNIQUE (tenant_id, code)
+tax_rates	tax_rates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tenant_registry	dedicated_tenant_has_a_secret_ref	c	CHECK (((tier = 'shared'::text) OR (connection_secret_ref IS NOT NULL)))
 tenant_registry	tenant_registry_pkey	p	PRIMARY KEY (tenant_id)
 tenant_registry	tenant_registry_status_check	c	CHECK ((status = ANY (ARRAY['provisioning'::text, 'active'::text, 'suspended'::text, 'migrating'::text, 'unreachable'::text])))

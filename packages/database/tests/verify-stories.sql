@@ -699,11 +699,18 @@ SELECT _check('US-ACC-050','DATA','accounting',
      WHERE c.is_tax_exempt AND i.tax_total=0$$);
 SELECT _check('US-ACC-046','DATA','accounting',
   'Sales tax rates are configured by jurisdiction',
-  $$SELECT count(*)>0 FROM payroll_tax_rates
+  $$SELECT count(*)>0 FROM tax_rates
      WHERE tax_type='sales_tax' AND jurisdiction IS NOT NULL AND rate>0$$);
+SELECT _check('US-ACC-046-fk','SCHEMA','accounting',
+  'Every accounting tax FK resolves to the accounting tax_rates table, not payroll_tax_rates',
+  $$SELECT count(*)=5 FROM pg_constraint
+     WHERE conname IN ('fk_invoice_lines_tax_rate_id', 'fk_bill_lines_tax_rate_id',
+                        'fk_chart_of_accounts_tax_rate_id',
+                        'fk_journal_entry_lines_tax_rate_id', 'fk_customers_tax_rate_id')
+       AND confrelid = 'tax_rates'::regclass$$);
 SELECT _check('US-ACC-047','DATA','accounting',
   'Reverse-charge VAT configuration is represented',
-  $$SELECT count(*)>0 FROM payroll_tax_rates
+  $$SELECT count(*)>0 FROM tax_rates
      WHERE tax_type='vat' AND is_reverse_charge$$);
 SELECT _check('US-ACC-052','DATA','accounting',
   'Exchange-rate snapshots exist for foreign-currency transaction dates',
