@@ -645,6 +645,60 @@ describe("the cash flow statement", () => {
   })
 })
 
+describe("cash flow period comparison", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("`previous_period` figures match cashFlowTotals() run independently over the same two windows", async () => {
+    const [c, feb, jan] = await withTenant(AS_OWNER, async (tx) => [
+      await acc.cashFlowComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+      await acc.cashFlowTotals(tx, { from: "2026-02-01", to: "2026-02-28" }),
+      await acc.cashFlowTotals(tx, { from: "2026-01-04", to: "2026-01-31" }),
+    ])
+    expect(c.prior_from).toBe("2026-01-04")
+    expect(c.prior_to).toBe("2026-01-31")
+    expect(c.current_operating_cash_flow).toBe(feb.operating_cash_flow)
+    expect(c.current_financing_cash_flow).toBe(feb.financing_cash_flow)
+    expect(c.prior_operating_cash_flow).toBe(jan.operating_cash_flow)
+    expect(c.prior_financing_cash_flow).toBe(jan.financing_cash_flow)
+    expect(c.current_operating_cash_flow).toBe("6600.00")
+    expect(c.prior_operating_cash_flow).toBe("42300.00")
+    expect(c.operating_cash_flow_change).toBe("-35700.00")
+    // Neither window touches the equity account (the fixture's only equity
+    // posting is dated 2026-01-01, before both windows), so financing stays
+    // genuinely zero on both sides rather than an artifact of the query.
+    expect(c.current_financing_cash_flow).toBe("0.00")
+    expect(c.prior_financing_cash_flow).toBe("0.00")
+    expect(c.financing_cash_flow_change).toBe("0.00")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.cashFlowComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(refused.current_operating_cash_flow).toBe("0")
+    expect(refused.prior_operating_cash_flow).toBe("0")
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.cashFlowComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(owner.prior_operating_cash_flow).not.toBe("0")
+  })
+})
+
 describe("the statement of changes in equity", () => {
   afterAll(async () => {
     await closeConnections()
@@ -717,5 +771,64 @@ describe("the statement of changes in equity", () => {
       acc.equityStatement(tx),
     )
     expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})
+
+describe("equity statement period comparison", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("`previous_period` figures match equityStatementTotals() run independently over the same two windows", async () => {
+    const [c, feb, jan] = await withTenant(AS_OWNER, async (tx) => [
+      await acc.equityComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+      await acc.equityStatementTotals(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+      }),
+      await acc.equityStatementTotals(tx, {
+        from: "2026-01-04",
+        to: "2026-01-31",
+      }),
+    ])
+    expect(c.prior_from).toBe("2026-01-04")
+    expect(c.prior_to).toBe("2026-01-31")
+    expect(c.current_direct_changes).toBe(feb.direct_changes)
+    expect(c.current_net_income).toBe(feb.net_income)
+    expect(c.prior_direct_changes).toBe(jan.direct_changes)
+    expect(c.prior_net_income).toBe(jan.net_income)
+    expect(c.current_net_income).toBe("-900.00")
+    expect(c.prior_net_income).toBe("-56020.00")
+    expect(c.net_income_change).toBe("55120.00")
+    // The fixture's only equity posting is dated 2026-01-01, before both
+    // windows, so direct_changes is genuinely zero on both sides.
+    expect(c.current_direct_changes).toBe("0.00")
+    expect(c.prior_direct_changes).toBe("0.00")
+    expect(c.direct_changes_change).toBe("0.00")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.equityComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(refused.current_net_income).toBe("0")
+    expect(refused.prior_net_income).toBe("0")
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.equityComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(owner.prior_net_income).not.toBe("0")
   })
 })

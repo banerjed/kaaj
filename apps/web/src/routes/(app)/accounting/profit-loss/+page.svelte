@@ -57,7 +57,7 @@
       </select>
     </fieldset>
     <button class="btn btn-primary">Apply</button>
-    {#if data.filters.from || data.filters.to}
+    {#if data.filters.from || data.filters.to || data.compare !== "none"}
       <a href="/accounting/profit-loss" class="btn btn-ghost">Clear</a>
     {/if}
   </form>

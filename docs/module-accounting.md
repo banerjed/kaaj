@@ -1,7 +1,7 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.11
-**Last Updated:** September 12, 2026
+**Version:** 2.12
+**Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
 - [Product Specification](./product-specification.md)
@@ -2192,15 +2192,39 @@ either way.
       `form-errors.spec.ts`. Tests: 3 new cases in `accounting.test.ts`
       ("profit and loss period comparison"), including RLS as a refused
       plain employee. `./check` and the full e2e suite pass. US-ACC-041.
-- [ ] Period comparison on the other four Tier 3 reports, and
+- [x] Period comparison extended to Cash Flow and the Statement of Changes
+      in Equity (2026-09-13). `acc.cashFlowComparison()` doubles
+      `cashFlowTotals()`'s own begin/end-balance pattern across two windows
+      (four balance points per account instead of two), scoped to the
+      operating/financing/net-change subtotals. `acc.equityComparison()`
+      compares the period's own activity (`direct_changes`, `net_income`),
+      not the cumulative `ending_equity` balances either window ends on —
+      diffing those would mostly reflect elapsed time, not a change in the
+      rate of equity activity. Both reuse the exact `compare` vocabulary and
+      three guards (needs both dates; an off-list value gets its own
+      message; `previous_year` refused for a period a year or longer) from
+      the P&L, now factored into `$lib/server/accounting/period-compare.ts`
+      instead of copied a third time — the P&L page was refactored to use
+      the same module. Tests: 2 new cases each in `accounting.test.ts`
+      ("cash flow period comparison", "equity statement period comparison"),
+      including RLS as a refused plain employee, each cross-checked against
+      `cashFlowTotals()`/`equityStatementTotals()` run independently over
+      the same two windows. `./check` and the full e2e suite pass.
+      US-ACC-041.
+- [ ] Period comparison on the trial balance and balance sheet, and
       department/location filtering. US-ACC-041 (remainder), US-ACC-044.
-      The department/location gap isn't a code gap: `journal_entry_lines`
-      already carries both FKs, but every one of the fixture's 19 lines
-      points at the same single department and location (confirmed via
-      `psql`) — a filter would have nothing to exclude, which is the
-      L50/L51 shape this session has spent real effort avoiding elsewhere.
-      Needs fixture diversification first, the same kind of work as the
-      equity opening-balance entry above, before this is worth building.
+      Trial balance and balance sheet are cumulative "as of" reports, not
+      periodic ones — comparison there means two `asOf` columns (a real,
+      standard comparative-balance-sheet shape), not two windows, and needs
+      its own differently-shaped function rather than reusing
+      `profitAndLossComparison()`'s pattern. The department/location gap
+      isn't a code gap: `journal_entry_lines` already carries both FKs, but
+      every one of the fixture's 19 lines points at the same single
+      department and location (confirmed via `psql`) — a filter would have
+      nothing to exclude, which is the L50/L51 shape this session has spent
+      real effort avoiding elsewhere. Needs fixture diversification first,
+      the same kind of work as the equity opening-balance entry above,
+      before this is worth building.
 
 ### Tier 4 — AR/AP reports and lifecycle completion
 
@@ -2332,6 +2356,7 @@ either way.
 | 2.9 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3. |
 | 2.10 | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is. |
 | 2.11 | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder. |
+| 2.12 | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification. |
 
 ### References
 

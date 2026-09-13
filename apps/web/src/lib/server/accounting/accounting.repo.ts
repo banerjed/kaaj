@@ -741,6 +741,124 @@ export async function cashFlowTotals(
   return row
 }
 
+export type CashFlowComparisonTotals = {
+  prior_from: string
+  prior_to: string
+  current_operating_cash_flow: string
+  current_investing_cash_flow: string
+  current_financing_cash_flow: string
+  current_net_change_in_cash: string
+  prior_operating_cash_flow: string
+  prior_investing_cash_flow: string
+  prior_financing_cash_flow: string
+  prior_net_change_in_cash: string
+  operating_cash_flow_change: string
+  financing_cash_flow_change: string
+  net_change_in_cash_change: string
+}
+
+/**
+ * Same shape as `profitAndLossComparison()` — the prior window's boundaries
+ * computed in SQL, not JS — but doubling `cashFlowTotals()`'s own
+ * begin/end-balance pattern across two windows instead of one, since a
+ * comparison needs four balance points per account (current begin/end,
+ * prior begin/end), not two.
+ */
+export async function cashFlowComparison(
+  tx: Tx,
+  filters: {
+    from: string
+    to: string
+    compareTo: "previous_period" | "previous_year"
+  },
+): Promise<CashFlowComparisonTotals> {
+  const { from, to, compareTo } = filters
+  const [row] = await tx<CashFlowComparisonTotals[]>`
+    WITH bounds AS (
+      SELECT ${from}::date AS cur_from, ${to}::date AS cur_to,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${from}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - (${to}::date - ${from}::date + 1)
+             END::date AS pri_from,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${to}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - 1
+             END::date AS pri_to
+    ),
+    acct AS (
+      SELECT a.account_type::text AS account_type,
+             COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE je.entry_date < b.cur_from), 0) AS cur_begin,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE je.entry_date <= b.cur_to), 0) AS cur_end,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE je.entry_date < b.pri_from), 0) AS pri_begin,
+             COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                                THEN l.base_debit_amount - l.base_credit_amount
+                                ELSE l.base_credit_amount - l.base_debit_amount END)
+                       FILTER (WHERE je.entry_date <= b.pri_to), 0) AS pri_end
+        FROM bounds b, chart_of_accounts a
+        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE a.account_type IN ('asset', 'liability', 'equity')
+       GROUP BY a.id, a.account_type, a.is_bank_account
+    ),
+    t AS (
+      SELECT
+        COALESCE(sum(CASE account_type
+                        WHEN 'asset'     THEN cur_begin - cur_end
+                        WHEN 'liability' THEN cur_end - cur_begin
+                      END) FILTER (WHERE NOT is_bank_account AND account_type IN ('asset', 'liability')), 0)
+          AS cur_working_capital_change,
+        COALESCE(sum(cur_end - cur_begin) FILTER (WHERE account_type = 'equity'), 0) AS cur_financing,
+        COALESCE(sum(CASE account_type
+                        WHEN 'asset'     THEN pri_begin - pri_end
+                        WHEN 'liability' THEN pri_end - pri_begin
+                      END) FILTER (WHERE NOT is_bank_account AND account_type IN ('asset', 'liability')), 0)
+          AS pri_working_capital_change,
+        COALESCE(sum(pri_end - pri_begin) FILTER (WHERE account_type = 'equity'), 0) AS pri_financing,
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND je2.entry_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND je2.entry_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
+        FROM acct
+    )
+    SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
+           (cur_net_income + cur_working_capital_change)::text AS current_operating_cash_flow,
+           0::numeric::text AS current_investing_cash_flow,
+           cur_financing::text AS current_financing_cash_flow,
+           (cur_net_income + cur_working_capital_change + cur_financing)::text AS current_net_change_in_cash,
+           (pri_net_income + pri_working_capital_change)::text AS prior_operating_cash_flow,
+           0::numeric::text AS prior_investing_cash_flow,
+           pri_financing::text AS prior_financing_cash_flow,
+           (pri_net_income + pri_working_capital_change + pri_financing)::text AS prior_net_change_in_cash,
+           ((cur_net_income + cur_working_capital_change) - (pri_net_income + pri_working_capital_change))::text
+             AS operating_cash_flow_change,
+           (cur_financing - pri_financing)::text AS financing_cash_flow_change,
+           ((cur_net_income + cur_working_capital_change + cur_financing)
+            - (pri_net_income + pri_working_capital_change + pri_financing))::text AS net_change_in_cash_change
+      FROM bounds b, t
+  `
+  return row
+}
+
 export type EquityStatementRow = {
   account_code: string
   account_name: string
@@ -838,6 +956,91 @@ export async function equityStatementTotals(
            ending_equity::text,
            (ending_equity + net_income)::text AS ending_equity_including_current_earnings
       FROM t
+  `
+  return row
+}
+
+export type EquityComparisonTotals = {
+  prior_from: string
+  prior_to: string
+  current_direct_changes: string
+  current_net_income: string
+  prior_direct_changes: string
+  prior_net_income: string
+  direct_changes_change: string
+  net_income_change: string
+}
+
+/**
+ * Same shape as `profitAndLossComparison()`/`cashFlowComparison()` — the
+ * prior window's boundaries computed in SQL. Compares the period's own
+ * activity (`direct_changes`, `net_income`), not the cumulative
+ * `ending_equity` balances either window ends on — those never fall now
+ * that the fixture carries a real opening balance, so a diff of them would
+ * mostly reflect however much time sits between the two windows rather than
+ * a change in the RATE of equity activity, which is what "trend" means here.
+ */
+export async function equityComparison(
+  tx: Tx,
+  filters: {
+    from: string
+    to: string
+    compareTo: "previous_period" | "previous_year"
+  },
+): Promise<EquityComparisonTotals> {
+  const { from, to, compareTo } = filters
+  const [row] = await tx<EquityComparisonTotals[]>`
+    WITH bounds AS (
+      SELECT ${from}::date AS cur_from, ${to}::date AS cur_to,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${from}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - (${to}::date - ${from}::date + 1)
+             END::date AS pri_from,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${to}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - 1
+             END::date AS pri_to
+    ),
+    eq AS (
+      SELECT
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE je.entry_date < b.cur_from), 0) AS cur_begin,
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE je.entry_date <= b.cur_to), 0) AS cur_end,
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE je.entry_date < b.pri_from), 0) AS pri_begin,
+        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                  FILTER (WHERE je.entry_date <= b.pri_to), 0) AS pri_end
+        FROM bounds b, chart_of_accounts a
+        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE a.account_type = 'equity' AND a.is_active
+    ),
+    ni AS (
+      SELECT
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND je2.entry_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
+        (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
+                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
+           FROM journal_entry_lines l2
+           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+           JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
+          WHERE a2.account_type IN ('revenue', 'expense')
+            AND je2.entry_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
+    )
+    SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
+           (eq.cur_end - eq.cur_begin)::text AS current_direct_changes,
+           ni.cur_net_income::text AS current_net_income,
+           (eq.pri_end - eq.pri_begin)::text AS prior_direct_changes,
+           ni.pri_net_income::text AS prior_net_income,
+           ((eq.cur_end - eq.cur_begin) - (eq.pri_end - eq.pri_begin))::text AS direct_changes_change,
+           (ni.cur_net_income - ni.pri_net_income)::text AS net_income_change
+      FROM bounds b, eq, ni
   `
   return row
 }

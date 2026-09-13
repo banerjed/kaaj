@@ -4,12 +4,12 @@ import * as acc from "$lib/server/accounting/accounting.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
-
-/** Lexicographic on `YYYY-MM-DD`, same trick as the `from > to` guard below — never a `Date` object, so no timezone to get wrong. */
-function oneYearAfter(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-")
-  return `${String(Number(y) + 1).padStart(4, "0")}-${m}-${d}`
-}
+import {
+  readCompare,
+  checkCompareOk,
+  guardCompareNeedsRange,
+  guardPreviousYearOverlap,
+} from "$lib/server/accounting/period-compare"
 
 /**
  * /accounting/profit-loss — revenue and expense activity for a period, with
@@ -32,32 +32,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Read above the gate — inside the object it'd be reported too late (L33).
   const from = f.date("from")
   const to = f.date("to")
-  const compare = f.choice(
-    "compare",
-    ["none", "previous_period", "previous_year"] as const,
-    { fallback: "none" },
-  )
-  if (!f.ok) {
-    if (f.errorFields.includes("compare")) {
-      error(400, "That comparison option is not recognized.")
-    }
-    error(400, "That date is not a real date.")
-  }
+  const compare = readCompare(f)
+  checkCompareOk(f)
   if (from && to && from > to) {
     error(400, "The 'from' date must be on or before the 'to' date.")
   }
-  if (compare !== "none" && !(from && to)) {
-    error(400, "Comparing periods requires both a 'from' and 'to' date.")
-  }
-  // previous_year shifts both dates back exactly a year; a period a year or
-  // longer would make that shifted window overlap the current one, so the
-  // same activity would count on both sides of the comparison.
-  if (compare === "previous_year" && from && to && to >= oneYearAfter(from)) {
-    error(
-      400,
-      "Comparing to the same period last year requires a period shorter than one year.",
-    )
-  }
+  guardCompareNeedsRange(compare, from, to)
+  guardPreviousYearOverlap(compare, from, to)
 
   const filters = { from: from ?? "", to: to ?? "" }
   return withTenant(actorFrom(locals), async (tx) => ({
