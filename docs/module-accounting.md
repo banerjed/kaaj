@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.12
+**Version:** 2.13
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -207,7 +207,7 @@ than repeated per story.
 *Status: **DONE**. `/accounting/invoices` lists every invoice with status, and `paymentsFor()` returns the payment history per invoice — exercised throughout `accounting.test.ts` and `receivables.writes.test.ts`.*
 
 **US-ACC-016**: As a Finance Manager, I want to see an aging report showing overdue invoices, so that I can follow up on collections.
-*Status: **MISSING**. There's an `is_overdue` flag and an overdue filter on the invoice list (`accounting.test.ts:161`), but no aging *report* — no current/30/60/90+ bucketing exists anywhere.*
+*Status: **DONE** (2026-09-13). `/accounting/ar-aging` buckets every open invoice into current/1-30/31-60/61-90/90+ by days past due, as of a chosen date. Per-customer rows in the invoice's own currency, no cross-currency total — see `accounting.repo.ts`'s `arAging()` and `accounting.test.ts`'s "AR aging" suite.*
 
 **US-ACC-017**: As a Business Owner, I want to forecast short-term cash flow (30-day projection), so that I can plan for cash needs.
 *Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt.*
@@ -2228,7 +2228,25 @@ either way.
 
 ### Tier 4 — AR/AP reports and lifecycle completion
 
-- [ ] AR aging report (current/30/60/90+). US-ACC-016.
+- [x] AR aging report (current/30/60/90+). US-ACC-016 (2026-09-13).
+      `acc.arAging()` buckets open invoices (`amount_due > 0`, not
+      draft/void) by `asOf - due_date`, defaulting a blank `asOf` to
+      `CURRENT_DATE` — unlike the balance sheet's `asOf`, where blank means
+      no upper bound, aging needs a real reference date to bucket against.
+      `amount_due` is already `total - amount_paid`
+      (`ck_invoices_amounts_reconcile`), so a partial payment ages by its
+      remaining balance with no extra logic. Grouped by `(customer_id,
+      currency)` and reads the invoice's own currency, never
+      `base_amount_due` — a customer with invoices in two currencies is two
+      rows, and there is no cross-customer total, since summing across
+      currencies would violate BR-FP-003 (money is never converted for
+      display). `/accounting/ar-aging`, gated `accounting.read`. Tests in
+      `accounting.test.ts` ("AR aging") walk the same fixture invoices
+      (shared `due_date`) through every bucket as `asOf` moves, every
+      boundary break/revert-verified (30/31, 60/61, 90/91 days), and assert
+      the five buckets sum to each row's total — plus draft-exclusion,
+      own-currency, and finance-only RLS checks. `./check` and the full e2e
+      suite pass.
 - [ ] AP "due soon" view (forward-looking, distinct from the existing
       overdue flag). US-ACC-024.
 - [ ] Credit memos / refunds (AR) — reverses revenue, Dr Revenue / Cr AR.
@@ -2357,6 +2375,7 @@ either way.
 | 2.10 | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is. |
 | 2.11 | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder. |
 | 2.12 | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification. |
+| 2.13 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 
 ### References
 

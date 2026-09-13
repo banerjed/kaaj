@@ -215,6 +215,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/accounting/banking",
         permission: "accounting.read",
       },
+      {
+        id: "accounting-ar-aging",
+        label: "AR Aging",
+        url: "/accounting/ar-aging",
+        permission: "accounting.read",
+      },
     ],
   },
   {

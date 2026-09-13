@@ -135,6 +135,59 @@ export async function paymentsFor(
   ` as never
 }
 
+export type ArAgingRow = {
+  customer_id: string
+  customer_name: string
+  /** An invoice's own currency, never converted — a customer with invoices
+   *  in two currencies is two rows here, not one summed incorrectly. */
+  currency: string
+  current: string
+  days_1_30: string
+  days_31_60: string
+  days_61_90: string
+  days_90_plus: string
+  total: string
+}
+
+/**
+ * Open receivables bucketed by days past due, as of a date. Unlike
+ * `balanceSheet()`'s `asOf` — where a blank date means no upper bound —
+ * aging needs a real reference date to bucket against, so a blank date
+ * defaults to the database's own `CURRENT_DATE` rather than passing NULL
+ * through.
+ */
+export async function arAging(
+  tx: Tx,
+  filters: { asOf?: string } = {},
+): Promise<ArAgingRow[]> {
+  const asOf = filters.asOf || null
+  return tx<ArAgingRow[]>`
+    WITH open_invoices AS (
+      SELECT i.customer_id, i.currency, i.amount_due,
+             (COALESCE(${asOf}::date, CURRENT_DATE) - i.due_date) AS days_overdue
+        FROM invoices i
+       WHERE i.amount_due > 0
+         AND i.status NOT IN ('draft', 'void')
+    )
+    SELECT c.id AS customer_id, c.customer_name, i.currency,
+           COALESCE(sum(i.amount_due) FILTER (WHERE i.days_overdue <= 0), 0.00)::text
+             AS current,
+           COALESCE(sum(i.amount_due) FILTER (WHERE i.days_overdue BETWEEN 1 AND 30), 0.00)::text
+             AS days_1_30,
+           COALESCE(sum(i.amount_due) FILTER (WHERE i.days_overdue BETWEEN 31 AND 60), 0.00)::text
+             AS days_31_60,
+           COALESCE(sum(i.amount_due) FILTER (WHERE i.days_overdue BETWEEN 61 AND 90), 0.00)::text
+             AS days_61_90,
+           COALESCE(sum(i.amount_due) FILTER (WHERE i.days_overdue > 90), 0.00)::text
+             AS days_90_plus,
+           sum(i.amount_due)::text AS total
+      FROM open_invoices i
+      JOIN customers c ON c.id = i.customer_id
+     GROUP BY c.id, c.customer_name, i.currency
+     ORDER BY c.customer_name, i.currency
+  `
+}
+
 export type LedgerEntry = {
   id: string
   entry_number: string

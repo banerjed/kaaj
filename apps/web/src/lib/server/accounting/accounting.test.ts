@@ -182,6 +182,111 @@ describe("invoices", () => {
   })
 })
 
+describe("AR aging", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  // Every open invoice in the fixture shares due_date = 2026-02-20, so
+  // varying `asOf` walks the same balances through each bucket in turn —
+  // including every boundary an off-by-one would get wrong.
+  it("buckets by days past due, walking the same balances through each bucket as `asOf` moves", async () => {
+    const asOfDates = {
+      current: "2026-02-20", // 0 days
+      at28: "2026-03-20", // 28 days
+      at30: "2026-03-22", // 30 days — still 1-30
+      at31: "2026-03-23", // 31 days — now 31-60
+      at33: "2026-03-25", // 33 days
+      at60: "2026-04-21", // 60 days — still 31-60
+      at61: "2026-04-22", // 61 days — now 61-90
+      at90: "2026-05-21", // 90 days — still 61-90
+      at91: "2026-05-22", // 91 days — now 90+
+    }
+    const results = await withTenant(AS_OWNER, async (tx) => {
+      const out: Record<string, acc.ArAgingRow[]> = {}
+      for (const [key, asOf] of Object.entries(asOfDates)) {
+        out[key] = await acc.arAging(tx, { asOf })
+      }
+      return out
+    })
+
+    const acme = (rows: acc.ArAgingRow[]) =>
+      rows.find((r) => r.customer_name === "Acme Manufacturing")
+    const britannia = (rows: acc.ArAgingRow[]) =>
+      rows.find((r) => r.customer_name === "Britannia Retail Group")
+
+    expect(acme(results.current)?.current).toBe("34883.72")
+    expect(acme(results.current)?.days_1_30).toBe("0.00")
+    expect(britannia(results.current)?.current).toBe("18860.00")
+    expect(britannia(results.current)?.currency).toBe("GBP")
+
+    expect(acme(results.at28)?.days_1_30).toBe("34883.72")
+    expect(acme(results.at28)?.current).toBe("0.00")
+
+    expect(acme(results.at30)?.days_1_30).toBe("34883.72")
+    expect(acme(results.at30)?.days_31_60).toBe("0.00")
+
+    expect(acme(results.at31)?.days_31_60).toBe("34883.72")
+    expect(acme(results.at31)?.days_1_30).toBe("0.00")
+
+    expect(acme(results.at33)?.days_31_60).toBe("34883.72")
+
+    expect(acme(results.at60)?.days_31_60).toBe("34883.72")
+    expect(acme(results.at60)?.days_61_90).toBe("0.00")
+
+    expect(acme(results.at61)?.days_61_90).toBe("34883.72")
+    expect(acme(results.at61)?.days_31_60).toBe("0.00")
+
+    expect(acme(results.at90)?.days_61_90).toBe("34883.72")
+    expect(acme(results.at90)?.days_90_plus).toBe("0.00")
+
+    expect(acme(results.at91)?.days_90_plus).toBe("34883.72")
+    expect(acme(results.at91)?.days_61_90).toBe("0.00")
+
+    // The five buckets must partition the total — this is what a gap
+    // between two adjacent bucket predicates would fail, which a single
+    // boundary shift doesn't catch.
+    for (const rows of Object.values(results)) {
+      for (const r of rows) {
+        const bucketSum =
+          Number(r.current) +
+          Number(r.days_1_30) +
+          Number(r.days_31_60) +
+          Number(r.days_61_90) +
+          Number(r.days_90_plus)
+        expect(bucketSum).toBeCloseTo(Number(r.total), 2)
+      }
+    }
+  })
+
+  it("excludes a draft invoice, and reads the invoice's own currency, not base currency", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) =>
+      acc.arAging(tx, { asOf: "2026-02-20" }),
+    )
+    expect(rows.some((r) => r.customer_name === "Helios Energy")).toBe(false)
+
+    const britannia = rows.find(
+      (r) => r.customer_name === "Britannia Retail Group",
+    )
+    // INV-2026-002 is GBP 18860.00 / base (USD) 23852.20 — this must read
+    // the invoice's own currency figure, not the converted one.
+    expect(britannia?.total).toBe("18860.00")
+    expect(britannia?.currency).toBe("GBP")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.arAging(tx, { asOf: "2026-02-20" }),
+    )
+    expect(refused).toEqual([])
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.arAging(tx, { asOf: "2026-02-20" }),
+    )
+    expect(owner.length).toBeGreaterThan(0)
+  })
+})
+
 describe("the trial balance", () => {
   afterAll(async () => {
     await closeConnections()

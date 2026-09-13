@@ -48,6 +48,7 @@ const PAGES: { path: string; heading: string }[] = [
     heading: "Statement of Changes in Equity",
   },
   { path: "/accounting/banking", heading: "Banking" },
+  { path: "/accounting/ar-aging", heading: "AR Aging" },
   { path: "/ticketing", heading: "Ticketing" },
   { path: "/ticketing/new", heading: "New ticket" },
   { path: "/settings/company", heading: "Company" },

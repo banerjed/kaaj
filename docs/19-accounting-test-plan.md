@@ -156,8 +156,8 @@ call-outs.
   *No credit memo / refund feature exists in code.*
 - Voiding/cancelling an invoice after payment is blocked, or requires unwinding the payment first. **[DONE]** (blocked)
   *`voidInvoice` refuses anything not a draft (`accounting.repo.ts`), tested in `receivables.writes.test.ts:474` ("refuses to void anything already issued") and `:463` ("voids a draft"). Since payment can only happen on an issued invoice, an invoice with a payment can never reach void — the block is total rather than conditional on payment state, which trivially satisfies the bullet.*
-- AR aging report buckets use the correct "as of" date and correctly age partially-paid invoices by their remaining balance. **[MISSING]**
-  *No aging report exists anywhere in `apps/web/src/routes/(app)/accounting/`.*
+- AR aging report buckets use the correct "as of" date and correctly age partially-paid invoices by their remaining balance. **[DONE]** (added 2026-09-13)
+  *`acc.arAging()` at `/accounting/ar-aging` buckets open, non-draft/void invoices into current/1-30/31-60/61-90/90+ by `asOf - due_date`, defaulting a blank `asOf` to the database's own `CURRENT_DATE` — deliberately different from the balance sheet's `asOf`, where blank means no upper bound, since aging needs a real reference date to bucket against. `amount_due` already reflects partial payment (it is `total - amount_paid`, enforced by `ck_invoices_amounts_reconcile`), so a partially-paid invoice ages by its remaining balance for free. Grouped by `(customer_id, currency)` and read from the invoice's own currency — never `base_amount_due` — so a customer billed in two currencies is two rows rather than one silently-summed one, and no cross-customer total is shown (mixing currencies would violate BR-FP-003). Tested in `accounting.test.ts` ("AR aging") by walking the same fixture balances through every bucket as `asOf` moves, with each boundary checked exactly (30/31, 60/61, 90/91 days — break/revert-verified) and the five buckets asserted to sum to the row's total at every date tested — plus the draft-exclusion and own-currency assertions, and finance-only RLS visibility.*
 - Write-off of bad debt moves the balance out of AR into an expense/allowance account and is auditable. **[MISSING]**
   *No write-off feature exists.*
 - Currency of the invoice, once issued, doesn't change even if the customer's default currency changes later. **[PARTIAL]**
@@ -430,8 +430,8 @@ building a new module:
 4. **The "feed it something wrong and watch it fail" gap on `postJournal`
    (§1.1)** — the balance guard and the zero-line guard have never been
    observed actually rejecting anything, per this codebase's own L48 rule.
-5. **AR/AP aging reports (§2.1, §2.2)** — the one commonly-expected report
-   missing from each otherwise well-tested subledger.
+5. **AP aging report (§2.2)** — AR's now exists (§2.1, added 2026-09-13); AP's
+   is the remaining commonly-expected report missing from its subledger.
 6. **Tax rates as their own accounting concept (§4)** — the `payroll_tax_rates`
    FK is a modeling inconsistency worth fixing before building any tax report
    on top of it.
