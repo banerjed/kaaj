@@ -49,13 +49,6 @@ const EXEMPT = new Set([
   // of how large the invoices table is — the bound is a literal in the loop
   // head, not a row count.
   "apps/web/src/lib/server/accounting/accounting.repo.ts:for (let attempt = 0; attempt < 5 && invoiceId === undefined; attempt++) {",
-
-  // Recomputes/re-statuses each invoice in ONE lockbox payment's own
-  // allocation batch — bounded by how many invoices a person selects in one
-  // payment, not by how large the invoices table has grown. Reuses the
-  // single trusted recomputeInvoiceTotals() rather than a second, parallel
-  // batched implementation of the same "sum payment_allocations" logic.
-  "apps/web/src/lib/server/accounting/accounting.repo.ts:for (const id of ids) {",
 ])
 
 function* tsFiles(dir) {

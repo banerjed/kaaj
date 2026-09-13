@@ -100,12 +100,14 @@ function refusal(e: AccountingRefused) {
         message: "That number is taken. Try again.",
         errorFields: ["invoice"],
       }
-    case "wrong_customer":
-    case "duplicate_invoice":
-    case "allocation_mismatch":
-      // Not reachable from this action — those belong to the lockbox batch
-      // at /accounting/receive-payment — but the reason type is shared
-      // across the whole module, so the switch stays exhaustive.
+    default:
+      // Every other reason belongs to a different action — the lockbox
+      // batch at /accounting/receive-payment, matching a bank transaction,
+      // etc. — and is not reachable from this one. A `default` rather than
+      // an exhaustive list of them, so a reason added elsewhere in the
+      // shared `AccountingRefused` type never needs an edit here to keep
+      // compiling — two other routes' exhaustive lists silently fell behind
+      // exactly this way when `over_credit`/`over_writeoff` were added.
       return {
         message: "That could not be completed.",
         errorFields: ["invoice"],

@@ -111,21 +111,27 @@ export async function invoiceLines(
   `
 }
 
+/**
+ * One payment as it applies to a single invoice or bill — shared by
+ * `paymentsFor()` here and `paymentsForBill()` in `payables.repo.ts`,
+ * since a payment_allocations row joined to its payment is the same shape
+ * whichever side of the ledger it settles.
+ */
+export type PaymentForDocument = {
+  id: string
+  payment_number: string | null
+  payment_date: string | null
+  amount: string | null
+  currency: string | null
+  method: string | null
+}
+
 /** What has been received against one invoice, newest first. */
 export async function paymentsFor(
   tx: Tx,
   invoiceId: string,
-): Promise<
-  {
-    id: string
-    payment_number: string | null
-    payment_date: string | null
-    amount: string | null
-    currency: string | null
-    method: string | null
-  }[]
-> {
-  return tx`
+): Promise<PaymentForDocument[]> {
+  return tx<PaymentForDocument[]>`
     SELECT p.id, p.payment_number,
            to_char(p.payment_date,'YYYY-MM-DD') AS payment_date,
            al.amount::text AS amount,
@@ -135,7 +141,7 @@ export async function paymentsFor(
       JOIN payments p ON p.id = al.payment_id
      WHERE al.invoice_id = ${invoiceId}::uuid
      ORDER BY p.payment_date DESC
-  ` as never
+  `
 }
 
 /** Credit memos issued against one invoice, newest first. */
@@ -153,7 +159,17 @@ export async function creditsFor(
     reason: string
   }[]
 > {
-  return tx`
+  return tx<
+    {
+      id: string
+      credit_number: string
+      credit_type: string
+      created_at: string
+      amount: string
+      currency: string
+      reason: string
+    }[]
+  >`
     SELECT id, credit_number, credit_type,
            to_char(created_at, 'YYYY-MM-DD') AS created_at,
            amount::text AS amount,
@@ -161,7 +177,7 @@ export async function creditsFor(
       FROM invoice_credits
      WHERE invoice_id = ${invoiceId}::uuid
      ORDER BY created_at DESC
-  ` as never
+  `
 }
 
 export type ArAgingRow = {
@@ -195,6 +211,13 @@ export async function arAging(
       SELECT i.customer_id, i.currency, i.amount_due,
              (COALESCE(${asOf}::date, CURRENT_DATE) - i.due_date) AS days_overdue
         FROM invoices i
+       -- Narrower than INVOICE_SELECT's is_overdue, which also excludes
+       -- 'credited'/'written_off': amount_due > 0 already excludes a
+       -- settled invoice regardless of status, so this list only needs the
+       -- two statuses (draft, void) that can carry a nonzero amount_due
+       -- while genuinely not being owed yet/anymore. customerBalances()
+       -- and openInvoicesForCustomer() repeat this same "open invoice"
+       -- shape below.
        WHERE i.amount_due > 0
          AND i.status NOT IN ('draft', 'void')
     )
@@ -342,7 +365,7 @@ export async function ledger(
 export async function unbalanced(
   tx: Tx,
 ): Promise<{ entry_number: string; debits: string; credits: string }[]> {
-  return tx`
+  return tx<{ entry_number: string; debits: string; credits: string }[]>`
     SELECT je.entry_number,
            COALESCE(sum(l.debit_amount), 0)::text  AS debits,
            COALESCE(sum(l.credit_amount), 0)::text AS credits
@@ -351,7 +374,7 @@ export async function unbalanced(
      GROUP BY je.id, je.entry_number
     HAVING COALESCE(sum(l.debit_amount), 0) <> COALESCE(sum(l.credit_amount), 0)
      ORDER BY je.entry_number
-  ` as never
+  `
 }
 
 export type TrialBalanceRow = {
@@ -578,6 +601,15 @@ export type PeriodComparisonTotals = {
  * immediately before `from`; `previous_year` shifts both dates back a year,
  * letting Postgres's date arithmetic handle month lengths and leap days
  * rather than reimplementing calendar math in JS.
+ *
+ * This `bounds` CTE is copy-pasted verbatim into `cashFlowComparison()` and
+ * `equityComparison()` below rather than shared — for the same reason
+ * `cashFlowStatement()`'s own doc comment gives for its duplicated
+ * account-balances CTE: it takes three of *this query's own* bind
+ * parameters (`from`, `to`, `compareTo`), and postgres.js only forwards a
+ * single bind value out of a nested `tx.unsafe()` fragment into the outer
+ * query. A shared multi-parameter fragment here would look tidy and
+ * silently bind the wrong dates.
  */
 export async function profitAndLossComparison(
   tx: Tx,
@@ -1409,30 +1441,53 @@ export async function recomputeInvoiceTotals(
   `
 }
 
-/** The next `JE-YYYY-nnnn`, from the numbers already in use. */
-async function nextEntryNumber(tx: Tx, year: number): Promise<string> {
+/**
+ * The next `<PREFIX>-<year>-nnn...`, from the numbers already in use — a
+ * scan-and-increment, not a locked counter. One shape shared by every
+ * document series in this module (journal entries, invoices, payments,
+ * credit memos/write-offs, vendor payments): a race between two concurrent
+ * writers computing the same "next" number hits the series' own UNIQUE
+ * index rather than sharing one, and each caller turns that into its own
+ * refusal (`createInvoice`'s retry loop, `AccountingRefused("number_taken")`).
+ *
+ * `table`/`column` are always internal constants, never request input, so
+ * interpolating them as identifiers via `tx.unsafe()` — the same pattern
+ * `INVOICE_SELECT`/`BILL_SELECT` already use for a query's `FROM`/`SELECT`
+ * text — is safe. `prefix` is a normal bound parameter, not nested inside
+ * that `unsafe()` text, so this isn't the nested-fragment shape documented
+ * on `cashFlowStatement` as dropping all but the first bind value; the same
+ * two-identifier, one-bound-param shape already runs in production as
+ * `projects.repo.ts`'s `nextNumber()`.
+ */
+export async function nextSequenceNumber(
+  tx: Tx,
+  table: string,
+  column: string,
+  prefix: string,
+  year: string | number,
+  padWidth: number,
+): Promise<string> {
   const [row] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(entry_number from '[0-9]+$'), '')::int),
+    SELECT coalesce(max(nullif(substring(${tx.unsafe(column)} from '[0-9]+$'), '')::int),
                     0) + 1 AS n
-      FROM journal_entries
+      FROM ${tx.unsafe(table)} WHERE ${tx.unsafe(column)} LIKE ${prefix + "-%"}
   `
-  return `JE-${year}-${String(row.n).padStart(4, "0")}`
+  return `${prefix}-${year}-${String(row.n).padStart(padWidth, "0")}`
 }
 
-/**
- * The next `INV-YYYY-nnn`, from the numbers already in use — same
- * scan-and-increment shape as `nextEntryNumber`/`recordPayment`'s
- * `paymentNumber`, not a locked counter. A race between two concurrent
- * creates hits `idx_invoices_number` (UNIQUE) rather than sharing a number;
- * `createInvoice` turns that into `AccountingRefused("number_taken")`.
- */
+async function nextEntryNumber(tx: Tx, year: number): Promise<string> {
+  return nextSequenceNumber(
+    tx,
+    "journal_entries",
+    "entry_number",
+    "JE",
+    year,
+    4,
+  )
+}
+
 async function nextInvoiceNumber(tx: Tx, year: number): Promise<string> {
-  const [row] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(invoice_number from '[0-9]+$'), '')::int),
-                    0) + 1 AS n
-      FROM invoices WHERE invoice_number LIKE 'INV-%'
-  `
-  return `INV-${year}-${String(row.n).padStart(3, "0")}`
+  return nextSequenceNumber(tx, "invoices", "invoice_number", "INV", year, 3)
 }
 
 /** postgres.js surfaces the SQLSTATE on the error; 23505 is unique_violation. */
@@ -1797,6 +1852,38 @@ export async function issueInvoice(
 }
 
 /**
+ * Recompute an invoice after a payment lands against it, and settle its
+ * status: `paid` only when the balance reaches exactly zero (decided in
+ * SQL against NUMERIC zero, never by parsing the string), `partial`
+ * otherwise. Shared by `recordPayment()`'s single invoice and
+ * `recordLockboxPayment()`'s per-invoice loop over one batch — the two
+ * call sites differ only in how many invoices they settle, not in what
+ * settling one means.
+ */
+async function settleInvoiceAfterPayment(
+  tx: Tx,
+  invoiceId: string,
+  actorId: string,
+): Promise<InvoiceStatus> {
+  await recomputeInvoiceTotals(tx, invoiceId)
+  const [settled] = await tx<{ due: string }[]>`
+    SELECT amount_due::text AS due FROM invoices WHERE id = ${invoiceId}::uuid
+  `
+  const [state] = await tx<{ fully_paid: boolean }[]>`
+    SELECT ${settled.due}::numeric = 0 AS fully_paid
+  `
+  const status: InvoiceStatus = state.fully_paid ? "paid" : "partial"
+  await tx`
+    UPDATE invoices
+       SET status = ${status},
+           paid_at = ${state.fully_paid ? tx`now()` : null},
+           updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${invoiceId}::uuid
+  `
+  return status
+}
+
+/**
  * Receive money against an invoice.
  *
  *   DR Cash at Bank            amount
@@ -1833,13 +1920,14 @@ export async function recordPayment(
     throw new AccountingRefused("overpayment", before.amount_due)
   }
 
-  const [numbering] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(payment_number from '[0-9]+$'),
-                                '')::int), 0) + 1 AS n
-      FROM payments WHERE payment_number LIKE 'PAY-%'
-  `
-  const year = input.paymentDate.slice(0, 4)
-  const paymentNumber = `PAY-${year}-${String(numbering.n).padStart(3, "0")}`
+  const paymentNumber = await nextSequenceNumber(
+    tx,
+    "payments",
+    "payment_number",
+    "PAY",
+    input.paymentDate.slice(0, 4),
+    3,
+  )
 
   const [customer] = await tx<{ customer_id: string }[]>`
     SELECT customer_id FROM invoices WHERE id = ${input.invoiceId}::uuid
@@ -1902,24 +1990,7 @@ export async function recordPayment(
     )
   `
 
-  await recomputeInvoiceTotals(tx, input.invoiceId)
-
-  const [settled] = await tx<{ due: string }[]>`
-    SELECT amount_due::text AS due FROM invoices WHERE id = ${input.invoiceId}::uuid
-  `
-  // Decided in SQL against NUMERIC zero, not by parsing the string.
-  const [state] = await tx<{ fully_paid: boolean }[]>`
-    SELECT ${settled.due}::numeric = 0 AS fully_paid
-  `
-  const status: InvoiceStatus = state.fully_paid ? "paid" : "partial"
-
-  await tx`
-    UPDATE invoices
-       SET status = ${status},
-           paid_at = ${state.fully_paid ? tx`now()` : null},
-           updated_at = now(), updated_by = ${actorId}::uuid
-     WHERE id = ${input.invoiceId}::uuid
-  `
+  const status = await settleInvoiceAfterPayment(tx, input.invoiceId, actorId)
 
   return { paymentNumber, status }
 }
@@ -2026,13 +2097,14 @@ export async function recordLockboxPayment(
     )
   }
 
-  const [numbering] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(payment_number from '[0-9]+$'),
-                                '')::int), 0) + 1 AS n
-      FROM payments WHERE payment_number LIKE 'PAY-%'
-  `
-  const year = input.paymentDate.slice(0, 4)
-  const paymentNumber = `PAY-${year}-${String(numbering.n).padStart(3, "0")}`
+  const paymentNumber = await nextSequenceNumber(
+    tx,
+    "payments",
+    "payment_number",
+    "PAY",
+    input.paymentDate.slice(0, 4),
+    3,
+  )
 
   const entryId = await postJournal(
     tx,
@@ -2090,26 +2162,11 @@ export async function recordLockboxPayment(
   `
 
   // One bounded loop over THIS batch's own invoices (a person can only
-  // select so many in one lockbox payment), reusing the single trusted
-  // recompute function rather than a second, parallel implementation of
-  // "sum payment_allocations into amount_paid/amount_due" (verify-no-loop-queries.mjs EXEMPT).
+  // select so many in one lockbox payment), reusing the same
+  // settleInvoiceAfterPayment() a single-invoice recordPayment() uses.
   const statuses: { invoiceNumber: string; status: InvoiceStatus }[] = []
   for (const id of ids) {
-    await recomputeInvoiceTotals(tx, id)
-    const [settled] = await tx<{ due: string }[]>`
-      SELECT amount_due::text AS due FROM invoices WHERE id = ${id}::uuid
-    `
-    const [state] = await tx<{ fully_paid: boolean }[]>`
-      SELECT ${settled.due}::numeric = 0 AS fully_paid
-    `
-    const status: InvoiceStatus = state.fully_paid ? "paid" : "partial"
-    await tx`
-      UPDATE invoices
-         SET status = ${status},
-             paid_at = ${state.fully_paid ? tx`now()` : null},
-             updated_at = now(), updated_by = ${actorId}::uuid
-       WHERE id = ${id}::uuid
-    `
+    const status = await settleInvoiceAfterPayment(tx, id, actorId)
     statuses.push({ invoiceNumber: states.get(id)!.invoice_number, status })
   }
 
@@ -2178,13 +2235,14 @@ async function recordInvoiceCredit(
     throw new AccountingRefused(kind.overAmountReason, before.amount_due)
   }
 
-  const [numbering] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(credit_number from '[0-9]+$'),
-                                '')::int), 0) + 1 AS n
-      FROM invoice_credits WHERE credit_number LIKE ${kind.numberPrefix + "-%"}
-  `
-  const year = input.creditDate.slice(0, 4)
-  const creditNumber = `${kind.numberPrefix}-${year}-${String(numbering.n).padStart(3, "0")}`
+  const creditNumber = await nextSequenceNumber(
+    tx,
+    "invoice_credits",
+    "credit_number",
+    kind.numberPrefix,
+    input.creditDate.slice(0, 4),
+    3,
+  )
 
   const entryId = await postJournal(
     tx,

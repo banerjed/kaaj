@@ -1,5 +1,10 @@
 import type { Tx } from "../db/tenant"
-import { postJournal, AccountingRefused } from "./accounting.repo"
+import {
+  postJournal,
+  AccountingRefused,
+  nextSequenceNumber,
+  type PaymentForDocument,
+} from "./accounting.repo"
 
 /**
  * Bills and banking — payables and cash. Same discipline as invoices: money is
@@ -188,17 +193,8 @@ export async function billLines(tx: Tx, billId: string): Promise<BillLine[]> {
 export async function paymentsForBill(
   tx: Tx,
   billId: string,
-): Promise<
-  {
-    id: string
-    payment_number: string | null
-    payment_date: string | null
-    amount: string | null
-    currency: string | null
-    method: string | null
-  }[]
-> {
-  return tx`
+): Promise<PaymentForDocument[]> {
+  return tx<PaymentForDocument[]>`
     SELECT p.id, p.payment_number,
            to_char(p.payment_date,'YYYY-MM-DD') AS payment_date,
            al.amount::text AS amount,
@@ -208,7 +204,7 @@ export async function paymentsForBill(
       JOIN payments p ON p.id = al.payment_id
      WHERE al.bill_id = ${billId}::uuid
      ORDER BY p.payment_date DESC
-  ` as never
+  `
 }
 
 // -- Banking ----------------------------------------------------------------
@@ -512,13 +508,14 @@ export async function recordVendorPayment(
     throw new AccountingRefused("overpayment", before.amount_due)
   }
 
-  const [numbering] = await tx<{ n: number }[]>`
-    SELECT coalesce(max(nullif(substring(payment_number from '[0-9]+$'),
-                                '')::int), 0) + 1 AS n
-      FROM payments WHERE payment_number LIKE 'VPAY-%'
-  `
-  const year = input.paymentDate.slice(0, 4)
-  const paymentNumber = `VPAY-${year}-${String(numbering.n).padStart(3, "0")}`
+  const paymentNumber = await nextSequenceNumber(
+    tx,
+    "payments",
+    "payment_number",
+    "VPAY",
+    input.paymentDate.slice(0, 4),
+    3,
+  )
 
   const entryId = await postJournal(
     tx,

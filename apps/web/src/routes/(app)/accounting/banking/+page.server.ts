@@ -81,18 +81,16 @@ function refusal(e: AccountingRefused) {
         message: "That payment is already matched to a different transaction.",
         errorFields: ["payment_id"],
       }
-    case "no_such_invoice":
-    case "no_such_bill":
-    case "no_such_account":
-    case "no_lines":
-    case "does_not_balance":
-    case "period_closed":
-    case "overpayment":
-    case "number_taken":
-    case "self_approval":
-      // Not reachable from this action — matching never posts a journal or
-      // touches an invoice/bill — but the reason type is shared with those
-      // domains, so the switch stays exhaustive rather than falling through.
+    default:
+      // Matching never posts a journal or touches an invoice/bill, so every
+      // other reason belongs to a different action and is not reachable
+      // from this one — a `default` rather than an exhaustive list of them,
+      // so a reason added elsewhere in the shared `AccountingRefused` type
+      // never needs an edit here to keep compiling. (This one drifted
+      // before: `wrong_customer`/`duplicate_invoice`/`allocation_mismatch`,
+      // added for the lockbox batch, and `over_credit`/`over_writeoff`,
+      // added for credit memos, were never added to the old exhaustive
+      // list — harmless only because this route never throws them.)
       return { message: "That could not be matched.", errorFields: ["match"] }
   }
 }

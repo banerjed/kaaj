@@ -94,20 +94,12 @@ function refusal(e: AccountingRefused) {
         message: "Select at least one invoice to allocate this payment to.",
         errorFields: ["allocations"],
       }
-    case "no_such_bill":
-    case "no_such_account":
-    case "no_such_customer":
-    case "no_such_vendor":
-    case "does_not_balance":
-    case "period_closed":
-    case "number_taken":
-    case "self_approval":
-    case "no_such_bank_transaction":
-    case "no_such_payment":
-    case "direction_mismatch":
-    case "already_matched":
-      // Not reachable from this action, but the reason type is shared
-      // across the whole module — the switch stays exhaustive.
+    default:
+      // Every other reason belongs to a different action (issuing an
+      // invoice, a credit memo, matching a bank transaction, ...) and is
+      // not reachable from this one — a `default` rather than an exhaustive
+      // list of them, so a reason added elsewhere in the shared
+      // `AccountingRefused` type never needs an edit here to keep compiling.
       return {
         message: "That payment could not be recorded.",
         errorFields: ["allocations"],
