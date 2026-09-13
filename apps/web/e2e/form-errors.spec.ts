@@ -346,6 +346,29 @@ test("an invoice line with a negative quantity is refused, not stored as a negat
   expect(result.raw).toMatch(/lines\.0\.quantity/)
 })
 
+test("a taxed invoice line for a customer exempt as of the invoice date is refused, not silently charged", async ({
+  page,
+}) => {
+  // Helios Energy — exempt through 2026-12-31 in the fixture (US-ACC-050).
+  const response = await page.request.post("/accounting/invoices/new?/create", {
+    form: {
+      customer_id: "df492f8b-55ce-504f-869d-52f5ffc6292d",
+      invoice_date: "2026-06-01",
+      due_date: "2026-07-01",
+      exchange_rate: "1.000000",
+      line_count: "1",
+      "lines.0.description": "Consulting",
+      "lines.0.quantity": "1",
+      "lines.0.unit_price": "100.00",
+      "lines.0.discount_percent": "0",
+      "lines.0.tax_amount": "10.00",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/tax-exempt/i)
+})
+
 test("creating a bill with no lines is refused, not silently accepted", async ({
   page,
 }) => {

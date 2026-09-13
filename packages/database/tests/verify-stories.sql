@@ -693,10 +693,12 @@ SELECT _check('US-ACC-049','DATA','accounting',
   $$SELECT (SELECT count(*)>0 FROM invoice_lines WHERE tax_amount>0 AND tax_rate_id IS NOT NULL)
       AND (SELECT count(*)>0 FROM bill_lines WHERE tax_amount>0 AND tax_rate_id IS NOT NULL)$$);
 SELECT _check('US-ACC-050','DATA','accounting',
-  'Tax-exempt customers can have zero-tax invoices',
+  'A tax-exempt customer''s zero-tax invoice falls within its exemption window',
   $$SELECT count(*)>0 FROM customers c
       JOIN invoices i ON i.customer_id=c.id
-     WHERE c.is_tax_exempt AND i.tax_total=0$$);
+     WHERE c.is_tax_exempt AND i.tax_total=0
+       AND c.tax_exempt_until IS NOT NULL
+       AND i.invoice_date <= c.tax_exempt_until$$);
 SELECT _check('US-ACC-046','DATA','accounting',
   'Sales tax rates are configured by jurisdiction',
   $$SELECT count(*)>0 FROM tax_rates

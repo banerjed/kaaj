@@ -40,6 +40,12 @@ function refusal(e: AccountingRefused) {
         message: `The chart of accounts has no ${e.detail}. Nothing was created.`,
         errorFields: ["lines"],
       }
+    case "customer_tax_exempt":
+      return {
+        message:
+          "This customer is tax-exempt as of the invoice date. Remove the tax amount from every line, or pick a later date if the exemption has since expired.",
+        errorFields: ["lines"],
+      }
     case "number_taken":
       return {
         message: "Could not allocate an invoice number. Try again.",

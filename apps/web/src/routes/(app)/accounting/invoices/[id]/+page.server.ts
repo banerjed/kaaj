@@ -100,6 +100,12 @@ function refusal(e: AccountingRefused) {
         message: "That number is taken. Try again.",
         errorFields: ["invoice"],
       }
+    case "customer_tax_exempt":
+      return {
+        message:
+          "This customer is tax-exempt as of the invoice date. Remove the tax amount from every line before issuing, or edit the date if the exemption has since expired.",
+        errorFields: ["invoice"],
+      }
     default:
       // Every other reason belongs to a different action — the lockbox
       // batch at /accounting/receive-payment, matching a bank transaction,

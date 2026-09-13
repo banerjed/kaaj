@@ -540,6 +540,7 @@ WHERE customer_number = 'BRITCO';
 UPDATE customers SET
     billing_address = '{"city": "Austin", "state": "TX", "country": "US"}'::jsonb,
     is_tax_exempt = TRUE,
+    tax_exempt_until = '2026-12-31',
     custom_fields = '{"tax_exemption_certificate": "EXEMPT-HELIOS-2026"}'::jsonb
 WHERE customer_number = 'HELIOS';
 

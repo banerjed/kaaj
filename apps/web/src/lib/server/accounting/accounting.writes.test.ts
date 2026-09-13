@@ -931,6 +931,8 @@ describe("a posted journal entry resists an UPDATE", () => {
 
 /** Acme Manufacturing — a real fixture customer, USD. */
 const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+/** Helios Energy — tax-exempt through 2026-12-31 in the fixture. */
+const HELIOS = "df492f8b-55ce-504f-869d-52f5ffc6292d"
 /** Amazon Web Services — a real fixture vendor, USD. */
 const AWS_VENDOR = "8a0bb1a6-448e-50f5-bbc0-1a41850d2e92"
 const SOFTWARE_ACCOUNT = "030e294b-88ad-544e-841a-cfda187885ac"
@@ -1224,5 +1226,119 @@ describe("the balance sheet, trial balance, cash flow and equity statement's che
     expect(balanceSheetBalances).toBe(false)
     expect(trialBalanceBalances).toBe(false)
     expect(cashFlowReconciles).toBe(false)
+  })
+})
+
+/** US-ACC-050 — a tax-exempt customer, and an exemption that can expire. */
+describe("tax-exempt customers", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  function oneLine(taxAmount: string) {
+    return [
+      {
+        description: "Consulting",
+        quantity: "1",
+        unitPrice: "500.00",
+        discountPercent: "0",
+        taxAmount,
+      },
+    ]
+  }
+
+  it("createInvoice refuses a taxed line for a customer exempt as of the invoice date", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          createInvoice(
+            tx,
+            NORTHWIND,
+            {
+              customerId: HELIOS,
+              invoiceDate: "2026-06-01", // within HELIOS's exemption window
+              dueDate: "2026-07-01",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: oneLine("10.00"),
+            },
+            ACTOR,
+          ),
+        ),
+      "customer_tax_exempt",
+    )
+  })
+
+  it("createInvoice allows a zero-tax line for a customer exempt as of the invoice date", async () => {
+    const { id } = await inRollback((tx) =>
+      createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: HELIOS,
+          invoiceDate: "2026-06-01",
+          dueDate: "2026-07-01",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: oneLine("0"),
+        },
+        ACTOR,
+      ),
+    )
+    expect(id).toBeTruthy()
+  })
+
+  it("createInvoice allows a taxed line once the exemption has expired", async () => {
+    const { id } = await inRollback((tx) =>
+      createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: HELIOS,
+          invoiceDate: "2027-01-15", // after HELIOS's 2026-12-31 tax_exempt_until
+          dueDate: "2027-02-15",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: oneLine("10.00"),
+        },
+        ACTOR,
+      ),
+    )
+    expect(id).toBeTruthy()
+  })
+
+  // The draft was created while the customer was not exempt at all — this is
+  // the case createInvoice's own check cannot see, and the reason the same
+  // check is repeated in issueInvoice: the money-moving step, not the draft.
+  it("issueInvoice refuses to post a taxed invoice once the customer becomes exempt for its date, even though the draft was created before that", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          const { id: invoiceId } = await createInvoice(
+            tx,
+            NORTHWIND,
+            {
+              customerId: ACME,
+              invoiceDate: "2026-06-01",
+              dueDate: "2026-07-01",
+              exchangeRate: "1.000000",
+              paymentTerms: null,
+              notes: null,
+              lines: oneLine("10.00"),
+            },
+            ACTOR,
+          )
+          await tx`
+            UPDATE customers
+               SET is_tax_exempt = TRUE, tax_exempt_until = '2026-12-31'
+             WHERE id = ${ACME}::uuid
+          `
+          await issueInvoice(tx, NORTHWIND, invoiceId, ACTOR)
+        }),
+      "customer_tax_exempt",
+    )
   })
 })

@@ -398,6 +398,7 @@ customers	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 customers	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 customers	25	created_by	uuid	f	
 customers	26	updated_by	uuid	f	
+customers	27	tax_exempt_until	date	f	
 employee_assets	1	id	uuid	t	gen_random_uuid()
 employee_assets	2	tenant_id	uuid	t	
 employee_assets	3	asset_id	text	f	

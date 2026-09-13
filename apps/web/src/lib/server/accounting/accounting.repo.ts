@@ -1596,7 +1596,10 @@ export class AccountingRefused extends Error {
       // Same shape as `over_credit`, kept distinct so the write-off form's
       // own field is the one marked, not the credit memo form's.
       | "over_writeoff"
-      | "no_such_period",
+      | "no_such_period"
+      // US-ACC-050: a line carries tax for a customer exempt as of the
+      // invoice's own date.
+      | "customer_tax_exempt",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2014,10 +2017,31 @@ export async function createInvoice(
 ): Promise<{ id: string; invoiceNumber: string }> {
   if (input.lines.length === 0) throw new AccountingRefused("no_lines")
 
-  const [customer] = await tx<{ currency: string }[]>`
-    SELECT currency FROM customers WHERE id = ${input.customerId}::uuid
+  const [customer] = await tx<
+    {
+      currency: string
+      is_tax_exempt: boolean
+      tax_exempt_until: string | null
+    }[]
+  >`
+    SELECT currency, is_tax_exempt, tax_exempt_until::text
+      FROM customers WHERE id = ${input.customerId}::uuid
   `
   if (!customer) throw new AccountingRefused("no_such_customer")
+
+  // US-ACC-050: exempt as of THIS invoice's date, not today — an exemption
+  // that has since expired does not retroactively apply, and one that starts
+  // later does not apply early. `tax_exempt_until` NULL means indefinite.
+  const isExemptNow =
+    customer.is_tax_exempt &&
+    (customer.tax_exempt_until === null ||
+      input.invoiceDate <= customer.tax_exempt_until)
+  if (
+    isExemptNow &&
+    input.lines.some((l) => compareDecimal(l.taxAmount, "0") !== 0)
+  ) {
+    throw new AccountingRefused("customer_tax_exempt")
+  }
 
   const [tenant] = await tx<{ default_currency: string }[]>`
     SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
@@ -2114,6 +2138,24 @@ export async function issueInvoice(
   // Recompute first so the journal posts figures the lines actually support.
   await recomputeInvoiceTotals(tx, invoiceId)
   const current = await invoiceState(tx, invoiceId)
+
+  // US-ACC-050: re-checked here, not just in createInvoice — a draft can be
+  // created before an exemption is set, or issued after one has expired, and
+  // this is the step that actually posts tax to the ledger.
+  const [customer] = await tx<
+    { is_tax_exempt: boolean; tax_exempt_until: string | null }[]
+  >`
+    SELECT c.is_tax_exempt, c.tax_exempt_until::text
+      FROM customers c JOIN invoices i ON i.customer_id = c.id
+     WHERE i.id = ${invoiceId}::uuid
+  `
+  const isExemptNow =
+    customer.is_tax_exempt &&
+    (customer.tax_exempt_until === null ||
+      current.invoice_date <= customer.tax_exempt_until)
+  if (isExemptNow && compareDecimal(current.tax_total, "0") !== 0) {
+    throw new AccountingRefused("customer_tax_exempt")
+  }
 
   const entryId = await postJournal(
     tx,
