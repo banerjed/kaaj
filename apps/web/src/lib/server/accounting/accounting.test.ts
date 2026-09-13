@@ -83,6 +83,41 @@ describe("the general ledger", () => {
   })
 })
 
+describe("accounting periods", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("returns closed_at as a real Date, not a string that fails to parse", async () => {
+    // Postgres.js returns timestamptz as a Date already (L36) — a stray
+    // `::text` cast in the query would hand the client Postgres's own
+    // space-separated text form, which `instant()`'s `new Date(value)` is
+    // not guaranteed to parse the same way on every JS engine. The fixture
+    // has real closed periods (January 2026, December 2025) to exercise this.
+    const periods = await withTenant(AS_OWNER, (tx) =>
+      acc.listAccountingPeriods(tx),
+    )
+    const closed = periods.filter((p) => p.closed_at !== null)
+    expect(closed.length).toBeGreaterThan(0)
+    for (const p of closed) {
+      expect(p.closed_at).toBeInstanceOf(Date)
+      expect(Number.isNaN((p.closed_at as Date).getTime())).toBe(false)
+    }
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.listAccountingPeriods(tx),
+    )
+    expect(refused).toEqual([])
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.listAccountingPeriods(tx),
+    )
+    expect(owner.length).toBeGreaterThan(0)
+  })
+})
+
 describe("invoices", () => {
   it("stored subtotal equals the sum of its lines", async () => {
     const rows = await withTenant(AS_OWNER, (tx) => acc.listInvoices(tx))

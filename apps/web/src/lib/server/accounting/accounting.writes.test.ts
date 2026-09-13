@@ -8,6 +8,8 @@ import {
   issueInvoice,
   recordPayment,
   recordManualJournalEntry,
+  closePeriod,
+  reopenPeriod,
   controlAccountTieOut,
   balanceSheetTotals,
   trialBalanceTotals,
@@ -34,6 +36,19 @@ const AS_OWNER = {
   employeeId: null,
 }
 const ACTOR = "48ccc5de-9ba7-5461-ab49-160a1146ed85"
+/**
+ * Reads everything, writes nothing (`@kaaj/authz`'s own description of the
+ * role) — the actor who can pass `periodState`'s SELECT (`accounting_read`)
+ * and so is the one who'd reach a silently-no-op UPDATE. A plain employee
+ * with no finance-visible role would be refused at the SELECT itself and
+ * never get that far, which is why this test needs an auditor specifically.
+ */
+const AS_AUDITOR = {
+  tenantId: NORTHWIND,
+  role: "employee",
+  functionalRoles: ["auditor"],
+  employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+}
 
 /** chart_of_accounts ids for `recordManualJournalEntry`'s picker-shaped input. `CASH_ACCOUNT` (1000) is declared further down, reused here. */
 const REVENUE_ACCOUNT = "6d1ef213-cb96-5ad4-beaf-1d4e07242d65" // Consulting Revenue, 4000
@@ -44,10 +59,13 @@ const POSTED_ENTRY = "c1c96d31-cfa4-57d3-9048-06e3ae1725e6"
 /** One of JE-2026-0001's own lines — the AR debit. */
 const POSTED_LINE = "34dd6b71-7040-5aa7-98c2-2fb1a0a06e48"
 
-async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+async function inRollbackAs<T>(
+  actor: Parameters<typeof withTenant>[0],
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
   const marker = new Error("__rollback__")
   try {
-    return await withTenant(AS_OWNER, async (tx) => {
+    return await withTenant(actor, async (tx) => {
       const result = await fn(tx)
       throw Object.assign(marker, { result })
     })
@@ -55,6 +73,10 @@ async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     if (e === marker) return (e as { result: T }).result
     throw e
   }
+}
+
+async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return inRollbackAs(AS_OWNER, fn)
 }
 
 /** Assert not merely that a write was refused, but WHY (L60). */
@@ -475,6 +497,196 @@ describe("recording a manual journal entry", () => {
         /base debits 0\.06 do not equal base credits 0\.05/,
       )
     }
+  })
+})
+
+/**
+ * Period close/reopen (US-ACC-035, INV-ACC-002). Before this, the only way a
+ * period became `closed`/`locked` was a hand-written fixture row — nothing
+ * in `apps/web/src/lib/server` wrote `accounting_periods.status` at all.
+ */
+describe("closing and reopening an accounting period", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  const OPEN_PERIOD = "5b1446f7-7db5-54f5-bf88-a3c4527d6027" // February 2026
+  const CLOSED_PERIOD = "c4fff2b2-1b53-592f-84f6-586e3b2ca0dc" // January 2026
+  const LOCKED_PERIOD = "957b6ce4-6f44-50c1-84b1-d9bdb8892585" // December 2025
+
+  it("closes an open period, setting closed_by/closed_at", async () => {
+    const row = await inRollback(async (tx) => {
+      await closePeriod(tx, OPEN_PERIOD, ACTOR)
+      const [row] = await tx<
+        { status: string; closed_by: string; closed_at: string | null }[]
+      >`
+        SELECT status, closed_by::text, closed_at::text
+          FROM accounting_periods WHERE id = ${OPEN_PERIOD}::uuid
+      `
+      return row
+    })
+    expect(row.status).toBe("closed")
+    expect(row.closed_by).toBe(ACTOR)
+    expect(row.closed_at).not.toBeNull()
+  })
+
+  it("refuses to close a period that is not open", async () => {
+    await refusedBecause(
+      () => inRollback((tx) => closePeriod(tx, CLOSED_PERIOD, ACTOR)),
+      "wrong_status",
+    )
+  })
+
+  it("reopens a closed period, clearing closed_by/closed_at", async () => {
+    const row = await inRollback(async (tx) => {
+      await reopenPeriod(tx, CLOSED_PERIOD)
+      const [row] = await tx<
+        { status: string; closed_by: string | null; closed_at: string | null }[]
+      >`
+        SELECT status, closed_by::text, closed_at::text
+          FROM accounting_periods WHERE id = ${CLOSED_PERIOD}::uuid
+      `
+      return row
+    })
+    expect(row.status).toBe("open")
+    expect(row.closed_by).toBeNull()
+    expect(row.closed_at).toBeNull()
+  })
+
+  it("refuses to reopen a period that is not closed (open)", async () => {
+    await refusedBecause(
+      () => inRollback((tx) => reopenPeriod(tx, OPEN_PERIOD)),
+      "wrong_status",
+    )
+  })
+
+  it("refuses to reopen a LOCKED period — reopening a lock is a separate, unbuilt process", async () => {
+    await refusedBecause(
+      () => inRollback((tx) => reopenPeriod(tx, LOCKED_PERIOD)),
+      "wrong_status",
+    )
+  })
+
+  it("refuses a nonexistent period, for both close and reopen", async () => {
+    const bogus = "00000000-0000-0000-0000-000000000099"
+    await refusedBecause(
+      () => inRollback((tx) => closePeriod(tx, bogus, ACTOR)),
+      "no_such_period",
+    )
+    await refusedBecause(
+      () => inRollback((tx) => reopenPeriod(tx, bogus)),
+      "no_such_period",
+    )
+  })
+
+  it("an auditor can see a period but the write is refused, not silently a no-op (L47, L68)", async () => {
+    // An auditor passes accounting_periods' READ policy (finance-visible,
+    // and an auditor reads everything) — the only actor who can reach the
+    // UPDATE while `accounting_update`'s separate RESTRICTIVE policy still
+    // blocks it. Without the RETURNING check this would silently affect
+    // zero rows and still report the period as closed/reopened.
+    await refusedBecause(
+      () =>
+        inRollbackAs(AS_AUDITOR, (tx) => closePeriod(tx, OPEN_PERIOD, ACTOR)),
+      "no_such_period",
+    )
+    await refusedBecause(
+      () => inRollbackAs(AS_AUDITOR, (tx) => reopenPeriod(tx, CLOSED_PERIOD)),
+      "no_such_period",
+    )
+    // Positive control: the SELECT really did succeed for this actor (an
+    // empty result here would make the refusal above vacuous, not proven).
+    const seen = await inRollbackAs(
+      AS_AUDITOR,
+      (tx) =>
+        tx<{ status: string }[]>`
+          SELECT status FROM accounting_periods WHERE id = ${OPEN_PERIOD}::uuid
+        `,
+    )
+    expect(seen).toHaveLength(1)
+  })
+
+  /**
+   * The two tests above each verify one half in isolation: `closePeriod`
+   * writes `status`, and `postJournal` already refuses a non-open period
+   * (via the fixture's pre-closed January). Neither proves the two are
+   * actually WIRED to each other — a `closePeriod` that wrote `'cIosed'`
+   * would pass every test above. These compose them for real.
+   */
+  it("closing a period actually stops a posting into it", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          await closePeriod(tx, OPEN_PERIOD, ACTOR) // February 2026
+          return recordManualJournalEntry(
+            tx,
+            NORTHWIND,
+            {
+              date: "2026-02-15",
+              description: "Should be refused — period just closed",
+              reference: null,
+              currency: "USD",
+              exchangeRate: "1.000000",
+              lines: [
+                {
+                  accountId: CASH_ACCOUNT,
+                  debit: "10.00",
+                  credit: "0",
+                  description: "",
+                },
+                {
+                  accountId: REVENUE_ACCOUNT,
+                  debit: "0",
+                  credit: "10.00",
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          )
+        }),
+      "period_closed",
+    )
+  })
+
+  it("reopening a period actually allows posting into it again", async () => {
+    // January 2026 is closed in the fixture; postJournal already refuses a
+    // posting there (see "closed accounting periods" in
+    // receivables.writes.test.ts) — this proves reopen lifts that refusal,
+    // not just that the status column changed.
+    const entryId = await inRollback(async (tx) => {
+      await reopenPeriod(tx, CLOSED_PERIOD)
+      const posted = await recordManualJournalEntry(
+        tx,
+        NORTHWIND,
+        {
+          date: "2026-01-20",
+          description: "Should succeed — period just reopened",
+          reference: null,
+          currency: "USD",
+          exchangeRate: "1.000000",
+          lines: [
+            {
+              accountId: CASH_ACCOUNT,
+              debit: "10.00",
+              credit: "0",
+              description: "",
+            },
+            {
+              accountId: REVENUE_ACCOUNT,
+              debit: "0",
+              credit: "10.00",
+              description: "",
+            },
+          ],
+        },
+        ACTOR,
+      )
+      return posted.id
+    })
+    expect(entryId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    )
   })
 })
 

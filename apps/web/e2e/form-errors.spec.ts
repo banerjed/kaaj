@@ -504,6 +504,43 @@ test("a manual journal entry whose debits and credits don't match is refused", a
   expect(result.raw).toMatch(/debits 50\.00 against credits 40\.00/)
 })
 
+test("closing a period that is not open is refused, not silently a no-op", async ({
+  page,
+}) => {
+  // January 2026 is already closed in the fixture.
+  const response = await page.request.post("/accounting/periods?/close", {
+    form: { period_id: "c4fff2b2-1b53-592f-84f6-586e3b2ca0dc" },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/is closed, not open/i)
+})
+
+test("reopening a period with no reason is refused, not silently accepted", async ({
+  page,
+}) => {
+  // January 2026 is closed in the fixture — reason is the only thing under test.
+  const response = await page.request.post("/accounting/periods?/reopen", {
+    form: { period_id: "c4fff2b2-1b53-592f-84f6-586e3b2ca0dc" },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/reason/i)
+})
+
+test("reopening a period that is not closed is refused", async ({ page }) => {
+  // February 2026 is open in the fixture.
+  const response = await page.request.post("/accounting/periods?/reopen", {
+    form: {
+      period_id: "5b1446f7-7db5-54f5-bf88-a3c4527d6027",
+      reason: "Testing the reopen guard",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/is open, not closed/i)
+})
+
 /**
  * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
  * browser in a different sense than `submitPastTheBrowser` above: a native

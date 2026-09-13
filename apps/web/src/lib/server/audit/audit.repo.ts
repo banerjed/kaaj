@@ -73,6 +73,7 @@ export const AUDIT_ACTIONS = [
   "record_writeoff",
   "post_journal_entry",
   "close_period",
+  "reopen_period",
   "role_grant",
   "role_revoke",
   "erase",

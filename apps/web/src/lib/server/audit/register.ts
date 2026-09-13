@@ -160,6 +160,16 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "create",
     why: "A manual adjustment posts directly to the general ledger with nobody's invoice or bill behind it — unlike a draft invoice/bill's create, there is no later issue()/approve() step to audit instead. 'Who adjusted the books, by how much, and why' is the first question an auditor asks about a manual entry.",
   },
+  {
+    route: "accounting/periods",
+    action: "close",
+    why: "Locks a period against further postings — 'who decided this period was done, and when' is the question a late correction request runs into.",
+  },
+  {
+    route: "accounting/periods",
+    action: "reopen",
+    why: "INV-ACC-002: reopening a closed period is deliberately rarer and riskier than closing one — it lets new postings land in a period someone already treated as final. The reason field exists because 'why was this reopened' must survive independently of whoever remembers the conversation.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {

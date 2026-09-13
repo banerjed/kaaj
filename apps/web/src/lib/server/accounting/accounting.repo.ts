@@ -1593,7 +1593,8 @@ export class AccountingRefused extends Error {
       | "over_credit"
       // Same shape as `over_credit`, kept distinct so the write-off form's
       // own field is the one marked, not the credit memo form's.
-      | "over_writeoff",
+      | "over_writeoff"
+      | "no_such_period",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2695,4 +2696,112 @@ export async function voidInvoice(
      WHERE id = ${invoiceId}::uuid
   `
   return { from: before.status }
+}
+
+/**
+ * Period management (US-ACC-035, `INV-ACC-002`). `accounting_periods.status`
+ * is a plain `varchar` with no CHECK, same shape as every other free-text
+ * vocabulary column (L57) — the vocabulary is `"open"`/`"closed"`/`"locked"`,
+ * enforced only here. `postJournal` already refuses posting into anything
+ * but `"open"` (§1.4); what was missing was a real action to CHANGE that
+ * status — before this, the only way a period became `closed`/`locked` was a
+ * hand-written fixture row.
+ */
+export type AccountingPeriod = {
+  id: string
+  period_name: string
+  period_type: string
+  start_date: string
+  end_date: string
+  fiscal_year: number
+  status: string
+  closed_by_name: string | null
+  /** A real instant — postgres.js returns `timestamptz` as a `Date` (L36); don't cast it to text and lose that. */
+  closed_at: Date | null
+}
+
+export async function listAccountingPeriods(
+  tx: Tx,
+): Promise<AccountingPeriod[]> {
+  return tx<AccountingPeriod[]>`
+    SELECT p.id, p.period_name, p.period_type::text AS period_type,
+           p.start_date::text, p.end_date::text, p.fiscal_year,
+           p.status, p.closed_at,
+           e.first_name || ' ' || e.last_name AS closed_by_name
+      FROM accounting_periods p
+      LEFT JOIN employees e ON e.id::text = p.closed_by::text
+     ORDER BY p.start_date DESC
+  `
+}
+
+async function periodState(
+  tx: Tx,
+  periodId: string,
+): Promise<{ period_name: string; status: string }> {
+  const [row] = await tx<{ period_name: string; status: string }[]>`
+    SELECT period_name, status FROM accounting_periods WHERE id = ${periodId}::uuid
+  `
+  if (!row) throw new AccountingRefused("no_such_period", periodId)
+  return row
+}
+
+/** Closes an open period. No checklist/outstanding-item gate exists yet (§13) — this is the status change alone. */
+export async function closePeriod(
+  tx: Tx,
+  periodId: string,
+  actorId: string,
+): Promise<{ periodName: string }> {
+  const before = await periodState(tx, periodId)
+  if (before.status !== "open") {
+    throw new AccountingRefused(
+      "wrong_status",
+      `${before.period_name} is ${before.status}, not open`,
+    )
+  }
+  // A no-op UPDATE must not report success (L68) — the SELECT above proves
+  // the row is VISIBLE, not that this actor's write policy permits changing
+  // it; `accounting_update`'s RESTRICTIVE `app.writes_accounting()` is a
+  // separate check from the read policy this transaction already passed.
+  const [updated] = await tx<{ id: string }[]>`
+    UPDATE accounting_periods
+       SET status = 'closed', closed_by = ${actorId}::uuid, closed_at = now(),
+           updated_at = now()
+     WHERE id = ${periodId}::uuid
+    RETURNING id
+  `
+  if (!updated) throw new AccountingRefused("no_such_period", periodId)
+  return { periodName: before.period_name }
+}
+
+/**
+ * Reopens a CLOSED period only — not `locked`, the stronger state a period
+ * reaches through a separate process this codebase doesn't build yet (a
+ * lock is a deliberate act with its own record, same reasoning as period
+ * close itself; reopening one would need at least the same ceremony this
+ * function already requires, and inventing that ceremony without a real
+ * lock workflow to observe would be guessing). `closed_by`/`closed_at` are
+ * cleared rather than left stale — the audit entry this call writes is the
+ * durable record that the period was ever closed, not these two columns.
+ */
+export async function reopenPeriod(
+  tx: Tx,
+  periodId: string,
+): Promise<{ periodName: string }> {
+  const before = await periodState(tx, periodId)
+  if (before.status !== "closed") {
+    throw new AccountingRefused(
+      "wrong_status",
+      `${before.period_name} is ${before.status}, not closed`,
+    )
+  }
+  // Same reasoning as closePeriod's own RETURNING check (L68).
+  const [updated] = await tx<{ id: string }[]>`
+    UPDATE accounting_periods
+       SET status = 'open', closed_by = NULL, closed_at = NULL,
+           updated_at = now()
+     WHERE id = ${periodId}::uuid
+    RETURNING id
+  `
+  if (!updated) throw new AccountingRefused("no_such_period", periodId)
+  return { periodName: before.period_name }
 }

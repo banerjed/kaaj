@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.20
+**Version:** 2.21
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2429,13 +2429,35 @@ either way.
       manual journal entry", 5 cases) and end-to-end (`smoke.spec.ts`
       renders the page; `form-errors.spec.ts` covers under-two-lines, a
       debit+credit line, and a mismatched total).
-- [ ] Period close workflow (an actual action that writes
+- [x] Period close workflow (an actual action that writes
       `accounting_periods.status`, not just the existing "no posting into a
-      non-open period" enforcement). US-ACC-035.
-- [ ] Period reopen workflow requiring permission, reason, and audit — this
+      non-open period" enforcement). US-ACC-035. (2026-09-13) — `/accounting/periods`
+      (`acc.closePeriod()`/`acc.reopenPeriod()`) lists every period with a
+      Close (open-only) and Reopen (closed-only) action, `accounting.write`-gated.
+      Reason field is required and audited (`close_period`/`reopen_period`).
+      Deliberately no checklist/outstanding-item gate before closing (§13's
+      close-checklist gap is unchanged) — this is the status change alone.
+- [x] Period reopen workflow requiring permission, reason, and audit — this
       is `INV-ACC-002`'s own stated requirement in `packages/spec-tests`,
-      currently untested against real code because there's no real code to
-      reopen a period with. §1.4, §13.
+      previously untested against real code because there was no real code
+      to reopen a period with. §1.4, §13. (2026-09-13) — reopen is refused
+      on anything but `closed`: an `open` period has nothing to reopen, and a
+      `locked` period reaches that stronger state through a process this
+      codebase doesn't build (no code writes `status = 'locked'` anywhere;
+      the fixture's one locked row, December 2025, models a hypothetical
+      future lock step) — reopening a lock without a real lock workflow to
+      observe would mean guessing at its ceremony. `closed_by`/`closed_at`
+      are cleared on reopen rather than left stale; the audit entry is the
+      durable record that the period was ever closed. `@kaaj/authz` gains no
+      new permission — `accounting.write` plus a mandatory reason plus audit
+      matches how `voidInvoice`/`recordWriteOff` already work, per the reason
+      this codebase already gives for not inventing narrower write
+      permissions. Tested in `accounting.writes.test.ts` ("closing and
+      reopening an accounting period", 6 cases, including a real close then
+      reopen round-trip and refusing to reopen the fixture's locked period)
+      and end-to-end (`smoke.spec.ts` renders the page; `form-errors.spec.ts`
+      covers closing a non-open period, reopening with no reason, and
+      reopening a non-closed period).
 - [ ] Year-end close (zero revenue/expense into retained earnings). §1.4.
 
 ### Tier 6 — Tax model fix and tax reporting
@@ -2546,6 +2568,7 @@ either way.
 | 2.18 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass. |
 | 2.19 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass. |
 | 2.20 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry). |
+| 2.21 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item. |
 
 ### References
 

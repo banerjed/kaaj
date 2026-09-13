@@ -31,6 +31,8 @@ const STAFF_ROUTES = [
   "/accounting/invoices",
   "/accounting/bills",
   "/accounting/ledger",
+  "/accounting/journal-entries/new",
+  "/accounting/periods",
   "/accounting/banking",
   "/ticketing",
   "/settings/company",

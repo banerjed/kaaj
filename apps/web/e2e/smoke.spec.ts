@@ -43,6 +43,7 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/accounting/journal-entries/new",
     heading: "New journal entry",
   },
+  { path: "/accounting/periods", heading: "Accounting Periods" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {
     path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",
