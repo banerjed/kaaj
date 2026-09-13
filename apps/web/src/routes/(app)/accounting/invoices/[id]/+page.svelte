@@ -15,6 +15,7 @@
   let paying = $state(false)
   let voiding = $state(false)
   let crediting = $state(false)
+  let writingOff = $state(false)
 
   /** What this invoice may do next — mirrors the statuses the repo enforces. */
   const may = $derived({
@@ -26,7 +27,16 @@
     credit:
       data.mayWrite &&
       ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
+    writeOff:
+      data.mayWrite &&
+      ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
   })
+
+  /** `invoice_credits.credit_type` — a plain vocabulary column (L57); the
+   *  label a person reads lives here, next to the only other place that
+   *  reads the column. */
+  const creditTypeLabel = (t: string) =>
+    t === "write_off" ? "Write-off" : "Credit memo"
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const locale = $derived(
@@ -69,6 +79,16 @@
       <span class="iconify lucide--check size-5"></span>
       <span>{form.credited} recorded. The invoice is now {form.status}.</span>
     </div>
+  {:else if form?.writtenOff}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span
+        >{form.writtenOff} recorded. The invoice is now {form.status?.replace(
+          /_/g,
+          " ",
+        )}.</span
+      >
+    </div>
   {:else if form?.message}
     <div role="alert" class="alert alert-error mt-4">
       <span class="iconify lucide--circle-alert size-5"></span>
@@ -93,7 +113,7 @@
             <span class="badge badge-error badge-sm">overdue</span>
           {/if}
           <StatusBadge tone={statusTone(data.invoice.status)}>
-            {data.invoice.status}
+            {data.invoice.status?.replace(/_/g, " ")}
           </StatusBadge>
         </div>
       </div>
@@ -230,7 +250,12 @@
         {#each data.credits as c (c.id)}
           <li class="list-row">
             <div class="list-col-grow">
-              <p class="font-medium">{c.credit_number}</p>
+              <p class="font-medium">
+                {c.credit_number}
+                <span class="text-base-content/70 font-normal"
+                  >· {creditTypeLabel(c.credit_type)}</span
+                >
+              </p>
               <p class="text-base-content/70 text-xs">
                 {calendarDate(c.created_at, locale)} · {c.reason}
               </p>
@@ -245,7 +270,7 @@
   {/if}
 
   <!-- Each posts a balanced journal entry; POST only, never a link. -->
-  {#if may.issue || may.pay || may.credit || may.void}
+  {#if may.issue || may.pay || may.credit || may.writeOff || may.void}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {#if may.issue}
         <form method="POST" action="?/issue">
@@ -277,6 +302,16 @@
         >
           <span class="iconify lucide--receipt-text size-4"></span>
           Issue a credit
+        </button>
+      {/if}
+      {#if may.writeOff}
+        <button
+          type="button"
+          class="btn btn-outline btn-sm"
+          onclick={() => (writingOff = true)}
+        >
+          <span class="iconify lucide--file-x size-4"></span>
+          Write off
         </button>
       {/if}
       {#if may.void}
@@ -454,6 +489,78 @@
       class="modal-backdrop"
       aria-label="Close"
       onclick={() => (crediting = false)}
+    ></button>
+  </div>
+{/if}
+
+<!-- Write off --------------------------------------------------------------- -->
+{#if writingOff}
+  <div class="modal modal-open" role="dialog" aria-label="Write off">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">
+        Write off {data.invoice.invoice_number}
+      </h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        Recognises the balance as uncollectible — Dr Bad Debt Expense, Cr
+        Accounts Receivable, not a reversal of revenue. {money(
+          data.invoice.amount_due,
+          cur,
+          locale,
+        )} outstanding. More than that is refused.
+      </p>
+      <form
+        method="POST"
+        action="?/recordWriteOff"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (writingOff = false))}
+      >
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Amount ({cur})</legend>
+          <!-- inputmode, never type="number" — that round-trips through a float. -->
+          <input
+            name="writeoff_amount"
+            aria-invalid={err.aria("writeoff_amount")}
+            class={`input w-full ${err.input("writeoff_amount")}`}
+            inputmode="decimal"
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Dated</legend>
+          <input
+            name="writeoff_date"
+            aria-invalid={err.aria("writeoff_date")}
+            type="date"
+            class={`input w-full ${err.input("writeoff_date")}`}
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Reason</legend>
+          <textarea
+            name="writeoff_reason"
+            aria-invalid={err.aria("writeoff_reason")}
+            class={`textarea w-full ${err.textarea("writeoff_reason")}`}
+            rows="2"
+            maxlength="500"
+            required
+            placeholder="Recorded in the audit trail"
+          ></textarea>
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (writingOff = false)}>Cancel</button
+          >
+          <button type="submit" class="btn btn-primary">Write off</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (writingOff = false)}
     ></button>
   </div>
 {/if}

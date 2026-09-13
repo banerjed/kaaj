@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.17
+**Version:** 2.18
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -206,7 +206,7 @@ the same verdicts at user-story grain.
 *Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/credited/due totals (`total_credited` added 2026-09-13 alongside credit memos, so the four figures reconcile visibly rather than leaving an unexplained gap), and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
 
 **US-ACC-020**: As an Accountant, I want to write off bad debts when invoices are uncollectible, so that AR reflects reality.
-*Status: **PARTIAL** (2026-09-13). The reversing-entry mechanism this story needed did not exist at all before now (§1.1's finding) — it exists as of `acc.recordCreditMemo()` and the `invoice_credits` table, shipped for the credit-memo half of this story. Bad-debt write-off itself, the story's literal subject, is still missing: it needs a Bad Debt Expense account this chart of accounts doesn't have yet (`chart_of_accounts` has no `expense` row for it), which is a fixture change with its own snapshot consequences — deliberately scoped out of this pass rather than discovered mid-migration.*
+*Status: **DONE** (2026-09-13). `acc.recordWriteOff()` posts Dr Bad Debt Expense (`5500`, added to the fixture chart of accounts) / Cr Accounts Receivable, sharing `invoice_credits` and its reversing-entry mechanism with the credit memo half of this story (§1.1's finding) via a `credit_type` column rather than a parallel table. Sets a new `written_off` status only when the balance reaches exactly zero, and refuses a write-off larger than the invoice's own balance (`over_writeoff`). See `accounting.repo.ts`'s `recordInvoiceCredit()` and `receivables.writes.test.ts`'s "writing off bad debt" suite.*
 
 ### Accounts Payable (AP)
 
@@ -2282,13 +2282,49 @@ either way.
       (so invoiced/paid/credited/due reconcile visibly) and several
       hardcoded test figures being recomputed from the real database, not
       hand-calculated. `./check` and the full e2e suite pass.
-- [ ] Bad-debt write-off — a separate entry, Dr Bad Debt Expense (or
-      Allowance) / Cr AR; does not require a credit memo. US-ACC-020
-      (second half). The reversing-entry mechanism this needed now exists
-      (above); the remaining blocker is that `chart_of_accounts` has no
-      Bad Debt Expense row — adding one is a fixture change with its own
-      snapshot consequences, deliberately scoped out of the credit-memo
-      pass rather than discovered mid-migration.
+- [x] Bad-debt write-off — a separate entry, Dr Bad Debt Expense / Cr AR;
+      does not require a credit memo. US-ACC-020 (second half, 2026-09-13).
+      Added a Bad Debt Expense account (`5500`) to the fixture chart of
+      accounts — the blocker the first half of this story stopped at — and
+      a `credit_type` column on `invoice_credits` (plain `varchar`, no
+      CHECK, vocabulary in `accounting.repo.ts`, same shape as
+      `journal_entries.source_type`) rather than a second, near-identical
+      table, exactly as `invoice_credits`' own migration comment predicted
+      it would. `recordCreditMemo()` and the new `acc.recordWriteOff()` now
+      both call a shared private `recordInvoiceCredit()` — numbering, the
+      reversing entry, the over-amount guard and `recomputeInvoiceTotals`
+      are identical between them; only the debited account, the number
+      prefix (`CM-`/`WO-`) and the closing status differ. A new
+      `written_off` invoice status (`critical` tone — a write-off is a
+      recognised loss, not the "positive" outcome `credited` is), a new
+      `over_writeoff` refusal distinct from `over_credit` so the write-off
+      form's own field gets marked, a new `record_writeoff` audit action,
+      and UI on the invoice detail page mirroring "Issue a credit"
+      ("Write off" button and modal; the "Credits issued" list now labels
+      each row by `credit_type`). `is_overdue` excludes `written_off`
+      alongside `credited`, `draft` and `void` — a defense-in-depth
+      addition caught in review, since `amount_due > 0` already made it
+      unreachable today. 7 new tests in `receivables.writes.test.ts`
+      ("writing off bad debt"), including one write-off and one credit
+      memo against the SAME invoice to prove `invoice_credits` and
+      `amount_credited` correctly sum both kinds, plus one more added to
+      the existing "issuing a credit memo" block confirming a second
+      credit against an already-fully-credited invoice is refused
+      (`over_credit`) — a gap advisor review of 2.17 caught. The shared
+      `recordInvoiceCredit()` guard body was already break/revert-verified
+      by the credit-memo increment; what this increment added was the
+      `recordWriteOff()` wrapper's own routing, verified by swapping its
+      `overAmountReason` and `settledStatus` to the credit-memo values and
+      watching the write-off-specific assertions fail on the wrong reason
+      and the wrong status, respectively, before reverting both. One
+      fixture write-off (Britannia's INV-2026-002, alongside its existing
+      credit memo — 2,000.00 credit + 860.00 write-off = 2,860.00
+      combined, due 16,000.00) rippled into the same handful of hardcoded
+      test figures the first half's fixture credit already touched; it is
+      a partial write-off, so no fixture invoice actually reaches
+      `written_off` — the same fixture-homogeneity gap already on record
+      for the credit-risk page's uniform `100.00` credit limit. `./check`
+      and the full e2e suite pass.
 - [x] Multi-invoice payment allocation (lockbox-style). US-ACC-018
       (2026-09-13). `acc.recordLockboxPayment()` at `/accounting/receive-payment`
       takes one `totalAmount` (the known deposit/check figure) and a set of
@@ -2459,6 +2495,7 @@ either way.
 | 2.15 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment. |
 | 2.16 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships. |
 | 2.17 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day). |
+| 2.18 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass. |
 
 ### References
 

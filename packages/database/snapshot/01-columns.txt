@@ -1117,6 +1117,7 @@ invoice_credits	9	reason	text	t
 invoice_credits	10	journal_entry_id	uuid	f	
 invoice_credits	11	created_at	timestamp with time zone	t	CURRENT_TIMESTAMP
 invoice_credits	12	created_by	uuid	f	
+invoice_credits	13	credit_type	character varying(20)	t	'credit_memo'::character varying
 invoice_lines	1	tenant_id	uuid	t	
 invoice_lines	2	id	uuid	t	gen_random_uuid()
 invoice_lines	3	invoice_id	uuid	t	

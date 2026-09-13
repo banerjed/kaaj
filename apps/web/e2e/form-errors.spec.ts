@@ -228,6 +228,30 @@ test("a credit memo larger than what's outstanding is refused, not silently capp
   await expect(reason).toHaveValue("Testing an over-credit refusal")
 })
 
+test("a write-off larger than what's outstanding is refused, not silently capped", async ({
+  page,
+}) => {
+  // INV-2026-004: partial, 32,439.97 outstanding, so "Write off" is on screen.
+  await page.goto("/accounting/invoices/37bd63c2-86a1-513c-8404-b731dd666b28")
+  await openModal(page, /write off/i, 'input[name="writeoff_amount"]')
+
+  const amount = page.locator('input[name="writeoff_amount"]')
+  const date = page.locator('input[name="writeoff_date"]')
+  const reason = page.locator('textarea[name="writeoff_reason"]')
+
+  await amount.fill("32439.98")
+  await date.fill("2026-03-15")
+  await reason.fill("Testing an over-writeoff refusal")
+  await submitPastTheBrowser(page, "?/recordWriteOff")
+
+  await expect(page.locator(".alert").first()).toContainText("outstanding")
+  await expect(amount).toHaveClass(/input-error/)
+  await expect(amount).toHaveAttribute("aria-invalid", "true")
+  // The modal is still open and what was typed survived.
+  await expect(amount).toHaveValue("32439.98")
+  await expect(reason).toHaveValue("Testing an over-writeoff refusal")
+})
+
 test("matching a bank transaction with no payment chosen is refused", async ({
   page,
 }) => {

@@ -35,11 +35,12 @@ const EXPECTED_SPARSE = new Map([
   ],
   [
     "invoice_credits.journal_entry_id",
-    "the fixture's one credit memo is hand-authored, like most of the " +
-      "fixture's invoices/payments (see controlAccountTieOut's doc comment) " +
-      "— posting a real GL entry here would change net_income/balance-sheet " +
-      "totals every other report's tests already assert against. The real " +
-      "write path (recordCreditMemo) always sets this atomically.",
+    "the fixture's credit memo and write-off rows are both hand-authored, " +
+      "like most of the fixture's invoices/payments (see " +
+      "controlAccountTieOut's doc comment) — posting a real GL entry here " +
+      "would change net_income/balance-sheet totals every other report's " +
+      "tests already assert against. The real write paths " +
+      "(recordCreditMemo, recordWriteOff) always set this atomically.",
   ],
   [
     "tenant_registry.connection_secret_ref",

@@ -90,6 +90,11 @@ function refusal(e: AccountingRefused) {
         message: "That is more than is outstanding on this invoice.",
         errorFields: ["credit_amount"],
       }
+    case "over_writeoff":
+      return {
+        message: "That is more than is outstanding on this invoice.",
+        errorFields: ["writeoff_amount"],
+      }
     case "number_taken":
       return {
         message: "That number is taken. Try again.",
@@ -255,6 +260,62 @@ export const actions: Actions = {
           reason,
         })
         return { credited: creditNumber, status }
+      })
+    } catch (e) {
+      if (e instanceof AccountingRefused) return fail(400, refusal(e))
+      throw e
+    }
+  },
+
+  /** A bad-debt write-off: DR Bad Debt Expense, CR Receivables. Not a credit memo — the sale still happened. */
+  recordWriteOff: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "accounting.write")
+
+    const f = new FormReader(await request.formData())
+    // `min` here keeps the zero/negative case a field error, not a CHECK 500 (L66).
+    const amount = f.decimal("writeoff_amount", {
+      scale: 2,
+      required: true,
+      min: 0.01,
+    })
+    const writeoffDate = f.date("writeoff_date", { required: true })
+    const reason = f.text("writeoff_reason", { max: 500, required: true })
+    if (!f.ok) return fail(400, f.problem("That write-off is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const before = await acc.invoiceById(tx, params.id)
+        const { creditNumber, status } = await acc.recordWriteOff(
+          tx,
+          locals.tenantId!,
+          {
+            invoiceId: params.id,
+            amount: amount!,
+            creditDate: writeoffDate!,
+            reason: reason!,
+          },
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        const after = await acc.invoiceById(tx, params.id)
+        await audit.record(tx, ctx!, {
+          action: "record_writeoff",
+          entityType: "invoices",
+          entityId: params.id,
+          module: "accounting",
+          changes: {
+            writeoff: { from: null, to: creditNumber },
+            amount: { from: null, to: amount },
+            amount_due: {
+              from: before?.amount_due ?? null,
+              to: after?.amount_due ?? null,
+            },
+            status: { from: before?.status ?? null, to: status },
+          },
+          reason,
+        })
+        return { writtenOff: creditNumber, status }
       })
     } catch (e) {
       if (e instanceof AccountingRefused) return fail(400, refusal(e))

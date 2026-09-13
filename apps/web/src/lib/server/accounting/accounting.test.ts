@@ -220,7 +220,7 @@ describe("AR aging", () => {
 
     expect(acme(results.current)?.current).toBe("34883.72")
     expect(acme(results.current)?.days_1_30).toBe("0.00")
-    expect(britannia(results.current)?.current).toBe("16860.00")
+    expect(britannia(results.current)?.current).toBe("16000.00")
     expect(britannia(results.current)?.currency).toBe("GBP")
 
     expect(acme(results.at28)?.days_1_30).toBe("34883.72")
@@ -271,10 +271,10 @@ describe("AR aging", () => {
     const britannia = rows.find(
       (r) => r.customer_name === "Britannia Retail Group",
     )
-    // INV-2026-002 is GBP 16860.00 (after a 2,000.00 credit memo) / base
-    // (USD) 21312.20 — this must read the invoice's own currency figure,
-    // not the converted one.
-    expect(britannia?.total).toBe("16860.00")
+    // INV-2026-002 is GBP 16000.00 (after a 2,000.00 credit memo and an
+    // 860.00 write-off) / base (USD) 20220.00 — this must read the
+    // invoice's own currency figure, not the converted one.
+    expect(britannia?.total).toBe("16000.00")
     expect(britannia?.currency).toBe("GBP")
   })
 
@@ -309,15 +309,16 @@ describe("customer balances", () => {
     expect(acme?.total_credited).toBe("0.00")
     expect(acme?.total_due).toBe("34883.72")
 
-    // Britannia's INV-2026-002 carries a 2,000.00 credit memo — the
-    // reconciling figure a plain invoiced-minus-paid view would silently
-    // miss, which is exactly why total_credited is its own column.
+    // Britannia's INV-2026-002 carries a 2,000.00 credit memo and an 860.00
+    // write-off (2,860.00 combined) — the reconciling figure a plain
+    // invoiced-minus-paid view would silently miss, which is exactly why
+    // total_credited is its own column and sums both kinds of credit.
     const britannia = rows.find(
       (r) => r.customer_name === "Britannia Retail Group",
     )
     expect(britannia?.currency).toBe("GBP")
-    expect(britannia?.total_credited).toBe("2000.00")
-    expect(britannia?.total_due).toBe("16860.00")
+    expect(britannia?.total_credited).toBe("2860.00")
+    expect(britannia?.total_due).toBe("16000.00")
 
     for (const r of rows) {
       expect(

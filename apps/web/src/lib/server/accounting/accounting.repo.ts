@@ -51,7 +51,7 @@ const INVOICE_SELECT = `
            AS line_count,
          (i.due_date < CURRENT_DATE
             AND i.amount_due > 0
-            AND i.status NOT IN ('draft', 'void', 'credited')) AS is_overdue
+            AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')) AS is_overdue
     FROM invoices i
     LEFT JOIN customers c ON c.id = i.customer_id
 `
@@ -67,7 +67,7 @@ export async function listInvoices(
        AND (${overdueOnly} = FALSE
             OR (i.due_date < CURRENT_DATE
                 AND i.amount_due > 0
-                AND i.status NOT IN ('draft', 'void', 'credited')))
+                AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')))
      ORDER BY i.invoice_date DESC, i.invoice_number DESC
   `
 }
@@ -146,6 +146,7 @@ export async function creditsFor(
   {
     id: string
     credit_number: string
+    credit_type: string
     created_at: string
     amount: string
     currency: string
@@ -153,7 +154,7 @@ export async function creditsFor(
   }[]
 > {
   return tx`
-    SELECT id, credit_number,
+    SELECT id, credit_number, credit_type,
            to_char(created_at, 'YYYY-MM-DD') AS created_at,
            amount::text AS amount,
            currency, reason
@@ -1275,6 +1276,10 @@ export const INVOICE_STATUSES = [
   // Fully resolved via a credit memo, not cash — never "paid", which would
   // misreport that money was received.
   "credited",
+  // Fully resolved by recognising the loss, not a customer-facing
+  // adjustment — distinct from "credited" so a report can tell "the
+  // customer disputed this" from "we don't expect to collect this".
+  "written_off",
 ] as const
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
 
@@ -1284,6 +1289,7 @@ const ACCOUNTS = {
   receivable: "1100",
   taxPayable: "2200",
   revenue: "4000",
+  badDebtExpense: "5500",
 } as const
 
 export class AccountingRefused extends Error {
@@ -1329,7 +1335,10 @@ export class AccountingRefused extends Error {
       | "allocation_mismatch"
       // A credit memo larger than what the invoice still owes — distinct
       // from `overpayment` since nothing was actually paid.
-      | "over_credit",
+      | "over_credit"
+      // Same shape as `over_credit`, kept distinct so the write-off form's
+      // own field is the one marked, not the credit memo form's.
+      | "over_writeoff",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2108,19 +2117,41 @@ export async function recordLockboxPayment(
 }
 
 /**
- * A credit memo against an issued invoice — reverses recognized revenue
- * without a cash receipt, unlike `recordPayment()`. Refuses more than the
- * invoice's own current balance: a credit larger than what's still owed
- * doesn't correspond to anything real.
- *
- *   DR Revenue                 amount
- *     CR Accounts Receivable          amount
- *
- * Sets status to `credited` only when the credit brings the balance to
- * exactly zero — a partial credit leaves the existing status (partial,
- * sent, overdue) untouched, since something is still genuinely owed.
+ * What distinguishes a credit memo from a bad-debt write-off — everything
+ * else (numbering, the reversing journal entry, recomputeInvoiceTotals,
+ * over-amount and wrong-status guards) is identical, so both call the same
+ * `recordInvoiceCredit()` rather than duplicating it (L57-shaped: one
+ * mechanism, a vocabulary of what varies).
  */
-export async function recordCreditMemo(
+type CreditKind = {
+  creditType: "credit_memo" | "write_off"
+  numberPrefix: "CM" | "WO"
+  debitAccountCode: string
+  settledStatus: Extract<InvoiceStatus, "credited" | "written_off">
+  descriptionVerb: string
+  wrongStatusVerb: string
+  overAmountReason: Extract<
+    InstanceType<typeof AccountingRefused>["reason"],
+    "over_credit" | "over_writeoff"
+  >
+}
+
+/**
+ * A non-cash reduction against an issued invoice — reverses recognized
+ * revenue (a credit memo) or recognises it as uncollectible (a bad-debt
+ * write-off), unlike `recordPayment()`. Refuses more than the invoice's own
+ * current balance: an amount larger than what's still owed doesn't
+ * correspond to anything real.
+ *
+ *   DR <kind.debitAccountCode>       amount
+ *     CR Accounts Receivable                amount
+ *
+ * Sets status to `kind.settledStatus` only when it brings the balance to
+ * exactly zero — a partial credit or write-off leaves the existing status
+ * (partial, sent, overdue) untouched, since something is still genuinely
+ * owed.
+ */
+async function recordInvoiceCredit(
   tx: Tx,
   tenantId: string,
   input: {
@@ -2130,12 +2161,13 @@ export async function recordCreditMemo(
     reason: string
   },
   actorId: string,
+  kind: CreditKind,
 ): Promise<{ creditNumber: string; status: InvoiceStatus }> {
   const before = await invoiceState(tx, input.invoiceId)
   if (before.status === "draft" || before.status === "void") {
     throw new AccountingRefused(
       "wrong_status",
-      `${before.status} cannot receive a credit`,
+      `${before.status} cannot ${kind.wrongStatusVerb}`,
     )
   }
   // Compared in SQL/NUMERIC, not JS float, since this decides a refusal.
@@ -2143,31 +2175,31 @@ export async function recordCreditMemo(
     SELECT ${input.amount}::numeric > ${before.amount_due}::numeric AS too_much
   `
   if (room.too_much) {
-    throw new AccountingRefused("over_credit", before.amount_due)
+    throw new AccountingRefused(kind.overAmountReason, before.amount_due)
   }
 
   const [numbering] = await tx<{ n: number }[]>`
     SELECT coalesce(max(nullif(substring(credit_number from '[0-9]+$'),
                                 '')::int), 0) + 1 AS n
-      FROM invoice_credits WHERE credit_number LIKE 'CM-%'
+      FROM invoice_credits WHERE credit_number LIKE ${kind.numberPrefix + "-%"}
   `
   const year = input.creditDate.slice(0, 4)
-  const creditNumber = `CM-${year}-${String(numbering.n).padStart(3, "0")}`
+  const creditNumber = `${kind.numberPrefix}-${year}-${String(numbering.n).padStart(3, "0")}`
 
   const entryId = await postJournal(
     tx,
     tenantId,
     {
       date: input.creditDate,
-      sourceType: "credit_memo",
+      sourceType: kind.creditType,
       sourceId: input.invoiceId,
-      description: `Credit memo ${creditNumber} against ${before.invoice_number}`,
+      description: `${kind.descriptionVerb} ${creditNumber} against ${before.invoice_number}`,
       reference: creditNumber,
       currency: before.currency,
       exchangeRate: before.exchange_rate,
       lines: [
         {
-          accountCode: ACCOUNTS.revenue,
+          accountCode: kind.debitAccountCode,
           debit: input.amount,
           credit: null,
           description: creditNumber,
@@ -2185,11 +2217,11 @@ export async function recordCreditMemo(
 
   await tx`
     INSERT INTO invoice_credits (
-      tenant_id, invoice_id, credit_number, currency, amount, exchange_rate,
-      base_amount, reason, journal_entry_id, created_by
+      tenant_id, invoice_id, credit_number, credit_type, currency, amount,
+      exchange_rate, base_amount, reason, journal_entry_id, created_by
     ) VALUES (
       ${tenantId}::uuid, ${input.invoiceId}::uuid, ${creditNumber},
-      ${before.currency}, ${input.amount}::numeric,
+      ${kind.creditType}, ${before.currency}, ${input.amount}::numeric,
       ${before.exchange_rate}::numeric,
       round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2),
       ${input.reason}, ${entryId}::uuid, ${actorId}::uuid
@@ -2205,18 +2237,70 @@ export async function recordCreditMemo(
   const [state] = await tx<{ fully_settled: boolean }[]>`
     SELECT ${settled.due}::numeric = 0 AS fully_settled
   `
-  const status: InvoiceStatus = state.fully_settled ? "credited" : before.status
+  const status: InvoiceStatus = state.fully_settled
+    ? kind.settledStatus
+    : before.status
 
   if (state.fully_settled) {
     await tx`
       UPDATE invoices
-         SET status = 'credited',
+         SET status = ${kind.settledStatus},
              updated_at = now(), updated_by = ${actorId}::uuid
        WHERE id = ${input.invoiceId}::uuid
     `
   }
 
   return { creditNumber, status }
+}
+
+export async function recordCreditMemo(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    invoiceId: string
+    amount: string
+    creditDate: string
+    reason: string
+  },
+  actorId: string,
+): Promise<{ creditNumber: string; status: InvoiceStatus }> {
+  return recordInvoiceCredit(tx, tenantId, input, actorId, {
+    creditType: "credit_memo",
+    numberPrefix: "CM",
+    debitAccountCode: ACCOUNTS.revenue,
+    settledStatus: "credited",
+    descriptionVerb: "Credit memo",
+    wrongStatusVerb: "receive a credit",
+    overAmountReason: "over_credit",
+  })
+}
+
+/**
+ * Recognises an invoice's balance (or part of it) as uncollectible — a
+ * direct write-off, not routed through a credit memo (US-ACC-020, second
+ * half). Debits Bad Debt Expense rather than reversing revenue: the sale
+ * still happened, the business just doesn't expect to be paid for it.
+ */
+export async function recordWriteOff(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    invoiceId: string
+    amount: string
+    creditDate: string
+    reason: string
+  },
+  actorId: string,
+): Promise<{ creditNumber: string; status: InvoiceStatus }> {
+  return recordInvoiceCredit(tx, tenantId, input, actorId, {
+    creditType: "write_off",
+    numberPrefix: "WO",
+    debitAccountCode: ACCOUNTS.badDebtExpense,
+    settledStatus: "written_off",
+    descriptionVerb: "Bad debt write-off",
+    wrongStatusVerb: "be written off",
+    overAmountReason: "over_writeoff",
+  })
 }
 
 /**

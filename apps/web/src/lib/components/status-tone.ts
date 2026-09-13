@@ -29,7 +29,7 @@ export type Tone =
 export const invoiceStatusTone = (s: string | null): Tone =>
   s === "paid" || s === "credited"
     ? "positive"
-    : s === "void" || s === "overdue"
+    : s === "void" || s === "overdue" || s === "written_off"
       ? "critical"
       : s === "partial"
         ? "caution"

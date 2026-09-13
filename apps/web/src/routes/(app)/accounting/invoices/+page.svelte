@@ -40,7 +40,7 @@
       <select name="status" class="select" value={data.filters.status}>
         <option value="">Any</option>
         {#each data.statuses as s (s)}
-          <option value={s} class="capitalize">{s}</option>
+          <option value={s} class="capitalize">{s.replace(/_/g, " ")}</option>
         {/each}
       </select>
     </fieldset>
@@ -120,7 +120,7 @@
                 </td>
                 <td>
                   <StatusBadge tone={statusTone(i.status)}>
-                    {i.status}
+                    {i.status?.replace(/_/g, " ")}
                   </StatusBadge>
                 </td>
               </tr>

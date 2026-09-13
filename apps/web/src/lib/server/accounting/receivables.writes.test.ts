@@ -979,6 +979,138 @@ describe("issuing a credit memo", () => {
   })
 })
 
+describe("writing off bad debt", () => {
+  const WRITEOFF = {
+    invoiceId: PARTIAL,
+    amount: "1000.00",
+    creditDate: "2026-03-15",
+    reason: "Customer went out of business; collection attempts exhausted",
+  }
+
+  it("posts the loss against Bad Debt Expense, not revenue, and keeps the ledger balanced", async () => {
+    const { posted, unbalanced } = await inRollback(async (tx) => {
+      const { creditNumber } = await acc.recordWriteOff(
+        tx,
+        NORTHWIND,
+        WRITEOFF,
+        ACTOR,
+      )
+      const posted = await tx<
+        { account_code: string; debit: string; credit: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.reference = ${creditNumber}
+         ORDER BY l.line_number
+      `
+      return { posted, unbalanced: await unbalancedEntries(tx) }
+    })
+    expect(posted).toEqual([
+      { account_code: "5500", debit: "1000.00", credit: "0.00" },
+      { account_code: "1100", debit: "0.00", credit: "1000.00" },
+    ])
+    expect(unbalanced).toEqual([])
+  })
+
+  it("reduces what is owed by exactly the written-off amount", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const [before] = await tx<{ due: string }[]>`
+        SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      await acc.recordWriteOff(tx, NORTHWIND, WRITEOFF, ACTOR)
+      const [after] = await tx<{ due: string }[]>`
+        SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      return { before, after }
+    })
+    expect(Number(before.due) - Number(after.due)).toBe(1000)
+  })
+
+  it("marks the invoice written_off, not credited, when the last of it is settled this way", async () => {
+    const result = await inRollback((tx) =>
+      acc.recordWriteOff(
+        tx,
+        NORTHWIND,
+        { ...WRITEOFF, amount: "32439.97" },
+        ACTOR,
+      ),
+    )
+    expect(result.status).toBe("written_off")
+  })
+
+  it("leaves its existing status when something is still outstanding", async () => {
+    const result = await inRollback((tx) =>
+      acc.recordWriteOff(tx, NORTHWIND, WRITEOFF, ACTOR),
+    )
+    expect(result.status).toBe("partial")
+  })
+
+  it("refuses more than is outstanding", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordWriteOff(
+            tx,
+            NORTHWIND,
+            { ...WRITEOFF, amount: "32439.98" },
+            ACTOR,
+          ),
+        ),
+      "over_writeoff",
+    )
+  })
+
+  it("refuses a write-off against a draft", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordWriteOff(
+            tx,
+            NORTHWIND,
+            { ...WRITEOFF, invoiceId: DRAFT },
+            ACTOR,
+          ),
+        ),
+      "wrong_status",
+    )
+  })
+
+  it("shares invoice_credits and amount_credited with a credit memo against the same invoice", async () => {
+    const { rowTypes, headerCredited } = await inRollback(async (tx) => {
+      await acc.recordCreditMemo(
+        tx,
+        NORTHWIND,
+        {
+          invoiceId: PARTIAL,
+          amount: "1000.00",
+          creditDate: "2026-03-15",
+          reason: "Service-level credit",
+        },
+        ACTOR,
+      )
+      await acc.recordWriteOff(tx, NORTHWIND, WRITEOFF, ACTOR)
+      const rowTypes = await tx<{ credit_type: string; amount: string }[]>`
+        SELECT credit_type, amount::text AS amount
+          FROM invoice_credits WHERE invoice_id = ${PARTIAL}::uuid
+         ORDER BY created_at
+      `
+      const [headerCredited] = await tx<{ amount_credited: string }[]>`
+        SELECT amount_credited::text AS amount_credited
+          FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      return { rowTypes, headerCredited }
+    })
+    expect(rowTypes).toEqual([
+      { credit_type: "credit_memo", amount: "1000.00" },
+      { credit_type: "write_off", amount: "1000.00" },
+    ])
+    expect(headerCredited.amount_credited).toBe("2000.00")
+  })
+})
+
 describe("the header is a cache of the lines", () => {
   it("REPAIRS an invoice whose stored total had drifted", async () => {
     // Recomputed, not adjusted — a wrong header self-heals on next write.

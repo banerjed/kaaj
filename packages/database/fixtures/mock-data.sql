@@ -494,6 +494,7 @@ INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, accoun
     ('c1158fe0-38ae-5741-a84f-a76381cebae3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5200', 'Travel & Entertainment', '{"en-US": "Travel & Entertainment"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('030e294b-88ad-544e-841a-cfda187885ac', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5300', 'Software Subscriptions', '{"en-US": "Software Subscriptions"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('9d558ace-8adc-52ed-811a-de519ad88a29', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5400', 'Office & Facilities', '{"en-US": "Office & Facilities"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
+    ('5a8f3f2e-9c4d-5b1a-8e6f-2d9c7a4b1e35', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5500', 'Bad Debt Expense', '{"en-US": "Bad Debt Expense"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('47289db6-a99e-5207-8f78-a62e982f8e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5600', 'Payment Processing Fees', '{"en-US": "Payment Processing Fees"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0);
 
 INSERT INTO payroll_tax_rates (id, tenant_id, tax_rate_id, tax_name, tax_name_i18n, tax_type, rate, country_code, country, region, jurisdiction, jurisdiction_type, jurisdiction_code, effective_from, tax_year, tax_collected_account_id, tax_paid_account_id, is_reverse_charge, rate_structure, is_active) VALUES
@@ -1215,21 +1216,23 @@ INSERT INTO payment_allocations (tenant_id, id, payment_id, invoice_id, bill_id,
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5f7aa674-f190-5ff4-9b82-30a56d8c9bd0', 'c147933d-3de1-5a49-b045-3645d4bc5eaf', NULL, 'a0c8a1c4-9d92-5f29-8fd9-2b164de81429', 1500.00, 1500.00, 0.00, '2026-02-10T15:00:00Z'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '642fed20-dd4c-573e-a8f2-16647870d8d3', '0b67be47-d010-5fb5-9766-c4bb19e30878', NULL, '0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a', 900.00, 900.00, 0.00, '2026-02-15T15:00:00Z');
 
--- A credit memo against Britannia's invoice — a service-level billing
--- dispute, partially resolved without cash. journal_entry_id is NULL, same
--- as this invoice's own (hand-authored, never actually run through
--- issueInvoice/the real recordCreditMemo write path — see
--- controlAccountTieOut's doc comment), so this row changes nothing about
--- the GL-side figures every other report's tests already assert against.
+-- A credit memo and a bad-debt write-off against Britannia's invoice — one
+-- table, `credit_type` telling them apart (see the invoice_credit_type
+-- migration's comment). Both are hand-authored, journal_entry_id NULL, same
+-- as this invoice's own (never actually run through issueInvoice/the real
+-- recordCreditMemo/recordWriteOff write path — see controlAccountTieOut's
+-- doc comment), so these rows change nothing about the GL-side figures
+-- every other report's tests already assert against.
 UPDATE invoices SET
-    amount_credited = 2000.00,
-    base_amount_credited = round(2000.00 * exchange_rate, 2),
-    amount_due = total - amount_paid - 2000.00,
-    base_amount_due = base_total - base_amount_paid - round(2000.00 * exchange_rate, 2)
+    amount_credited = 2860.00,
+    base_amount_credited = round(2860.00 * exchange_rate, 2),
+    amount_due = total - amount_paid - 2860.00,
+    base_amount_due = base_total - base_amount_paid - round(2860.00 * exchange_rate, 2)
 WHERE invoice_number = 'INV-2026-002';
 
-INSERT INTO invoice_credits (id, tenant_id, invoice_id, credit_number, currency, amount, exchange_rate, base_amount, reason, journal_entry_id, created_at, created_by) VALUES
-    ('8f13c7a1-90c5-5e21-9c47-1b6b1e3f2a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a31732ea-dadb-575f-bd99-cbcfeaba29da', 'CM-2026-001', 'GBP', 2000.00, 1.27, 2540.00, 'Service-level credit for late delivery, per customer agreement', NULL, '2026-02-25T10:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+INSERT INTO invoice_credits (id, tenant_id, invoice_id, credit_number, credit_type, currency, amount, exchange_rate, base_amount, reason, journal_entry_id, created_at, created_by) VALUES
+    ('8f13c7a1-90c5-5e21-9c47-1b6b1e3f2a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a31732ea-dadb-575f-bd99-cbcfeaba29da', 'CM-2026-001', 'credit_memo', 'GBP', 2000.00, 1.27, 2540.00, 'Service-level credit for late delivery, per customer agreement', NULL, '2026-02-25T10:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('a4a5a1a1-2f5a-5c39-9f0d-8a0e1a7a4f37', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a31732ea-dadb-575f-bd99-cbcfeaba29da', 'WO-2026-001', 'write_off', 'GBP', 860.00, 1.27, 1092.20, 'Remaining balance deemed uncollectible after repeated collection attempts', NULL, '2026-03-10T10:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Dashboards scoped to an objective and to a team
 INSERT INTO pm_dashboards (id, tenant_id, dashboard_id, scope, dashboard_name, objective_id, owner_employee_id, layout_type, widget_count, visibility, is_default, view_count, created_at, updated_at, created_by) VALUES
