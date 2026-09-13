@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.23
+**Version:** 2.24
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -291,7 +291,7 @@ the same verdicts at user-story grain.
 ### Tax Management
 
 **US-ACC-046**: As an Accountant, I want to configure sales tax rates by jurisdiction, so that invoices calculate tax correctly.
-*Status: **PARTIAL** (2026-09-13). A real `tax_rates` table now exists, and all five accounting tax FKs (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) resolve to it — `20260913223213_accounting_tax_rates.sql`. What's still missing: a configuration route (no UI exists to create or edit a rate yet — rows are seeded directly), and invoices/bills still take a manually-typed tax amount rather than computing one from a rate.*
+*Status: **PARTIAL** (2026-09-13). A real `tax_rates` table exists, and all five accounting tax FKs (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) resolve to it — `20260913223213_accounting_tax_rates.sql`. `/accounting/tax-rates` now lets finance create a rate (code, name, type, rate, country/region/jurisdiction, reverse charge, effective date) and deactivate/reactivate one — `accounting.write`-gated and audited. Still missing: editing a rate's other fields once created (a mistyped rate is deactivated and replaced, not corrected in place — the same reasoning a period's close/reopen uses), and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate.*
 
 **US-ACC-047**: As a UK Accountant, I want to configure VAT rates and handle reverse charge, so that I comply with UK tax law.
 *Status: **MISSING**. No reverse-charge logic and no jurisdiction configuration exist.*
@@ -2561,11 +2561,28 @@ either way.
       though no posted line — in the fixture or in application code — ever
       carries a nonzero `tax_amount` to associate a rate with (now left NULL
       and added to `verify-fixture-coverage.mjs`'s `EXPECTED_SPARSE`, with
-      that reason). Marked partial, not done: there is still no
-      configuration route (`/accounting/tax-rates` does not exist), and
-      invoices/bills still take a manually-typed tax amount rather than
-      computing one from a rate — both deferred to a follow-up commit rather
-      than mixed into the same diff as the schema change.
+      that reason).
+
+      A second commit adds the configuration route: `/accounting/tax-rates`
+      (`tax_rates.repo.ts`) lists every rate and lets finance create one
+      (code, name, type, rate, country/region/jurisdiction, reverse charge,
+      effective date) and deactivate/reactivate it — `accounting.write`-gated,
+      each action audited (`create`/`deactivate`/`activate`). A rate is never
+      edited in place once created; a mistyped one is deactivated and
+      replaced, the same reasoning a period's close/reopen uses rather than
+      letting history be rewritten. Tested in `tax_rates.writes.test.ts` (6
+      cases): create and read back the same figures, a duplicate code within
+      the tenant is refused, deactivate/reactivate round-trips, a nonexistent
+      id returns null rather than a silent success (break/revert-verified —
+      hardcoding a fallback row made the "nonexistent id" test fail exactly
+      as expected), and finance-only RLS (an auditor reads but cannot write;
+      a plain employee sees nothing). `form-errors.spec.ts` covers a
+      duplicate code and a missing effective date; `smoke.spec.ts` renders
+      the page. Still marked partial: no editing of a rate's other fields,
+      and invoices/bills still take a manually-typed tax amount rather than
+      computing one from a configured rate — a real rate lookup on
+      invoice/bill creation is a larger change than this route, deliberately
+      out of scope here.
 - [ ] Tax-exempt customers + exemption expiry. US-ACC-050.
 - [ ] Sales tax summary / VAT return reports, tied to real ledger totals
       (`INV-ACC-006`'s `summarizeTaxLines` already has the correct formula
@@ -2670,6 +2687,7 @@ either way.
 | 2.21 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item. |
 | 2.22 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 5 with its last item: year-end close (US-ACC-051). `/accounting/year-end-close` zeroes every revenue/expense account's cumulative balance as of a chosen date into Retained Earnings (`3000`) in one journal entry, previewing exactly what would be zeroed before a separate confirm posts it. Idempotent by construction — the closing entry's own lines are posted activity too, so a second run at the same date finds nothing left. Not gated on a period being closed first (no close-checklist gate exists, §13); refused the normal way if the date falls in an already-closed period, same as any other `postJournal` caller. Advisor review caught two things. First: the preview and the post are two separate requests with nothing tying them together, so anything posted in between would close on unconfirmed figures — fixed by carrying the previewed net income as a hidden field and refusing (`allocation_mismatch`) if the recomputed figure no longer matches, checked in SQL/NUMERIC the same way a lockbox batch's own total is. Second, on a follow-up review of that fix: the mismatch refusal dead-ended the page, since `use:enhance` only re-runs `load` on success by default, leaving the confirm form stuck on the very figures just refused — fixed with an explicit `invalidateAll()` in the form's submit handler, verified on the wire (a `__data.json` request follows the refusal only with the fix present, since a DOM assertion on the stale field can't distinguish the two cases here). Every figure was verified against the real database via `psql` before being wired into code, and the debit/credit sign logic and both fixes above were break/revert-verified. Tier 5 (manual journal entries, period close/reopen, year-end close) is now fully shipped. |
 | 2.23 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 6 (tax model): fixed the FK model behind US-ACC-046 — a schema-only increment, UI deferred to a follow-up per advisor's explicit recommendation. Every accounting tax FK (`invoice_lines`, `bill_lines`, `chart_of_accounts`, `journal_entry_lines`, `customers`) pointed at `payroll_tax_rates(id)`, a payroll income-tax table, not a sales-tax jurisdiction table. `20260913223213_accounting_tax_rates.sql` adds a real `tax_rates` table and repoints all five, confirmed by reading `pg_constraint.confrelid` after `db reset` before the snapshot was regenerated. Advisor's review caught that the one automated check named after this story (`verify-stories.sql`'s `US-ACC-046`) asserted a fact that was equally true before and after the fix (a sales-tax row exists somewhere) and never actually tested the FK target — added `US-ACC-046-fk`, which reads the five constraints directly and would have failed against the old target. The fixture's three sales-tax/VAT rows move out of `payroll_tax_rates` (which held them only because the FK forced them there) into `tax_rates`, same ids and codes so nothing else needed to change; `payroll_tax_rates` gets its first genuinely payroll row in return, a US federal bracket, since emptying it would have failed the tenant-isolation harness's fixture-row check. Two blanket backfills that predated this migration — every chart-of-accounts row tagged with the same sales-tax rate regardless of type, and every journal-entry line tagged with one despite no posted line ever carrying tax — did not carry forward; scoped to the one revenue account real invoicing uses, and to `EXPECTED_SPARSE` with the honest reason, respectively. `US-ACC-046`/`US-ACC-050`'s status blocks updated to PARTIAL. While correcting the specification check count for this change, found the `./check` step labels for specification, tenant isolation, tables-classified-by-scale and structure-snapshot line count were already stale independent of this work; corrected all four to their current measured values in `CLAUDE.md` and `check`. |
+| 2.24 | 2026-09-13 | Claude Sonnet 5 | Closed the remaining gap in US-ACC-046 (2.23's schema fix): `/accounting/tax-rates` lets finance create a sales tax / VAT rate and deactivate/reactivate one — `tax_rates.repo.ts`, `accounting.write`-gated, each action audited. A rate is never edited in place once created, only deactivated and replaced — the same reasoning a period's close/reopen uses. `tax_rates.writes.test.ts` (6 cases) covers create-and-read-back, a duplicate code within the tenant refused by the unique constraint, deactivate/reactivate, a nonexistent id returning null rather than a silent success (break/revert-verified), and finance-only RLS. Building this route surfaced two more `./check` registries the schema commit hadn't touched: `verify-constraint-registry.mjs`'s `FORM_WRITTEN` list didn't include `tax_rates`, so its registered UNIQUE-constraint message was invisible to the checker (reported as "registered constraint does not exist"); once added, the table's two account-link FKs and its rate CHECK also needed `CANNOT_BE_TRIPPED` entries, since the create form never sets those columns and `FormReader` already refuses a negative rate before the DB is reached. Still partial: no editing of a rate's other fields, and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate. |
 
 ### References
 

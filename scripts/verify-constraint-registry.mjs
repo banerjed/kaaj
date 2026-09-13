@@ -36,6 +36,7 @@ const FORM_WRITTEN = [
   "payments",
   "bills",
   "bill_lines",
+  "tax_rates",
 ]
 
 /**
@@ -72,6 +73,19 @@ const CANNOT_BE_TRIPPED = new Map([
   ["payments_tenant_id_fkey", "tenant_id comes from the session"],
   ["bills_tenant_id_fkey", "tenant_id comes from the session"],
   ["bill_lines_tenant_id_fkey", "tenant_id comes from the session"],
+  ["tax_rates_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "tax_rates_rate_check",
+    "FormReader's decimal(rate, { min: 0 }) already refuses a negative rate before this is reached",
+  ],
+  [
+    "tax_rates_tax_collected_account_id_fkey",
+    "never set by the create form — both account links are configured elsewhere (fixture-seeded today), not by this action",
+  ],
+  [
+    "tax_rates_tax_paid_account_id_fkey",
+    "never set by the create form — both account links are configured elsewhere (fixture-seeded today), not by this action",
+  ],
 
   // Answered by the repository, ahead of the constraint, with a domain error.
   [

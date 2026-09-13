@@ -50,6 +50,11 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["subdomain"],
     message: "That subdomain is already taken. Pick a different one.",
   },
+  tax_rates_tenant_id_code_key: {
+    errorFields: ["code"],
+    message:
+      "Another tax rate already uses that code. Tax rate codes must be unique — pick a different one.",
+  },
 
   // A partial unique index rather than a constraint, so the name is the
   // INDEX name. One headquarters per firm.

@@ -175,6 +175,21 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "close",
     why: "Zeroes every revenue/expense account into retained earnings in one entry — the single largest posting the ledger ever makes in one action, and the one every subsequent year's opening equity depends on.",
   },
+  {
+    route: "accounting/tax-rates",
+    action: "create",
+    why: "A new tax rate changes what every invoice and bill created afterward will charge or claim — 'who configured this rate, and when' matters the first time a filed return doesn't match what was collected.",
+  },
+  {
+    route: "accounting/tax-rates",
+    action: "deactivate",
+    why: "Stops a rate from being offered on new invoices/bills without deleting the history of what it was — the same reason a period is closed rather than erased.",
+  },
+  {
+    route: "accounting/tax-rates",
+    action: "activate",
+    why: "Reverses a deactivation — same audit need as reopening a period: someone should be able to say why a retired rate came back.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {

@@ -624,6 +624,60 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
     .toBeGreaterThan(0)
 })
 
+test("creating a tax rate with a code already in use is refused, not silently duplicated", async ({
+  page,
+}) => {
+  // TAX-US-NY-2026 is the fixture's own New York sales tax rate.
+  const response = await page.request.post("/accounting/tax-rates?/create", {
+    form: {
+      code: "TAX-US-NY-2026",
+      tax_name: "Duplicate Attempt",
+      tax_type: "sales_tax",
+      rate: "0.05",
+      country: "US",
+      effective_from: "2027-01-01",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/already uses that code/i)
+})
+
+test("creating a tax rate with no effective date is refused, not silently accepted", async ({
+  page,
+}) => {
+  const response = await page.request.post("/accounting/tax-rates?/create", {
+    form: {
+      code: "TAX-TEST-MISSING-DATE",
+      tax_name: "Missing Date",
+      tax_type: "sales_tax",
+      rate: "0.05",
+      country: "US",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+})
+
+test("a tax rate typed as a percentage rather than a fraction is refused, not silently configured 100x too high", async ({
+  page,
+}) => {
+  // The field wants 0.08875, not 8.875 — a plausible typo that would
+  // otherwise configure an 887.5% tax with no error anywhere.
+  const response = await page.request.post("/accounting/tax-rates?/create", {
+    form: {
+      code: "TAX-TEST-PERCENT-TYPO",
+      tax_name: "Percent Typo",
+      tax_type: "sales_tax",
+      rate: "8.875",
+      country: "US",
+      effective_from: "2027-01-01",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+})
+
 /**
  * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
  * browser in a different sense than `submitPastTheBrowser` above: a native

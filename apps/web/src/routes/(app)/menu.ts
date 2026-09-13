@@ -192,6 +192,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-tax-rates",
+        label: "Tax Rates",
+        url: "/accounting/tax-rates",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-trial-balance",
         label: "Trial Balance",
         url: "/accounting/trial-balance",

@@ -49,6 +49,7 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/accounting/year-end-close?as_of=2026-12-31",
     heading: "Year-End Close",
   },
+  { path: "/accounting/tax-rates", heading: "Tax Rates" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {
     path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",
@@ -158,4 +159,17 @@ test("the assistant panel opens and says it is not built", async ({ page }) => {
   // to all three.
   await page.getByLabel("Assistant", { exact: true }).click()
   await expect(page.getByText("Not built yet")).toBeVisible()
+})
+
+test("the new tax rate form's Type select is actually populated", async ({
+  page,
+}) => {
+  // `data.taxTypes` comes from `allEnumerations().get("tax_type")` — a
+  // typo'd enum name there would render a `<select>` with zero options, a
+  // form nobody could ever submit, with nothing else on the page to say so.
+  await page.goto("/accounting/tax-rates")
+  await page.getByRole("button", { name: "New Tax Rate" }).click()
+  const select = page.locator('select[name="tax_type"]')
+  await expect(select.locator("option")).not.toHaveCount(0)
+  await expect(select.locator("option").first()).toHaveText(/\S/)
 })
