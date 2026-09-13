@@ -2009,6 +2009,32 @@ the fragment: `cashFlowStatement`/`cashFlowTotals` each inline their own copy
 of the CTE, using ordinary `${from}`/`${to}` template interpolation (the
 well-tested path), accepting the duplication.
 
+### L83 — `AccountingRefused`'s `field:` never reached `fieldErrors()`, which reads `errorFields`
+
+Six `refusal(e: AccountingRefused)` functions (invoices/bills new and
+`[id]`, banking, and the new receive-payment page) returned `{ message,
+field: "amount" }` from `fail(400, ...)`, copying the shape of the FIRST such
+function written. `fieldErrors()` (`$lib/form-errors.ts`) reads
+`form?.errorFields` — an array, populated correctly by `f.problem()` — so
+`field` was a property nothing downstream ever looked at. `err.input()` and
+`err.aria()` silently returned `""`/`undefined` for every one of these
+refusals: the alert banner still showed the right sentence (`form.message` is
+read directly), so the page looked correct in the one way anyone was
+checking it, while the affected input never got its red border or
+`aria-invalid`. No test caught it because none of `form-errors.spec.ts`'s
+cases exercise an `AccountingRefused`-derived refusal specifically — every
+existing case there hits a plain `FormReader` rejection (`f.problem()`)
+instead, which was never broken.
+
+Found while adding a seventh such function and noticing its own `field:`
+wouldn't satisfy the assertion `toHaveClass(/input-error/)` in a new e2e
+case — the two-property shapes (`{ message, field }` vs `{ message,
+errorFields }`) look interchangeable enough that nothing about writing the
+sixth broken copy would have caught the first five. Fixed by renaming
+`field: "x"` to `errorFields: ["x"]` in all six. A `refusal()` function
+should return exactly `f.problem()`'s shape — `{ message, errorFields }` —
+never a shape that merely looks similar.
+
 ---
 
 ## Conventions

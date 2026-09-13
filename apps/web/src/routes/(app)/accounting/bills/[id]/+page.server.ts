@@ -44,49 +44,52 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 function refusal(e: AccountingRefused) {
   switch (e.reason) {
     case "no_such_bill":
-      return { message: "That bill no longer exists.", field: "bill" }
+      return { message: "That bill no longer exists.", errorFields: ["bill"] }
     case "no_such_account":
       return {
         message: `The chart of accounts has no ${e.detail}. Nothing was posted.`,
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "wrong_status":
       return {
         message: `That is not something this bill can do (${e.detail}).`,
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "no_lines":
       return {
         message:
           "A bill with no lines says nothing is owed, which looks exactly like lines that failed to load.",
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "does_not_balance":
       return {
         message: `That posting does not balance and was not written (${e.detail}). Nothing was changed.`,
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "period_closed":
       return {
         message: `${e.detail}. A closed period does not accept new postings — reopening one is a deliberate act with its own record.`,
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "overpayment":
       // No raw figure here — e.detail has no currency attached; the reloaded
       // page shows Outstanding, formatted, right below.
       return {
         message: "That is more than is outstanding on this bill.",
-        field: "amount",
+        errorFields: ["amount"],
       }
     case "self_approval":
       return {
         message: "Whoever approved this bill cannot also pay it.",
-        field: "bill",
+        errorFields: ["bill"],
       }
     case "number_taken":
-      return { message: "That number is taken. Try again.", field: "bill" }
+      return {
+        message: "That number is taken. Try again.",
+        errorFields: ["bill"],
+      }
     case "no_such_invoice":
-      return { message: "That is not a bill.", field: "bill" }
+      return { message: "That is not a bill.", errorFields: ["bill"] }
   }
 }
 

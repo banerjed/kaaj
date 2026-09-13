@@ -224,6 +224,34 @@ test("matching a bank transaction with no payment chosen is refused", async ({
   )
 })
 
+test("a lockbox payment whose allocations don't match the total received is refused", async ({
+  page,
+}) => {
+  // Acme Manufacturing — has open invoices to allocate against.
+  await page.goto(
+    "/accounting/receive-payment?customer_id=e40d0f18-1333-5cd1-a969-f5113df51e70",
+  )
+
+  const totalAmount = page.locator('input[name="total_amount"]')
+  const date = page.locator('input[name="payment_date"]')
+  const alloc = page.locator('input[name^="alloc_"]').first()
+  await expect(alloc).toBeVisible()
+
+  // $100 said received, but only $50 allocated — a mismatch, not an
+  // unallocated remainder silently accepted.
+  await totalAmount.fill("100.00")
+  await date.fill("2026-03-01")
+  await alloc.fill("50.00")
+  await submitPastTheBrowser(page, "?/allocate")
+
+  await expect(page.locator(".alert").first()).toContainText("don't add up")
+  await expect(totalAmount).toHaveClass(/input-error/)
+  await expect(totalAmount).toHaveAttribute("aria-invalid", "true")
+  // The form is still there and what was typed survived (keepValues).
+  await expect(totalAmount).toHaveValue("100.00")
+  await expect(alloc).toHaveValue("50.00")
+})
+
 test("creating an invoice with no lines is refused, not silently accepted", async ({
   page,
 }) => {

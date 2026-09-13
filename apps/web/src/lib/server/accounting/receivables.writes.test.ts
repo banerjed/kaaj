@@ -656,6 +656,197 @@ describe("receiving a payment", () => {
   })
 })
 
+describe("receiving a lockbox payment across multiple invoices", () => {
+  /** Acme Manufacturing — owns both PARTIAL and this second open invoice. */
+  const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+  /** INV-2026-005 — Acme, partial, USD, 2,443.75 outstanding. */
+  const OTHER_OPEN = "a3ff49bc-30c8-57c3-ae07-c0fd6813df3e"
+
+  const LOCKBOX = {
+    customerId: ACME,
+    allocations: [
+      { invoiceId: PARTIAL, amount: "1000.00" },
+      { invoiceId: OTHER_OPEN, amount: "500.00" },
+    ],
+    totalAmount: "1500.00",
+    paymentDate: "2026-03-15",
+    method: "wire_transfer",
+    reference: "LOCKBOX-1",
+    bankAccountId: OPERATING,
+  }
+
+  it("posts one cash debit and one AR credit per invoice, and keeps the ledger balanced", async () => {
+    const { posted, unbalanced } = await inRollback(async (tx) => {
+      const { paymentNumber } = await acc.recordLockboxPayment(
+        tx,
+        NORTHWIND,
+        LOCKBOX,
+        ACTOR,
+      )
+      const posted = await tx<
+        { account_code: string; debit: string; credit: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.reference = ${paymentNumber}
+         ORDER BY l.line_number
+      `
+      return { posted, unbalanced: await unbalancedEntries(tx) }
+    })
+    expect(posted).toEqual([
+      { account_code: "1000", debit: "1500.00", credit: "0.00" },
+      { account_code: "1100", debit: "0.00", credit: "1000.00" },
+      { account_code: "1100", debit: "0.00", credit: "500.00" },
+    ])
+    expect(unbalanced).toEqual([])
+  })
+
+  it("reduces each invoice's balance by exactly its own allocation", async () => {
+    const { partialBefore, partialAfter, otherBefore, otherAfter } =
+      await inRollback(async (tx) => {
+        const [partialBefore] = await tx<{ due: string }[]>`
+          SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+        `
+        const [otherBefore] = await tx<{ due: string }[]>`
+          SELECT amount_due::text AS due FROM invoices WHERE id = ${OTHER_OPEN}::uuid
+        `
+        await acc.recordLockboxPayment(tx, NORTHWIND, LOCKBOX, ACTOR)
+        const [partialAfter] = await tx<{ due: string }[]>`
+          SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+        `
+        const [otherAfter] = await tx<{ due: string }[]>`
+          SELECT amount_due::text AS due FROM invoices WHERE id = ${OTHER_OPEN}::uuid
+        `
+        return { partialBefore, partialAfter, otherBefore, otherAfter }
+      })
+    expect(Number(partialBefore.due) - Number(partialAfter.due)).toBe(1000)
+    expect(Number(otherBefore.due) - Number(otherAfter.due)).toBe(500)
+  })
+
+  it("marks an invoice paid when its own allocation settles it exactly, leaves the other partial", async () => {
+    const result = await inRollback((tx) =>
+      acc.recordLockboxPayment(
+        tx,
+        NORTHWIND,
+        {
+          ...LOCKBOX,
+          allocations: [
+            { invoiceId: PARTIAL, amount: "1000.00" },
+            { invoiceId: OTHER_OPEN, amount: "2443.75" },
+          ],
+          totalAmount: "3443.75",
+        },
+        ACTOR,
+      ),
+    )
+    const partial = result.statuses.find(
+      (s) => s.invoiceNumber === "INV-2026-004",
+    )
+    const settled = result.statuses.find(
+      (s) => s.invoiceNumber === "INV-2026-005",
+    )
+    expect(partial?.status).toBe("partial")
+    expect(settled?.status).toBe("paid")
+  })
+
+  it("refuses an individual allocation that overpays its own invoice", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordLockboxPayment(
+            tx,
+            NORTHWIND,
+            {
+              ...LOCKBOX,
+              allocations: [{ invoiceId: OTHER_OPEN, amount: "2443.76" }],
+              totalAmount: "2443.76",
+            },
+            ACTOR,
+          ),
+        ),
+      "overpayment",
+    )
+  })
+
+  it("refuses when the allocations don't sum to the stated total", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordLockboxPayment(
+            tx,
+            NORTHWIND,
+            { ...LOCKBOX, totalAmount: "1499.99" },
+            ACTOR,
+          ),
+        ),
+      "allocation_mismatch",
+    )
+  })
+
+  it("refuses a draft invoice in the batch", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          // PARTIAL forced to draft, otherwise unchanged: LOCKBOX's own
+          // allocation against it (1000.00, well within its 32,439.97
+          // balance) stays genuinely payable — the fixture's only real
+          // draft invoice belongs to a different customer, so this test
+          // would otherwise isolate nothing (an unpayable allocation, like
+          // a zeroed-out one, could pass for the wrong reason if the
+          // status check were ever removed).
+          await tx`UPDATE invoices SET status = 'draft' WHERE id = ${PARTIAL}::uuid`
+          return acc.recordLockboxPayment(tx, NORTHWIND, LOCKBOX, ACTOR)
+        }),
+      "wrong_status",
+    )
+  })
+
+  it("refuses an invoice that belongs to a different customer", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordLockboxPayment(
+            tx,
+            NORTHWIND,
+            {
+              ...LOCKBOX,
+              allocations: [
+                ...LOCKBOX.allocations,
+                { invoiceId: GBP, amount: "100.00" },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "wrong_customer",
+    )
+  })
+
+  it("refuses the same invoice named twice in one batch", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordLockboxPayment(
+            tx,
+            NORTHWIND,
+            {
+              ...LOCKBOX,
+              allocations: [
+                { invoiceId: PARTIAL, amount: "1000.00" },
+                { invoiceId: PARTIAL, amount: "500.00" },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "duplicate_invoice",
+    )
+  })
+})
+
 describe("the header is a cache of the lines", () => {
   it("REPAIRS an invoice whose stored total had drifted", async () => {
     // Recomputed, not adjusted — a wrong header self-heals on next write.

@@ -140,6 +140,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "voidInvoice",
     why: "A document withdrawn before it was issued. Without a record, an invoice that was raised and then made to disappear leaves no trace it ever existed.",
   },
+  {
+    route: "accounting/receive-payment",
+    action: "allocate",
+    why: "Cash received against a debt, same as recordPayment — just applied across several invoices in one deposit instead of one. 'Who allocated this lockbox payment, to which invoices, and for how much' is the same reconciliation question.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {

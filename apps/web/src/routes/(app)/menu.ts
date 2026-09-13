@@ -233,6 +233,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/accounting/customer-balances",
         permission: "accounting.read",
       },
+      {
+        id: "accounting-receive-payment",
+        label: "Receive Payment",
+        url: "/accounting/receive-payment",
+        permission: "accounting.read",
+      },
     ],
   },
   {

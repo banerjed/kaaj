@@ -52,28 +52,34 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 function refusal(e: AccountingRefused) {
   switch (e.reason) {
     case "no_such_bank_transaction":
-      return { message: "That transaction no longer exists.", field: "match" }
+      return {
+        message: "That transaction no longer exists.",
+        errorFields: ["match"],
+      }
     case "no_such_payment":
-      return { message: "That payment no longer exists.", field: "payment_id" }
+      return {
+        message: "That payment no longer exists.",
+        errorFields: ["payment_id"],
+      }
     case "wrong_status":
       return {
         message: `That is not something this transaction can do (${e.detail}).`,
-        field: "match",
+        errorFields: ["match"],
       }
     case "currency_mismatch":
       return {
         message: "That payment is in a different currency.",
-        field: "payment_id",
+        errorFields: ["payment_id"],
       }
     case "direction_mismatch":
       return {
         message: e.detail ?? "Money moved the wrong way.",
-        field: "payment_id",
+        errorFields: ["payment_id"],
       }
     case "already_matched":
       return {
         message: "That payment is already matched to a different transaction.",
-        field: "payment_id",
+        errorFields: ["payment_id"],
       }
     case "no_such_invoice":
     case "no_such_bill":
@@ -87,7 +93,7 @@ function refusal(e: AccountingRefused) {
       // Not reachable from this action — matching never posts a journal or
       // touches an invoice/bill — but the reason type is shared with those
       // domains, so the switch stays exhaustive rather than falling through.
-      return { message: "That could not be matched.", field: "match" }
+      return { message: "That could not be matched.", errorFields: ["match"] }
   }
 }
 

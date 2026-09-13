@@ -164,8 +164,8 @@ call-outs.
   *No write-off feature exists.*
 - Currency of the invoice, once issued, doesn't change even if the customer's default currency changes later. **[PARTIAL]**
   *No code path changes `invoices.currency` after issuance (there's no invoice-edit feature at all post-issuance beyond payment/void), so this holds by absence of a mutation path rather than by a deliberate immutability guard. Untested directly.*
-- Applying a payment to multiple invoices (batch/lockbox-style) allocates the full payment exactly, with no rounding leftover unaccounted for. **[MISSING]**
-  *`recordPayment` takes a single `invoiceId` — there is no multi-invoice payment allocation feature.*
+- Applying a payment to multiple invoices (batch/lockbox-style) allocates the full payment exactly, with no rounding leftover unaccounted for. **[DONE]** (added 2026-09-13)
+  *`acc.recordLockboxPayment()` at `/accounting/receive-payment` takes a `totalAmount` and a set of per-invoice allocations, refusing (`allocation_mismatch`) unless they sum to it exactly — checked in SQL/NUMERIC, never by trusting the page's own arithmetic. One journal entry per payment (one Cash debit, one AR credit per invoice), each invoice individually checked for its own overpayment, wrong status, and wrong customer, plus a duplicate-invoice-in-one-batch guard. Tested in `receivables.writes.test.ts` ("receiving a lockbox payment across multiple invoices"): the ledger stays balanced, each invoice's balance drops by exactly its own allocation, one invoice can settle to `paid` while another stays `partial` in the same payment, and every refusal path (overpayment, mismatch, wrong status, wrong customer, duplicate) is exercised with `refusedBecause`. A `form-errors.spec.ts` case covers the mismatch refusal end-to-end.*
 
 ### 2.2 Accounts Payable (AP)
 - Bill posting, partial payment, credit application, overpayment handling, aging, void rules (mirroring AR). **[DONE]** (posting/payment/overpayment/void, and a forward-looking "due soon" view) **/ [MISSING]** (credit application, a backward-looking AP aging bucket report)

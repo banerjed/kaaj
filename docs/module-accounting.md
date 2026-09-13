@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.15
+**Version:** 2.16
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -213,7 +213,7 @@ than repeated per story.
 *Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt.*
 
 **US-ACC-018**: As an Accountant, I want to apply customer payments to multiple invoices, so that accounts are accurate.
-*Status: **MISSING**. `recordPayment` takes a single `invoiceId`; there is no multi-invoice/lockbox-style allocation.*
+*Status: **DONE** (2026-09-13). `/accounting/receive-payment` allocates one payment across several of a customer's open invoices — `acc.recordLockboxPayment()` posts one journal entry (one Cash debit, one AR credit per invoice) and refuses when the allocations don't sum to the stated total received. See `accounting.repo.ts` and `receivables.writes.test.ts`'s "receiving a lockbox payment across multiple invoices" suite.*
 
 **US-ACC-019**: As a Business Owner, I want to see which customers owe money and how much, so that I can manage credit risk.
 *Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/due totals, and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
@@ -2272,7 +2272,38 @@ either way.
       a reversing-entry mechanism that doesn't exist today (§1.1's finding
       that there's no reversal/credit-note code anywhere) — that's the real
       shared prerequisite, not each other.
-- [ ] Multi-invoice payment allocation (lockbox-style). US-ACC-018.
+- [x] Multi-invoice payment allocation (lockbox-style). US-ACC-018
+      (2026-09-13). `acc.recordLockboxPayment()` at `/accounting/receive-payment`
+      takes one `totalAmount` (the known deposit/check figure) and a set of
+      per-invoice allocations, posting one journal entry — one Cash debit
+      for the total, one AR credit per invoice — reusing `postJournal()`'s
+      existing multi-line support rather than one entry per invoice. The
+      allocations must sum to `totalAmount` exactly, checked in SQL/NUMERIC
+      (`allocation_mismatch`), since two independently-entered figures
+      agreeing is a rule no single `FormReader` field can express. Each
+      invoice is checked in its own right — same customer as the payment
+      (`wrong_customer`), not draft/void (`wrong_status`), no individual
+      overpayment, no invoice named twice in the batch
+      (`duplicate_invoice`) — and every invoice's `postJournal` currency
+      must agree, since one entry carries one currency/exchange-rate pair.
+      The eligible invoice set for the write action comes from a fresh
+      server-side query, never from client-submitted field names — the
+      same discipline `matchBankTransaction`'s doc comment already
+      describes. Status/total recompute for each of the batch's own
+      invoices is a bounded loop (exempted in
+      `scripts/verify-no-loop-queries.mjs`, reusing the single trusted
+      `recomputeInvoiceTotals()` rather than a second parallel
+      implementation), the same shape already exempted for
+      `invoice_lines`/`bill_lines`/`journal_entry_lines`. New audit
+      register entry (`accounting/receive-payment::allocate`). Along the
+      way, found and fixed a real bug — [L83](10-lessons-learned.md) — six
+      `AccountingRefused` refusal handlers across the accounting module
+      returned `{ message, field }` instead of `f.problem()`'s actual
+      shape `{ message, errorFields }`, so the refused input never got its
+      red border or `aria-invalid`, invisibly, since the alert message
+      still rendered correctly either way. 8 new tests in
+      `receivables.writes.test.ts` and a new `form-errors.spec.ts` case for
+      the mismatch refusal.
 - [x] Per-customer aggregate balance view (`listInvoices` currently has no
       customer grouping). US-ACC-019 (2026-09-13). `acc.customerBalances()`
       groups open invoices (`amount_due > 0`, not draft/void) by
@@ -2409,6 +2440,7 @@ either way.
 | 2.13 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 | 2.14 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 | 2.15 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment. |
+| 2.16 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships. |
 
 ### References
 

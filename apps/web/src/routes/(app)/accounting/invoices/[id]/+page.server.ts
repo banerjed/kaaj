@@ -46,43 +46,49 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 function refusal(e: AccountingRefused) {
   switch (e.reason) {
     case "no_such_invoice":
-      return { message: "That invoice no longer exists.", field: "invoice" }
+      return {
+        message: "That invoice no longer exists.",
+        errorFields: ["invoice"],
+      }
     case "no_such_account":
       return {
         message: `The chart of accounts has no ${e.detail}. Nothing was posted.`,
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     case "wrong_status":
       return {
         message: `That is not something this invoice can do (${e.detail}).`,
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     case "no_lines":
       return {
         message:
           e.detail ??
           "An invoice with no lines says the customer owes nothing, which looks exactly like lines that failed to load.",
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     case "does_not_balance":
       return {
         message: `That posting does not balance and was not written (${e.detail}). Nothing was changed.`,
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     case "period_closed":
       return {
         message: `${e.detail}. A closed period does not accept new postings — reopening one is a deliberate act with its own record.`,
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     case "overpayment":
       // No raw figure here — e.detail has no currency attached; the reloaded
       // page shows Outstanding, formatted, right below.
       return {
         message: "That is more than is outstanding on this invoice.",
-        field: "amount",
+        errorFields: ["amount"],
       }
     case "number_taken":
-      return { message: "That number is taken. Try again.", field: "invoice" }
+      return {
+        message: "That number is taken. Try again.",
+        errorFields: ["invoice"],
+      }
   }
 }
 

@@ -28,25 +28,28 @@ function refusal(e: AccountingRefused) {
       return {
         message:
           "That customer no longer exists. Reload the page and pick one from the current list.",
-        field: "customer_id",
+        errorFields: ["customer_id"],
       }
     case "no_lines":
       return {
         message: "An invoice needs at least one line.",
-        field: "lines",
+        errorFields: ["lines"],
       }
     case "no_such_account":
       return {
         message: `The chart of accounts has no ${e.detail}. Nothing was created.`,
-        field: "lines",
+        errorFields: ["lines"],
       }
     case "number_taken":
       return {
         message: "Could not allocate an invoice number. Try again.",
-        field: "invoice",
+        errorFields: ["invoice"],
       }
     default:
-      return { message: "That invoice could not be created.", field: "invoice" }
+      return {
+        message: "That invoice could not be created.",
+        errorFields: ["invoice"],
+      }
   }
 }
 

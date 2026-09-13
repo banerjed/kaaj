@@ -224,6 +224,31 @@ export async function customerBalances(tx: Tx): Promise<CustomerBalanceRow[]> {
   `
 }
 
+export type OpenInvoiceForAllocation = {
+  id: string
+  invoice_number: string
+  currency: string
+  due_date: string | null
+  amount_due: string
+}
+
+/** A customer's open invoices, for allocating a lockbox payment across them. */
+export async function openInvoicesForCustomer(
+  tx: Tx,
+  customerId: string,
+): Promise<OpenInvoiceForAllocation[]> {
+  return tx<OpenInvoiceForAllocation[]>`
+    SELECT id, invoice_number, currency,
+           to_char(due_date, 'YYYY-MM-DD') AS due_date,
+           amount_due::text AS amount_due
+      FROM invoices
+     WHERE customer_id = ${customerId}::uuid
+       AND amount_due > 0
+       AND status NOT IN ('draft', 'void')
+     ORDER BY due_date ASC
+  `
+}
+
 export type LedgerEntry = {
   id: string
   entry_number: string
@@ -1254,7 +1279,18 @@ export class AccountingRefused extends Error {
       // A payment already tied to a different bank_transaction — no unique
       // constraint enforces this (matched_to_id is polymorphic, not an FK),
       // so it is a repo-layer check, same shape as self_approval.
-      | "already_matched",
+      | "already_matched"
+      // A lockbox batch named an invoice that belongs to a different
+      // customer than the one the payment is against.
+      | "wrong_customer"
+      // The same invoice named twice in one lockbox batch — a data-entry
+      // mistake to refuse outright, not a "pay it twice" to silently honor.
+      | "duplicate_invoice"
+      // The sum of a lockbox batch's per-invoice allocations doesn't match
+      // the total the payment says was received — a rule no single
+      // FormReader field can express, so it is asserted here in SQL/NUMERIC
+      // rather than trusted from the page's own arithmetic.
+      | "allocation_mismatch",
     readonly detail?: string,
   ) {
     super(reason)
@@ -1370,7 +1406,8 @@ export async function postJournal(
   entry: {
     date: string
     sourceType: string
-    sourceId: string
+    /** Null when an entry spans more than one source row — a lockbox payment across several invoices, for instance. */
+    sourceId: string | null
     description: string
     reference: string | null
     currency: string
@@ -1829,6 +1866,198 @@ export async function recordPayment(
   `
 
   return { paymentNumber, status }
+}
+
+export type LockboxAllocation = { invoiceId: string; amount: string }
+
+/**
+ * Receive one payment from a customer and allocate it across several of
+ * their open invoices in one transaction — lockbox/remittance-style, unlike
+ * `recordPayment()`'s one-invoice shape. One `payments` row, one
+ * `payment_allocations` row per invoice, one journal entry:
+ *
+ *   DR Cash at Bank                    total received
+ *     CR Accounts Receivable (inv A)          amount A
+ *     CR Accounts Receivable (inv B)          amount B
+ *     ...
+ *
+ * `totalAmount` is entered independently of the per-invoice allocations (the
+ * known deposit/check total, from a bank statement) and must equal their
+ * sum exactly — a rule no single `FormReader` field can express, asserted
+ * here in SQL/NUMERIC rather than trusted from the page's own arithmetic.
+ */
+export async function recordLockboxPayment(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    customerId: string
+    allocations: LockboxAllocation[]
+    totalAmount: string
+    paymentDate: string
+    method: string
+    reference: string | null
+    bankAccountId: string | null
+  },
+  actorId: string,
+): Promise<{
+  paymentNumber: string
+  statuses: { invoiceNumber: string; status: InvoiceStatus }[]
+}> {
+  if (input.allocations.length === 0) {
+    throw new AccountingRefused("no_lines", "no invoices selected")
+  }
+  const ids = input.allocations.map((a) => a.invoiceId)
+  const amounts = input.allocations.map((a) => a.amount)
+  if (new Set(ids).size !== ids.length) {
+    throw new AccountingRefused("duplicate_invoice")
+  }
+
+  const rows = await tx<
+    {
+      id: string
+      status: InvoiceStatus
+      currency: string
+      exchange_rate: string
+      invoice_number: string
+      customer_id: string
+    }[]
+  >`
+    SELECT id::text AS id, status, currency, exchange_rate::text AS exchange_rate,
+           invoice_number, customer_id::text AS customer_id
+      FROM invoices WHERE id = ANY(${ids}::uuid[])
+  `
+  if (rows.length !== ids.length) throw new AccountingRefused("no_such_invoice")
+  const states = new Map(rows.map((r) => [r.id, r]))
+
+  for (const r of rows) {
+    if (r.customer_id !== input.customerId) {
+      throw new AccountingRefused("wrong_customer", r.invoice_number)
+    }
+    if (r.status === "draft" || r.status === "void") {
+      throw new AccountingRefused(
+        "wrong_status",
+        `${r.invoice_number} is ${r.status}, which cannot receive a payment`,
+      )
+    }
+  }
+  const currencies = new Set(rows.map((r) => r.currency))
+  if (currencies.size > 1) {
+    throw new AccountingRefused("currency_mismatch", [...currencies].join(", "))
+  }
+  const { currency, exchange_rate: exchangeRate } = rows[0]
+
+  // Both checked in SQL/NUMERIC, not JS float: an individual overpayment,
+  // and the batch's own total against what the allocations actually sum to.
+  const [overpaid] = await tx<{ invoice_number: string }[]>`
+    SELECT i.invoice_number
+      FROM unnest(${ids}::uuid[], ${amounts}::numeric[]) AS a(invoice_id, amount)
+      JOIN invoices i ON i.id = a.invoice_id
+     WHERE a.amount > i.amount_due
+  `
+  if (overpaid)
+    throw new AccountingRefused("overpayment", overpaid.invoice_number)
+
+  const [{ total }] = await tx<{ total: string }[]>`
+    SELECT sum(x)::text AS total FROM unnest(${amounts}::numeric[]) AS x
+  `
+  const [{ mismatched }] = await tx<{ mismatched: boolean }[]>`
+    SELECT ${input.totalAmount}::numeric <> ${total}::numeric AS mismatched
+  `
+  if (mismatched) {
+    throw new AccountingRefused(
+      "allocation_mismatch",
+      `${input.totalAmount} received but allocations sum to ${total}`,
+    )
+  }
+
+  const [numbering] = await tx<{ n: number }[]>`
+    SELECT coalesce(max(nullif(substring(payment_number from '[0-9]+$'),
+                                '')::int), 0) + 1 AS n
+      FROM payments WHERE payment_number LIKE 'PAY-%'
+  `
+  const year = input.paymentDate.slice(0, 4)
+  const paymentNumber = `PAY-${year}-${String(numbering.n).padStart(3, "0")}`
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.paymentDate,
+      sourceType: "payment",
+      sourceId: null,
+      description: `Lockbox payment ${paymentNumber} received`,
+      reference: paymentNumber,
+      currency,
+      exchangeRate,
+      lines: [
+        {
+          accountCode: ACCOUNTS.cash,
+          debit: total,
+          credit: null,
+          description: paymentNumber,
+        },
+        ...input.allocations.map((a) => ({
+          accountCode: ACCOUNTS.receivable,
+          debit: null,
+          credit: a.amount,
+          description: `Against ${states.get(a.invoiceId)!.invoice_number}`,
+        })),
+      ],
+    },
+    actorId,
+  )
+
+  const [payment] = await tx<{ id: string }[]>`
+    INSERT INTO payments (
+      tenant_id, payment_number, payment_date, reference, customer_id,
+      currency, amount, exchange_rate, base_amount, payment_method,
+      bank_account_id, status, journal_entry_id, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${paymentNumber}, ${input.paymentDate}::date,
+      ${input.reference}, ${input.customerId}::uuid,
+      ${currency}, ${total}::numeric, ${exchangeRate}::numeric,
+      round(${total}::numeric * ${exchangeRate}::numeric, 2),
+      ${input.method}::payment_method,
+      ${input.bankAccountId}::uuid, 'completed', ${entryId}::uuid,
+      ${actorId}::uuid
+    )
+    RETURNING id
+  `
+
+  await tx`
+    INSERT INTO payment_allocations (
+      tenant_id, payment_id, invoice_id, amount, base_amount
+    )
+    SELECT ${tenantId}::uuid, ${payment.id}::uuid, a.invoice_id, a.amount,
+           round(a.amount * ${exchangeRate}::numeric, 2)
+      FROM unnest(${ids}::uuid[], ${amounts}::numeric[]) AS a(invoice_id, amount)
+  `
+
+  // One bounded loop over THIS batch's own invoices (a person can only
+  // select so many in one lockbox payment), reusing the single trusted
+  // recompute function rather than a second, parallel implementation of
+  // "sum payment_allocations into amount_paid/amount_due" (verify-no-loop-queries.mjs EXEMPT).
+  const statuses: { invoiceNumber: string; status: InvoiceStatus }[] = []
+  for (const id of ids) {
+    await recomputeInvoiceTotals(tx, id)
+    const [settled] = await tx<{ due: string }[]>`
+      SELECT amount_due::text AS due FROM invoices WHERE id = ${id}::uuid
+    `
+    const [state] = await tx<{ fully_paid: boolean }[]>`
+      SELECT ${settled.due}::numeric = 0 AS fully_paid
+    `
+    const status: InvoiceStatus = state.fully_paid ? "paid" : "partial"
+    await tx`
+      UPDATE invoices
+         SET status = ${status},
+             paid_at = ${state.fully_paid ? tx`now()` : null},
+             updated_at = now(), updated_by = ${actorId}::uuid
+       WHERE id = ${id}::uuid
+    `
+    statuses.push({ invoiceNumber: states.get(id)!.invoice_number, status })
+  }
+
+  return { paymentNumber, statuses }
 }
 
 /**

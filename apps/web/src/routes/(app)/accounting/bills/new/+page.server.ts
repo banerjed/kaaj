@@ -29,15 +29,18 @@ function refusal(e: AccountingRefused) {
       return {
         message:
           "That vendor no longer exists. Reload the page and pick one from the current list.",
-        field: "vendor_id",
+        errorFields: ["vendor_id"],
       }
     case "no_lines":
       return {
         message: "A bill needs at least one line.",
-        field: "lines",
+        errorFields: ["lines"],
       }
     default:
-      return { message: "That bill could not be created.", field: "bill" }
+      return {
+        message: "That bill could not be created.",
+        errorFields: ["bill"],
+      }
   }
 }
 
