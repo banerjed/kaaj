@@ -440,6 +440,92 @@ export async function trialBalanceTotals(
   return row
 }
 
+export type TrialBalanceComparisonRow = {
+  account_code: string
+  account_name: string
+  account_type: string
+  debits: string
+  credits: string
+  compare_debits: string
+  compare_credits: string
+}
+
+/**
+ * The trial balance evaluated as of TWO independent dates, side by side —
+ * not `profitAndLossComparison()`'s "current window vs. a computed prior
+ * window": a trial balance is cumulative, so there is no period to shift
+ * back by a year or by its own length, only a second point in time the
+ * caller names directly (a real comparative-financial-statement shape).
+ * Each date's own `sum(...) FILTER (WHERE ...)` is computed once and reused
+ * by both this row-level report and `trialBalanceComparisonTotals()`'s
+ * independent aggregation, the same "compute once, don't reduce the other
+ * report's rows" discipline as every other totals function in this file.
+ */
+export async function trialBalanceComparison(
+  tx: Tx,
+  filters: { asOf: string; compareAsOf: string },
+): Promise<TrialBalanceComparisonRow[]> {
+  const { asOf, compareAsOf } = filters
+  return tx<TrialBalanceComparisonRow[]>`
+    SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
+           COALESCE(sum(l.base_debit_amount)
+                     FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+             AS debits,
+           COALESCE(sum(l.base_credit_amount)
+                     FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+             AS credits,
+           COALESCE(sum(l.base_debit_amount)
+                     FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text
+             AS compare_debits,
+           COALESCE(sum(l.base_credit_amount)
+                     FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text
+             AS compare_credits
+      FROM chart_of_accounts a
+      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+     WHERE a.is_active
+     GROUP BY a.id, a.account_code, a.account_name, a.account_type
+    HAVING sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date) IS NOT NULL
+        OR sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date) IS NOT NULL
+        OR sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date) IS NOT NULL
+        OR sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date) IS NOT NULL
+     ORDER BY a.account_code
+  `
+}
+
+export type TrialBalanceComparisonTotals = {
+  debits: string
+  credits: string
+  balances: boolean
+  compare_debits: string
+  compare_credits: string
+  compare_balances: boolean
+}
+
+/** Same independent-aggregation discipline as `trialBalanceTotals()`, over both dates. */
+export async function trialBalanceComparisonTotals(
+  tx: Tx,
+  filters: { asOf: string; compareAsOf: string },
+): Promise<TrialBalanceComparisonTotals> {
+  const { asOf, compareAsOf } = filters
+  const [row] = await tx<TrialBalanceComparisonTotals[]>`
+    SELECT
+      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text AS debits,
+      COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text AS credits,
+      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+        = COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+        AS balances,
+      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text AS compare_debits,
+      COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text AS compare_credits,
+      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)
+        = COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)
+        AS compare_balances
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+  `
+  return row
+}
+
 export type ControlAccountTieOut = {
   account_code: string
   label: string
@@ -758,6 +844,143 @@ export async function balanceSheetTotals(
            (equity + net_income)::text             AS total_equity,
            (liabilities + equity + net_income)::text AS total_liabilities_and_equity,
            assets = liabilities + equity + net_income AS balances
+      FROM t
+  `
+  return row
+}
+
+export type BalanceSheetComparisonRow = {
+  account_code: string
+  account_name: string
+  account_type: "asset" | "liability" | "equity"
+  amount: string
+  compare_amount: string
+  /** `amount - compare_amount`, computed in SQL rather than by the page subtracting two money strings. */
+  change: string
+}
+
+/**
+ * The same accounts as `balanceSheet()`, evaluated at TWO independent `asOf`
+ * dates rather than one — a real comparative-balance-sheet shape ("as of
+ * Dec 31 2025" next to "as of Dec 31 2026"), not `profitAndLossComparison()`'s
+ * "current window vs. a computed prior window": a balance sheet is
+ * cumulative, so there is no period to shift back by a year or by its own
+ * length, only a second point in time the caller names directly. Each
+ * date's signed balance is computed once in the `bal` CTE and read three
+ * times in the outer SELECT (`amount`, `compare_amount`, their difference)
+ * rather than repeating the CASE expression itself three times.
+ */
+export async function balanceSheetComparison(
+  tx: Tx,
+  filters: { asOf: string; compareAsOf: string },
+): Promise<BalanceSheetComparisonRow[]> {
+  const { asOf, compareAsOf } = filters
+  return tx<BalanceSheetComparisonRow[]>`
+    WITH bal AS (
+      SELECT a.id, a.account_code, a.account_name, a.account_type::text AS account_type,
+             -- COALESCEd to 0: an account with rows dated after asOf (but
+             -- before compareAsOf, or vice versa) has a real, zero balance
+             -- at the earlier date, not "no data" — leaving this NULL would
+             -- make "change" below NULL too, silently, for exactly the
+             -- accounts a comparison is most useful for (ones that only
+             -- started being posted to partway through the window).
+             COALESCE((CASE WHEN a.account_type = 'asset'
+                   THEN sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date)
+                      - sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date)
+                   ELSE sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date)
+                      - sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date)
+              END), 0) AS amount,
+             COALESCE((CASE WHEN a.account_type = 'asset'
+                   THEN sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
+                      - sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
+                   ELSE sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
+                      - sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
+              END), 0) AS compare_amount
+        FROM journal_entry_lines l
+        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        JOIN chart_of_accounts a ON a.id = l.account_id
+       WHERE a.account_type IN ('asset', 'liability', 'equity')
+       GROUP BY a.id, a.account_code, a.account_name, a.account_type
+    )
+    SELECT account_code, account_name, account_type,
+           amount::text AS amount,
+           compare_amount::text AS compare_amount,
+           (amount - compare_amount)::text AS change
+      FROM bal
+     ORDER BY CASE account_type WHEN 'asset' THEN 1 WHEN 'liability' THEN 2 ELSE 3 END,
+              account_code
+  `
+}
+
+export type BalanceSheetComparisonTotals = {
+  assets: string
+  liabilities: string
+  equity: string
+  net_income: string
+  total_equity: string
+  total_liabilities_and_equity: string
+  balances: boolean
+  compare_assets: string
+  compare_liabilities: string
+  compare_equity: string
+  compare_net_income: string
+  compare_total_equity: string
+  compare_total_liabilities_and_equity: string
+  compare_balances: boolean
+}
+
+/**
+ * Same independent-aggregation discipline as `balanceSheetTotals()`, over
+ * both dates — including its own `balances` identity check at EACH date,
+ * since a balance sheet that ties out today says nothing about whether it
+ * tied out on the comparison date.
+ */
+export async function balanceSheetComparisonTotals(
+  tx: Tx,
+  filters: { asOf: string; compareAsOf: string },
+): Promise<BalanceSheetComparisonTotals> {
+  const { asOf, compareAsOf } = filters
+  const [row] = await tx<BalanceSheetComparisonTotals[]>`
+    WITH t AS (
+      SELECT
+        COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                           THEN l.base_debit_amount - l.base_credit_amount END)
+                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS assets,
+        COALESCE(sum(CASE WHEN a.account_type = 'liability'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS liabilities,
+        COALESCE(sum(CASE WHEN a.account_type = 'equity'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS equity,
+        COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS net_income,
+        COALESCE(sum(CASE WHEN a.account_type = 'asset'
+                           THEN l.base_debit_amount - l.base_credit_amount END)
+                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_assets,
+        COALESCE(sum(CASE WHEN a.account_type = 'liability'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_liabilities,
+        COALESCE(sum(CASE WHEN a.account_type = 'equity'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_equity,
+        COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_net_income
+        FROM journal_entry_lines l
+        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        JOIN chart_of_accounts a ON a.id = l.account_id
+       WHERE a.account_type IN ('asset', 'liability', 'equity', 'revenue', 'expense')
+    )
+    SELECT assets::text, liabilities::text, equity::text, net_income::text,
+           (equity + net_income)::text AS total_equity,
+           (liabilities + equity + net_income)::text AS total_liabilities_and_equity,
+           assets = liabilities + equity + net_income AS balances,
+           compare_assets::text, compare_liabilities::text, compare_equity::text, compare_net_income::text,
+           (compare_equity + compare_net_income)::text AS compare_total_equity,
+           (compare_liabilities + compare_equity + compare_net_income)::text
+             AS compare_total_liabilities_and_equity,
+           compare_assets = compare_liabilities + compare_equity + compare_net_income AS compare_balances
       FROM t
   `
   return row

@@ -1,7 +1,7 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
-  import { money } from "$lib/format"
+  import { money, calendarDate } from "$lib/format"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
@@ -47,8 +47,17 @@
       <legend class="fieldset-legend text-xs">As of</legend>
       <input type="date" name="as_of" class="input" value={data.filters.asOf} />
     </fieldset>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend text-xs">Compare to</legend>
+      <input
+        type="date"
+        name="compare_as_of"
+        class="input"
+        value={data.filters.compareAsOf}
+      />
+    </fieldset>
     <button class="btn btn-primary">Apply</button>
-    {#if data.filters.asOf}
+    {#if data.filters.asOf || data.filters.compareAsOf}
       <a href="/accounting/trial-balance" class="btn btn-ghost">Clear</a>
     {/if}
   </form>
@@ -92,6 +101,87 @@
               </td>
               <td class="text-right tabular-nums">
                 {money(data.totals.credits, baseCurrency, locale)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  {/if}
+
+  {#if data.comparison && data.comparisonTotals}
+    <div class="card bg-base-100 mt-4 shadow">
+      <div class="overflow-x-auto">
+        <table class="table">
+          <caption class="text-base-content/70 p-4 text-left text-xs">
+            {calendarDate(data.filters.asOf, locale)} compared to {calendarDate(
+              data.filters.compareAsOf,
+              locale,
+            )} — two independent points in time, not a period.
+          </caption>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Type</th>
+              <th class="text-right"
+                >Debits ({calendarDate(data.filters.asOf, locale)})</th
+              >
+              <th class="text-right"
+                >Credits ({calendarDate(data.filters.asOf, locale)})</th
+              >
+              <th class="text-right"
+                >Debits ({calendarDate(data.filters.compareAsOf, locale)})</th
+              >
+              <th class="text-right"
+                >Credits ({calendarDate(data.filters.compareAsOf, locale)})</th
+              >
+            </tr>
+          </thead>
+          <tbody>
+            {#each data.comparison as r (r.account_code)}
+              <tr class="hover:bg-base-200/40">
+                <td>
+                  <span class="font-mono text-xs">{r.account_code}</span>
+                  {r.account_name}
+                </td>
+                <td class="text-sm capitalize">{r.account_type}</td>
+                <td class="text-right text-sm tabular-nums">
+                  {money(r.debits, baseCurrency, locale)}
+                </td>
+                <td class="text-right text-sm tabular-nums">
+                  {money(r.credits, baseCurrency, locale)}
+                </td>
+                <td class="text-right text-sm tabular-nums">
+                  {money(r.compare_debits, baseCurrency, locale)}
+                </td>
+                <td class="text-right text-sm tabular-nums">
+                  {money(r.compare_credits, baseCurrency, locale)}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            <tr class="font-medium">
+              <td colspan="2">Total</td>
+              <td class="text-right tabular-nums">
+                {money(data.comparisonTotals.debits, baseCurrency, locale)}
+              </td>
+              <td class="text-right tabular-nums">
+                {money(data.comparisonTotals.credits, baseCurrency, locale)}
+              </td>
+              <td class="text-right tabular-nums">
+                {money(
+                  data.comparisonTotals.compare_debits,
+                  baseCurrency,
+                  locale,
+                )}
+              </td>
+              <td class="text-right tabular-nums">
+                {money(
+                  data.comparisonTotals.compare_credits,
+                  baseCurrency,
+                  locale,
+                )}
               </td>
             </tr>
           </tfoot>

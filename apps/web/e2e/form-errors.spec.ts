@@ -600,3 +600,26 @@ test("a year-over-year comparison over a year-or-longer period is refused, not s
     page.getByText(/requires a period shorter than one year/i),
   ).toBeVisible()
 })
+
+test("a trial balance comparison date with no 'as of' date is refused, not silently ignored", async ({
+  page,
+}) => {
+  // trialBalanceComparison() names two independent snapshot dates directly —
+  // there is no "prior period" to compute a second date from, so a
+  // `compare_as_of` with nothing to compare against must be refused.
+  await page.goto("/accounting/trial-balance?compare_as_of=2025-01-01")
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/give an 'as of' date to compare against/i),
+  ).toBeVisible()
+})
+
+test("a balance sheet comparison date with no 'as of' date is refused, not silently ignored", async ({
+  page,
+}) => {
+  await page.goto("/accounting/balance-sheet?compare_as_of=2025-01-01")
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/give an 'as of' date to compare against/i),
+  ).toBeVisible()
+})

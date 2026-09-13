@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.18
+**Version:** 2.19
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2198,14 +2198,31 @@ either way.
       `cashFlowTotals()`/`equityStatementTotals()` run independently over
       the same two windows. `./check` and the full e2e suite pass.
       US-ACC-041.
-- [ ] Period comparison on the trial balance and balance sheet, and
-      department/location filtering. US-ACC-041 (remainder), US-ACC-044.
-      Trial balance and balance sheet are cumulative "as of" reports, not
-      periodic ones — comparison there means two `asOf` columns (a real,
-      standard comparative-balance-sheet shape), not two windows, and needs
-      its own differently-shaped function rather than reusing
-      `profitAndLossComparison()`'s pattern. The department/location gap
-      isn't a code gap: `journal_entry_lines` already carries both FKs, but
+- [x] Period comparison on the trial balance and balance sheet. US-ACC-041
+      (remainder, 2026-09-13). Both are cumulative "as of" reports, not
+      periodic ones — comparison there means two independent `asOf` dates (a
+      real, standard comparative-balance-sheet shape: "as of Dec 31 2025"
+      next to "as of Dec 31 2026"), not `profitAndLossComparison()`'s
+      "current window vs. a computed prior window", so this needed its own
+      differently-shaped functions: `trialBalanceComparison()`/
+      `trialBalanceComparisonTotals()` and `balanceSheetComparison()`/
+      `balanceSheetComparisonTotals()`. Each date's own `sum(...) FILTER
+      (WHERE ...)` is computed once and read multiple times downstream,
+      rather than repeating the CASE expression itself. Found and fixed a
+      real bug while writing the row-level test: an account with rows dated
+      after one of the two `asOf` cutoffs (but before the other) summed to
+      SQL NULL on that side, which silently made the `change` column NULL
+      too rather than the true amount — fixed by `COALESCE`ing each side to
+      0 before subtracting, an account that "hadn't started yet" as of the
+      earlier date being a real zero, not an absence of data. Both trial
+      balance and balance sheet pages gained a "Compare to" second date
+      field and a comparison card, additive to the existing single-date
+      view. Tested in `accounting.test.ts` against real fixture figures,
+      including the same-date-both-sides identity check (a comparison
+      against itself must reproduce the single-date report exactly) and
+      finance-only RLS. `./check` and the full e2e suite pass.
+- [ ] Department/location filtering on financial reports. US-ACC-044.
+      Not a code gap: `journal_entry_lines` already carries both FKs, but
       every one of the fixture's 19 lines points at the same single
       department and location (confirmed via `psql`) — a filter would have
       nothing to exclude, which is the L50/L51 shape this session has spent
@@ -2496,6 +2513,7 @@ either way.
 | 2.16 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships. |
 | 2.17 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day). |
 | 2.18 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass. |
+| 2.19 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass. |
 
 ### References
 

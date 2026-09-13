@@ -480,6 +480,64 @@ describe("the trial balance", () => {
   })
 })
 
+describe("trial balance comparison (two independent as-of dates)", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("evaluates each date independently — before any posting reads zero, not the other date's total", async () => {
+    const totals = await withTenant(AS_OWNER, (tx) =>
+      acc.trialBalanceComparisonTotals(tx, {
+        asOf: "2026-01-21",
+        compareAsOf: "2025-01-01",
+      }),
+    )
+    expect(totals.debits).toBe("201100.00")
+    expect(totals.credits).toBe("201100.00")
+    expect(totals.balances).toBe(true)
+    expect(totals.compare_debits).toBe("0")
+    expect(totals.compare_credits).toBe("0")
+    expect(totals.compare_balances).toBe(true)
+  })
+
+  it("the same date on both sides reproduces trialBalance()'s own single-date figures exactly", async () => {
+    const [comparison, atAsOf] = await withTenant(AS_OWNER, async (tx) => [
+      await acc.trialBalanceComparison(tx, {
+        asOf: "2026-01-21",
+        compareAsOf: "2026-01-21",
+      }),
+      await acc.trialBalance(tx, { asOf: "2026-01-21" }),
+    ])
+    const byCode = Object.fromEntries(atAsOf.map((r) => [r.account_code, r]))
+    expect(comparison.length).toBe(atAsOf.length)
+    for (const r of comparison) {
+      expect(r.debits).toBe(r.compare_debits)
+      expect(r.credits).toBe(r.compare_credits)
+      expect(r.debits).toBe(byCode[r.account_code]?.debits)
+      expect(r.credits).toBe(byCode[r.account_code]?.credits)
+    }
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.trialBalanceComparisonTotals(tx, {
+        asOf: "2026-01-21",
+        compareAsOf: "2025-01-01",
+      }),
+    )
+    expect(refused.debits).toBe("0")
+    expect(refused.compare_debits).toBe("0")
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.trialBalanceComparisonTotals(tx, {
+        asOf: "2026-01-21",
+        compareAsOf: "2025-01-01",
+      }),
+    )
+    expect(owner.debits).not.toBe("0")
+  })
+})
+
 describe("the profit and loss statement", () => {
   afterAll(async () => {
     await closeConnections()
@@ -711,6 +769,79 @@ describe("the balance sheet", () => {
     })
 
     const ownerRows = await withTenant(AS_OWNER, (tx) => acc.balanceSheet(tx))
+    expect(ownerRows.length).toBeGreaterThan(0)
+  })
+})
+
+describe("balance sheet comparison (two independent as-of dates)", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("evaluates each date independently, and each date balances on its own", async () => {
+    const totals = await withTenant(AS_OWNER, (tx) =>
+      acc.balanceSheetComparisonTotals(tx, {
+        asOf: "2026-12-31",
+        compareAsOf: "2026-01-21",
+      }),
+    )
+    expect(totals.balances).toBe(true)
+    expect(totals.assets).toBe("59061.53")
+    expect(totals.liabilities).toBe("95981.53")
+    expect(totals.net_income).toBe("-56920.00")
+    expect(totals.total_liabilities_and_equity).toBe("59061.53")
+
+    expect(totals.compare_balances).toBe(true)
+    expect(totals.compare_assets).toBe("62300.00")
+    expect(totals.compare_liabilities).toBe("96500.00")
+    expect(totals.compare_net_income).toBe("-54200.00")
+    expect(totals.compare_total_liabilities_and_equity).toBe("62300.00")
+  })
+
+  it("row-level `change` is `amount - compare_amount`, computed in SQL", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) =>
+      acc.balanceSheetComparison(tx, {
+        asOf: "2026-12-31",
+        compareAsOf: "2026-01-21",
+      }),
+    )
+    const cash = rows.find((r) => r.account_code === "1000")
+    expect(cash?.amount).toBe("68900.00")
+    expect(cash?.compare_amount).toBe("62300.00")
+    expect(cash?.change).toBe("6600.00")
+    for (const r of rows) {
+      expect(Number(r.amount) - Number(r.compare_amount)).toBeCloseTo(
+        Number(r.change),
+        2,
+      )
+    }
+  })
+
+  it("is visible to the finance function only", async () => {
+    const [refusedRows, refusedTotals] = await withTenant(
+      AS_PLAIN_EMPLOYEE,
+      (tx) =>
+        Promise.all([
+          acc.balanceSheetComparison(tx, {
+            asOf: "2026-12-31",
+            compareAsOf: "2026-01-21",
+          }),
+          acc.balanceSheetComparisonTotals(tx, {
+            asOf: "2026-12-31",
+            compareAsOf: "2026-01-21",
+          }),
+        ]),
+    )
+    expect(refusedRows).toEqual([])
+    expect(refusedTotals.assets).toBe("0")
+    expect(refusedTotals.compare_assets).toBe("0")
+
+    const ownerRows = await withTenant(AS_OWNER, (tx) =>
+      acc.balanceSheetComparison(tx, {
+        asOf: "2026-12-31",
+        compareAsOf: "2026-01-21",
+      }),
+    )
     expect(ownerRows.length).toBeGreaterThan(0)
   })
 })

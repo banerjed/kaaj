@@ -40,8 +40,16 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/accounting/bills/new", heading: "New bill" },
   { path: "/accounting/ledger", heading: "Ledger" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
+  {
+    path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",
+    heading: "Trial Balance",
+  },
   { path: "/accounting/profit-loss", heading: "Profit & Loss" },
   { path: "/accounting/balance-sheet", heading: "Balance Sheet" },
+  {
+    path: "/accounting/balance-sheet?as_of=2026-12-31&compare_as_of=2026-01-21",
+    heading: "Balance Sheet",
+  },
   { path: "/accounting/cash-flow", heading: "Cash Flow" },
   {
     path: "/accounting/equity",
