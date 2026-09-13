@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.19
+**Version:** 2.20
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2395,9 +2395,40 @@ either way.
 
 ### Tier 5 — Manual journal entries and period close
 
-- [ ] Manual journal entry creation (adjustments, corrections), with the
+- [x] Manual journal entry creation (adjustments, corrections), with the
       same balancing/period/permission checks as system-generated entries.
-      US-ACC-034.
+      US-ACC-034. (2026-09-13) — `recordManualJournalEntry()` layers over the
+      existing `postJournal()` (the shared posting engine every invoice/bill
+      write already goes through), resolving the picker's account IDs to the
+      codes `postJournal` takes in one query, then delegating the
+      balancing/period checks to it unchanged. `sourceType`/`sourceId` are
+      `"manual"`/`null`, distinguishing it from an invoice/bill/payment
+      posting in the ledger's own "Source" column. `/accounting/ledger`
+      gained a "New entry" button (finance-write only) leading to
+      `/accounting/journal-entries/new`; a posted entry cannot be edited or
+      reversed yet (§1.3's reversing-entry gap remains open), so the page
+      says so before submission. Audited as `post_journal_entry`. Each line
+      requires exactly one of debit/credit, enforced both in the form
+      (`f.reject` on a row with both or neither) and implicitly by
+      `postJournal` itself (a zero/zero row would otherwise vanish silently
+      before its own line-count check). Advisor review of this increment
+      surfaced a real, newly-reachable edge case: `postJournal` rounds
+      `base_debit_amount`/`base_credit_amount` PER LINE, so a sum of rounded
+      values is not the same as rounding the sum — an entry can balance
+      exactly in its native currency and still fail the base-currency check
+      (confirmed: three lines of `0.05`/`0.02`/`0.03` at an exchange rate of
+      `1.1` balance natively but not after rounding, `0.06` vs `0.05`).
+      `issueInvoice`/`approveBill` never hit this because their lines come
+      from computed totals; a manual entry is the first caller where a
+      person types arbitrary native amounts against an arbitrary rate.
+      `postJournal`'s balance check now reports the native and base sides as
+      two distinct failures rather than one bare "does not balance", and the
+      page surfaces the actual figures (`does_not_balance`'s `e.detail`) the
+      same way `bills/[id]`/`invoices/[id]` already do — previously
+      discarded here. Tested in `accounting.writes.test.ts` ("recording a
+      manual journal entry", 5 cases) and end-to-end (`smoke.spec.ts`
+      renders the page; `form-errors.spec.ts` covers under-two-lines, a
+      debit+credit line, and a mismatched total).
 - [ ] Period close workflow (an actual action that writes
       `accounting_periods.status`, not just the existing "no posting into a
       non-open period" enforcement). US-ACC-035.
@@ -2514,6 +2545,7 @@ either way.
 | 2.17 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day). |
 | 2.18 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass. |
 | 2.19 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass. |
+| 2.20 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry). |
 
 ### References
 

@@ -7,6 +7,7 @@ import {
   createInvoice,
   issueInvoice,
   recordPayment,
+  recordManualJournalEntry,
   controlAccountTieOut,
   balanceSheetTotals,
   trialBalanceTotals,
@@ -33,6 +34,10 @@ const AS_OWNER = {
   employeeId: null,
 }
 const ACTOR = "48ccc5de-9ba7-5461-ab49-160a1146ed85"
+
+/** chart_of_accounts ids for `recordManualJournalEntry`'s picker-shaped input. `CASH_ACCOUNT` (1000) is declared further down, reused here. */
+const REVENUE_ACCOUNT = "6d1ef213-cb96-5ad4-beaf-1d4e07242d65" // Consulting Revenue, 4000
+const OTHER_REVENUE_ACCOUNT = "8e5bbb5d-e1c7-521a-b4d3-98b8cf3b40e4" // Software Revenue, 4100
 
 /** JE-2026-0001 — a real posted entry, AR 1100 debit / Revenue 4000 credit. */
 const POSTED_ENTRY = "c1c96d31-cfa4-57d3-9048-06e3ae1725e6"
@@ -243,6 +248,233 @@ describe("posting a journal entry directly", () => {
     expect(entryId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     )
+  })
+})
+
+/**
+ * `recordManualJournalEntry` (US-ACC-034) — the manual-entry page's own
+ * write, layered over `postJournal` above. What it adds is resolving the
+ * picker's account IDS to the codes `postJournal` actually takes, in one
+ * query rather than one per line; the balancing/period rules it delegates to
+ * `postJournal` are already covered above and aren't re-verified here.
+ */
+describe("recording a manual journal entry", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  const baseManual = {
+    date: "2026-03-10",
+    description: "Manual JE test",
+    reference: null,
+    currency: "USD",
+    exchangeRate: "1.000000",
+  }
+
+  it("posts a balanced entry with source_type 'manual' and no source_id", async () => {
+    const { posted, entry } = await inRollback(async (tx) => {
+      const posted = await recordManualJournalEntry(
+        tx,
+        NORTHWIND,
+        {
+          ...baseManual,
+          lines: [
+            {
+              accountId: CASH_ACCOUNT,
+              debit: "250.00",
+              credit: "0",
+              description: "Cash side",
+            },
+            {
+              accountId: REVENUE_ACCOUNT,
+              debit: "0",
+              credit: "250.00",
+              description: "Revenue side",
+            },
+          ],
+        },
+        ACTOR,
+      )
+      const [entry] = await tx<
+        { source_type: string; source_id: string | null }[]
+      >`
+        SELECT source_type, source_id FROM journal_entries WHERE id = ${posted.id}::uuid
+      `
+      return { posted, entry }
+    })
+    expect(posted.entryNumber).toMatch(/^JE-2026-\d{4}$/)
+    expect(posted.totalDebit).toBe("250.00")
+    expect(entry.source_type).toBe("manual")
+    expect(entry.source_id).toBeNull()
+  })
+
+  it("resolves each line's account id to the SAME account postJournal would post to", async () => {
+    const rows = await inRollback(async (tx) => {
+      const posted = await recordManualJournalEntry(
+        tx,
+        NORTHWIND,
+        {
+          ...baseManual,
+          lines: [
+            {
+              accountId: CASH_ACCOUNT,
+              debit: "80.00",
+              credit: "0",
+              description: "",
+            },
+            {
+              accountId: REVENUE_ACCOUNT,
+              debit: "0",
+              credit: "80.00",
+              description: "",
+            },
+          ],
+        },
+        ACTOR,
+      )
+      return tx<
+        { account_code: string; debit_amount: string; credit_amount: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text, l.credit_amount::text
+          FROM journal_entry_lines l
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE l.entry_id = ${posted.id}::uuid
+         ORDER BY l.line_number
+      `
+    })
+    expect(rows).toEqual([
+      expect.objectContaining({ account_code: "1000", debit_amount: "80.00" }),
+      expect.objectContaining({
+        account_code: "4000",
+        credit_amount: "80.00",
+      }),
+    ])
+  })
+
+  it("refuses an account id that isn't in the chart of accounts, distinctly from a bad code", async () => {
+    // The picker sends an id, not a code — a stale/tampered id has no code
+    // for postJournal's own accountId() to even look up, so this is caught
+    // one step earlier than that guard.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          recordManualJournalEntry(
+            tx,
+            NORTHWIND,
+            {
+              ...baseManual,
+              lines: [
+                {
+                  accountId: "00000000-0000-0000-0000-000000000099",
+                  debit: "50.00",
+                  credit: "0",
+                  description: "",
+                },
+                {
+                  accountId: REVENUE_ACCOUNT,
+                  debit: "0",
+                  credit: "50.00",
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "no_such_account",
+    )
+  })
+
+  it("refuses posting into a closed period, same as any other caller of postJournal", async () => {
+    // January 2026 is closed in the fixture (see "closed accounting
+    // periods" in receivables.writes.test.ts).
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          recordManualJournalEntry(
+            tx,
+            NORTHWIND,
+            {
+              ...baseManual,
+              date: "2026-01-15",
+              lines: [
+                {
+                  accountId: CASH_ACCOUNT,
+                  debit: "10.00",
+                  credit: "0",
+                  description: "",
+                },
+                {
+                  accountId: REVENUE_ACCOUNT,
+                  debit: "0",
+                  credit: "10.00",
+                  description: "",
+                },
+              ],
+            },
+            ACTOR,
+          ),
+        ),
+      "period_closed",
+    )
+  })
+
+  it("refuses an entry that balances in its native currency but not after per-line rounding to base, and says so distinctly", async () => {
+    // round(0.05*1.1,2)=0.06 but round(0.02*1.1,2)+round(0.03*1.1,2)=0.05 —
+    // native debits (0.05) equal native credits (0.02+0.03=0.05), yet the
+    // base side does not, because postJournal rounds PER LINE (L25) rather
+    // than rounding one combined total. Unlike issueInvoice/approveBill,
+    // whose lines come from computed invoice/bill totals, this is the first
+    // caller where a person types arbitrary native amounts against an
+    // arbitrary rate, so this divergence is newly reachable here — and
+    // because it's newly reachable, the refusal must say WHICH side failed
+    // rather than a bare "does not balance" a person could see is false of
+    // the native amounts in front of them.
+    try {
+      await inRollback((tx) =>
+        recordManualJournalEntry(
+          tx,
+          NORTHWIND,
+          {
+            ...baseManual,
+            exchangeRate: "1.1",
+            lines: [
+              {
+                accountId: CASH_ACCOUNT,
+                debit: "0.05",
+                credit: "0",
+                description: "",
+              },
+              {
+                accountId: REVENUE_ACCOUNT,
+                debit: "0",
+                credit: "0.02",
+                description: "",
+              },
+              {
+                accountId: OTHER_REVENUE_ACCOUNT,
+                debit: "0",
+                credit: "0.03",
+                description: "",
+              },
+            ],
+          },
+          ACTOR,
+        ),
+      )
+      throw new Error(
+        "expected a does_not_balance refusal and the write succeeded",
+      )
+    } catch (e) {
+      expect(e).toBeInstanceOf(AccountingRefused)
+      expect((e as AccountingRefused).reason).toBe("does_not_balance")
+      expect((e as AccountingRefused).detail).toMatch(
+        /debits 0\.05 equal credits 0\.05/,
+      )
+      expect((e as AccountingRefused).detail).toMatch(
+        /base debits 0\.06 do not equal base credits 0\.05/,
+      )
+    }
   })
 })
 

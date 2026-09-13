@@ -1831,15 +1831,102 @@ export async function postJournal(
            coalesce(sum(base_credit_amount),0)::text AS bc
       FROM journal_entry_lines WHERE entry_id = ${head.id}::uuid
   `
-  if (check.d !== check.c || check.bd !== check.bc) {
+  if (check.d !== check.c) {
     throw new AccountingRefused(
       "does_not_balance",
-      `journal ${entryNumber}: debits ${check.d} against credits ${check.c}, ` +
-        `base ${check.bd} against ${check.bc}`,
+      `debits ${check.d} against credits ${check.c}`,
+    )
+  }
+  // The native side can balance while the base side doesn't: base_* is
+  // rounded PER LINE (L25), so a sum of rounded values is not the same as
+  // rounding the sum — reachable whenever amounts and an exchange rate are
+  // both free-form, as they are for a manual entry (unlike an invoice/bill's
+  // computed lines, which round the same way on every line).
+  if (check.bd !== check.bc) {
+    throw new AccountingRefused(
+      "does_not_balance",
+      `debits ${check.d} equal credits ${check.c}, but after converting to base currency at this exchange rate, base debits ${check.bd} do not equal base credits ${check.bc}`,
     )
   }
 
   return head.id
+}
+
+/** One side of a manual journal entry, as the picker on the page names it. */
+export type ManualJournalLine = {
+  accountId: string
+  debit: string
+  credit: string
+  description: string
+}
+
+/**
+ * A manual journal entry (US-ACC-034) — an adjustment or correction with no
+ * invoice/bill behind it, so `postJournal`'s `sourceType`/`sourceId` are
+ * `"manual"`/`null`. The only thing this adds over `postJournal` itself is
+ * resolving the picker's account ids to codes, in one query rather than one
+ * per line, before the shared balancing/period/audit machinery takes over.
+ */
+export async function recordManualJournalEntry(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    date: string
+    description: string
+    reference: string | null
+    currency: string
+    exchangeRate: string
+    lines: ManualJournalLine[]
+  },
+  actorId: string,
+): Promise<{ id: string; entryNumber: string; totalDebit: string }> {
+  const ids = input.lines.map((l) => l.accountId)
+  const accounts = await tx<{ id: string; account_code: string }[]>`
+    SELECT id, account_code FROM chart_of_accounts WHERE id = ANY(${ids}::uuid[])
+  `
+  const codeById = new Map(accounts.map((a) => [a.id, a.account_code]))
+  const lines: JournalLine[] = input.lines.map((l) => {
+    const accountCode = codeById.get(l.accountId)
+    if (!accountCode) {
+      throw new AccountingRefused("no_such_account", l.accountId)
+    }
+    return {
+      accountCode,
+      debit: l.debit,
+      credit: l.credit,
+      description: l.description,
+    }
+  })
+
+  const id = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.date,
+      sourceType: "manual",
+      sourceId: null,
+      description: input.description,
+      reference: input.reference,
+      currency: input.currency,
+      exchangeRate: input.exchangeRate,
+      lines,
+    },
+    actorId,
+  )
+
+  const [posted] = await tx<{ entry_number: string; total_debit: string }[]>`
+    SELECT je.entry_number,
+           coalesce(sum(l.debit_amount), 0)::text AS total_debit
+      FROM journal_entries je
+      JOIN journal_entry_lines l ON l.entry_id = je.id
+     WHERE je.id = ${id}::uuid
+     GROUP BY je.entry_number
+  `
+  return {
+    id,
+    entryNumber: posted.entry_number,
+    totalDebit: posted.total_debit,
+  }
 }
 
 type InvoiceState = {

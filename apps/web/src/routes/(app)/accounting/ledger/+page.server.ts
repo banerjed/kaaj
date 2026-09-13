@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       unbalanced: await acc.unbalanced(tx),
       statuses: STATUSES,
       filters: { from: from ?? "", to: to ?? "", status },
+      mayWrite: can(ctx, "accounting.write"),
     }
   })
 }

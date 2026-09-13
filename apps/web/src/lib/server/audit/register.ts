@@ -155,6 +155,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "allocate",
     why: "Cash received against a debt, same as recordPayment — just applied across several invoices in one deposit instead of one. 'Who allocated this lockbox payment, to which invoices, and for how much' is the same reconciliation question.",
   },
+  {
+    route: "accounting/journal-entries/new",
+    action: "create",
+    why: "A manual adjustment posts directly to the general ledger with nobody's invoice or bill behind it — unlike a draft invoice/bill's create, there is no later issue()/approve() step to audit instead. 'Who adjusted the books, by how much, and why' is the first question an auditor asks about a manual entry.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {

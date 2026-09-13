@@ -421,6 +421,89 @@ test("a bill number already used by the same vendor is refused, not silently dup
   expect(result.raw).toMatch(/already has a bill with that number/i)
 })
 
+test("a manual journal entry with fewer than two lines is refused, not silently accepted", async ({
+  page,
+}) => {
+  const response = await page.request.post(
+    "/accounting/journal-entries/new?/create",
+    {
+      form: {
+        entry_date: "2026-03-10",
+        description: "Manual JE probe",
+        currency: "USD",
+        exchange_rate: "1.000000",
+        line_count: "1",
+        "lines.0.account_id": "eef02e95-6acb-5039-8acc-56340013e53a",
+        "lines.0.description": "Cash",
+        "lines.0.debit": "50.00",
+      },
+    },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/lines/i)
+})
+
+test("a manual journal entry line with both a debit and a credit is refused, not posted as one-sided", async ({
+  page,
+}) => {
+  // Cash at Bank (1000) / Consulting Revenue (4000) — real fixture accounts,
+  // so only the line-0 debit+credit combination is the thing under test.
+  const response = await page.request.post(
+    "/accounting/journal-entries/new?/create",
+    {
+      form: {
+        entry_date: "2026-03-10",
+        description: "Manual JE probe",
+        currency: "USD",
+        exchange_rate: "1.000000",
+        line_count: "2",
+        "lines.0.account_id": "eef02e95-6acb-5039-8acc-56340013e53a",
+        "lines.0.description": "Cash",
+        "lines.0.debit": "50.00",
+        "lines.0.credit": "50.00",
+        "lines.1.account_id": "6d1ef213-cb96-5ad4-beaf-1d4e07242d65",
+        "lines.1.description": "Revenue",
+        "lines.1.credit": "50.00",
+      },
+    },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  // Not just "some field failed" — the indexed reader must name THIS row's
+  // debit, same sharpening as the invoice/bill quantity cases above.
+  expect(result.raw).toMatch(/lines\.0\.debit/)
+})
+
+test("a manual journal entry whose debits and credits don't match is refused", async ({
+  page,
+}) => {
+  const response = await page.request.post(
+    "/accounting/journal-entries/new?/create",
+    {
+      form: {
+        entry_date: "2026-03-10",
+        description: "Manual JE probe",
+        currency: "USD",
+        exchange_rate: "1.000000",
+        line_count: "2",
+        "lines.0.account_id": "eef02e95-6acb-5039-8acc-56340013e53a",
+        "lines.0.description": "Cash",
+        "lines.0.debit": "50.00",
+        "lines.1.account_id": "6d1ef213-cb96-5ad4-beaf-1d4e07242d65",
+        "lines.1.description": "Revenue",
+        "lines.1.credit": "40.00",
+      },
+    },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/does not balance/i)
+  // The message surfaces the actual figures, not just "invalid" — same
+  // convention as the invoice/bill does_not_balance refusal.
+  expect(result.raw).toMatch(/debits 50\.00 against credits 40\.00/)
+})
+
 /**
  * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
  * browser in a different sense than `submitPastTheBrowser` above: a native
