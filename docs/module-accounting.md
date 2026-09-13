@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.14
+**Version:** 2.15
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -216,7 +216,7 @@ than repeated per story.
 *Status: **MISSING**. `recordPayment` takes a single `invoiceId`; there is no multi-invoice/lockbox-style allocation.*
 
 **US-ACC-019**: As a Business Owner, I want to see which customers owe money and how much, so that I can manage credit risk.
-*Status: **PARTIAL**. `listInvoices` filters by status/overdue and every row carries `amount_due`, so the information is visible per-invoice — but there's no per-customer aggregate balance view (`listInvoices(tx, filters)` only takes `{ status?, overdueOnly? }`, `accounting.repo.ts:52-55`, no customer grouping).*
+*Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/due totals, and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
 
 **US-ACC-020**: As an Accountant, I want to write off bad debts when invoices are uncollectible, so that AR reflects reality.
 *Status: **MISSING**. No write-off feature exists.*
@@ -2273,8 +2273,24 @@ either way.
       that there's no reversal/credit-note code anywhere) — that's the real
       shared prerequisite, not each other.
 - [ ] Multi-invoice payment allocation (lockbox-style). US-ACC-018.
-- [ ] Per-customer aggregate balance view (`listInvoices` currently has no
-      customer grouping). US-ACC-019.
+- [x] Per-customer aggregate balance view (`listInvoices` currently has no
+      customer grouping). US-ACC-019 (2026-09-13). `acc.customerBalances()`
+      groups open invoices (`amount_due > 0`, not draft/void) by
+      `(customer_id, currency)`, unlike `arAging()` with no `asOf` at
+      all — this is a live "how much does this customer owe right now"
+      figure for credit-risk review, not a point-in-time bucketed report,
+      so there is no reference date to bucket against. Carries
+      `invoice_count`, `total_invoiced`, `total_paid`, `total_due`, and the
+      customer's own `credit_limit`; the page flags a balance that exceeds
+      the limit via `compareDecimal` (never `Number()` on money) rather
+      than a new SQL boolean, since the fixture only ever exercises the
+      over-limit branch (every customer's limit is `100.00`, dwarfed by
+      real balances) — the same fixture-homogeneity shape as the
+      department/location gap below. `/accounting/customer-balances`,
+      gated `accounting.read`. Tests in `accounting.test.ts` ("customer
+      balances") assert `total_due = total_invoiced - total_paid` against
+      real fixture figures (break/revert-verified), exclude a
+      draft-only customer, and check finance-only RLS.
 
 ### Tier 5 — Manual journal entries and period close
 
@@ -2392,6 +2408,7 @@ either way.
 | 2.12 | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification. |
 | 2.13 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 | 2.14 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
+| 2.15 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment. |
 
 ### References
 

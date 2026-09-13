@@ -227,6 +227,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/accounting/ap-due-soon",
         permission: "accounting.read",
       },
+      {
+        id: "accounting-customer-balances",
+        label: "Customer Balances",
+        url: "/accounting/customer-balances",
+        permission: "accounting.read",
+      },
     ],
   },
   {

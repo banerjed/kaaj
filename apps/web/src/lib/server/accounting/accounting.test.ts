@@ -287,6 +287,59 @@ describe("AR aging", () => {
   })
 })
 
+describe("customer balances", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("aggregates open invoices per customer, and total_due is invoiced minus paid", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => acc.customerBalances(tx))
+
+    const acme = rows.find((r) => r.customer_name === "Acme Manufacturing")
+    expect(acme?.currency).toBe("USD")
+    // Two open invoices (INV-2026-004, -005); INV-2026-001 is fully paid and
+    // excluded by the `amount_due > 0` filter, not just uncounted.
+    expect(acme?.invoice_count).toBe(2)
+    expect(acme?.total_invoiced).toBe("44883.72")
+    expect(acme?.total_paid).toBe("10000.00")
+    expect(acme?.total_due).toBe("34883.72")
+
+    const britannia = rows.find(
+      (r) => r.customer_name === "Britannia Retail Group",
+    )
+    expect(britannia?.currency).toBe("GBP")
+    expect(britannia?.total_due).toBe("18860.00")
+
+    for (const r of rows) {
+      expect(Number(r.total_invoiced) - Number(r.total_paid)).toBeCloseTo(
+        Number(r.total_due),
+        2,
+      )
+    }
+  })
+
+  it("excludes a customer whose only invoice is a draft, and carries their credit limit", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => acc.customerBalances(tx))
+    // Helios Energy's only invoice is a draft — not owed yet, so it must
+    // not appear even though the row exists in `invoices`.
+    expect(rows.some((r) => r.customer_name === "Helios Energy")).toBe(false)
+
+    for (const r of rows) {
+      expect(r.credit_limit).toBe("100.00")
+    }
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.customerBalances(tx),
+    )
+    expect(refused).toEqual([])
+
+    const owner = await withTenant(AS_OWNER, (tx) => acc.customerBalances(tx))
+    expect(owner.length).toBeGreaterThan(0)
+  })
+})
+
 describe("the trial balance", () => {
   afterAll(async () => {
     await closeConnections()

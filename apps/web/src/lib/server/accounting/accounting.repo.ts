@@ -188,6 +188,42 @@ export async function arAging(
   `
 }
 
+export type CustomerBalanceRow = {
+  customer_id: string
+  customer_name: string
+  currency: string
+  /** The customer's own credit limit, in their own currency — never converted. */
+  credit_limit: string | null
+  invoice_count: number
+  total_invoiced: string
+  total_paid: string
+  total_due: string
+}
+
+/**
+ * Current open balance per customer — a live figure for credit-risk review,
+ * not a point-in-time report like `arAging()`. There is no `asOf`: unlike
+ * bucketing by days past due, "how much does this customer owe right now"
+ * has no reference date to bucket against, so it always reads the invoices'
+ * live `amount_due`.
+ */
+export async function customerBalances(tx: Tx): Promise<CustomerBalanceRow[]> {
+  return tx<CustomerBalanceRow[]>`
+    SELECT c.id AS customer_id, c.customer_name, i.currency,
+           c.credit_limit::text AS credit_limit,
+           count(*)::int AS invoice_count,
+           sum(i.total)::text       AS total_invoiced,
+           sum(i.amount_paid)::text AS total_paid,
+           sum(i.amount_due)::text  AS total_due
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+     WHERE i.amount_due > 0
+       AND i.status NOT IN ('draft', 'void')
+     GROUP BY c.id, c.customer_name, i.currency, c.credit_limit
+     ORDER BY c.customer_name, i.currency
+  `
+}
+
 export type LedgerEntry = {
   id: string
   entry_number: string
