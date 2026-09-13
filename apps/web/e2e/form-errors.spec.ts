@@ -481,3 +481,46 @@ test("an inverted date range on the cash flow statement is refused, not rendered
     page.getByText(/'from' date must be on or before the 'to' date/i),
   ).toBeVisible()
 })
+
+test("requesting a period comparison with no date range is refused, not silently ignored", async ({
+  page,
+}) => {
+  // `compare` without both `from` and `to` has no window to compare
+  // against — profitAndLossComparison() requires both, so this must be
+  // refused rather than rendering the page with comparison quietly dropped.
+  await page.goto("/accounting/profit-loss?compare=previous_period")
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/comparing periods requires both a 'from' and 'to' date/i),
+  ).toBeVisible()
+})
+
+test("an unrecognized `compare` value is refused with its own message, not read as a bad date", async ({
+  page,
+}) => {
+  // `f.choice()` treats an off-list value as a rejection like any other
+  // field, so a naive `if (!f.ok) error(..., "That date is not a real
+  // date.")` would blame the wrong field for this one.
+  await page.goto(
+    "/accounting/profit-loss?from=2026-01-01&to=2026-01-31&compare=bogus",
+  )
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/that comparison option is not recognized/i),
+  ).toBeVisible()
+})
+
+test("a year-over-year comparison over a year-or-longer period is refused, not silently double-counted", async ({
+  page,
+}) => {
+  // previous_year shifts both dates back exactly a year — a period this
+  // long makes that shifted window overlap the current one, so the same
+  // posted activity would count on both sides of the comparison.
+  await page.goto(
+    "/accounting/profit-loss?from=2025-01-01&to=2026-12-31&compare=previous_year",
+  )
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/requires a period shorter than one year/i),
+  ).toBeVisible()
+})

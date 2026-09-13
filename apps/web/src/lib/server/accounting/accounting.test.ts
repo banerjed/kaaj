@@ -389,6 +389,78 @@ describe("the profit and loss statement", () => {
   })
 })
 
+describe("profit and loss period comparison", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("`previous_period` is an equal-length window immediately before `from`, not a calendar month", async () => {
+    // Feb 2026 is 28 days; the trailing 28-day window before Feb 1 lands on
+    // Jan 4, not Jan 1 — an honest consequence of comparing by window length
+    // rather than snapping to calendar boundaries the report doesn't assume.
+    const c = await withTenant(AS_OWNER, (tx) =>
+      acc.profitAndLossComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(c.prior_from).toBe("2026-01-04")
+    expect(c.prior_to).toBe("2026-01-31")
+    expect(c.current_revenue).toBe("0")
+    expect(c.current_expenses).toBe("900.00")
+    expect(c.current_net_income).toBe("-900.00")
+    expect(c.prior_revenue).toBe("42300.00")
+    expect(c.prior_expenses).toBe("98320.00")
+    expect(c.prior_net_income).toBe("-56020.00")
+    expect(c.revenue_change).toBe("-42300.00")
+    expect(c.expenses_change).toBe("-97420.00")
+    expect(c.net_income_change).toBe("55120.00")
+  })
+
+  it("`previous_year` shifts both dates back exactly a year, handled by Postgres date arithmetic", async () => {
+    const c = await withTenant(AS_OWNER, (tx) =>
+      acc.profitAndLossComparison(tx, {
+        from: "2026-01-21",
+        to: "2026-01-21",
+        compareTo: "previous_year",
+      }),
+    )
+    expect(c.prior_from).toBe("2025-01-21")
+    expect(c.prior_to).toBe("2025-01-21")
+    expect(c.current_revenue).toBe("42300.00")
+    expect(c.current_expenses).toBe("96500.00")
+    // The fixture has no 2025 activity at all — the comparison year is a
+    // real zero, not an artifact of the query excluding it.
+    expect(c.prior_revenue).toBe("0")
+    expect(c.prior_expenses).toBe("0")
+    expect(c.prior_net_income).toBe("0")
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      acc.profitAndLossComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(refused.current_revenue).toBe("0")
+    expect(refused.current_expenses).toBe("0")
+    expect(refused.prior_revenue).toBe("0")
+    expect(refused.prior_expenses).toBe("0")
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      acc.profitAndLossComparison(tx, {
+        from: "2026-02-01",
+        to: "2026-02-28",
+        compareTo: "previous_period",
+      }),
+    )
+    expect(owner.prior_revenue).not.toBe("0")
+  })
+})
+
 describe("the balance sheet", () => {
   afterAll(async () => {
     await closeConnections()

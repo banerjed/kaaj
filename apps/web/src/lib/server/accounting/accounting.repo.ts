@@ -410,6 +410,81 @@ export async function profitAndLossTotals(
   return row
 }
 
+export type PeriodComparisonTotals = {
+  current_revenue: string
+  current_expenses: string
+  current_net_income: string
+  prior_from: string
+  prior_to: string
+  prior_revenue: string
+  prior_expenses: string
+  prior_net_income: string
+  revenue_change: string
+  expenses_change: string
+  net_income_change: string
+}
+
+/**
+ * The prior comparison window is computed in SQL, in the same query as the
+ * totals it's compared against — `previous_period` is an equal-length window
+ * immediately before `from`; `previous_year` shifts both dates back a year,
+ * letting Postgres's date arithmetic handle month lengths and leap days
+ * rather than reimplementing calendar math in JS.
+ */
+export async function profitAndLossComparison(
+  tx: Tx,
+  filters: {
+    from: string
+    to: string
+    compareTo: "previous_period" | "previous_year"
+  },
+): Promise<PeriodComparisonTotals> {
+  const { from, to, compareTo } = filters
+  const [row] = await tx<PeriodComparisonTotals[]>`
+    WITH bounds AS (
+      SELECT ${from}::date AS cur_from, ${to}::date AS cur_to,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${from}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - (${to}::date - ${from}::date + 1)
+             END::date AS pri_from,
+             CASE WHEN ${compareTo} = 'previous_year'
+                  THEN ${to}::date - INTERVAL '1 year'
+                  ELSE ${from}::date - 1
+             END::date AS pri_to
+    ),
+    activity AS (
+      SELECT
+        COALESCE(sum(CASE WHEN a.account_type = 'revenue'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                  FILTER (WHERE je.entry_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_revenue,
+        COALESCE(sum(CASE WHEN a.account_type = 'expense'
+                           THEN l.base_debit_amount - l.base_credit_amount END)
+                  FILTER (WHERE je.entry_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_expenses,
+        COALESCE(sum(CASE WHEN a.account_type = 'revenue'
+                           THEN l.base_credit_amount - l.base_debit_amount END)
+                  FILTER (WHERE je.entry_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_revenue,
+        COALESCE(sum(CASE WHEN a.account_type = 'expense'
+                           THEN l.base_debit_amount - l.base_credit_amount END)
+                  FILTER (WHERE je.entry_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_expenses
+        FROM bounds b
+        LEFT JOIN journal_entry_lines l ON TRUE
+        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN chart_of_accounts a ON a.id = l.account_id AND a.account_type IN ('revenue', 'expense')
+       WHERE je.entry_date BETWEEN b.pri_from AND b.cur_to
+    )
+    SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
+           current_revenue::text, current_expenses::text,
+           (current_revenue - current_expenses)::text AS current_net_income,
+           prior_revenue::text, prior_expenses::text,
+           (prior_revenue - prior_expenses)::text AS prior_net_income,
+           (current_revenue - prior_revenue)::text AS revenue_change,
+           (current_expenses - prior_expenses)::text AS expenses_change,
+           ((current_revenue - current_expenses) - (prior_revenue - prior_expenses))::text AS net_income_change
+      FROM bounds b, activity
+  `
+  return row
+}
+
 export type BalanceSheetRow = {
   account_code: string
   account_name: string

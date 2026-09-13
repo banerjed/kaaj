@@ -1,7 +1,7 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
-  import { money } from "$lib/format"
+  import { money, calendarDate } from "$lib/format"
   import EmptyState from "$lib/components/EmptyState.svelte"
 
   let { data } = $props()
@@ -37,6 +37,24 @@
     <fieldset class="fieldset">
       <legend class="fieldset-legend text-xs">To</legend>
       <input type="date" name="to" class="input" value={data.filters.to} />
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend text-xs">Compare to</legend>
+      <select name="compare" class="select">
+        <option value="none" selected={data.compare === "none"}>None</option>
+        <option
+          value="previous_period"
+          selected={data.compare === "previous_period"}
+        >
+          Previous period
+        </option>
+        <option
+          value="previous_year"
+          selected={data.compare === "previous_year"}
+        >
+          Same period last year
+        </option>
+      </select>
     </fieldset>
     <button class="btn btn-primary">Apply</button>
     {#if data.filters.from || data.filters.to}
@@ -101,6 +119,77 @@
                 class:text-error={Number(data.totals.net_income) < 0}
               >
                 {money(data.totals.net_income, baseCurrency, locale)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  {/if}
+
+  {#if data.comparison}
+    <div class="card bg-base-100 mt-4 shadow">
+      <div class="overflow-x-auto">
+        <table class="table">
+          <caption class="text-base-content/70 p-4 text-left text-xs">
+            Prior period: {calendarDate(data.comparison.prior_from, locale)} to
+            {calendarDate(data.comparison.prior_to, locale)}
+            {#if data.compare === "previous_year"}
+              — the same dates one year earlier.
+            {:else}
+              — an equal-length window immediately before the current period;
+              not necessarily a full calendar month.
+            {/if}
+          </caption>
+          <thead>
+            <tr>
+              <th></th>
+              <th class="text-right">Current</th>
+              <th class="text-right">Prior</th>
+              <th class="text-right">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="hover:bg-base-200/40">
+              <td>Revenue</td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.current_revenue, baseCurrency, locale)}
+              </td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.prior_revenue, baseCurrency, locale)}
+              </td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.revenue_change, baseCurrency, locale)}
+              </td>
+            </tr>
+            <tr class="hover:bg-base-200/40">
+              <td>Expenses</td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.current_expenses, baseCurrency, locale)}
+              </td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.prior_expenses, baseCurrency, locale)}
+              </td>
+              <td class="text-right text-sm tabular-nums">
+                {money(data.comparison.expenses_change, baseCurrency, locale)}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="text-base font-semibold">
+              <td>Net Income</td>
+              <td class="text-right tabular-nums">
+                {money(
+                  data.comparison.current_net_income,
+                  baseCurrency,
+                  locale,
+                )}
+              </td>
+              <td class="text-right tabular-nums">
+                {money(data.comparison.prior_net_income, baseCurrency, locale)}
+              </td>
+              <td class="text-right tabular-nums">
+                {money(data.comparison.net_income_change, baseCurrency, locale)}
               </td>
             </tr>
           </tfoot>

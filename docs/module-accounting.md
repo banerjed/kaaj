@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.10
+**Version:** 2.11
 **Last Updated:** September 12, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2175,8 +2175,32 @@ either way.
       changes in equity"), including RLS as a refused plain employee. 1 new
       `smoke.spec.ts` row, 1 new nav entry. `./check` and the full e2e suite
       pass. §5.4.
-- [ ] Period comparison (MoM/YoY) and department/location filtering on the
-      above. US-ACC-041, US-ACC-044.
+- [x] Period comparison (MoM/YoY) on the Profit & Loss statement
+      (2026-09-12). `acc.profitAndLossComparison()` in `accounting.repo.ts`
+      computes the prior window's boundaries in SQL rather than in JS —
+      Postgres's own date arithmetic handles month length and leap days.
+      `previous_period` is an equal-length window immediately before `from`
+      (not necessarily a calendar month: comparing Feb 2026's 28 days lands
+      the prior window on Jan 4–31, not Jan 1–31 — an honest consequence of
+      comparing by window length for an arbitrary `from`/`to`, not a
+      month-picker); `previous_year` shifts both dates back exactly a year.
+      Scoped to totals only (revenue/expenses/net income), not a per-account
+      comparison — merging two periods' rows by account code where either
+      side can be missing a row is materially more code for a report whose
+      job is trend-watching at the totals level, per FR-ACC-007. `compare`
+      requires both `from` and `to`; refused otherwise, with an e2e case in
+      `form-errors.spec.ts`. Tests: 3 new cases in `accounting.test.ts`
+      ("profit and loss period comparison"), including RLS as a refused
+      plain employee. `./check` and the full e2e suite pass. US-ACC-041.
+- [ ] Period comparison on the other four Tier 3 reports, and
+      department/location filtering. US-ACC-041 (remainder), US-ACC-044.
+      The department/location gap isn't a code gap: `journal_entry_lines`
+      already carries both FKs, but every one of the fixture's 19 lines
+      points at the same single department and location (confirmed via
+      `psql`) — a filter would have nothing to exclude, which is the
+      L50/L51 shape this session has spent real effort avoiding elsewhere.
+      Needs fixture diversification first, the same kind of work as the
+      equity opening-balance entry above, before this is worth building.
 
 ### Tier 4 — AR/AP reports and lifecycle completion
 
@@ -2307,6 +2331,7 @@ either way.
 | 2.8 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3. |
 | 2.9 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3. |
 | 2.10 | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is. |
+| 2.11 | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder. |
 
 ### References
 
