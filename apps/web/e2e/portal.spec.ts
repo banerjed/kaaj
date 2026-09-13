@@ -33,6 +33,7 @@ const STAFF_ROUTES = [
   "/accounting/ledger",
   "/accounting/journal-entries/new",
   "/accounting/periods",
+  "/accounting/year-end-close",
   "/accounting/banking",
   "/ticketing",
   "/settings/company",

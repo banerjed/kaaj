@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { compareDecimal } from "$lib/decimal"
 
 /**
  * Invoices and the general ledger. Money stays a string and sums happen in SQL.
@@ -1543,6 +1544,7 @@ const ACCOUNTS = {
   cash: "1000",
   receivable: "1100",
   taxPayable: "2200",
+  retainedEarnings: "3000",
   revenue: "4000",
   badDebtExpense: "5500",
 } as const
@@ -2804,4 +2806,149 @@ export async function reopenPeriod(
   `
   if (!updated) throw new AccountingRefused("no_such_period", periodId)
   return { periodName: before.period_name }
+}
+
+export type YearEndCloseLine = {
+  account_code: string
+  account_name: string
+  account_type: "revenue" | "expense"
+  /** Signed: a revenue account's normal credit balance, or an expense account's normal debit balance. */
+  net: string
+}
+
+export type YearEndClosePreview = {
+  lines: YearEndCloseLine[]
+  netIncome: string
+}
+
+/**
+ * What a year-end close as of `asOf` would zero, without posting anything —
+ * the same computation `yearEndClose` posts, read-only. Backs the
+ * confirmation page: closing the books is not a mistake anyone should
+ * discover only after clicking through.
+ */
+export async function previewYearEndClose(
+  tx: Tx,
+  asOf: string,
+): Promise<YearEndClosePreview> {
+  const accounts = await tx<YearEndCloseLine[]>`
+    SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
+           (CASE WHEN a.account_type = 'revenue'
+                 THEN COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+                    - COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+                 ELSE COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+                    - COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+            END)::text AS net
+      FROM chart_of_accounts a
+      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
+      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+     WHERE a.account_type IN ('revenue', 'expense')
+     GROUP BY a.id, a.account_code, a.account_name, a.account_type
+     ORDER BY a.account_code
+  `
+  const lines = accounts.filter((a) => compareDecimal(a.net, "0") !== 0)
+
+  const [{ net_income: netIncome }] = await tx<{ net_income: string }[]>`
+    SELECT COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
+                      FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+             AS net_income
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      JOIN chart_of_accounts a ON a.id = l.account_id
+     WHERE a.account_type IN ('revenue', 'expense')
+  `
+  return { lines, netIncome }
+}
+
+/** A signed decimal string's magnitude, without parsing to float — stripping the sign character is text handling, not arithmetic. */
+function magnitude(v: string): string {
+  return v.startsWith("-") ? v.slice(1) : v
+}
+
+/**
+ * Year-end close (§1.4, US-ACC-051): zeroes every revenue/expense account's
+ * cumulative balance as of `asOf` into Retained Earnings, in one entry. Not
+ * gated on any period being closed first — no close-checklist gate exists
+ * yet (§13) — so this is just another `postJournal` caller, refused the
+ * normal way if `asOf` falls in an already-closed period.
+ *
+ * Idempotent by construction, not by a flag: the closing entry's own lines
+ * are posted activity too, so re-running with the same `asOf` finds every
+ * revenue/expense account back at zero and posts nothing (`no_lines`).
+ * Re-running after a LATER correcting entry finds only that entry's delta.
+ *
+ * `expectedNetIncome` is what the confirmation page previewed — the preview
+ * and this post are two separate transactions, so anything posted in between
+ * (an invoice, a bill, another manual entry) would otherwise close on figures
+ * nobody actually confirmed. Checked in SQL/NUMERIC, same shape as a lockbox
+ * batch's `allocation_mismatch`, never trusted from the page's own arithmetic.
+ */
+export async function yearEndClose(
+  tx: Tx,
+  tenantId: string,
+  input: { asOf: string; expectedNetIncome: string },
+  actorId: string,
+): Promise<{ entryNumber: string; netIncome: string }> {
+  const { lines: preview, netIncome } = await previewYearEndClose(
+    tx,
+    input.asOf,
+  )
+
+  const [{ mismatched }] = await tx<{ mismatched: boolean }[]>`
+    SELECT ${input.expectedNetIncome}::numeric <> ${netIncome}::numeric AS mismatched
+  `
+  if (mismatched) {
+    throw new AccountingRefused(
+      "allocation_mismatch",
+      `previewed net income of ${input.expectedNetIncome} no longer matches ${netIncome} — something else posted since you previewed this close`,
+    )
+  }
+
+  const lines: JournalLine[] = preview.map((a) => {
+    // `net` is already signed as the account's OWN normal balance (credit
+    // for revenue, debit for expense) — zeroing it means the OPPOSITE side:
+    // a positive revenue net is zeroed by a debit, a positive expense net
+    // by a credit. A negative net (a contra balance) trades sides again.
+    const zeroingIsDebit =
+      (a.account_type === "revenue") === compareDecimal(a.net, "0") > 0
+    const amount = magnitude(a.net)
+    return {
+      accountCode: a.account_code,
+      debit: zeroingIsDebit ? amount : null,
+      credit: zeroingIsDebit ? null : amount,
+      description: `Year-end close ${input.asOf}`,
+    }
+  })
+
+  if (compareDecimal(netIncome, "0") !== 0) {
+    const positive = compareDecimal(netIncome, "0") > 0
+    const amount = magnitude(netIncome)
+    lines.push({
+      accountCode: ACCOUNTS.retainedEarnings,
+      // Net income increases equity (a credit); a net loss decreases it (a debit).
+      debit: positive ? null : amount,
+      credit: positive ? amount : null,
+      description: `Year-end close ${input.asOf} — net income to retained earnings`,
+    })
+  }
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.asOf,
+      sourceType: "year_end_close",
+      sourceId: null,
+      description: `Year-end close as of ${input.asOf}`,
+      reference: null,
+      currency: "USD",
+      exchangeRate: "1.000000",
+      lines,
+    },
+    actorId,
+  )
+  const [entry] = await tx<{ entry_number: string }[]>`
+    SELECT entry_number FROM journal_entries WHERE id = ${entryId}::uuid
+  `
+  return { entryNumber: entry.entry_number, netIncome }
 }

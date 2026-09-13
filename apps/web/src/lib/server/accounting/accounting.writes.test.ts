@@ -10,6 +10,8 @@ import {
   recordManualJournalEntry,
   closePeriod,
   reopenPeriod,
+  yearEndClose,
+  previewYearEndClose,
   controlAccountTieOut,
   balanceSheetTotals,
   trialBalanceTotals,
@@ -47,6 +49,13 @@ const AS_AUDITOR = {
   tenantId: NORTHWIND,
   role: "employee",
   functionalRoles: ["auditor"],
+  employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+}
+/** A real employee with no finance-visible functional role at all — the actor meant to be REFUSED by RLS itself (L47). */
+const AS_PLAIN_EMPLOYEE = {
+  tenantId: NORTHWIND,
+  role: "employee",
+  functionalRoles: [] as string[],
   employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
 }
 
@@ -687,6 +696,143 @@ describe("closing and reopening an accounting period", () => {
     expect(entryId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     )
+  })
+})
+
+/**
+ * Year-end close (US-ACC-051). Figures below were verified independently
+ * against the real database via psql before writing this test — revenue
+ * 4000 nets 42300.00, expenses 5000/5100/5300 net 96500.00/900.00/1820.00
+ * (99220.00 together), and `balanceSheetComparisonTotals`'s own trusted
+ * `net_income` for `asOf: "2026-12-31"` is `-56920.00` — 42300 - 99220.
+ */
+describe("year-end close", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  const AS_OF = "2026-12-31"
+
+  it("previews the same figures it would post, matching the independently-verified net income", async () => {
+    const preview = await inRollback((tx) => previewYearEndClose(tx, AS_OF))
+    expect(preview.netIncome).toBe("-56920.00")
+    const byCode = Object.fromEntries(
+      preview.lines.map((l) => [l.account_code, l.net]),
+    )
+    expect(byCode["4000"]).toBe("42300.00")
+    expect(byCode["5000"]).toBe("96500.00")
+    expect(byCode["5100"]).toBe("900.00")
+    expect(byCode["5300"]).toBe("1820.00")
+    // Zero-activity revenue/expense accounts (4100, 4200, 5200, 5400, 5500,
+    // 5600) are excluded — nothing to zero, and postJournal would drop a
+    // zero-amount line anyway.
+    expect(preview.lines.length).toBe(4)
+  })
+
+  it("posts a balanced closing entry: revenue debited, expenses credited, the net LOSS debited to retained earnings", async () => {
+    const rows = await inRollback(async (tx) => {
+      const { entryNumber, netIncome } = await yearEndClose(
+        tx,
+        NORTHWIND,
+        { asOf: AS_OF, expectedNetIncome: "-56920.00" },
+        ACTOR,
+      )
+      expect(netIncome).toBe("-56920.00")
+      return tx<
+        { account_code: string; debit_amount: string; credit_amount: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text, l.credit_amount::text
+          FROM journal_entry_lines l
+          JOIN journal_entries je ON je.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE je.entry_number = ${entryNumber}
+         ORDER BY l.line_number
+      `
+    })
+    const byCode = Object.fromEntries(rows.map((r) => [r.account_code, r]))
+    expect(byCode["4000"]).toMatchObject({ debit_amount: "42300.00" })
+    expect(byCode["5000"]).toMatchObject({ credit_amount: "96500.00" })
+    expect(byCode["5100"]).toMatchObject({ credit_amount: "900.00" })
+    expect(byCode["5300"]).toMatchObject({ credit_amount: "1820.00" })
+    // Retained Earnings (3000) — a net LOSS is a DEBIT to equity.
+    expect(byCode["3000"]).toMatchObject({ debit_amount: "56920.00" })
+  })
+
+  it("is idempotent by construction — running it again finds nothing left to close", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          await yearEndClose(
+            tx,
+            NORTHWIND,
+            { asOf: AS_OF, expectedNetIncome: "-56920.00" },
+            ACTOR,
+          )
+          // The first close's own lines are posted activity too — a second
+          // close as of the same date finds every account back at zero.
+          return yearEndClose(
+            tx,
+            NORTHWIND,
+            { asOf: AS_OF, expectedNetIncome: "0" },
+            ACTOR,
+          )
+        }),
+      "no_lines",
+    )
+  })
+
+  it("really did zero the books — a preview taken after the close finds nothing left", async () => {
+    const after = await inRollback(async (tx) => {
+      await yearEndClose(
+        tx,
+        NORTHWIND,
+        { asOf: AS_OF, expectedNetIncome: "-56920.00" },
+        ACTOR,
+      )
+      return previewYearEndClose(tx, AS_OF)
+    })
+    expect(after.lines).toEqual([])
+    expect(after.netIncome).toBe("0.00")
+  })
+
+  it("refuses closing on a stale preview — something posted after the page loaded", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          yearEndClose(
+            tx,
+            NORTHWIND,
+            { asOf: AS_OF, expectedNetIncome: "-1.00" },
+            ACTOR,
+          ),
+        ),
+      "allocation_mismatch",
+    )
+  })
+
+  it("refuses posting into a closed period, same as any other caller of postJournal", async () => {
+    // January 2026 is closed in the fixture.
+    await inRollback(async (tx) => {
+      const preview = await previewYearEndClose(tx, "2026-01-31")
+      await refusedBecause(
+        () =>
+          yearEndClose(
+            tx,
+            NORTHWIND,
+            { asOf: "2026-01-31", expectedNetIncome: preview.netIncome },
+            ACTOR,
+          ),
+        "period_closed",
+      )
+    })
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await inRollbackAs(AS_PLAIN_EMPLOYEE, (tx) =>
+      previewYearEndClose(tx, AS_OF),
+    )
+    expect(refused.lines).toEqual([])
+    expect(refused.netIncome).toBe("0")
   })
 })
 

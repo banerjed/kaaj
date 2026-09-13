@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.21
+**Version:** 2.22
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -2458,7 +2458,75 @@ either way.
       and end-to-end (`smoke.spec.ts` renders the page; `form-errors.spec.ts`
       covers closing a non-open period, reopening with no reason, and
       reopening a non-closed period).
-- [ ] Year-end close (zero revenue/expense into retained earnings). §1.4.
+- [x] Year-end close (zero revenue/expense into retained earnings). §1.4.
+      US-ACC-051. (2026-09-13) — `/accounting/year-end-close`
+      (`acc.previewYearEndClose()`/`acc.yearEndClose()`) posts one journal
+      entry per close: each revenue/expense account with a nonzero
+      cumulative balance as of a chosen date is zeroed against itself, and
+      the net result posts to Retained Earnings (`3000`, added to
+      `ACCOUNTS` the same way `badDebtExpense` was for write-offs). Not
+      gated on any period being closed first — no close-checklist gate
+      exists yet (§13) — so this is just another `postJournal` caller,
+      refused the normal way (`period_closed`) if `asOf` falls in an
+      already-closed period; the page tells the user to post this BEFORE
+      closing that period. Idempotent by construction, not a flag: the
+      closing entry's own lines are posted activity too, so re-running with
+      the same `asOf` finds every account back at zero and refuses
+      (`no_lines`) rather than double-counting. The page previews exactly
+      what would be zeroed (read-only) before a separate confirm posts it —
+      closing the books is not something to discover only after clicking
+      through. The preview and the post are two separate requests, so the
+      confirm form carries the previewed net income as a hidden field and
+      `yearEndClose` refuses (`allocation_mismatch`) if what it recomputes at
+      post time no longer matches — the same shape as a lockbox batch's own
+      `allocation_mismatch`, checked in SQL/NUMERIC rather than trusted from
+      the page's own arithmetic. The check is on the bottom-line net income
+      only, same level of rigor as the lockbox check on its total: it
+      guarantees the net-income figure the user confirmed is exactly what
+      posts to Retained Earnings, not that every individual revenue/expense
+      line is unchanged — an offsetting pair posted in between (a revenue and
+      an expense of the same size) leaves net income identical while
+      changing which accounts get zeroed, and would close on a line the user
+      never previewed. Figures verified independently via `psql` before writing any code or
+      tests: net income `-56920.00` as of `2026-12-31` matches the
+      already-trusted `balanceSheetComparisonTotals` figure exactly, and the
+      per-account breakdown (revenue `4000` nets `42300.00`; expenses
+      `5000`/`5100`/`5300` net `96500.00`/`900.00`/`1820.00`) sums to the
+      same total. Tested in `accounting.writes.test.ts` ("year-end close",
+      7 cases): the preview matches the verified figures; a real close posts
+      the correct debit/credit on every line including Retained Earnings; a
+      preview taken right after the close confirms the accounts really are
+      back at zero, not just that the post claimed so; running it twice finds
+      nothing left the second time; a stale/mismatched confirm is refused;
+      posting into a closed period is refused; and finance-only RLS.
+      Break/revert-verified both the debit/credit sign logic (flipping which
+      account type triggers a debit vs. credit — the two amount-checking
+      tests fail, one with `does_not_balance`, since flipping the rule
+      unbalances the entry) and the mismatch guard itself (forcing the SQL
+      comparison to always report no mismatch — the stale-preview test then
+      fails with "expected a refusal ... and the write succeeded"). Advisor
+      review caught the stale-preview gap; a decision that forward-dated
+      `asOf` values are permitted (not refused) rather than a gap: the
+      balance sheet, trial balance and P&L pages already report "as of" any
+      date, past or future, purely from what's posted by that date — nothing
+      in this codebase ties a report's `asOf` to wall-clock "today", and a
+      guard doing so would have broken those pages' own existing, shipped
+      behavior. Advisor also caught that the mismatch refusal dead-ends the
+      page: SvelteKit's `use:enhance` only re-runs `load` on a SUCCESSFUL
+      submit by default, so a refusal would otherwise leave the confirm form
+      (and the table it's copied from) holding the very figures that were
+      just refused, and resubmitting would repeat the same refusal forever —
+      fixed by calling `invalidateAll()` in the form's own submit handler
+      regardless of outcome. Verified by driving it through a real rendered
+      page rather than reasoning about it: a DOM assertion on the stale
+      field's value can't tell the two cases apart, since nothing in this
+      read-only suite actually changes the real figure, so Svelte never
+      rewrites the field either way — the reliable signal is on the wire,
+      where a `__data.json` request follows a refusal only when `load`
+      actually reran. With the fix reverted, that request doesn't happen and
+      the test fails; with it restored, the test passes. `form-errors.spec.ts`
+      covers nothing-to-close, period-closed, the stale-preview mismatch, and
+      the re-fetch-on-refusal behavior.
 
 ### Tier 6 — Tax model fix and tax reporting
 
@@ -2569,6 +2637,7 @@ either way.
 | 2.19 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass. |
 | 2.20 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry). |
 | 2.21 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item. |
+| 2.22 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 5 with its last item: year-end close (US-ACC-051). `/accounting/year-end-close` zeroes every revenue/expense account's cumulative balance as of a chosen date into Retained Earnings (`3000`) in one journal entry, previewing exactly what would be zeroed before a separate confirm posts it. Idempotent by construction — the closing entry's own lines are posted activity too, so a second run at the same date finds nothing left. Not gated on a period being closed first (no close-checklist gate exists, §13); refused the normal way if the date falls in an already-closed period, same as any other `postJournal` caller. Advisor review caught two things. First: the preview and the post are two separate requests with nothing tying them together, so anything posted in between would close on unconfirmed figures — fixed by carrying the previewed net income as a hidden field and refusing (`allocation_mismatch`) if the recomputed figure no longer matches, checked in SQL/NUMERIC the same way a lockbox batch's own total is. Second, on a follow-up review of that fix: the mismatch refusal dead-ended the page, since `use:enhance` only re-runs `load` on success by default, leaving the confirm form stuck on the very figures just refused — fixed with an explicit `invalidateAll()` in the form's submit handler, verified on the wire (a `__data.json` request follows the refusal only with the fix present, since a DOM assertion on the stale field can't distinguish the two cases here). Every figure was verified against the real database via `psql` before being wired into code, and the debit/credit sign logic and both fixes above were break/revert-verified. Tier 5 (manual journal entries, period close/reopen, year-end close) is now fully shipped. |
 
 ### References
 

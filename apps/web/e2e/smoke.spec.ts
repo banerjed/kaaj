@@ -44,6 +44,11 @@ const PAGES: { path: string; heading: string }[] = [
     heading: "New journal entry",
   },
   { path: "/accounting/periods", heading: "Accounting Periods" },
+  { path: "/accounting/year-end-close", heading: "Year-End Close" },
+  {
+    path: "/accounting/year-end-close?as_of=2026-12-31",
+    heading: "Year-End Close",
+  },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {
     path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",

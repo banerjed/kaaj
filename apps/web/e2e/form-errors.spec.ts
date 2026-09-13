@@ -541,6 +541,89 @@ test("reopening a period that is not closed is refused", async ({ page }) => {
   expect(result.raw).toMatch(/is open, not closed/i)
 })
 
+test("a year-end close with nothing left to close is refused, not silently a no-op", async ({
+  page,
+}) => {
+  // Before any posted activity in the fixture — every revenue/expense
+  // account is at zero as of this date.
+  const response = await page.request.post(
+    "/accounting/year-end-close?/close",
+    { form: { as_of: "2020-01-01", expected_net_income: "0" } },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/nothing to close/i)
+})
+
+test("a year-end close dated into a closed period is refused", async ({
+  page,
+}) => {
+  // January 2026 is closed in the fixture, and carries genuine posted
+  // revenue/expense activity by its own end (verified via psql) — so this
+  // exercises the period-closed refusal, not the unrelated nothing-to-close one.
+  const response = await page.request.post(
+    "/accounting/year-end-close?/close",
+    { form: { as_of: "2026-01-31", expected_net_income: "-56020.00" } },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/is closed/i)
+})
+
+test("a year-end close whose confirmed figure no longer matches is refused, not silently posted", async ({
+  page,
+}) => {
+  // Something could have posted between the preview and this submit — the
+  // route checks the previewed net income against what it recomputes.
+  const response = await page.request.post(
+    "/accounting/year-end-close?/close",
+    { form: { as_of: "2026-12-31", expected_net_income: "-1.00" } },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/no longer matches/i)
+})
+
+test("a refused year-end close re-fetches its data, rather than leaving the page holding the stale figure", async ({
+  page,
+}) => {
+  // The preview and the confirm are two separate requests — a plain
+  // `use:enhance` only re-runs `load` on SUCCESS (SvelteKit's own default),
+  // so a refusal here would otherwise leave the hidden `expected_net_income`
+  // field, and the table it's copied from, holding the very figure that was
+  // just refused — and resubmitting would repeat the same refusal forever.
+  // A DOM assertion on the hidden field's value can't tell the two cases
+  // apart: Svelte only rewrites an attribute when the underlying VALUE
+  // changes, and nothing in this read-only suite actually changes the real
+  // net income between load and submit — so the field's content is
+  // identical whether `load` reran or not. Whether it reran at all is only
+  // observable on the wire: SvelteKit issues a `__data.json` request when it
+  // does, and only then.
+  const dataRequests: string[] = []
+  page.on("request", (req) => {
+    if (req.url().includes("__data.json")) dataRequests.push(req.url())
+  })
+
+  await page.goto("/accounting/year-end-close?as_of=2026-12-31")
+  const closeButton = page.getByRole("button", { name: /close the year/i })
+  await expect(closeButton).toBeVisible()
+  dataRequests.length = 0
+
+  const hiddenAmount = page.locator('input[name="expected_net_income"]')
+  await hiddenAmount.evaluate((el: HTMLInputElement) => {
+    el.value = "-1.00"
+  })
+
+  await closeButton.click()
+  await expect(page.getByText(/no longer matches/i)).toBeVisible()
+
+  await expect
+    .poll(() => dataRequests.length, {
+      message: "expected the refusal to re-run load(), not leave stale data",
+    })
+    .toBeGreaterThan(0)
+})
+
 /**
  * TESTPLAN.md ADV-05/06/07 — three more `/employees/new` refusals, past the
  * browser in a different sense than `submitPastTheBrowser` above: a native

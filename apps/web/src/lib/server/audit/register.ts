@@ -170,6 +170,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "reopen",
     why: "INV-ACC-002: reopening a closed period is deliberately rarer and riskier than closing one — it lets new postings land in a period someone already treated as final. The reason field exists because 'why was this reopened' must survive independently of whoever remembers the conversation.",
   },
+  {
+    route: "accounting/year-end-close",
+    action: "close",
+    why: "Zeroes every revenue/expense account into retained earnings in one entry — the single largest posting the ledger ever makes in one action, and the one every subsequent year's opening equity depends on.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {
