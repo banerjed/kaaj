@@ -108,6 +108,49 @@ export async function listBills(
   `
 }
 
+/** Fixed windows offered on the "due soon" filter — a `select`, not free text. */
+export const AP_DUE_SOON_WINDOWS = ["7", "14", "30", "60"] as const
+
+export type ApDueSoonRow = {
+  bill_id: string
+  bill_number: string
+  vendor_name: string | null
+  currency: string
+  due_date: string
+  /** `due_date - asOf`, so the page never re-derives it from two date strings. */
+  days_until_due: number
+  amount_due: string
+}
+
+/**
+ * Bills coming due, not yet overdue — forward-looking, unlike `is_overdue`.
+ * A blank `asOf` defaults to the database's own `CURRENT_DATE`, the same
+ * choice `arAging()` makes and for the same reason: this needs a real
+ * reference date to measure a window from, unlike a cumulative `asOf`
+ * report where blank means no upper bound.
+ */
+export async function apDueSoon(
+  tx: Tx,
+  filters: { asOf?: string; withinDays: number },
+): Promise<ApDueSoonRow[]> {
+  const asOf = filters.asOf || null
+  return tx<ApDueSoonRow[]>`
+    SELECT b.id AS bill_id, b.bill_number, v.vendor_name, b.currency,
+           to_char(b.due_date, 'YYYY-MM-DD') AS due_date,
+           (b.due_date - COALESCE(${asOf}::date, CURRENT_DATE))::int
+             AS days_until_due,
+           b.amount_due::text AS amount_due
+      FROM bills b
+      LEFT JOIN vendors v ON v.id = b.vendor_id
+     WHERE b.amount_due > 0
+       AND b.status NOT IN ('draft', 'void', 'cancelled')
+       AND b.due_date >= COALESCE(${asOf}::date, CURRENT_DATE)
+       AND b.due_date <= COALESCE(${asOf}::date, CURRENT_DATE)
+                          + (${filters.withinDays}::int * INTERVAL '1 day')
+     ORDER BY b.due_date ASC, v.vendor_name ASC
+  `
+}
+
 export async function billById(tx: Tx, id: string): Promise<BillRow | null> {
   const [row] = await tx<BillRow[]>`
     ${tx.unsafe(BILL_SELECT)} WHERE b.id = ${id}::uuid

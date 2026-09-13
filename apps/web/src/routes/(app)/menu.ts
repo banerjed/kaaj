@@ -221,6 +221,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         url: "/accounting/ar-aging",
         permission: "accounting.read",
       },
+      {
+        id: "accounting-ap-due-soon",
+        label: "AP Due Soon",
+        url: "/accounting/ap-due-soon",
+        permission: "accounting.read",
+      },
     ],
   },
   {

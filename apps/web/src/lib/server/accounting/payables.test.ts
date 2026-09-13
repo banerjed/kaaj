@@ -10,6 +10,17 @@ const AS_OWNER = {
   functionalRoles: [] as string[],
   employeeId: "6d466aa9-e51a-5d52-9015-152600855932",
 }
+/**
+ * A different real employee than AS_OWNER, with no finance-visible functional
+ * role — the actor meant to be refused. Same id `accounting.test.ts` uses,
+ * for the same reason: a distinct id proves the refusal is keyed on role.
+ */
+const AS_PLAIN_EMPLOYEE = {
+  tenantId: NORTHWIND,
+  role: "employee",
+  functionalRoles: [] as string[],
+  employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+}
 
 describe("bills", () => {
   afterAll(async () => {
@@ -90,6 +101,70 @@ describe("bills", () => {
     })
     expect(lines.length).toBeGreaterThan(0)
     expect(lines.every((l) => l.account_name !== null)).toBe(true)
+  })
+})
+
+describe("AP due soon", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  // BILL-AWS-2026-01 is the fixture's only approved, unpaid bill
+  // (due_date 2026-09-22, amount_due 1981.53) — walking `asOf`/`withinDays`
+  // around it exercises both the lower bound (not yet overdue) and the
+  // upper bound (within the window) an off-by-one would get wrong.
+  it("includes a bill due within the window, excludes it just outside", async () => {
+    const [within, justOutside, dueToday, becameOverdue, allBills] =
+      await withTenant(AS_OWNER, async (tx) => [
+        await pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
+        await pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 8 }),
+        await pay.apDueSoon(tx, { asOf: "2026-09-22", withinDays: 0 }),
+        await pay.apDueSoon(tx, { asOf: "2026-09-23", withinDays: 30 }),
+        await pay.listBills(tx),
+      ])
+    const aws = (rows: pay.ApDueSoonRow[]) =>
+      rows.find((r) => r.bill_number === "BILL-AWS-2026-01")
+
+    expect(aws(within)?.amount_due).toBe("1981.53")
+    expect(aws(within)?.days_until_due).toBe(9)
+    expect(aws(justOutside)).toBeUndefined()
+
+    expect(aws(dueToday)?.days_until_due).toBe(0)
+
+    // Once the due date is behind `asOf` it's overdue, not "due soon" —
+    // distinct concepts, per the roadmap wording for this feature.
+    expect(aws(becameOverdue)).toBeUndefined()
+
+    // `is_overdue` is measured against the real CURRENT_DATE, not `asOf` —
+    // a different reference date from this report's, which is why the bill
+    // reads as not-yet-overdue here even in the `becameOverdue` scenario
+    // above (a real "as of 2026-09-23" would need the clock to actually
+    // reach that date).
+    const bill = allBills.find((b) => b.bill_number === "BILL-AWS-2026-01")
+    expect(bill?.is_overdue).toBe(false)
+  })
+
+  it("excludes a draft bill even when its due date falls in the window", async () => {
+    // BILL-WEWORK-2026-01 (draft, due 2026-02-09) and BILL-WEWORK-2026-03
+    // (draft, due 2026-03-20) must never appear — a draft isn't owed yet.
+    const rows = await withTenant(AS_OWNER, (tx) =>
+      pay.apDueSoon(tx, { asOf: "2026-01-01", withinDays: 365 }),
+    )
+    expect(rows.some((r) => r.bill_number.startsWith("BILL-WEWORK"))).toBe(
+      false,
+    )
+  })
+
+  it("is visible to the finance function only", async () => {
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
+    )
+    expect(refused).toEqual([])
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
+    )
+    expect(owner.length).toBeGreaterThan(0)
   })
 })
 

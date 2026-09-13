@@ -49,6 +49,7 @@ const PAGES: { path: string; heading: string }[] = [
   },
   { path: "/accounting/banking", heading: "Banking" },
   { path: "/accounting/ar-aging", heading: "AR Aging" },
+  { path: "/accounting/ap-due-soon", heading: "AP Due Soon" },
   { path: "/ticketing", heading: "Ticketing" },
   { path: "/ticketing/new", heading: "New ticket" },
   { path: "/settings/company", heading: "Company" },

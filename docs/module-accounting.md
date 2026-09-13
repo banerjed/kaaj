@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.13
+**Version:** 2.14
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -233,7 +233,7 @@ than repeated per story.
 *Status: **MISSING**. `bills.payment_scheduled_date` is an unused column; `recordVendorPayment` pays immediately, on demand, for one bill at a time.*
 
 **US-ACC-024**: As an Accountant, I want to track which bills are due soon, so that I can prioritize payments.
-*Status: **PARTIAL**. `listBills` returns `due_date` on every row and can sort/filter by status or unapproved-only (`payables.repo.ts:97-108`), and overdue bills are flagged and tested (`payables.test.ts:74`) — but there's no forward-looking "due within N days" filter, only present-tense overdue.*
+*Status: **DONE** (2026-09-13). `/accounting/ap-due-soon` lists approved, unpaid bills due within a chosen window (7/14/30/60 days) of a chosen date — forward-looking, and distinct from `is_overdue`'s present-tense flag. See `payables.repo.ts`'s `apDueSoon()` and `payables.test.ts`'s "AP due soon" suite.*
 
 **US-ACC-025**: As a Finance Manager, I want to pay multiple vendor bills in a single batch, so that I save time.
 *Status: **MISSING**. `recordVendorPayment` operates on one bill per call; no batch/payment-run feature exists.*
@@ -2247,8 +2247,23 @@ either way.
       the five buckets sum to each row's total — plus draft-exclusion,
       own-currency, and finance-only RLS checks. `./check` and the full e2e
       suite pass.
-- [ ] AP "due soon" view (forward-looking, distinct from the existing
-      overdue flag). US-ACC-024.
+- [x] AP "due soon" view (forward-looking, distinct from the existing
+      overdue flag). US-ACC-024 (2026-09-13). `pay.apDueSoon()` lists
+      approved, unpaid bills (`amount_due > 0`, not draft/void/cancelled)
+      with `due_date` between a chosen `asOf` (blank defaults to
+      `CURRENT_DATE`, same reasoning as `arAging()`'s) and `asOf +
+      withinDays`. `withinDays` is a fixed `select` (7/14/30/60), not free
+      text — the same "vocabulary lives in one place" choice as the status
+      filters. A bill already past `asOf` is overdue, not due soon, so the
+      lower bound excludes it — the feature's whole reason to exist,
+      distinct from `is_overdue`. `/accounting/ap-due-soon`, gated
+      `accounting.read`, flat list sorted soonest-first, no cross-vendor
+      total (mirrors the invoices list's precedent — currencies are never
+      summed, BR-FP-003). Tests in `payables.test.ts` ("AP due soon")
+      break/revert-verify the window's upper boundary against the
+      fixture's one qualifying bill, assert a draft bill in the same date
+      range is excluded, and check finance-only RLS. `./check` and the
+      full e2e suite pass.
 - [ ] Credit memos / refunds (AR) — reverses revenue, Dr Revenue / Cr AR.
       US-ACC-020 (first half).
 - [ ] Bad-debt write-off — a separate entry, Dr Bad Debt Expense (or
@@ -2376,6 +2391,7 @@ either way.
 | 2.11 | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder. |
 | 2.12 | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification. |
 | 2.13 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
+| 2.14 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 
 ### References
 
