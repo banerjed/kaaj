@@ -57,6 +57,7 @@ hr_surveys	t	t
 hr_time_off_balances	t	t
 hr_time_off_policies	t	t
 hr_time_off_requests	t	t
+invoice_credits	t	t
 invoice_lines	t	t
 invoices	t	t
 jobs	t	t

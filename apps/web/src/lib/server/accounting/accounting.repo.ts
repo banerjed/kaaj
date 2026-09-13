@@ -17,6 +17,8 @@ export type InvoiceRow = {
   tax_total: string | null
   total: string | null
   amount_paid: string | null
+  /** Credit memos — see `invoice_credits`. Never folded into `amount_paid`. */
+  amount_credited: string | null
   amount_due: string | null
   status: string | null
   /** Summed from invoice_lines, so a stored subtotal that drifted is visible. */
@@ -35,8 +37,9 @@ const INVOICE_SELECT = `
          i.subtotal::text    AS subtotal,
          i.tax_total::text   AS tax_total,
          i.total::text       AS total,
-         i.amount_paid::text AS amount_paid,
-         i.amount_due::text  AS amount_due,
+         i.amount_paid::text     AS amount_paid,
+         i.amount_credited::text AS amount_credited,
+         i.amount_due::text      AS amount_due,
          i.status,
          -- Net of discount, same as recomputeInvoiceTotals's own subtotal —
          -- otherwise every discounted invoice trips the "≠ lines" drift
@@ -48,7 +51,7 @@ const INVOICE_SELECT = `
            AS line_count,
          (i.due_date < CURRENT_DATE
             AND i.amount_due > 0
-            AND i.status NOT IN ('draft', 'void')) AS is_overdue
+            AND i.status NOT IN ('draft', 'void', 'credited')) AS is_overdue
     FROM invoices i
     LEFT JOIN customers c ON c.id = i.customer_id
 `
@@ -64,7 +67,7 @@ export async function listInvoices(
        AND (${overdueOnly} = FALSE
             OR (i.due_date < CURRENT_DATE
                 AND i.amount_due > 0
-                AND i.status NOT IN ('draft', 'void')))
+                AND i.status NOT IN ('draft', 'void', 'credited')))
      ORDER BY i.invoice_date DESC, i.invoice_number DESC
   `
 }
@@ -135,6 +138,31 @@ export async function paymentsFor(
   ` as never
 }
 
+/** Credit memos issued against one invoice, newest first. */
+export async function creditsFor(
+  tx: Tx,
+  invoiceId: string,
+): Promise<
+  {
+    id: string
+    credit_number: string
+    created_at: string
+    amount: string
+    currency: string
+    reason: string
+  }[]
+> {
+  return tx`
+    SELECT id, credit_number,
+           to_char(created_at, 'YYYY-MM-DD') AS created_at,
+           amount::text AS amount,
+           currency, reason
+      FROM invoice_credits
+     WHERE invoice_id = ${invoiceId}::uuid
+     ORDER BY created_at DESC
+  ` as never
+}
+
 export type ArAgingRow = {
   customer_id: string
   customer_name: string
@@ -197,6 +225,10 @@ export type CustomerBalanceRow = {
   invoice_count: number
   total_invoiced: string
   total_paid: string
+  /** Credit memos — see `invoice_credits`. Broken out so `invoiced - paid -
+   *  credited = due` reconciles visibly; folding it into `total_paid` would
+   *  overload "paid" with a non-cash reduction. */
+  total_credited: string
   total_due: string
 }
 
@@ -212,9 +244,10 @@ export async function customerBalances(tx: Tx): Promise<CustomerBalanceRow[]> {
     SELECT c.id AS customer_id, c.customer_name, i.currency,
            c.credit_limit::text AS credit_limit,
            count(*)::int AS invoice_count,
-           sum(i.total)::text       AS total_invoiced,
-           sum(i.amount_paid)::text AS total_paid,
-           sum(i.amount_due)::text  AS total_due
+           sum(i.total)::text           AS total_invoiced,
+           sum(i.amount_paid)::text     AS total_paid,
+           sum(i.amount_credited)::text AS total_credited,
+           sum(i.amount_due)::text      AS total_due
       FROM invoices i
       JOIN customers c ON c.id = i.customer_id
      WHERE i.amount_due > 0
@@ -1239,6 +1272,9 @@ export const INVOICE_STATUSES = [
   "paid",
   "overdue",
   "void",
+  // Fully resolved via a credit memo, not cash — never "paid", which would
+  // misreport that money was received.
+  "credited",
 ] as const
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
 
@@ -1290,7 +1326,10 @@ export class AccountingRefused extends Error {
       // the total the payment says was received — a rule no single
       // FormReader field can express, so it is asserted here in SQL/NUMERIC
       // rather than trusted from the page's own arithmetic.
-      | "allocation_mismatch",
+      | "allocation_mismatch"
+      // A credit memo larger than what the invoice still owes — distinct
+      // from `overpayment` since nothing was actually paid.
+      | "over_credit",
     readonly detail?: string,
   ) {
     super(reason)
@@ -1331,24 +1370,32 @@ export async function recomputeInvoiceTotals(
       SELECT coalesce(sum(a.amount), 0)      AS amount_paid,
              coalesce(sum(a.base_amount), 0) AS base_amount_paid
         FROM payment_allocations a WHERE a.invoice_id = ${invoiceId}::uuid
+    ),
+    credited AS (
+      SELECT coalesce(sum(c.amount), 0)      AS amount_credited,
+             coalesce(sum(c.base_amount), 0) AS base_amount_credited
+        FROM invoice_credits c WHERE c.invoice_id = ${invoiceId}::uuid
     )
     UPDATE invoices i
-       SET subtotal    = lt.subtotal,
-           tax_total   = lt.tax_total,
-           total       = lt.subtotal + lt.tax_total,
-           amount_paid = p.amount_paid,
-           amount_due  = (lt.subtotal + lt.tax_total) - p.amount_paid,
+       SET subtotal        = lt.subtotal,
+           tax_total       = lt.tax_total,
+           total           = lt.subtotal + lt.tax_total,
+           amount_paid     = p.amount_paid,
+           amount_credited = cr.amount_credited,
+           amount_due      = (lt.subtotal + lt.tax_total) - p.amount_paid - cr.amount_credited,
            -- Round each part first, then sum, so base_total stays exact.
-           base_subtotal    = round(lt.subtotal  * i.exchange_rate, 2),
-           base_tax_total   = round(lt.tax_total * i.exchange_rate, 2),
-           base_total       = round(lt.subtotal  * i.exchange_rate, 2)
-                            + round(lt.tax_total * i.exchange_rate, 2),
-           base_amount_paid = p.base_amount_paid,
-           base_amount_due  = round(lt.subtotal  * i.exchange_rate, 2)
-                            + round(lt.tax_total * i.exchange_rate, 2)
-                            - p.base_amount_paid,
+           base_subtotal        = round(lt.subtotal  * i.exchange_rate, 2),
+           base_tax_total       = round(lt.tax_total * i.exchange_rate, 2),
+           base_total           = round(lt.subtotal  * i.exchange_rate, 2)
+                                + round(lt.tax_total * i.exchange_rate, 2),
+           base_amount_paid     = p.base_amount_paid,
+           base_amount_credited = cr.base_amount_credited,
+           base_amount_due      = round(lt.subtotal  * i.exchange_rate, 2)
+                                + round(lt.tax_total * i.exchange_rate, 2)
+                                - p.base_amount_paid
+                                - cr.base_amount_credited,
            updated_at = now()
-      FROM line_totals lt, paid p
+      FROM line_totals lt, paid p, credited cr
      WHERE i.id = ${invoiceId}::uuid
   `
 }
@@ -2058,6 +2105,118 @@ export async function recordLockboxPayment(
   }
 
   return { paymentNumber, statuses }
+}
+
+/**
+ * A credit memo against an issued invoice — reverses recognized revenue
+ * without a cash receipt, unlike `recordPayment()`. Refuses more than the
+ * invoice's own current balance: a credit larger than what's still owed
+ * doesn't correspond to anything real.
+ *
+ *   DR Revenue                 amount
+ *     CR Accounts Receivable          amount
+ *
+ * Sets status to `credited` only when the credit brings the balance to
+ * exactly zero — a partial credit leaves the existing status (partial,
+ * sent, overdue) untouched, since something is still genuinely owed.
+ */
+export async function recordCreditMemo(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    invoiceId: string
+    amount: string
+    creditDate: string
+    reason: string
+  },
+  actorId: string,
+): Promise<{ creditNumber: string; status: InvoiceStatus }> {
+  const before = await invoiceState(tx, input.invoiceId)
+  if (before.status === "draft" || before.status === "void") {
+    throw new AccountingRefused(
+      "wrong_status",
+      `${before.status} cannot receive a credit`,
+    )
+  }
+  // Compared in SQL/NUMERIC, not JS float, since this decides a refusal.
+  const [room] = await tx<{ too_much: boolean }[]>`
+    SELECT ${input.amount}::numeric > ${before.amount_due}::numeric AS too_much
+  `
+  if (room.too_much) {
+    throw new AccountingRefused("over_credit", before.amount_due)
+  }
+
+  const [numbering] = await tx<{ n: number }[]>`
+    SELECT coalesce(max(nullif(substring(credit_number from '[0-9]+$'),
+                                '')::int), 0) + 1 AS n
+      FROM invoice_credits WHERE credit_number LIKE 'CM-%'
+  `
+  const year = input.creditDate.slice(0, 4)
+  const creditNumber = `CM-${year}-${String(numbering.n).padStart(3, "0")}`
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.creditDate,
+      sourceType: "credit_memo",
+      sourceId: input.invoiceId,
+      description: `Credit memo ${creditNumber} against ${before.invoice_number}`,
+      reference: creditNumber,
+      currency: before.currency,
+      exchangeRate: before.exchange_rate,
+      lines: [
+        {
+          accountCode: ACCOUNTS.revenue,
+          debit: input.amount,
+          credit: null,
+          description: creditNumber,
+        },
+        {
+          accountCode: ACCOUNTS.receivable,
+          debit: null,
+          credit: input.amount,
+          description: `Against ${before.invoice_number}`,
+        },
+      ],
+    },
+    actorId,
+  )
+
+  await tx`
+    INSERT INTO invoice_credits (
+      tenant_id, invoice_id, credit_number, currency, amount, exchange_rate,
+      base_amount, reason, journal_entry_id, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${input.invoiceId}::uuid, ${creditNumber},
+      ${before.currency}, ${input.amount}::numeric,
+      ${before.exchange_rate}::numeric,
+      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2),
+      ${input.reason}, ${entryId}::uuid, ${actorId}::uuid
+    )
+  `
+
+  await recomputeInvoiceTotals(tx, input.invoiceId)
+
+  const [settled] = await tx<{ due: string }[]>`
+    SELECT amount_due::text AS due FROM invoices WHERE id = ${input.invoiceId}::uuid
+  `
+  // Decided in SQL against NUMERIC zero, not by parsing the string.
+  const [state] = await tx<{ fully_settled: boolean }[]>`
+    SELECT ${settled.due}::numeric = 0 AS fully_settled
+  `
+  const status: InvoiceStatus = state.fully_settled ? "credited" : before.status
+
+  if (state.fully_settled) {
+    await tx`
+      UPDATE invoices
+         SET status = 'credited',
+             updated_at = now(), updated_by = ${actorId}::uuid
+       WHERE id = ${input.invoiceId}::uuid
+    `
+  }
+
+  return { creditNumber, status }
 }
 
 /**

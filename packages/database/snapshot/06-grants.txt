@@ -116,6 +116,8 @@ hr_time_off_policies	app_user	INSERT,SELECT,UPDATE
 hr_time_off_policies	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 hr_time_off_requests	app_user	INSERT,SELECT,UPDATE
 hr_time_off_requests	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+invoice_credits	app_user	INSERT,SELECT,UPDATE
+invoice_credits	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 invoice_lines	app_user	INSERT,SELECT,UPDATE
 invoice_lines	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 invoices	app_user	INSERT,SELECT,UPDATE

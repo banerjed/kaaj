@@ -118,6 +118,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "Which invoice or bill a payment settles.",
   },
+  invoice_credits: {
+    defense: "rls",
+    audience: "finance",
+    why: "A credit memo reverses recognized revenue — commercial and financial detail, not directory data.",
+  },
   bank_accounts: {
     defense: "rls",
     audience: "finance",

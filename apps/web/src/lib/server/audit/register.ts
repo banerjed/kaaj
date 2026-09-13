@@ -141,6 +141,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "A document withdrawn before it was issued. Without a record, an invoice that was raised and then made to disappear leaves no trace it ever existed.",
   },
   {
+    route: "accounting/invoices/[id]",
+    action: "recordCredit",
+    why: "Revenue reversed without cash changing hands. 'Who reduced what this customer owes, by how much, and why' is exactly the question a customer dispute or an auditor asks later.",
+  },
+  {
     route: "accounting/receive-payment",
     action: "allocate",
     why: "Cash received against a debt, same as recordPayment — just applied across several invoices in one deposit instead of one. 'Who allocated this lockbox payment, to which invoices, and for how much' is the same reconciliation question.",

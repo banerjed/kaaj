@@ -31,6 +31,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       invoice,
       lines: await acc.invoiceLines(tx, invoice.id),
       payments: await acc.paymentsFor(tx, invoice.id),
+      credits: await acc.creditsFor(tx, invoice.id),
       mayWrite: can(ctx, "accounting.write"),
       methods: METHODS,
       bankAccounts: await tx<{ id: string; account_name: string }[]>`
@@ -84,9 +85,24 @@ function refusal(e: AccountingRefused) {
         message: "That is more than is outstanding on this invoice.",
         errorFields: ["amount"],
       }
+    case "over_credit":
+      return {
+        message: "That is more than is outstanding on this invoice.",
+        errorFields: ["credit_amount"],
+      }
     case "number_taken":
       return {
         message: "That number is taken. Try again.",
+        errorFields: ["invoice"],
+      }
+    case "wrong_customer":
+    case "duplicate_invoice":
+    case "allocation_mismatch":
+      // Not reachable from this action — those belong to the lockbox batch
+      // at /accounting/receive-payment — but the reason type is shared
+      // across the whole module, so the switch stays exhaustive.
+      return {
+        message: "That could not be completed.",
         errorFields: ["invoice"],
       }
   }
@@ -186,6 +202,62 @@ export const actions: Actions = {
       // A bank account chosen from a list that has since changed.
       const refused = constraintFailure(e)
       if (refused) return refused
+      throw e
+    }
+  },
+
+  /** A credit memo: DR Revenue, CR Receivables — reverses revenue without cash. */
+  recordCredit: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "accounting.write")
+
+    const f = new FormReader(await request.formData())
+    // `min` here keeps the zero/negative case a field error, not a CHECK 500 (L66).
+    const amount = f.decimal("credit_amount", {
+      scale: 2,
+      required: true,
+      min: 0.01,
+    })
+    const creditDate = f.date("credit_date", { required: true })
+    const reason = f.text("credit_reason", { max: 500, required: true })
+    if (!f.ok) return fail(400, f.problem("That credit is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const before = await acc.invoiceById(tx, params.id)
+        const { creditNumber, status } = await acc.recordCreditMemo(
+          tx,
+          locals.tenantId!,
+          {
+            invoiceId: params.id,
+            amount: amount!,
+            creditDate: creditDate!,
+            reason: reason!,
+          },
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        const after = await acc.invoiceById(tx, params.id)
+        await audit.record(tx, ctx!, {
+          action: "record_credit",
+          entityType: "invoices",
+          entityId: params.id,
+          module: "accounting",
+          changes: {
+            credit: { from: null, to: creditNumber },
+            amount: { from: null, to: amount },
+            amount_due: {
+              from: before?.amount_due ?? null,
+              to: after?.amount_due ?? null,
+            },
+            status: { from: before?.status ?? null, to: status },
+          },
+          reason,
+        })
+        return { credited: creditNumber, status }
+      })
+    } catch (e) {
+      if (e instanceof AccountingRefused) return fail(400, refusal(e))
       throw e
     }
   },

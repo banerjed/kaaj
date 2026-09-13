@@ -1105,6 +1105,18 @@ hr_time_off_requests	13	denied_at	timestamp with time zone	f
 hr_time_off_requests	14	denial_reason	text	f	
 hr_time_off_requests	15	submitted_at	timestamp with time zone	t	
 hr_time_off_requests	16	updated_at	timestamp with time zone	t	now()
+invoice_credits	1	id	uuid	t	gen_random_uuid()
+invoice_credits	2	tenant_id	uuid	t	
+invoice_credits	3	invoice_id	uuid	t	
+invoice_credits	4	credit_number	character varying(50)	t	
+invoice_credits	5	currency	character varying(3)	t	
+invoice_credits	6	amount	numeric(15,2)	t	
+invoice_credits	7	exchange_rate	numeric(12,6)	t	1.0
+invoice_credits	8	base_amount	numeric(15,2)	t	
+invoice_credits	9	reason	text	t	
+invoice_credits	10	journal_entry_id	uuid	f	
+invoice_credits	11	created_at	timestamp with time zone	t	CURRENT_TIMESTAMP
+invoice_credits	12	created_by	uuid	f	
 invoice_lines	1	tenant_id	uuid	t	
 invoice_lines	2	id	uuid	t	gen_random_uuid()
 invoice_lines	3	invoice_id	uuid	t	
@@ -1159,6 +1171,8 @@ invoices	36	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 invoices	37	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 invoices	38	created_by	uuid	f	
 invoices	39	updated_by	uuid	f	
+invoices	40	amount_credited	numeric(15,2)	t	0
+invoices	41	base_amount_credited	numeric(15,2)	t	0
 jobs	1	id	uuid	t	gen_random_uuid()
 jobs	2	tenant_id	uuid	t	
 jobs	3	job_type	text	t	

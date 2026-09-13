@@ -42,6 +42,7 @@
               <th class="text-right">Invoices</th>
               <th class="text-right">Invoiced</th>
               <th class="text-right">Paid</th>
+              <th class="text-right">Credited</th>
               <th class="text-right">Balance Due</th>
               <th class="text-right">Credit Limit</th>
             </tr>
@@ -60,6 +61,9 @@
                 </td>
                 <td class="text-right text-sm tabular-nums">
                   {money(r.total_paid, r.currency, locale)}
+                </td>
+                <td class="text-right text-sm tabular-nums">
+                  {money(r.total_credited, r.currency, locale)}
                 </td>
                 <td
                   class="text-right text-sm font-medium tabular-nums"

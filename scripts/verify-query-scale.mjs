@@ -50,6 +50,7 @@ const SCALE_SENSITIVE = new Map([
   ["hr_reviews", "one row per performance review conducted, every cycle"],
   ["hr_survey_responses", "one row per response submitted"],
   ["hr_time_off_requests", "one row per time-off request filed"],
+  ["invoice_credits", "one row per credit memo issued; grows with billing volume"],
   ["invoice_lines", "line items on invoices; grows with billing volume"],
   ["invoices", "one row per customer invoice; grows with billing volume"],
   ["jobs", "one row per background job enqueued"],

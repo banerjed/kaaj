@@ -225,12 +225,18 @@ hr_time_off_policies	hr_time_off_policies_tenant_id_policy_code_key	u	UNIQUE (te
 hr_time_off_requests	hr_time_off_requests_pkey	p	PRIMARY KEY (id)
 hr_time_off_requests	hr_time_off_requests_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 hr_time_off_requests	hr_time_off_requests_tenant_id_request_id_key	u	UNIQUE (tenant_id, request_id)
+invoice_credits	invoice_credits_amount_check	c	CHECK ((amount > (0)::numeric))
+invoice_credits	invoice_credits_base_amount_check	c	CHECK ((base_amount > (0)::numeric))
+invoice_credits	invoice_credits_invoice_id_fkey	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+invoice_credits	invoice_credits_journal_entry_id_fkey	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+invoice_credits	invoice_credits_pkey	p	PRIMARY KEY (id)
+invoice_credits	invoice_credits_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 invoice_lines	fk_invoice_lines_invoice_id	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 invoice_lines	fk_invoice_lines_revenue_account_id	f	FOREIGN KEY (revenue_account_id) REFERENCES chart_of_accounts(id)
 invoice_lines	fk_invoice_lines_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES payroll_tax_rates(id)
 invoice_lines	invoice_lines_pkey	p	PRIMARY KEY (id)
 invoice_lines	invoice_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-invoices	ck_invoices_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (base_subtotal >= (0)::numeric) AND (base_tax_total >= (0)::numeric) AND (base_total >= (0)::numeric) AND (base_amount_paid >= (0)::numeric) AND (base_amount_due >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = (total - amount_paid)) AND (base_total = (base_subtotal + base_tax_total)) AND (base_amount_due = (base_total - base_amount_paid))))
+invoices	ck_invoices_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (amount_credited >= (0)::numeric) AND (base_subtotal >= (0)::numeric) AND (base_tax_total >= (0)::numeric) AND (base_total >= (0)::numeric) AND (base_amount_paid >= (0)::numeric) AND (base_amount_due >= (0)::numeric) AND (base_amount_credited >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = ((total - amount_paid) - amount_credited)) AND (base_total = (base_subtotal + base_tax_total)) AND (base_amount_due = ((base_total - base_amount_paid) - base_amount_credited))))
 invoices	fk_invoices_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 invoices	fk_invoices_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
 invoices	invoices_pkey	p	PRIMARY KEY (id)

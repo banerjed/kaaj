@@ -6,6 +6,8 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
+// "viewed" has no equivalent in accounting.repo.ts's INVOICE_STATUSES — a
+// pre-existing divergence, left alone; "credited" is added to both.
 const STATUSES = [
   "draft",
   "sent",
@@ -14,6 +16,7 @@ const STATUSES = [
   "paid",
   "overdue",
   "void",
+  "credited",
 ] as const
 
 /** /accounting/invoices — accounts receivable; gated to finance. */

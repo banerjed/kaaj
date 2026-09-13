@@ -14,12 +14,16 @@
 
   let paying = $state(false)
   let voiding = $state(false)
+  let crediting = $state(false)
 
   /** What this invoice may do next — mirrors the statuses the repo enforces. */
   const may = $derived({
     issue: data.mayWrite && data.invoice.status === "draft",
     void: data.mayWrite && data.invoice.status === "draft",
     pay:
+      data.mayWrite &&
+      ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
+    credit:
       data.mayWrite &&
       ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
   })
@@ -59,6 +63,11 @@
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Invoice voided.</span>
+    </div>
+  {:else if form?.credited}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>{form.credited} recorded. The invoice is now {form.status}.</span>
     </div>
   {:else if form?.message}
     <div role="alert" class="alert alert-error mt-4">
@@ -154,6 +163,12 @@
             −{money(data.invoice.amount_paid, cur, locale)}
           </dd>
         </div>
+        <div class="flex justify-between">
+          <dt class="text-base-content/70">Credited</dt>
+          <dd class="text-success tabular-nums">
+            −{money(data.invoice.amount_credited, cur, locale)}
+          </dd>
+        </div>
         <div
           class="border-base-200 flex justify-between border-t pt-1 font-medium"
         >
@@ -198,8 +213,39 @@
     </div>
   {/if}
 
+  <h2 class="mt-6 text-base font-medium">
+    Credits issued
+    <span class="badge badge-sm ms-1">{data.credits.length}</span>
+  </h2>
+
+  {#if data.credits.length === 0}
+    <div class="card bg-base-100 mt-2 shadow">
+      <div class="card-body items-center py-8 text-center">
+        <p class="text-base-content/70 text-sm">No credit memos issued.</p>
+      </div>
+    </div>
+  {:else}
+    <div class="card bg-base-100 mt-2 shadow">
+      <ul class="list">
+        {#each data.credits as c (c.id)}
+          <li class="list-row">
+            <div class="list-col-grow">
+              <p class="font-medium">{c.credit_number}</p>
+              <p class="text-base-content/70 text-xs">
+                {calendarDate(c.created_at, locale)} · {c.reason}
+              </p>
+            </div>
+            <p class="font-medium tabular-nums">
+              −{money(c.amount, c.currency ?? cur, locale)}
+            </p>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+
   <!-- Each posts a balanced journal entry; POST only, never a link. -->
-  {#if may.issue || may.pay || may.void}
+  {#if may.issue || may.pay || may.credit || may.void}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {#if may.issue}
         <form method="POST" action="?/issue">
@@ -221,6 +267,16 @@
         >
           <span class="iconify lucide--banknote size-4"></span>
           Record a payment
+        </button>
+      {/if}
+      {#if may.credit}
+        <button
+          type="button"
+          class="btn btn-outline btn-sm"
+          onclick={() => (crediting = true)}
+        >
+          <span class="iconify lucide--receipt-text size-4"></span>
+          Issue a credit
         </button>
       {/if}
       {#if may.void}
@@ -327,6 +383,77 @@
       class="modal-backdrop"
       aria-label="Close"
       onclick={() => (paying = false)}
+    ></button>
+  </div>
+{/if}
+
+<!-- Issue a credit ---------------------------------------------------------- -->
+{#if crediting}
+  <div class="modal modal-open" role="dialog" aria-label="Issue a credit">
+    <div class="modal-box">
+      <h3 class="text-lg font-medium">
+        Credit against {data.invoice.invoice_number}
+      </h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        Reverses revenue without a cash receipt — {money(
+          data.invoice.amount_due,
+          cur,
+          locale,
+        )} outstanding. More than that is refused.
+      </p>
+      <form
+        method="POST"
+        action="?/recordCredit"
+        class="mt-4 grid gap-4"
+        use:enhance={closeOnSuccess(() => (crediting = false))}
+      >
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Amount ({cur})</legend>
+          <!-- inputmode, never type="number" — that round-trips through a float. -->
+          <input
+            name="credit_amount"
+            aria-invalid={err.aria("credit_amount")}
+            class={`input w-full ${err.input("credit_amount")}`}
+            inputmode="decimal"
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Dated</legend>
+          <input
+            name="credit_date"
+            aria-invalid={err.aria("credit_date")}
+            type="date"
+            class={`input w-full ${err.input("credit_date")}`}
+            required
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Reason</legend>
+          <textarea
+            name="credit_reason"
+            aria-invalid={err.aria("credit_reason")}
+            class={`textarea w-full ${err.textarea("credit_reason")}`}
+            rows="2"
+            maxlength="500"
+            required
+            placeholder="Recorded in the audit trail"
+          ></textarea>
+        </fieldset>
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick={() => (crediting = false)}>Cancel</button
+          >
+          <button type="submit" class="btn btn-primary">Issue credit</button>
+        </div>
+      </form>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (crediting = false)}
     ></button>
   </div>
 {/if}

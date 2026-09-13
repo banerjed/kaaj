@@ -1215,6 +1215,22 @@ INSERT INTO payment_allocations (tenant_id, id, payment_id, invoice_id, bill_id,
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5f7aa674-f190-5ff4-9b82-30a56d8c9bd0', 'c147933d-3de1-5a49-b045-3645d4bc5eaf', NULL, 'a0c8a1c4-9d92-5f29-8fd9-2b164de81429', 1500.00, 1500.00, 0.00, '2026-02-10T15:00:00Z'),
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '642fed20-dd4c-573e-a8f2-16647870d8d3', '0b67be47-d010-5fb5-9766-c4bb19e30878', NULL, '0bb6dc98-fc11-5fdc-8986-3fdf2d9e1e4a', 900.00, 900.00, 0.00, '2026-02-15T15:00:00Z');
 
+-- A credit memo against Britannia's invoice — a service-level billing
+-- dispute, partially resolved without cash. journal_entry_id is NULL, same
+-- as this invoice's own (hand-authored, never actually run through
+-- issueInvoice/the real recordCreditMemo write path — see
+-- controlAccountTieOut's doc comment), so this row changes nothing about
+-- the GL-side figures every other report's tests already assert against.
+UPDATE invoices SET
+    amount_credited = 2000.00,
+    base_amount_credited = round(2000.00 * exchange_rate, 2),
+    amount_due = total - amount_paid - 2000.00,
+    base_amount_due = base_total - base_amount_paid - round(2000.00 * exchange_rate, 2)
+WHERE invoice_number = 'INV-2026-002';
+
+INSERT INTO invoice_credits (id, tenant_id, invoice_id, credit_number, currency, amount, exchange_rate, base_amount, reason, journal_entry_id, created_at, created_by) VALUES
+    ('8f13c7a1-90c5-5e21-9c47-1b6b1e3f2a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a31732ea-dadb-575f-bd99-cbcfeaba29da', 'CM-2026-001', 'GBP', 2000.00, 1.27, 2540.00, 'Service-level credit for late delivery, per customer agreement', NULL, '2026-02-25T10:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
 -- Dashboards scoped to an objective and to a team
 INSERT INTO pm_dashboards (id, tenant_id, dashboard_id, scope, dashboard_name, objective_id, owner_employee_id, layout_type, widget_count, visibility, is_default, view_count, created_at, updated_at, created_by) VALUES
     ('d5724fd4-6003-5b3d-a8f4-e21f5f720a53', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-001', 'objective', 'Delivery Overview', '960d66b2-8a52-59d0-8cf8-5c383d031244', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'grid', 3, 'tenant', TRUE, 42, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
@@ -1376,9 +1392,9 @@ BEGIN
                  i.base_subtotal, i.base_tax_total, i.base_total, i.base_amount_paid, i.base_amount_due
         HAVING abs(i.tax_total - coalesce(sum(l.tax_amount), 0)) > 0.02
             OR abs(i.total - (i.subtotal + i.tax_total)) > 0.02
-            OR abs(i.amount_due - (i.total - i.amount_paid)) > 0.02
+            OR abs(i.amount_due - (i.total - i.amount_paid - i.amount_credited)) > 0.02
             OR abs(i.base_total - (i.base_subtotal + i.base_tax_total)) > 0.02
-            OR abs(i.base_amount_due - (i.base_total - i.base_amount_paid)) > 0.02) inv;
+            OR abs(i.base_amount_due - (i.base_total - i.base_amount_paid - i.base_amount_credited)) > 0.02) inv;
     IF n > 0 THEN RAISE EXCEPTION '% invoices whose tax, total, due, or base amounts do not reconcile', n; END IF;
 
     SELECT count(*) INTO n FROM (

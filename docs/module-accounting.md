@@ -1,6 +1,6 @@
 # Module Specification: Accounting (Multi-Tenant & i18n)
 
-**Version:** 2.16
+**Version:** 2.17
 **Last Updated:** September 13, 2026
 **Status:** Draft 
 **Parent Documents:**
@@ -94,7 +94,7 @@ interface AccountingTenantContext {
 ### Internationalization Support
 
 **Multi-Currency Operations**:
-- Support 160+ currencies (ISO 4217 codes)
+- Support 5 currencies (USD, EUR, CAD, GBP, INR)
 - Automatic daily exchange rate updates
 - Base currency for reporting
 - Foreign currency bank accounts
@@ -110,7 +110,6 @@ interface AccountingTenantContext {
 **Tax Localization**:
 - US: Sales tax by state/locality
 - EU: VAT with reverse charge
-- Australia/NZ: GST
 - Canada: GST/HST/PST
 - UK: VAT with Making Tax Digital (MTD) support
 
@@ -145,19 +144,7 @@ interface AccountingTenantContext {
 repository code, routes, and tests — not inferred from this document. Full
 leaf-level test evidence (file:line citations) lives in
 [19-accounting-test-plan.md](19-accounting-test-plan.md); this section gives
-the same verdicts at user-story grain. **DONE** = the story's behavior is
-implemented and covered by a real test. **PARTIAL** = part of the story
-works (state below what's real vs. not). **MISSING** = no code path exists,
-even if schema columns for it do. A recurring pattern worth naming once
-here: the schema was designed against nearly the full spec (`invoices.pdf_url`,
-`payment_url`, `payment_gateway`, `viewed_at`, `is_recurring`,
-`tracking_categories`; `bills.file_url`, `ocr_processed`, `ocr_data`,
-`payment_scheduled_date`; `bank_reconciliation_rules`; `exchange_rates`), but
-the repository layer (`accounting.repo.ts`, `payables.repo.ts`) only ever
-reads or writes a narrow slice of those columns — confirmed by grepping each
-column name against the repo files directly. Where a story's gap is exactly
-"the column exists, nothing touches it," that's called out explicitly rather
-than repeated per story.
+the same verdicts at user-story grain.
 
 ### Invoice Management
 
@@ -216,10 +203,10 @@ than repeated per story.
 *Status: **DONE** (2026-09-13). `/accounting/receive-payment` allocates one payment across several of a customer's open invoices — `acc.recordLockboxPayment()` posts one journal entry (one Cash debit, one AR credit per invoice) and refuses when the allocations don't sum to the stated total received. See `accounting.repo.ts` and `receivables.writes.test.ts`'s "receiving a lockbox payment across multiple invoices" suite.*
 
 **US-ACC-019**: As a Business Owner, I want to see which customers owe money and how much, so that I can manage credit risk.
-*Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/due totals, and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
+*Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/credited/due totals (`total_credited` added 2026-09-13 alongside credit memos, so the four figures reconcile visibly rather than leaving an unexplained gap), and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
 
 **US-ACC-020**: As an Accountant, I want to write off bad debts when invoices are uncollectible, so that AR reflects reality.
-*Status: **MISSING**. No write-off feature exists.*
+*Status: **PARTIAL** (2026-09-13). The reversing-entry mechanism this story needed did not exist at all before now (§1.1's finding) — it exists as of `acc.recordCreditMemo()` and the `invoice_credits` table, shipped for the credit-memo half of this story. Bad-debt write-off itself, the story's literal subject, is still missing: it needs a Bad Debt Expense account this chart of accounts doesn't have yet (`chart_of_accounts` has no `expense` row for it), which is a fixture change with its own snapshot consequences — deliberately scoped out of this pass rather than discovered mid-migration.*
 
 ### Accounts Payable (AP)
 
@@ -2264,14 +2251,44 @@ either way.
       fixture's one qualifying bill, assert a draft bill in the same date
       range is excluded, and check finance-only RLS. `./check` and the
       full e2e suite pass.
-- [ ] Credit memos / refunds (AR) — reverses revenue, Dr Revenue / Cr AR.
-      US-ACC-020 (first half).
+- [x] Credit memos / refunds (AR) — reverses revenue, Dr Revenue / Cr AR.
+      US-ACC-020 (first half, 2026-09-13). This is the reversing-entry
+      mechanism §1.1 found didn't exist at all: a new `invoice_credits`
+      table (one row per credit memo — a future bad-debt write-off adds a
+      `credit_type` column here rather than a second, near-identical table,
+      deferred rather than built ahead of need) and new
+      `invoices.amount_credited`/`base_amount_credited` columns, with the
+      `ck_invoices_amounts_reconcile` CHECK widened to
+      `amount_due = total - amount_paid - amount_credited` rather than
+      overloading `amount_paid` with a non-cash reduction (which would make
+      "Amount Paid" a lie on every invoice it touched).
+      `recomputeInvoiceTotals()` now sums `invoice_credits` the same way it
+      already summed `payment_allocations`. `acc.recordCreditMemo()` posts
+      one journal entry (Dr Revenue / Cr AR), refuses a credit larger than
+      the invoice's own current balance (`over_credit`, distinct from
+      `overpayment` since nothing was paid), and sets a new `credited`
+      status only when the credit brings the balance to exactly zero — a
+      partial credit leaves the existing status untouched. New UI on the
+      invoice detail page (`/accounting/invoices/[id]`, "Issue a credit"),
+      new audit action (`record_credit`), RLS/disclosure-matrix/scale
+      classification entries matching every other accounting table. 7 new
+      tests in `receivables.writes.test.ts` ("issuing a credit memo"), both
+      guards break/revert-verified. One fixture credit memo (Britannia's
+      INV-2026-002, `journal_entry_id` deliberately NULL — hand-authored
+      like most of this invoice's own history, per
+      `controlAccountTieOut()`'s doc comment, so it changes nothing about
+      the GL-side figures every other report's tests assert against)
+      rippled into `customerBalances()` gaining a `total_credited` column
+      (so invoiced/paid/credited/due reconcile visibly) and several
+      hardcoded test figures being recomputed from the real database, not
+      hand-calculated. `./check` and the full e2e suite pass.
 - [ ] Bad-debt write-off — a separate entry, Dr Bad Debt Expense (or
-      Allowance) / Cr AR; does not require a credit memo. Independent of the
-      item above; either can ship first. US-ACC-020 (second half). Both need
-      a reversing-entry mechanism that doesn't exist today (§1.1's finding
-      that there's no reversal/credit-note code anywhere) — that's the real
-      shared prerequisite, not each other.
+      Allowance) / Cr AR; does not require a credit memo. US-ACC-020
+      (second half). The reversing-entry mechanism this needed now exists
+      (above); the remaining blocker is that `chart_of_accounts` has no
+      Bad Debt Expense row — adding one is a fixture change with its own
+      snapshot consequences, deliberately scoped out of the credit-memo
+      pass rather than discovered mid-migration.
 - [x] Multi-invoice payment allocation (lockbox-style). US-ACC-018
       (2026-09-13). `acc.recordLockboxPayment()` at `/accounting/receive-payment`
       takes one `totalAmount` (the known deposit/check figure) and a set of
@@ -2441,6 +2458,7 @@ either way.
 | 2.14 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
 | 2.15 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment. |
 | 2.16 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships. |
+| 2.17 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day). |
 
 ### References
 

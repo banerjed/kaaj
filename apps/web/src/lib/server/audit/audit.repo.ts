@@ -69,6 +69,7 @@ export const AUDIT_ACTIONS = [
   "pay_change",
   "send",
   "record_payment",
+  "record_credit",
   "close_period",
   "role_grant",
   "role_revoke",

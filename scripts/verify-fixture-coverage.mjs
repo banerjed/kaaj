@@ -34,6 +34,14 @@ const EXPECTED_SPARSE = new Map([
     "the CMSaasStarter profile table is not part of the product's data model",
   ],
   [
+    "invoice_credits.journal_entry_id",
+    "the fixture's one credit memo is hand-authored, like most of the " +
+      "fixture's invoices/payments (see controlAccountTieOut's doc comment) " +
+      "— posting a real GL entry here would change net_income/balance-sheet " +
+      "totals every other report's tests already assert against. The real " +
+      "write path (recordCreditMemo) always sets this atomically.",
+  ],
+  [
     "tenant_registry.connection_secret_ref",
     "NULL for every 'shared' tier row by design (ADR-009); populated only " +
       "once a tenant is provisioned onto a dedicated database via " +

@@ -847,6 +847,138 @@ describe("receiving a lockbox payment across multiple invoices", () => {
   })
 })
 
+describe("issuing a credit memo", () => {
+  const CREDIT = {
+    invoiceId: PARTIAL,
+    amount: "1000.00",
+    creditDate: "2026-03-15",
+    reason: "Service-level credit for a missed delivery window",
+  }
+
+  it("posts revenue reversed against receivables, and keeps the ledger balanced", async () => {
+    const { posted, unbalanced } = await inRollback(async (tx) => {
+      const { creditNumber } = await acc.recordCreditMemo(
+        tx,
+        NORTHWIND,
+        CREDIT,
+        ACTOR,
+      )
+      const posted = await tx<
+        { account_code: string; debit: string; credit: string }[]
+      >`
+        SELECT a.account_code, l.debit_amount::text AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.reference = ${creditNumber}
+         ORDER BY l.line_number
+      `
+      return { posted, unbalanced: await unbalancedEntries(tx) }
+    })
+    expect(posted).toEqual([
+      { account_code: "4000", debit: "1000.00", credit: "0.00" },
+      { account_code: "1100", debit: "0.00", credit: "1000.00" },
+    ])
+    expect(unbalanced).toEqual([])
+  })
+
+  it("reduces what is owed by exactly the credited amount", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const [before] = await tx<{ due: string }[]>`
+        SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      await acc.recordCreditMemo(tx, NORTHWIND, CREDIT, ACTOR)
+      const [after] = await tx<{ due: string }[]>`
+        SELECT amount_due::text AS due FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      return { before, after }
+    })
+    expect(Number(before.due) - Number(after.due)).toBe(1000)
+  })
+
+  it("marks the invoice credited when the last of it is settled this way", async () => {
+    const result = await inRollback((tx) =>
+      acc.recordCreditMemo(
+        tx,
+        NORTHWIND,
+        { ...CREDIT, amount: "32439.97" },
+        ACTOR,
+      ),
+    )
+    expect(result.status).toBe("credited")
+  })
+
+  it("leaves its existing status when something is still outstanding", async () => {
+    const result = await inRollback((tx) =>
+      acc.recordCreditMemo(tx, NORTHWIND, CREDIT, ACTOR),
+    )
+    expect(result.status).toBe("partial")
+  })
+
+  it("refuses more than is outstanding", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordCreditMemo(
+            tx,
+            NORTHWIND,
+            { ...CREDIT, amount: "32439.98" },
+            ACTOR,
+          ),
+        ),
+      "over_credit",
+    )
+  })
+
+  it("refuses a credit against a draft", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          acc.recordCreditMemo(
+            tx,
+            NORTHWIND,
+            { ...CREDIT, invoiceId: DRAFT },
+            ACTOR,
+          ),
+        ),
+      "wrong_status",
+    )
+  })
+
+  it("refuses a second credit once the invoice is already fully credited", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          await acc.recordCreditMemo(
+            tx,
+            NORTHWIND,
+            { ...CREDIT, amount: "32439.97" },
+            ACTOR,
+          )
+          await acc.recordCreditMemo(tx, NORTHWIND, CREDIT, ACTOR)
+        }),
+      "over_credit",
+    )
+  })
+
+  it("keeps the credit, the invoice_credits row, and the header in step", async () => {
+    const { credited, headerCredited } = await inRollback(async (tx) => {
+      await acc.recordCreditMemo(tx, NORTHWIND, CREDIT, ACTOR)
+      const [credited] = await tx<{ total: string }[]>`
+        SELECT coalesce(sum(amount),0)::text AS total
+          FROM invoice_credits WHERE invoice_id = ${PARTIAL}::uuid
+      `
+      const [headerCredited] = await tx<{ amount_credited: string }[]>`
+        SELECT amount_credited::text AS amount_credited
+          FROM invoices WHERE id = ${PARTIAL}::uuid
+      `
+      return { credited, headerCredited }
+    })
+    expect(headerCredited.amount_credited).toBe(credited.total)
+  })
+})
+
 describe("the header is a cache of the lines", () => {
   it("REPAIRS an invoice whose stored total had drifted", async () => {
     // Recomputed, not adjusted — a wrong header self-heals on next write.

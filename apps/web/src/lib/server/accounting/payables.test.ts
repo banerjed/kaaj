@@ -104,24 +104,47 @@ describe("bills", () => {
   })
 })
 
+/** Test-data construction only — never used to decide a real business date. */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 describe("AP due soon", () => {
   afterAll(async () => {
     await closeConnections()
   })
 
   // BILL-AWS-2026-01 is the fixture's only approved, unpaid bill
-  // (due_date 2026-09-22, amount_due 1981.53) — walking `asOf`/`withinDays`
-  // around it exercises both the lower bound (not yet overdue) and the
-  // upper bound (within the window) an off-by-one would get wrong.
+  // (amount_due 1981.53), due `CURRENT_DATE + 10` at seed time — a moving
+  // target across a `supabase db reset`, so every asOf here is computed
+  // relative to its own queried due_date rather than a hardcoded calendar
+  // date. Walking `asOf`/`withinDays` around it exercises both the lower
+  // bound (not yet overdue) and the upper bound (within the window) an
+  // off-by-one would get wrong.
   it("includes a bill due within the window, excludes it just outside", async () => {
-    const [within, justOutside, dueToday, becameOverdue, allBills] =
-      await withTenant(AS_OWNER, async (tx) => [
-        await pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
-        await pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 8 }),
-        await pay.apDueSoon(tx, { asOf: "2026-09-22", withinDays: 0 }),
-        await pay.apDueSoon(tx, { asOf: "2026-09-23", withinDays: 30 }),
-        await pay.listBills(tx),
-      ])
+    const { within, justOutside, dueToday, becameOverdue, allBills } =
+      await withTenant(AS_OWNER, async (tx) => {
+        const [{ due_date: dueDate }] = await tx<{ due_date: string }[]>`
+          SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date
+            FROM bills WHERE bill_number = 'BILL-AWS-2026-01'
+        `
+        const asOfBase = shiftDate(dueDate, -9)
+        return {
+          within: await pay.apDueSoon(tx, { asOf: asOfBase, withinDays: 9 }),
+          justOutside: await pay.apDueSoon(tx, {
+            asOf: asOfBase,
+            withinDays: 8,
+          }),
+          dueToday: await pay.apDueSoon(tx, { asOf: dueDate, withinDays: 0 }),
+          becameOverdue: await pay.apDueSoon(tx, {
+            asOf: shiftDate(dueDate, 1),
+            withinDays: 30,
+          }),
+          allBills: await pay.listBills(tx),
+        }
+      })
     const aws = (rows: pay.ApDueSoonRow[]) =>
       rows.find((r) => r.bill_number === "BILL-AWS-2026-01")
 
@@ -136,10 +159,9 @@ describe("AP due soon", () => {
     expect(aws(becameOverdue)).toBeUndefined()
 
     // `is_overdue` is measured against the real CURRENT_DATE, not `asOf` —
-    // a different reference date from this report's, which is why the bill
-    // reads as not-yet-overdue here even in the `becameOverdue` scenario
-    // above (a real "as of 2026-09-23" would need the clock to actually
-    // reach that date).
+    // a different reference date from this report's. Since the fixture
+    // seeds this bill's due_date as CURRENT_DATE + 10, it is never actually
+    // overdue on the day the fixture is seeded.
     const bill = allBills.find((b) => b.bill_number === "BILL-AWS-2026-01")
     expect(bill?.is_overdue).toBe(false)
   })
@@ -156,13 +178,16 @@ describe("AP due soon", () => {
   })
 
   it("is visible to the finance function only", async () => {
+    // Any window wide enough to include BILL-AWS-2026-01's CURRENT_DATE + 10
+    // due date, computed from the real clock rather than a fixed date.
+    const asOf = new Date().toISOString().slice(0, 10)
     const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
-      pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
+      pay.apDueSoon(tx, { asOf, withinDays: 15 }),
     )
     expect(refused).toEqual([])
 
     const owner = await withTenant(AS_OWNER, (tx) =>
-      pay.apDueSoon(tx, { asOf: "2026-09-13", withinDays: 9 }),
+      pay.apDueSoon(tx, { asOf, withinDays: 15 }),
     )
     expect(owner.length).toBeGreaterThan(0)
   })

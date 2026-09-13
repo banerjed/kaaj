@@ -553,12 +553,12 @@ SELECT _check('ACC-invoice-tax-total','DATA','accounting',
   $$SELECT NOT EXISTS (SELECT 1 FROM invoices i LEFT JOIN invoice_lines l ON l.invoice_id=i.id
       GROUP BY i.id, i.tax_total HAVING abs(i.tax_total-coalesce(sum(l.tax_amount),0))>0.02)$$);
 SELECT _check('ACC-invoice-amounts','DATA','accounting',
-  'Invoice totals and balances due reconcile to subtotal, tax, and payments',
+  'Invoice totals and balances due reconcile to subtotal, tax, payments, and credits',
   $$SELECT NOT EXISTS (SELECT 1 FROM invoices
       WHERE abs(total-(subtotal+tax_total))>0.02
-         OR abs(amount_due-(total-amount_paid))>0.02
+         OR abs(amount_due-(total-amount_paid-amount_credited))>0.02
          OR abs(base_total-(base_subtotal+base_tax_total))>0.02
-         OR abs(base_amount_due-(base_total-base_amount_paid))>0.02)$$);
+         OR abs(base_amount_due-(base_total-base_amount_paid-base_amount_credited))>0.02)$$);
 SELECT _check('ACC-invoice-journal-tieout','DATA','accounting',
   'Invoice journal entries tie to the invoice base total they post',
   $$SELECT NOT EXISTS (
