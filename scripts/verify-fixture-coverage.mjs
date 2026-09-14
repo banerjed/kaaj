@@ -44,15 +44,6 @@ const EXPECTED_SPARSE = new Map([
       "change would set this on the row it replaces",
   ],
   [
-    "journal_entry_lines.tax_rate_id",
-    "postJournal never writes it — tax is a manually-typed amount on " +
-      "invoice_lines/bill_lines (createInvoice/createBill), not carried " +
-      "onto a journal_entry_lines row. No posted line in the fixture (or in " +
-      "application code) has a nonzero tax_amount to associate a rate with; " +
-      "a prior blanket backfill set this column on every line regardless, " +
-      "which looked configured but wasn't.",
-  ],
-  [
     "invoice_credits.journal_entry_id",
     "the fixture's credit memo and write-off rows are both hand-authored, " +
       "like most of the fixture's invoices/payments (see " +

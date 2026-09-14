@@ -33,6 +33,7 @@ const FORM_WRITTEN = [
   "payroll_run_employees",
   "compensation_base",
   "invoices",
+  "invoice_lines",
   "payments",
   "bills",
   "bill_lines",
@@ -162,8 +163,16 @@ const CANNOT_BE_TRIPPED = new Map([
     "bill_id comes from the bill createBill just inserted, not the form",
   ],
   [
-    "fk_bill_lines_tax_rate_id",
-    "never set by this form; tax_amount is entered directly, mirroring invoice_lines",
+    "invoice_lines_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
+  [
+    "fk_invoice_lines_invoice_id",
+    "invoice_id comes from the invoice createInvoice just inserted, not the form",
+  ],
+  [
+    "fk_invoice_lines_revenue_account_id",
+    "always the fixed Consulting Revenue account (ACCOUNTS.revenue), never set by the form",
   ],
 ])
 

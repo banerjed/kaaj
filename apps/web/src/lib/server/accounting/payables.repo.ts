@@ -410,6 +410,15 @@ export async function approveBill(
      ORDER BY l.line_number NULLS LAST
   `
 
+  // Grouped by rate, one GL line per jurisdiction (US-ACC-048/049) — same
+  // reasoning as issueInvoice's tax lines.
+  const taxByRate = await tx<{ tax_rate_id: string | null; amount: string }[]>`
+    SELECT tax_rate_id, sum(tax_amount)::text AS amount
+      FROM bill_lines
+     WHERE bill_id = ${billId}::uuid AND tax_amount <> 0
+     GROUP BY tax_rate_id
+  `
+
   const entryId = await postJournal(
     tx,
     tenantId,
@@ -428,12 +437,13 @@ export async function approveBill(
           credit: null,
           description: l.description ?? `Bill ${current.bill_number}`,
         })),
-        {
+        ...taxByRate.map((t) => ({
           accountCode: ACCOUNTS.inputTax,
-          debit: current.tax_total,
+          debit: t.amount,
           credit: null,
           description: `Recoverable input tax on ${current.bill_number}`,
-        },
+          taxRateId: t.tax_rate_id,
+        })),
         {
           accountCode: ACCOUNTS.payable,
           debit: null,
@@ -776,6 +786,8 @@ export type NewBillLine = {
   quantity: string
   unitPrice: string
   taxAmount: string
+  /** Which configured rate this line's tax belongs to — a reference only, not a computation (US-ACC-048/049). */
+  taxRateId?: string | null
   expenseAccountId: string
 }
 
@@ -845,12 +857,13 @@ export async function createBill(
     await tx`
       INSERT INTO bill_lines (
         tenant_id, bill_id, line_number, description, quantity, unit_price,
-        amount, tax_amount, expense_account_id
+        amount, tax_amount, tax_rate_id, expense_account_id
       ) VALUES (
         ${tenantId}::uuid, ${billId}::uuid, ${lineNumber}, ${line.description},
         ${line.quantity}::numeric, ${line.unitPrice}::numeric,
         round(${line.quantity}::numeric * ${line.unitPrice}::numeric, 2),
-        ${line.taxAmount}::numeric, ${line.expenseAccountId}::uuid
+        ${line.taxAmount}::numeric, ${line.taxRateId ?? null}::uuid,
+        ${line.expenseAccountId}::uuid
       )
     `
   }

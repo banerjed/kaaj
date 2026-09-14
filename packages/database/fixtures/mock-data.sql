@@ -2075,6 +2075,12 @@ UPDATE journal_entries SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' W
 UPDATE journal_entry_lines SET department_id = '10cfa606-7c38-5de8-b72a-4ec11d9ae922' WHERE department_id IS NULL;
 UPDATE journal_entry_lines SET location_id = '12c07799-28b4-55df-b8cf-df96df0bf40f' WHERE location_id IS NULL;
 UPDATE journal_entry_lines SET tracking_categories = '["standard"]'::jsonb WHERE tracking_categories IS NULL OR tracking_categories::text IN ('{}','[]','null');
+-- Targeted, not blanket (unlike the two lines above): tags the one real
+-- posted tax line (BILL-AWS-2026-01's recoverable input tax) with the same
+-- rate its own bill_line already independently carries, so US-ACC-048/049's
+-- tax summary report has one genuine, non-synthetic jurisdiction to show.
+UPDATE journal_entry_lines SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53'
+ WHERE id = '6318e165-71e7-58fb-8873-6a24ea97e7b3';
 UPDATE payments SET check_number = 'Check Number 1' WHERE check_number IS NULL OR check_number = '';
 UPDATE payments SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
 UPDATE payroll_deduction_definitions SET annual_limit_amount = 100.00 WHERE annual_limit_amount IS NULL;

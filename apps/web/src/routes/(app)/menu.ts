@@ -198,6 +198,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-tax-summary",
+        label: "Tax Summary",
+        url: "/accounting/tax-summary",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-trial-balance",
         label: "Trial Balance",
         url: "/accounting/trial-balance",

@@ -2,6 +2,7 @@ import { error, fail, redirect } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as pay from "$lib/server/accounting/payables.repo"
 import { AccountingRefused } from "$lib/server/accounting/accounting.repo"
+import * as taxRates from "$lib/server/accounting/tax_rates.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -19,6 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   return withTenant(actorFrom(locals), async (tx) => ({
     vendors: await pay.listVendorsForPicker(tx),
     accounts: await pay.listExpenseAccountsForPicker(tx),
+    taxRates: (await taxRates.listTaxRates(tx)).filter((r) => r.is_active),
   }))
 }
 
@@ -94,11 +96,13 @@ export const actions: Actions = {
       const expenseAccountId = f.uuid(`lines.${i}.expense_account_id`, {
         required: true,
       })
+      const taxRateId = f.uuid(`lines.${i}.tax_rate_id`)
       lines.push({
         description: description ?? "",
         quantity: quantity ?? "0",
         unitPrice: unitPrice ?? "0",
         taxAmount: taxAmount ?? "0",
+        taxRateId: taxRateId ?? null,
         expenseAccountId: expenseAccountId ?? "",
       })
     }

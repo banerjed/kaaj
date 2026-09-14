@@ -346,6 +346,29 @@ test("an invoice line with a negative quantity is refused, not stored as a negat
   expect(result.raw).toMatch(/lines\.0\.quantity/)
 })
 
+test("an invoice line naming a tax rate that no longer exists is refused, not a crash", async ({
+  page,
+}) => {
+  const response = await page.request.post("/accounting/invoices/new?/create", {
+    form: {
+      customer_id: "e40d0f18-1333-5cd1-a969-f5113df51e70",
+      invoice_date: "2026-03-10",
+      due_date: "2026-04-10",
+      exchange_rate: "1.000000",
+      line_count: "1",
+      "lines.0.description": "Consulting",
+      "lines.0.quantity": "1",
+      "lines.0.unit_price": "100.00",
+      "lines.0.discount_percent": "0",
+      "lines.0.tax_amount": "8.00",
+      "lines.0.tax_rate_id": "00000000-0000-0000-0000-000000000000",
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/no longer exists/i)
+})
+
 test("a taxed invoice line for a customer exempt as of the invoice date is refused, not silently charged", async ({
   page,
 }) => {
@@ -832,6 +855,16 @@ test("an inverted date range on the cash flow statement is refused, not rendered
   // that is really just the date range. A GET with a bad query string is
   // read-only, so this needs no serial project or reseed.
   await page.goto("/accounting/cash-flow?from=2026-03-01&to=2026-01-31")
+  await expect(page.getByText("Something went wrong")).toBeVisible()
+  await expect(
+    page.getByText(/'from' date must be on or before the 'to' date/i),
+  ).toBeVisible()
+})
+
+test("an inverted date range on the tax summary is refused, not rendered as a false report", async ({
+  page,
+}) => {
+  await page.goto("/accounting/tax-summary?from=2026-03-01&to=2026-01-31")
   await expect(page.getByText("Something went wrong")).toBeVisible()
   await expect(
     page.getByText(/'from' date must be on or before the 'to' date/i),

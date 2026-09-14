@@ -55,6 +55,16 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "Another tax rate already uses that code. Tax rate codes must be unique — pick a different one.",
   },
+  fk_invoice_lines_tax_rate_id: {
+    errorFields: ["lines"],
+    message:
+      "One of the tax rates picked no longer exists. Reload the page and pick a current one.",
+  },
+  fk_bill_lines_tax_rate_id: {
+    errorFields: ["lines"],
+    message:
+      "One of the tax rates picked no longer exists. Reload the page and pick a current one.",
+  },
 
   // A partial unique index rather than a constraint, so the name is the
   // INDEX name. One headquarters per firm.

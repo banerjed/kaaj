@@ -1449,6 +1449,51 @@ export async function equityComparison(
   return row
 }
 
+export type TaxLiabilityRow = {
+  tax_rate_id: string | null
+  code: string | null
+  jurisdiction: string | null
+  output_tax: string
+  input_tax: string
+  net_liability: string
+}
+
+/**
+ * Sales tax / VAT liability by jurisdiction (US-ACC-048/049) — read from the
+ * real posted GL, not the invoice/bill subledger: `issueInvoice`/
+ * `approveBill` post one line per `tax_rate_id` to `taxPayable`/`inputTax`
+ * (grouped, since one invoice can mix rates), and this sums those lines
+ * straight from `journal_entry_lines`. `tax_rate_id IS NULL` is its own,
+ * explicitly-labelled row — tax that was posted but never attributed to a
+ * jurisdiction — rather than silently folded into a real one.
+ */
+export async function taxLiabilitySummary(
+  tx: Tx,
+  filters: { from?: string; to?: string } = {},
+): Promise<TaxLiabilityRow[]> {
+  const from = filters.from || null
+  const to = filters.to || null
+  return tx<TaxLiabilityRow[]>`
+    SELECT l.tax_rate_id, r.code, r.jurisdiction,
+           coalesce(sum(l.credit_amount) FILTER (WHERE a.account_code = '2200'), 0)::text
+             AS output_tax,
+           coalesce(sum(l.debit_amount) FILTER (WHERE a.account_code = '1200'), 0)::text
+             AS input_tax,
+           (coalesce(sum(l.credit_amount) FILTER (WHERE a.account_code = '2200'), 0)
+             - coalesce(sum(l.debit_amount) FILTER (WHERE a.account_code = '1200'), 0))::text
+             AS net_liability
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      JOIN chart_of_accounts a ON a.id = l.account_id
+      LEFT JOIN tax_rates r ON r.id = l.tax_rate_id
+     WHERE a.account_code IN ('2200', '1200')
+       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+     GROUP BY l.tax_rate_id, r.code, r.jurisdiction
+     ORDER BY r.code NULLS LAST
+  `
+}
+
 export type LedgerLine = {
   id: string
   line_number: number | null
@@ -1732,6 +1777,8 @@ export type JournalLine = {
   debit: string | null
   credit: string | null
   description: string
+  /** Which jurisdiction this tax line belongs to — unset for every non-tax line. */
+  taxRateId?: string | null
 }
 
 /**
@@ -1814,7 +1861,8 @@ export async function postJournal(
       INSERT INTO journal_entry_lines (
         tenant_id, entry_id, account_id, line_number, currency,
         debit_amount, credit_amount, exchange_rate,
-        base_currency, base_debit_amount, base_credit_amount, description
+        base_currency, base_debit_amount, base_credit_amount, description,
+        tax_rate_id
       ) VALUES (
         ${tenantId}::uuid, ${head.id}::uuid,
         ${await accountId(tx, line.accountCode)}::uuid,
@@ -1824,7 +1872,7 @@ export async function postJournal(
         'USD',
         round(${line.debit ?? "0"}::numeric  * ${entry.exchangeRate}::numeric, 2),
         round(${line.credit ?? "0"}::numeric * ${entry.exchangeRate}::numeric, 2),
-        ${line.description}
+        ${line.description}, ${line.taxRateId ?? null}::uuid
       )
     `
   }
@@ -1992,6 +2040,8 @@ export type NewInvoiceLine = {
   unitPrice: string
   discountPercent: string
   taxAmount: string
+  /** Which configured rate this line's tax belongs to — a reference only, not a computation (US-ACC-048/049). */
+  taxRateId?: string | null
 }
 
 /**
@@ -2096,7 +2146,8 @@ export async function createInvoice(
     await tx`
       INSERT INTO invoice_lines (
         tenant_id, invoice_id, line_number, description, quantity, unit_price,
-        amount, discount_percent, discount_amount, tax_amount, revenue_account_id
+        amount, discount_percent, discount_amount, tax_amount, tax_rate_id,
+        revenue_account_id
       ) VALUES (
         ${tenantId}::uuid, ${invoiceId}::uuid, ${lineNumber}, ${line.description},
         ${line.quantity}::numeric, ${line.unitPrice}::numeric,
@@ -2104,7 +2155,7 @@ export async function createInvoice(
         ${line.discountPercent}::numeric,
         round(${line.quantity}::numeric * ${line.unitPrice}::numeric
               * ${line.discountPercent}::numeric / 100, 2),
-        ${line.taxAmount}::numeric,
+        ${line.taxAmount}::numeric, ${line.taxRateId ?? null}::uuid,
         ${revenueAccountId}::uuid
       )
     `
@@ -2157,6 +2208,16 @@ export async function issueInvoice(
     throw new AccountingRefused("customer_tax_exempt")
   }
 
+  // Grouped by rate, one GL line per jurisdiction (US-ACC-048/049) — a lump
+  // sum here would make every taxed invoice's liability unattributable, and
+  // an invoice mixing rates would silently collapse them into one.
+  const taxByRate = await tx<{ tax_rate_id: string | null; amount: string }[]>`
+    SELECT tax_rate_id, sum(tax_amount)::text AS amount
+      FROM invoice_lines
+     WHERE invoice_id = ${invoiceId}::uuid AND tax_amount <> 0
+     GROUP BY tax_rate_id
+  `
+
   const entryId = await postJournal(
     tx,
     tenantId,
@@ -2181,12 +2242,13 @@ export async function issueInvoice(
           credit: current.subtotal,
           description: `Invoice ${current.invoice_number}`,
         },
-        {
+        ...taxByRate.map((t) => ({
           accountCode: ACCOUNTS.taxPayable,
           debit: null,
-          credit: current.tax_total,
+          credit: t.amount,
           description: `Tax on ${current.invoice_number}`,
-        },
+          taxRateId: t.tax_rate_id,
+        })),
       ],
     },
     actorId,

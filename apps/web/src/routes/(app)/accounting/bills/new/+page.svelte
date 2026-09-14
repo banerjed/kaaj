@@ -16,6 +16,7 @@
     quantity: string
     unitPrice: string
     taxAmount: string
+    taxRateId: string
   }
 
   let nextKey = 0
@@ -27,6 +28,7 @@
       quantity: "1",
       unitPrice: "",
       taxAmount: "0",
+      taxRateId: "",
     }
   }
 
@@ -215,6 +217,7 @@
                 <th class="w-24">Qty</th>
                 <th class="w-32">Unit price</th>
                 <th class="w-32">Tax amount</th>
+                <th class="w-40">Tax rate</th>
                 <th class="w-56">Expense account</th>
                 <th class="w-10"></th>
               </tr>
@@ -259,6 +262,20 @@
                       aria-invalid={err.aria(`lines.${i}.tax_amount`)}
                       bind:value={line.taxAmount}
                     />
+                  </td>
+                  <td>
+                    <select
+                      name={`lines.${i}.tax_rate_id`}
+                      class="select select-sm w-full"
+                      bind:value={line.taxRateId}
+                    >
+                      <option value="">None / unattributed</option>
+                      {#each data.taxRates as rate (rate.id)}
+                        <option value={rate.id}
+                          >{rate.code} ({rate.rate_percent}%)</option
+                        >
+                      {/each}
+                    </select>
                   </td>
                   <td>
                     <Combobox

@@ -18,6 +18,7 @@ import {
   cashFlowTotals,
   equityStatement,
   equityStatementTotals,
+  taxLiabilitySummary,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -1340,5 +1341,233 @@ describe("tax-exempt customers", () => {
         }),
       "customer_tax_exempt",
     )
+  })
+})
+
+/** US-ACC-048/049 — sales tax liability, grouped by jurisdiction, read from the real posted GL. */
+describe("tax liability by jurisdiction", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  const NY_RATE = "a1952ec4-9252-5bbf-89aa-9f2e89d7ef53" // TAX-US-NY-2026
+  const GB_VAT_RATE = "f740baac-f88d-557d-b54d-ea24fe1a0b91" // TAX-GB-VAT-2026
+
+  it("issueInvoice posts one GL tax line per rate, not one lump sum, when an invoice mixes rates", async () => {
+    const rows = await inRollback(async (tx) => {
+      const { id: invoiceId } = await createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-05-05",
+          dueDate: "2026-06-05",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Consulting (NY)",
+              quantity: "1",
+              unitPrice: "100.00",
+              discountPercent: "0",
+              taxAmount: "10.00",
+              taxRateId: NY_RATE,
+            },
+            {
+              description: "Consulting (UK)",
+              quantity: "1",
+              unitPrice: "50.00",
+              discountPercent: "0",
+              taxAmount: "5.00",
+              taxRateId: GB_VAT_RATE,
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await issueInvoice(tx, NORTHWIND, invoiceId, ACTOR)
+      return tx<{ tax_rate_id: string | null; credit_amount: string }[]>`
+        SELECT jel.tax_rate_id, jel.credit_amount::text
+          FROM journal_entry_lines jel
+          JOIN journal_entries je ON je.id = jel.entry_id
+          JOIN chart_of_accounts a ON a.id = jel.account_id
+         WHERE je.source_type = 'invoice' AND je.source_id = ${invoiceId}::uuid
+           AND a.account_code = '2200'
+         ORDER BY jel.line_number
+      `
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows.find((r) => r.tax_rate_id === NY_RATE)?.credit_amount).toBe(
+      "10.00",
+    )
+    expect(rows.find((r) => r.tax_rate_id === GB_VAT_RATE)?.credit_amount).toBe(
+      "5.00",
+    )
+  })
+
+  it("approveBill posts one GL tax line per rate, not one lump sum, when a bill mixes rates", async () => {
+    const rows = await inRollback(async (tx) => {
+      const { id: billId } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-MIXED-RATE-TEST",
+          reference: null,
+          billDate: "2026-05-05",
+          dueDate: "2026-06-05",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Cloud hosting (NY)",
+              quantity: "1",
+              unitPrice: "200.00",
+              taxAmount: "8.00",
+              taxRateId: NY_RATE,
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            },
+            {
+              description: "Cloud hosting (UK)",
+              quantity: "1",
+              unitPrice: "100.00",
+              taxAmount: "4.00",
+              taxRateId: GB_VAT_RATE,
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await pay.approveBill(tx, NORTHWIND, billId, ACTOR)
+      return tx<{ tax_rate_id: string | null; debit_amount: string }[]>`
+        SELECT jel.tax_rate_id, jel.debit_amount::text
+          FROM journal_entry_lines jel
+          JOIN journal_entries je ON je.id = jel.entry_id
+          JOIN chart_of_accounts a ON a.id = jel.account_id
+         WHERE je.source_type = 'bill' AND je.source_id = ${billId}::uuid
+           AND a.account_code = '1200'
+         ORDER BY jel.line_number
+      `
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows.find((r) => r.tax_rate_id === NY_RATE)?.debit_amount).toBe(
+      "8.00",
+    )
+    expect(rows.find((r) => r.tax_rate_id === GB_VAT_RATE)?.debit_amount).toBe(
+      "4.00",
+    )
+  })
+
+  it("summarizes output tax, input tax and net liability per jurisdiction from real posted activity", async () => {
+    const rows = await inRollback(async (tx) => {
+      const { id: invoiceId } = await createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-05-06",
+          dueDate: "2026-06-06",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Consulting",
+              quantity: "1",
+              unitPrice: "100.00",
+              discountPercent: "0",
+              taxAmount: "20.00",
+              taxRateId: NY_RATE,
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await issueInvoice(tx, NORTHWIND, invoiceId, ACTOR)
+
+      const { id: billId } = await pay.createBill(
+        tx,
+        NORTHWIND,
+        {
+          vendorId: AWS_VENDOR,
+          billNumber: "BILL-NY-LIABILITY-TEST",
+          reference: null,
+          billDate: "2026-05-06",
+          dueDate: "2026-06-06",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Cloud hosting",
+              quantity: "1",
+              unitPrice: "100.00",
+              taxAmount: "6.00",
+              taxRateId: NY_RATE,
+              expenseAccountId: SOFTWARE_ACCOUNT,
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await pay.approveBill(tx, NORTHWIND, billId, ACTOR)
+
+      return taxLiabilitySummary(tx, { from: "2026-05-06", to: "2026-05-06" })
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].tax_rate_id).toBe(NY_RATE)
+    expect(rows[0].output_tax).toBe("20.00")
+    expect(rows[0].input_tax).toBe("6.00")
+    expect(rows[0].net_liability).toBe("14.00")
+  })
+
+  it("labels tax posted with no configured rate as its own explicit row, not folded into a real jurisdiction", async () => {
+    const rows = await inRollback(async (tx) => {
+      const { id: invoiceId } = await createInvoice(
+        tx,
+        NORTHWIND,
+        {
+          customerId: ACME,
+          invoiceDate: "2026-05-07",
+          dueDate: "2026-06-07",
+          exchangeRate: "1.000000",
+          paymentTerms: null,
+          notes: null,
+          lines: [
+            {
+              description: "Consulting",
+              quantity: "1",
+              unitPrice: "100.00",
+              discountPercent: "0",
+              taxAmount: "12.00", // no taxRateId
+            },
+          ],
+        },
+        ACTOR,
+      )
+      await issueInvoice(tx, NORTHWIND, invoiceId, ACTOR)
+      return taxLiabilitySummary(tx, { from: "2026-05-07", to: "2026-05-07" })
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].tax_rate_id).toBeNull()
+    expect(rows[0].output_tax).toBe("12.00")
+  })
+
+  // Not synthetic — this is the fixture's own only real posted tax line
+  // (BILL-AWS-2026-01's recoverable input tax), tagged with its rate by a
+  // targeted UPDATE in mock-data.sql. It's asymmetric on purpose: input tax
+  // with no matching output tax anywhere in the committed fixture, which is
+  // exactly the shape that would silently render as a blank cell if the
+  // report's `coalesce` around each FILTER'd sum were ever dropped.
+  it("the committed fixture's one real posted tax line shows up as a genuine (not synthetic) row", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => taxLiabilitySummary(tx, {}))
+    const ny = rows.find((r) => r.tax_rate_id === NY_RATE)
+    expect(ny).toBeDefined()
+    expect(ny?.output_tax).toBe("0")
+    expect(ny?.input_tax).toBe("161.53")
+    expect(ny?.net_liability).toBe("-161.53")
   })
 })

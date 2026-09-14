@@ -17,6 +17,7 @@
     unitPrice: string
     discountPercent: string
     taxAmount: string
+    taxRateId: string
   }
 
   let nextKey = 0
@@ -29,6 +30,7 @@
       unitPrice: "",
       discountPercent: "0",
       taxAmount: "0",
+      taxRateId: "",
     }
   }
 
@@ -182,6 +184,7 @@
                 <th class="w-32">Unit price</th>
                 <th class="w-28">Discount %</th>
                 <th class="w-32">Tax amount</th>
+                <th class="w-40">Tax rate</th>
                 <th class="w-10"></th>
               </tr>
             </thead>
@@ -236,6 +239,20 @@
                     />
                   </td>
                   <td>
+                    <select
+                      name={`lines.${i}.tax_rate_id`}
+                      class="select select-sm w-full"
+                      bind:value={line.taxRateId}
+                    >
+                      <option value="">None / unattributed</option>
+                      {#each data.taxRates as rate (rate.id)}
+                        <option value={rate.id}
+                          >{rate.code} ({rate.rate_percent}%)</option
+                        >
+                      {/each}
+                    </select>
+                  </td>
+                  <td>
                     <button
                       type="button"
                       class="btn btn-ghost btn-sm"
@@ -253,7 +270,9 @@
         </div>
         <p class="text-base-content/70 text-xs">
           Amounts and quantities are exact figures, computed on the server —
-          this form does not total them for you.
+          this form does not total them for you. Tax rate attributes a line's
+          tax to a jurisdiction for reporting; it does not compute the tax
+          amount, which is still typed in directly.
         </p>
       </div>
     </div>
