@@ -173,12 +173,22 @@ One Tailwind entry point; themes selected by the nearest `data-theme` ancestor.
 `display: contents` wrapper; `(app)` lets `ConfigProvider` set `data-theme` on
 `<html>`. Only one theme may declare `default: true`.
 
-### L18 — Fonts belong in `app.html`, not in CSS
+### L18 — Fonts are self-hosted, not loaded from a third-party CDN
 
-`@import url(...)` inside a stylesheet is a chained request: the browser must
-fetch and parse the CSS before it discovers the font CSS, before it discovers
-the font files. `<link rel="preconnect">` + `<link>` in the head is found by the
-preload scanner immediately.
+A `<link rel="stylesheet">` to an external origin blocks paint until it
+resolves, regardless of `font-display: swap` — that setting governs how TEXT
+renders once the CSS has loaded, not whether the browser waits on the fetch
+first. `preconnect` only removes DNS/TLS negotiation, not the response itself:
+measured, the Google Fonts stylesheet alone cost ~100ms of a ~120–200ms total
+page load. `@fontsource-variable/inter` / `@fontsource/instrument-serif`
+(imported in `typography.css`, bundled by Vite like any other local file)
+removed the external hop entirely.
+
+This entry previously said fonts belong in `app.html`, true only for an
+external `@import url(...)`, which chains (fetch+parse the CSS, discover the
+import, fetch that). A LOCAL import of a bundled package is resolved once at
+build time — not a runtime chain — so it now lives with the rest of the
+typography config instead.
 
 ### L22 — Nexus's palette fails WCAG AA, in every theme
 

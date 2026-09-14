@@ -18,13 +18,7 @@
     <!-- No maximum-scale / user-scalable=no: pinch-zoom must keep working. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Here, not via CSS @import, which the preload scanner cannot see (L18). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Instrument+Serif&display=swap"
-    />
+    <!-- Fonts are self-hosted (typography.css, L18) — nothing to preconnect. -->
     %sveltekit.head%
   </head>
   <body

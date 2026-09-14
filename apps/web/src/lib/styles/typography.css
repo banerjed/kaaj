@@ -1,5 +1,5 @@
-/* Fonts load from app.html, not from here (L18). Nexus's four families and
-   its [data-font-family] switcher are gone.
+/* Self-hosted (L18) — no external font CDN in the request path. Nexus's four
+ * families and its [data-font-family] switcher are gone.
  *
  * TWO faces, and the same two in BOTH themes. Inter for everything the product
  * says, Instrument Serif for display headings — the pairing from Tailwind
@@ -15,9 +15,13 @@
  * carry `font-bold` or the browser synthesises a fake bold; use size and
  * colour for emphasis there instead. */
 
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource/instrument-serif/400.css";
+
 /** Typography config for tailwindcss **/
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
+  /* "Inter Variable", not "Inter" — @fontsource-variable's registered name. */
+  --font-sans: "Inter Variable", system-ui, sans-serif;
   /* Display only — section and page headings, never body or table text. */
   --font-display: "Instrument Serif", Georgia, serif;
 
