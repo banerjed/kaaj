@@ -35,7 +35,7 @@ Never point it at a customer's infrastructure.
 ```
 
 **Everything must pass before you push, and always before deploying to
-production.** 24 steps, about 25 seconds; `./check --all` adds the
+production.** 25 steps, about 25 seconds; `./check --all` adds the
 browser suite. Non-zero exit means do not
 push.
 
@@ -74,6 +74,7 @@ directory in the repo.
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
 | security | authorization, PII and tenant isolation, both suites | 360 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,260 tests |
+| front-page load | signs in for real, loads `/employees`, fails over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
@@ -582,15 +583,26 @@ earns its place, leave it out.
 
 ## Performance
 
-**Every page render — including the initial app load — targets under 20ms,
-server-side.** That's the `handle` chain end to end: auth verification,
-every `load()`, SSR to HTML — not full browser paint, and not `vite dev`,
-whose per-request transform cost is much larger than a production build's
-and gives a misleading number. Measure with `pnpm --filter @kaaj/web
-measure-render-times` (`scripts/measure-render-times.mjs`) against an
-already-built, already-served instance — it reads the `server-timing`
-response header `hooks.server.ts` sets on every request, the same one a
-browser's own DevTools network panel shows.
+**Every page render targets under 20ms, server-side.** That's the `handle`
+chain end to end: auth verification, every `load()`, SSR to HTML — not full
+browser paint, and not `vite dev`, whose per-request transform cost is much
+larger than a production build's and gives a misleading number. Measure with
+`pnpm --filter @kaaj/web measure-render-times`
+(`scripts/measure-render-times.mjs`) against an already-built,
+already-served instance — it reads the `server-timing` response header
+`hooks.server.ts` sets on every request, the same one a browser's own
+DevTools network panel shows.
+
+**The initial app load — signed in, `/employees` fully loaded — targets under
+50ms, and `./check` fails the build over it.** A bigger number than the 20ms
+server target on purpose: it's Navigation Timing's `load` event, covering
+network transfer, CSS, JS and hydration, not just server work — the server
+alone was ~3ms even when the *page* took over 100ms, because a render-blocking
+external font request doesn't show up in server timing at all
+(`docs/10-lessons-learned.md` L18). `apps/web/scripts/verify-front-page-load.mjs`
+signs in for real, starts its own `vite preview` against the build the
+`build` step already produced, and only runs when that step does — not under
+`./check --quick`.
 
 **Every query against a table in `SCALE_SENSITIVE`
 (`scripts/verify-query-scale.mjs`) that can return an unbounded number of

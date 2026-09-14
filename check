@@ -144,7 +144,9 @@ if [ "$RUN_APP" = 1 ]; then
   step "security"   pnpm test:security
   step "unit tests" pnpm turbo run test
   [ "$RUN_BUILD" = 1 ] && step "build" pnpm turbo run build
-  # The only steps that actually render a page.
+  # Needs the build above — runs its own vite preview against it, not under --quick.
+  [ "$RUN_BUILD" = 1 ] && step "front-page load (<50ms)" node apps/web/scripts/verify-front-page-load.mjs
+  # The only other step that renders a page.
   [ "$RUN_E2E" = 1 ] && step "end-to-end" pnpm --filter @kaaj/web e2e
   echo ""
 fi
