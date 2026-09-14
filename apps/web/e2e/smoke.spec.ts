@@ -55,6 +55,7 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/accounting/tax-summary?from=2026-01-01&to=2026-12-31",
     heading: "Tax Summary",
   },
+  { path: "/accounting/exchange-rates", heading: "Exchange Rates" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {
     path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",

@@ -49,6 +49,10 @@ const PERMITTED = new Map([
     "apps/web/src/lib/mailer.ts",
     "auth.admin.getUserById to check email verification before sending — acts on auth.users, not a tenant row",
   ],
+  [
+    "apps/web/src/lib/server/accounting/fx_rates.ts",
+    "exchange_rates has no tenant_id — it is global market data, not a tenant row, and its own RLS policy allows no role but the service role to write it",
+  ],
 ])
 
 /** Comments stripped first, or a comment mentioning the identifier would trip the rule. */

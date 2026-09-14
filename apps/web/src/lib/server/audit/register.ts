@@ -190,6 +190,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "activate",
     why: "Reverses a deactivation — same audit need as reopening a period: someone should be able to say why a retired rate came back.",
   },
+  {
+    route: "accounting/exchange-rates",
+    action: "refresh",
+    why: "Changes the rate every invoice/bill in a foreign currency converts against from this point on — 'who triggered this, and what did the rate move from/to' matters the first time a conversion looks wrong.",
+  },
 
   // -- Payables: the liability recognised, and cash paid out ---------------
   {

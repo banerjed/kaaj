@@ -204,6 +204,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-exchange-rates",
+        label: "Exchange Rates",
+        url: "/accounting/exchange-rates",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-trial-balance",
         label: "Trial Balance",
         url: "/accounting/trial-balance",

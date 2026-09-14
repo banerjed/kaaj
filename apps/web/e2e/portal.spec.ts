@@ -36,6 +36,7 @@ const STAFF_ROUTES = [
   "/accounting/year-end-close",
   "/accounting/tax-rates",
   "/accounting/tax-summary",
+  "/accounting/exchange-rates",
   "/accounting/banking",
   "/ticketing",
   "/settings/company",
