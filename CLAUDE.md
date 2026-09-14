@@ -59,21 +59,21 @@ directory in the repo.
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 155 |
 | structure snapshot | the schema is exactly what was committed | 4,212 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 56 |
+| authorization | every form action authorizes; no DELETE in app code | 86 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 3 exempt |
 | tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 78 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
-| writes are audited | every action is in the audit register, either list | 37 + 27 |
+| writes are audited | every action is in the audit register, either list | 48 + 27 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 28 |
 | service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
 | security | authorization, PII and tenant isolation, both suites | 360 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,147 tests |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,260 tests |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
