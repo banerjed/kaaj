@@ -2035,6 +2035,31 @@ sixth broken copy would have caught the first five. Fixed by renaming
 should return exactly `f.problem()`'s shape — `{ message, errorFields }` —
 never a shape that merely looks similar.
 
+### L84 — `service_role` bypassed RLS but had no table GRANTs at all, so every existing service-role write path was silently broken
+
+`BYPASSRLS` and table-level `GRANT`s are two separate permission layers in
+Postgres; nothing in any migration ever granted `service_role` SELECT,
+INSERT or UPDATE on anything, on top of the RLS bypass it does have
+(`pg_roles.rolbypassrls = true`). A `postgres.js`/`withTenant` query never
+exercises this, since the app always connects as `app_user` — and a
+`supabaseServiceRole.from(table).insert(...)` call through the Supabase JS
+SDK swallows the failure into an `{ error }` return rather than throwing,
+so a caller that doesn't check it (as none did) reports success with
+nothing written. Found only by calling the real PostgREST endpoint
+directly with the service-role key and reading the actual response:
+`permission denied for table contact_requests` — against a file already on
+`verify-service-role.mjs`'s own PERMITTED list, meaning the public
+marketing site's "Contact Us" form had been silently discarding every
+submission on this database, unrelated to whatever feature was being
+built when this was found. Fixed with the same `GRANT` +
+`ALTER DEFAULT PRIVILEGES` pair `20260827000002_auth_and_grants.sql`
+already uses for `app_user` (`20260914090000_service_role_table_grants.sql`),
+minus `DELETE`, matching this codebase's own "no DELETE in app code" rule.
+**Never trust that a role passing `verify-service-role.mjs`'s import check
+can actually write — call the real endpoint and read the response**, the
+same way `L48` says a guard never observed failing is not evidence a guard
+exists.
+
 ---
 
 ## Conventions

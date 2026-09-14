@@ -68,7 +68,7 @@ directory in the repo.
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
 | writes are audited | every action is in the audit register, either list | 37 + 27 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 28 |
-| service role quarantined | nothing outside a committed list bypasses RLS | 6 files |
+| service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
@@ -77,7 +77,7 @@ directory in the repo.
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-13.
+column. They were last verified 2026-09-14.
 
 These are complementary and none substitutes for another:
 

@@ -5,6 +5,7 @@
  * until added here. Does not check whether a permitted file uses the client
  * correctly, only that the list of who may ask is agreed on.
  */
+import { execFileSync } from "node:child_process"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
@@ -121,6 +122,49 @@ if (unlisted.length || stale.length || clientSide.length) {
   process.exit(1)
 }
 
+// Importing the module proves nothing about whether a write actually
+// succeeds: BYPASSRLS and table-level GRANTs are separate layers, and
+// `supabaseServiceRole.from(t).insert(...)` swallows a permission failure
+// into `{ error }` rather than throwing, so a caller that doesn't check
+// `error` reports success with nothing written (L84). This queries the
+// grant, not the RLS-bypass flag — the thing that was actually missing.
+const url = process.env.DATABASE_URL
+if (!url) {
+  console.error("  DATABASE_URL is not set")
+  process.exit(1)
+}
+const grantSql = `
+  SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public' AND c.relkind = 'r'
+     AND NOT (
+       has_table_privilege('service_role', c.oid, 'SELECT') AND
+       has_table_privilege('service_role', c.oid, 'INSERT') AND
+       has_table_privilege('service_role', c.oid, 'UPDATE')
+     )
+   ORDER BY c.relname`
+const ungranted = execFileSync("psql", [url, "-X", "-tA", "-c", grantSql], {
+  encoding: "utf8",
+})
+  .trim()
+  .split("\n")
+  .filter(Boolean)
+
+if (ungranted.length) {
+  console.error(
+    `\n  ${ungranted.length} table(s) service_role can bypass RLS on but cannot actually write:\n`,
+  )
+  for (const t of ungranted) console.error(`    ${t}`)
+  console.error(
+    "\n  BYPASSRLS lets service_role skip every policy; it grants nothing on" +
+      "\n  its own. Every table needs SELECT/INSERT/UPDATE granted explicitly —" +
+      "\n  see the GRANT + ALTER DEFAULT PRIVILEGES pair in" +
+      "\n  20260914090000_service_role_table_grants.sql.\n",
+  )
+  process.exit(1)
+}
+
 console.log(
-  `  service role reachable from ${importers.length} committed file(s), none under (app)`,
+  `  service role reachable from ${importers.length} committed file(s), none under (app); can write every public table`,
 )
