@@ -240,7 +240,7 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 - Compound/cascading tax jurisdictions sum correctly and each layer posts to its own liability account. **[MISSING]**
   *Only a single `tax_amount`/`tax_rate_id` per line exists — no multi-jurisdiction stacking.*
 - Reverse-charge / self-assessed VAT scenarios post both the payable and receivable side symmetrically. **[MISSING]**
-  *No reverse-charge logic exists.*
+  *No reverse-charge logic exists — deliberately deferred (2026-09-13, user decision): no UK customers yet, and it's a real modeling change (the vendor's invoice carries zero VAT, so the buyer self-assesses both sides, and the self-assessed amount must be excluded from `recomputeBillTotals`'s payable-to-vendor total, which it doesn't distinguish today), not a small follow-on to the tax-summary report that just shipped.*
 - Tax on a credit memo/refund reverses exactly the tax originally charged. **[MISSING]**
   *Moot — no credit memo feature (§2.1).*
 - A tax liability report ties to the sum of all tax-account postings for the period. **[PARTIAL]** (2026-09-13)
