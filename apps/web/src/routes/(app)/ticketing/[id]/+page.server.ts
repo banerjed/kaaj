@@ -39,10 +39,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     // (ticketById), so there's no "merge the current value back into a
     // capped candidate list" step to do — unlike a plain `<select>`, a
     // Combobox's selected item doesn't need to appear in its own options.
-    const [updates, people, customFieldDefinitions, tasks, referenceLinks] =
+    const [updates, customFieldDefinitions, tasks, referenceLinks] =
       await Promise.all([
         ticketing.ticketUpdatesSummary(tx, ticket.id),
-        employees.managerOptions(tx),
         ticketing.customFieldDefinitionsFor(tx, ticket.business_area_id),
         ticketing.ticketTasksFor(tx, ticket.id),
         ticketing.referenceLinksFor(tx, ticket.id),
@@ -59,7 +58,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       // may only import a `$lib/server/*` VALUE if it's erased at compile
       // time (`import type`); this one is read at runtime to size a page.
       updatesMiddlePageSize: ticketing.UPDATES_MIDDLE_PAGE_SIZE,
-      people,
+      // Every active employee, for the assignee/subscriber Combobox options,
+      // is NOT here — it's `?/peopleOptions`, fetched only once `editing` is
+      // true. Plain view mode never renders it (ticket.assignees/subscribers
+      // already carry names), so eagerly fetching it on every load charged
+      // every read for a write-only need.
       mayWrite:
         can(ctx, "ticketing.write.own") || can(ctx, "ticketing.write.all"),
       // Assignee grants change ticket visibility (staff_ticket_visibility) —
@@ -263,6 +266,18 @@ export const actions: Actions = {
         })),
       }
     })
+  },
+
+  /** The assignee/subscriber Combobox's options — fetched once, when editing actually starts, not on every load of the page. */
+  peopleOptions: async ({ locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "ticketing.write.own")
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: (await employees.managerOptions(tx)).map((p) => ({
+        id: p.id,
+        label: p.name,
+      })),
+    }))
   },
 
   loadMoreUpdates: async ({ request, locals, params }) => {

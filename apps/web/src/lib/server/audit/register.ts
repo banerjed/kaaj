@@ -340,6 +340,11 @@ export const NOT_AUDITED: AuditedOperation[] = [
   },
   {
     route: "ticketing/[id]",
+    action: "peopleOptions",
+    why: "A read, not a write — backs the assignee/subscriber Combobox's options, fetched only once editing starts.",
+  },
+  {
+    route: "ticketing/[id]",
     action: "addTask",
     why: "A checklist item appearing on a ticket changes nobody's money, employment or rights — same reasoning as projects/[id]::addTask.",
   },
