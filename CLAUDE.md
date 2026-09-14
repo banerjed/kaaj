@@ -580,6 +580,32 @@ earns its place, leave it out.
 
 ---
 
+## Performance
+
+**Every page render — including the initial app load — targets under 20ms,
+server-side.** That's the `handle` chain end to end: auth verification,
+every `load()`, SSR to HTML — not full browser paint, and not `vite dev`,
+whose per-request transform cost is much larger than a production build's
+and gives a misleading number. Measure with `pnpm --filter @kaaj/web
+measure-render-times` (`scripts/measure-render-times.mjs`) against an
+already-built, already-served instance — it reads the `server-timing`
+response header `hooks.server.ts` sets on every request, the same one a
+browser's own DevTools network panel shows.
+
+**Every query against a table in `SCALE_SENSITIVE`
+(`scripts/verify-query-scale.mjs`) that can return an unbounded number of
+rows is paged — 20 to 50 rows per page, picked by what's actually on
+screen.** `ticketing`'s list page (`PAGE_SIZE = 20`) is the existing
+pattern: `limit`/`offset` in the query, a page number in the URL, never
+"fetch everything and slice in the template." A dense table can hold the
+higher end; a card-per-row or otherwise heavier list wants the lower end.
+Unpaged is fine on the fixture's dozen rows and a full-table read once a
+tenant has been a customer for a year — the same failure mode
+`verify-no-loop-queries.mjs` and the scale-sensitive register exist to
+catch.
+
+---
+
 ## Svelte
 
 Svelte 5, runes only. These are the ones worth stating as rules — from

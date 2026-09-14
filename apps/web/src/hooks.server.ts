@@ -10,6 +10,17 @@ import { sequence } from "@sveltejs/kit/hooks"
 import { safeError } from "$lib/errors"
 import { log } from "$lib/server/log"
 
+/** Total time through the rest of the handle chain — auth, `load()`, SSR — read by `scripts/measure-render-times.mjs` and by any browser's own DevTools network panel. */
+const timing: Handle = async ({ event, resolve }) => {
+  const start = performance.now()
+  const response = await resolve(event)
+  response.headers.set(
+    "server-timing",
+    `app;dur=${(performance.now() - start).toFixed(1)}`,
+  )
+  return response
+}
+
 export const supabase: Handle = async ({ event, resolve }) => {
   event.locals.supabase = createServerClient(
     PUBLIC_SUPABASE_URL,
@@ -43,7 +54,18 @@ export const supabase: Handle = async ({ event, resolve }) => {
     )
   }
 
-  /** Unlike `getSession()` alone, also calls `getUser()` to validate the JWT. */
+  /**
+   * `getSession()` alone reads whatever is in the cookie — client-controlled,
+   * so a forged token would be trusted as-is. `getClaims()` verifies the
+   * signature first: locally via WebCrypto against the cached JWKS since
+   * this project signs asymmetrically (`/auth/v1/.well-known/jwks.json`),
+   * network call otherwise. Same forgery guarantee `getUser()` gave; the gap
+   * is an explicit sign-out-everywhere or account ban between issuance and
+   * this token's own expiry. `jwt_expiry` (supabase/config.toml) already
+   * bounds that same staleness for this app's tenant-membership claims —
+   * `custom_access_token_hook` only re-checks `tenant_users.is_active` when
+   * a token is minted, not on every request — so it's the load-bearing knob.
+   */
   let authResult:
     | Promise<{
         session: import("@supabase/supabase-js").Session | null
@@ -59,12 +81,11 @@ export const supabase: Handle = async ({ event, resolve }) => {
       } = await event.locals.supabase.auth.getSession()
       if (!session) return { session: null, user: null }
 
-      const {
-        data: { user },
-        error: userError,
-      } = await event.locals.supabase.auth.getUser()
-      if (userError) return { session: null, user: null }
-      return { session, user }
+      const { error: claimsError } = await event.locals.supabase.auth.getClaims(
+        session.access_token,
+      )
+      if (claimsError) return { session: null, user: null }
+      return { session, user: session.user }
     })()
 
     const { session, user } = await authResult
@@ -108,7 +129,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 /**
  * Reads `app_metadata` from the ACCESS TOKEN, not `user.app_metadata` (always
  * empty of these claims, L4). Decoding without verifying is safe only because
- * `safeGetSession` already validated this token via `getUser()`.
+ * `safeGetSession` already validated this token via `getClaims()`.
  */
 function appMetadataFromToken(accessToken?: string): {
   tenantId: string | null
@@ -172,7 +193,7 @@ function appMetadataFromToken(accessToken?: string): {
   }
 }
 
-export const handle: Handle = sequence(supabase, authGuard)
+export const handle: Handle = sequence(timing, supabase, authGuard)
 
 /**
  * Every unexpected error gets an id, logged and returned to the page, since

@@ -187,7 +187,16 @@ site_url = "http://127.0.0.1:5173"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:5173"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
-jwt_expiry = 3600
+#
+# 900 (15 min), not the default: this is the actual bound on how long a
+# terminated employee's already-issued token keeps working. custom_access_
+# token_hook checks tenant_users.is_active only when a token is minted or
+# refreshed, not on every request (hooks.server.ts's safeGetSession verifies
+# the token's signature per request, not live tenant membership) — so a
+# token minted the moment before termination stays valid, with its stale
+# pre-termination claims, until it expires. Refresh happens transparently in
+# the background on the client SDK's own schedule, off the request path.
+jwt_expiry = 900
 # JWT issuer URL. If not set, defaults to auth.external_url.
 # jwt_issuer = ""
 # Path to JWT signing key. DO NOT commit your signing keys file to git.
