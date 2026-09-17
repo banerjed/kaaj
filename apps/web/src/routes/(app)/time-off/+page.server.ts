@@ -15,12 +15,15 @@ import {
   requireCan,
 } from "$lib/server/auth/can"
 
+const PAGE_SIZE = 20
+
 /** /time-off — module-hr.md. Shows the approval queue and the signed-in employee's own balances. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const userId = locals.user?.id
 
   const status = url.searchParams.get("status") ?? ""
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   // tenant_users stays in the control-plane database regardless of tier
   // (ADR-009) — a dedicated tenant's own database never has these rows.
@@ -32,8 +35,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   })
 
   return withTenant(actorFrom(locals), async (tx) => {
+    const [requestRows, total] = await Promise.all([
+      requests.list(tx, {
+        status,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      requests.count(tx, { status }),
+    ])
     return {
-      requests: await requests.list(tx, { status }),
+      requests: requestRows,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
       myBalances: myEmployeeId
         ? await balances.forEmployee(tx, myEmployeeId)
         : [],

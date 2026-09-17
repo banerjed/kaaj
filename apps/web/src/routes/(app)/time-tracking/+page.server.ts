@@ -24,6 +24,8 @@ async function resolveEmployeeId(
   })
 }
 
+const PAGE_SIZE = 20
+
 /** /time-tracking — module-time-tracking.md (Phase 5), slice 1: manual entries only. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -32,15 +34,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const status = url.searchParams.get("status") ?? ""
   const mineOnly = url.searchParams.get("mine") === "1"
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   const myEmployeeId = await resolveEmployeeId(locals, userId)
 
   return withTenant(actorFrom(locals), async (tx) => {
-    return {
-      entries: await entries.list(tx, {
-        status,
-        employeeId: mineOnly ? (myEmployeeId ?? undefined) : undefined,
+    const queryFilters = {
+      status,
+      employeeId: mineOnly ? (myEmployeeId ?? undefined) : undefined,
+    }
+    const [entryRows, total] = await Promise.all([
+      entries.list(tx, {
+        ...queryFilters,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       }),
+      entries.count(tx, queryFilters),
+    ])
+    return {
+      entries: entryRows,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
       activeProjects: await projects.list(tx),
       tasks: await entries.tasksForActiveProjects(tx),
       myEmployeeId,

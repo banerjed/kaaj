@@ -5,12 +5,25 @@
   import { billStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      status: data.filters.status,
+      unapproved: data.filters.unapprovedOnly ? "1" : "",
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Bills" />
@@ -127,6 +140,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
     </div>
   {/if}
 </div>

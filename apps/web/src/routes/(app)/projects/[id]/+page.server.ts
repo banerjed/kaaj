@@ -24,9 +24,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const project = await projects.byId(tx, params.id)
     if (!project) error(404, "No such project")
+    const [tasks, tasksTotal] = await Promise.all([
+      projects.tasksFor(tx, project.id),
+      projects.countTasksFor(tx, project.id),
+    ])
     return {
       project,
-      tasks: await projects.tasksFor(tx, project.id),
+      tasks,
+      tasksTotal,
       taskStatuses: TASK_STATUSES,
       taskPriorities: TASK_PRIORITIES,
       projectStatuses: PROJECT_STATUSES,

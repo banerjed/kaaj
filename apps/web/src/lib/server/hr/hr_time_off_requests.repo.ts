@@ -47,9 +47,14 @@ const SELECT = `
 
 export async function list(
   tx: Tx,
-  filters: { status?: string; employeeId?: string } = {},
+  filters: {
+    status?: string
+    employeeId?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<TimeOffRequest[]> {
-  const { status = "", employeeId = "" } = filters
+  const { status = "", employeeId = "", limit = null, offset = 0 } = filters
   // NULL rather than '' for the uuid cast (L37).
   const employee = employeeId || null
   return tx<TimeOffRequest[]>`
@@ -57,7 +62,24 @@ export async function list(
      WHERE (${status} = '' OR r.status = ${status})
        AND (${employee}::uuid IS NULL OR r.employee_id = ${employee}::uuid)
      ORDER BY r.start_date DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
+export async function count(
+  tx: Tx,
+  filters: { status?: string; employeeId?: string } = {},
+): Promise<number> {
+  const { status = "", employeeId = "" } = filters
+  const employee = employeeId || null
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM hr_time_off_requests r
+     WHERE (${status} = '' OR r.status = ${status})
+       AND (${employee}::uuid IS NULL OR r.employee_id = ${employee}::uuid)
+  `
+  return n
 }
 
 export async function getById(

@@ -6,6 +6,7 @@
   import type { Tone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
@@ -42,6 +43,20 @@
   /** Hours read as a timesheet — 7h 45m — via format.ts, never formatted here. */
   const worked = (v: string | null, row: { locale: string | null }) =>
     hours(v, row.locale ?? tenantLocale)
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      from: data.filters.from,
+      to: data.filters.to,
+      status: data.filters.status,
+      employee: data.filters.employee,
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Attendance" />
@@ -101,9 +116,8 @@
     />
   {:else}
     <p class="text-base-content/70 mt-4 text-sm">
-      {data.days.length}
-      {data.days.length === 1 ? "day" : "days"} · times shown in each office's own
-      timezone
+      {data.total}
+      {data.total === 1 ? "day" : "days"} · times shown in each office's own timezone
     </p>
 
     <!-- Mobile. `md:hidden` is on the wrapper, not `.list`, which sets display (L10). -->
@@ -200,6 +214,18 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- One shared footer under either layout — Pagination has no
+         responsive hiding of its own, so it renders once regardless of
+         which table above it is currently visible. -->
+    <div class="card bg-base-100 mt-2 shadow">
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
     </div>
   {/if}
 </div>

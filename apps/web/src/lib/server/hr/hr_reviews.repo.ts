@@ -88,11 +88,18 @@ function redactFor(row: Review, reader: ReviewReader): Review {
 export async function visibleTo(
   tx: Tx,
   reader: ReviewReader,
-  filters: { cycleCode?: string; employeeId?: string } = {},
+  filters: {
+    cycleCode?: string
+    employeeId?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<Review[]> {
   const cycle = filters.cycleCode || null
   const employee = filters.employeeId || null
   const me = reader.employeeId || null
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
 
   const rows = await tx<Review[]>`
     ${tx.unsafe(SELECT)}
@@ -102,8 +109,30 @@ export async function visibleTo(
        AND (${cycle}::text IS NULL OR r.cycle_code = ${cycle}::text)
        AND (${employee}::uuid IS NULL OR r.employee_id = ${employee}::uuid)
      ORDER BY r.review_date DESC NULLS LAST, employee_name ASC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
   return rows.map((r) => redactFor(r, reader))
+}
+
+/** The total matching a filter set — same predicates as `visibleTo`, for the list page's pagination controls. */
+export async function countVisibleTo(
+  tx: Tx,
+  reader: ReviewReader,
+  filters: { cycleCode?: string; employeeId?: string } = {},
+): Promise<number> {
+  const cycle = filters.cycleCode || null
+  const employee = filters.employeeId || null
+  const me = reader.employeeId || null
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM hr_reviews r
+     WHERE (${reader.readsAll}
+            OR r.employee_id = ${me}::uuid
+            OR r.reviewer_id = ${me}::uuid)
+       AND (${cycle}::text IS NULL OR r.cycle_code = ${cycle}::text)
+       AND (${employee}::uuid IS NULL OR r.employee_id = ${employee}::uuid)
+  `
+  return n
 }
 
 export async function byId(

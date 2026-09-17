@@ -154,6 +154,11 @@
           </tbody>
         </table>
       </div>
+      {#if data.linesTotal > data.lines.length}
+        <p class="text-base-content/70 text-xs">
+          Showing the first {data.lines.length} of {data.linesTotal} lines.
+        </p>
+      {/if}
 
       <!-- Exact figures only — checked against a bank statement. -->
       <dl
@@ -203,7 +208,7 @@
 
   <h2 class="mt-6 text-base font-medium">
     Payments received
-    <span class="badge badge-sm ms-1">{data.payments.length}</span>
+    <span class="badge badge-sm ms-1">{data.paymentsTotal}</span>
   </h2>
 
   {#if data.payments.length === 0}
@@ -230,12 +235,17 @@
           </li>
         {/each}
       </ul>
+      {#if data.paymentsTotal > data.payments.length}
+        <p class="text-base-content/70 border-base-200 border-t p-3 text-xs">
+          Showing the first {data.payments.length} of {data.paymentsTotal}.
+        </p>
+      {/if}
     </div>
   {/if}
 
   <h2 class="mt-6 text-base font-medium">
     Credits issued
-    <span class="badge badge-sm ms-1">{data.credits.length}</span>
+    <span class="badge badge-sm ms-1">{data.creditsTotal}</span>
   </h2>
 
   {#if data.credits.length === 0}
@@ -266,6 +276,11 @@
           </li>
         {/each}
       </ul>
+      {#if data.creditsTotal > data.credits.length}
+        <p class="text-base-content/70 border-base-200 border-t p-3 text-xs">
+          Showing the first {data.credits.length} of {data.creditsTotal}.
+        </p>
+      {/if}
     </div>
   {/if}
 

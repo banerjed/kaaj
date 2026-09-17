@@ -8,6 +8,7 @@
   import { bankTransactionStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
 
@@ -30,6 +31,18 @@
     a.feed_balance === null
       ? null
       : Number(a.current_balance ?? 0) - Number(a.feed_balance)
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      account: data.filters.accountId,
+      status: data.filters.status,
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Banking" />
@@ -217,6 +230,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
     </div>
   {/if}
 </div>

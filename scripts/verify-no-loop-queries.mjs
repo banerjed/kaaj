@@ -49,6 +49,14 @@ const EXEMPT = new Set([
   // of how large the invoices table is — the bound is a literal in the loop
   // head, not a row count.
   "apps/web/src/lib/server/accounting/accounting.repo.ts:for (let attempt = 0; attempt < 5 && invoiceId === undefined; attempt++) {",
+
+  // Bounded by how many bank accounts the firm has on file
+  // (NOT_SCALE_SENSITIVE), not by transaction volume — a batched `= ANY(...)`
+  // form was measurably SLOWER here: a window function's top-1-per-partition
+  // still has to walk every row of whichever account has the most
+  // transactions before it can move to the next partition, where a literal
+  // `ORDER BY ... LIMIT 1` per account lets the planner seek straight to it.
+  "apps/web/src/lib/server/accounting/payables.repo.ts:for (const id of accountIds) {",
 ])
 
 function* tsFiles(dir) {

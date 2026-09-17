@@ -61,6 +61,14 @@ export async function forEmployee(tx: Tx, employeeId: string): Promise<Goal[]> {
   `
 }
 
+/**
+ * Goals recur every review cycle per employee, indefinitely (the table's own
+ * SCALE_SENSITIVE reason) — bounded per employee in ordinary use, but this
+ * fans out across every subject on a reviews page, so a cap here is defense
+ * against one pathological employee, not a real business limit.
+ */
+const GOALS_CAP = 500
+
 /** Goals for everyone this reader may see, resolved by the caller. */
 export async function forEmployees(
   tx: Tx,
@@ -71,6 +79,7 @@ export async function forEmployees(
     ${tx.unsafe(SELECT)}
      WHERE g.employee_id = ANY(${employeeIds}::uuid[])
      ORDER BY employee_name ASC, g.target_date ASC NULLS LAST
+     LIMIT ${GOALS_CAP}
   `
 }
 

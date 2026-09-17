@@ -72,6 +72,79 @@ const SELECT = `
     LEFT JOIN employees m ON m.id = p.project_manager_id
 `
 
+/**
+ * Same columns as `SELECT`, minus the three `tasks` correlated subqueries —
+ * fine for `byId`'s single row but a full scan of `tasks` PER PROJECT ROW on
+ * the list as it grows. `list` fetches this instead and merges in
+ * `taskCountsFor`'s one batched aggregate query — same shape as
+ * `accounting.repo.ts`'s `invoiceLineTotalsFor`.
+ */
+const LIST_SELECT = `
+  SELECT p.id, p.project_number, p.project_name, p.status, p.health_status,
+         p.priority,
+         p.progress_percentage::text AS progress_percentage,
+         p.task_count, p.completed_task_count,
+         p.budget::text          AS budget,
+         p.actual_cost::text     AS actual_cost,
+         p.total_billed::text    AS total_billed,
+         p.hourly_rate::text     AS hourly_rate,
+         p.currency,
+         p.estimated_hours::text AS estimated_hours,
+         p.actual_hours::text    AS actual_hours,
+         to_char(p.start_date,'YYYY-MM-DD')      AS start_date,
+         to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
+         c.client_name,
+         m.first_name || ' ' || m.last_name AS manager_name,
+         p.is_billable
+    FROM projects p
+    LEFT JOIN clients c   ON c.id = p.client_id
+    LEFT JOIN employees m ON m.id = p.project_manager_id
+`
+
+/** `actual_task_count`/`actual_completed_count`/`overdue_task_count` for a set of projects, in one query — see `LIST_SELECT`. */
+async function taskCountsFor(
+  tx: Tx,
+  projectIds: string[],
+): Promise<
+  Record<
+    string,
+    {
+      actual_task_count: number
+      actual_completed_count: number
+      overdue_task_count: number
+    }
+  >
+> {
+  if (projectIds.length === 0) return {}
+  const rows = await tx<
+    {
+      project_id: string
+      actual_task_count: number
+      actual_completed_count: number
+      overdue_task_count: number
+    }[]
+  >`
+    SELECT project_id::text AS project_id,
+           count(*)::int AS actual_task_count,
+           count(*) FILTER (WHERE status = 'done')::int AS actual_completed_count,
+           count(*) FILTER (WHERE due_date < CURRENT_DATE AND status <> 'done')::int
+             AS overdue_task_count
+      FROM tasks
+     WHERE project_id = ANY(${projectIds}::uuid[])
+     GROUP BY project_id
+  `
+  const out: Record<
+    string,
+    {
+      actual_task_count: number
+      actual_completed_count: number
+      overdue_task_count: number
+    }
+  > = {}
+  for (const { project_id, ...counts } of rows) out[project_id] = counts
+  return out
+}
+
 export async function list(
   tx: Tx,
   filters: { status?: string; health?: string; clientId?: string } = {},
@@ -79,14 +152,29 @@ export async function list(
   const { status = "", health = "" } = filters
   // NULL rather than '' for the uuid cast (L37).
   const clientId = filters.clientId || null
-  return tx<ProjectRow[]>`
-    ${tx.unsafe(SELECT)}
+  const rows = await tx<
+    Omit<
+      ProjectRow,
+      "actual_task_count" | "actual_completed_count" | "overdue_task_count"
+    >[]
+  >`
+    ${tx.unsafe(LIST_SELECT)}
      WHERE p.archived_at IS NULL
        AND (${status} = '' OR p.status = ${status})
        AND (${health} = '' OR p.health_status = ${health})
        AND (${clientId}::uuid IS NULL OR p.client_id = ${clientId}::uuid)
      ORDER BY p.project_number
   `
+  const counts = await taskCountsFor(
+    tx,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => ({
+    ...r,
+    actual_task_count: counts[r.id]?.actual_task_count ?? 0,
+    actual_completed_count: counts[r.id]?.actual_completed_count ?? 0,
+    overdue_task_count: counts[r.id]?.overdue_task_count ?? 0,
+  }))
 }
 
 export async function byId(tx: Tx, id: string): Promise<ProjectRow | null> {
@@ -129,6 +217,15 @@ export type TaskRow = {
   is_overdue: boolean
 }
 
+/**
+ * A board's task count is bounded by what a team actually manages at once,
+ * not by tenure — unlike `tasks`'s own SCALE_SENSITIVE classification, which
+ * is about the table as a whole across every project. A cap here is defense
+ * against one pathological project (a bad import, a bug elsewhere), not a
+ * real business limit.
+ */
+const BOARD_TASK_CAP = 500
+
 export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
   return tx<TaskRow[]>`
     SELECT t.id, t.task_number, t.task_name, t.status, t.priority,
@@ -147,7 +244,19 @@ export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
       LEFT JOIN employees e ON e.id::text = t.assigned_to
      WHERE t.project_id = ${projectId}::uuid
      ORDER BY t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number
+     LIMIT ${BOARD_TASK_CAP}
   `
+}
+
+/** The true count behind `tasksFor`'s capped list, so a truncated board can say so. */
+export async function countTasksFor(
+  tx: Tx,
+  projectId: string,
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM tasks WHERE project_id = ${projectId}::uuid
+  `
+  return n
 }
 
 /**

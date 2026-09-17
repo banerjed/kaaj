@@ -9,12 +9,18 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import { ReviewRefused } from "$lib/server/hr/hr_reviews.repo"
 
+const PAGE_SIZE = 20
+
 /**
  * /performance — module-hr.md § Performance Management.
  * Submit/acknowledge audit in the same transaction as the change. The repository,
  * not this page, decides visibility — a manager's draft is withheld there.
+ *
+ * Reviews and feedback are two independent lists on one page, so each gets
+ * its own page param (`reviews_page`/`feedback_page`) rather than sharing
+ * one — paging through feedback shouldn't also move the reviews list.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
 
@@ -23,8 +29,23 @@ export const load: PageServerLoad = async ({ locals }) => {
     readsAll: can(ctx, "performance.read.all"),
   }
 
+  const reviewsPage = Math.max(
+    1,
+    Number(url.searchParams.get("reviews_page")) || 1,
+  )
+  const feedbackPage = Math.max(
+    1,
+    Number(url.searchParams.get("feedback_page")) || 1,
+  )
+
   return withTenant(actorFrom(locals), async (tx) => {
-    const visible = await reviews.visibleTo(tx, reader)
+    const [visible, reviewsTotal] = await Promise.all([
+      reviews.visibleTo(tx, reader, {
+        limit: PAGE_SIZE,
+        offset: (reviewsPage - 1) * PAGE_SIZE,
+      }),
+      reviews.countVisibleTo(tx, reader),
+    ])
 
     // Who this person manages, for the `manager_only` feedback rule — one query, not one per note.
     const manages = reader.employeeId
@@ -40,13 +61,28 @@ export const load: PageServerLoad = async ({ locals }) => {
         ).map((r) => r.id)
       : []
 
-    // Goals only for subjects whose reviews are visible, so the page's two halves agree.
+    // Goals only for subjects whose reviews are visible, so the page's two
+    // halves agree — now the current PAGE of reviews, same invariant.
     const subjects = [...new Set(visible.map((r) => r.employee_id))]
+
+    const feedbackReader = { ...reader, manages }
+    const [feedbackRows, feedbackTotal] = await Promise.all([
+      feedback.visibleTo(tx, feedbackReader, {
+        limit: PAGE_SIZE,
+        offset: (feedbackPage - 1) * PAGE_SIZE,
+      }),
+      feedback.countVisibleTo(tx, feedbackReader),
+    ])
 
     return {
       reviews: visible,
+      reviewsTotal,
+      reviewsPage,
       goals: await goals.forEmployees(tx, subjects),
-      feedback: await feedback.visibleTo(tx, { ...reader, manages }),
+      feedback: feedbackRows,
+      feedbackTotal,
+      feedbackPage,
+      pageSize: PAGE_SIZE,
       cycles: await reviews.cycles(tx),
       progress: reader.readsAll
         ? await reviews.cycleProgress(tx, "2026-H1")

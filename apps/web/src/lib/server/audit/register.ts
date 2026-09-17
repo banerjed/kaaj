@@ -413,4 +413,9 @@ export const NOT_AUDITED: AuditedOperation[] = [
     action: "setCustomFields",
     why: "Ticket attributes (asset tag, account tier, ...) — the same category as severity/priority, which already change with no audit entry via addUpdate's status-change path.",
   },
+  {
+    route: "accounting/ledger",
+    action: "checkBalance",
+    why: "A read, not a write — the full-ledger integrity scan moved out of load() so it runs on demand instead of on every page view; it changes no row.",
+  },
 ]

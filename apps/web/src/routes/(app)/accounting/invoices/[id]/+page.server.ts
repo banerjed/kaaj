@@ -27,11 +27,23 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const invoice = await acc.invoiceById(tx, params.id)
     if (!invoice) error(404, "No such invoice")
+    const [lines, linesTotal, payments, paymentsTotal, credits, creditsTotal] =
+      await Promise.all([
+        acc.invoiceLines(tx, invoice.id),
+        acc.countInvoiceLines(tx, invoice.id),
+        acc.paymentsFor(tx, invoice.id),
+        acc.countPaymentsFor(tx, invoice.id),
+        acc.creditsFor(tx, invoice.id),
+        acc.countCreditsFor(tx, invoice.id),
+      ])
     return {
       invoice,
-      lines: await acc.invoiceLines(tx, invoice.id),
-      payments: await acc.paymentsFor(tx, invoice.id),
-      credits: await acc.creditsFor(tx, invoice.id),
+      lines,
+      linesTotal,
+      payments,
+      paymentsTotal,
+      credits,
+      creditsTotal,
       mayWrite: can(ctx, "accounting.write"),
       methods: METHODS,
       bankAccounts: await tx<{ id: string; account_name: string }[]>`

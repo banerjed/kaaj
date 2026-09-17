@@ -52,9 +52,12 @@ export type FeedbackReader = {
 export async function visibleTo(
   tx: Tx,
   reader: FeedbackReader,
+  filters: { limit?: number; offset?: number } = {},
 ): Promise<Feedback[]> {
   const me = reader.employeeId || null
   const manages = reader.manages
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<Feedback[]>`
     ${tx.unsafe(SELECT)}
      WHERE ${reader.readsAll}
@@ -65,7 +68,27 @@ export async function visibleTo(
         OR (f.visibility = 'manager_only'
             AND f.to_employee_id = ANY(${manages}::uuid[]))
      ORDER BY f.feedback_date DESC NULLS LAST, f.feedback_id ASC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `visibleTo`, for the list page's pagination controls. */
+export async function countVisibleTo(
+  tx: Tx,
+  reader: FeedbackReader,
+): Promise<number> {
+  const me = reader.employeeId || null
+  const manages = reader.manages
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM hr_feedback f
+     WHERE ${reader.readsAll}
+        OR f.visibility = 'public'
+        OR (f.to_employee_id = ${me}::uuid AND f.visibility <> 'manager_only')
+        OR (f.visibility = 'manager_only'
+            AND f.to_employee_id = ANY(${manages}::uuid[]))
+  `
+  return n
 }
 
 /** Notes this person has received and may see — excludes `manager_only`, which was written for their manager, not them. */

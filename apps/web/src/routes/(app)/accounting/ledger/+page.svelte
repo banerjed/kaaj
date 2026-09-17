@@ -5,6 +5,8 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import { enhance } from "$app/forms"
 
   let { data } = $props()
 
@@ -16,6 +18,26 @@
     s === "posted" ? "positive" : s === "reversed" ? "critical" : "neutral"
 
   let open = $state<string | null>(null)
+
+  // Run on demand, not loaded with the page — a full-ledger scan, not a
+  // list — so `balanceCheck` starts unknown rather than reading `data`.
+  let balanceCheck = $state<
+    { entry_number: string; debits: string; credits: string }[] | null
+  >(null)
+  let checkingBalance = $state(false)
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      from: data.filters.from,
+      to: data.filters.to,
+      status: data.filters.status,
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="General Ledger" />
@@ -29,31 +51,59 @@
     ]}
   />
 
-  <!-- A ledger that doesn't balance belongs at the top, not buried in a log. -->
-  {#if data.unbalanced.length > 0}
-    <div role="alert" class="alert alert-error mt-4">
-      <span class="iconify lucide--triangle-alert size-5"></span>
-      <div>
-        <p class="font-medium">
-          {data.unbalanced.length} entr{data.unbalanced.length === 1
-            ? "y does"
-            : "ies do"} not balance.
-        </p>
-        <p class="text-sm">
-          {data.unbalanced.map((u) => u.entry_number).join(", ")}
-        </p>
+  <!-- A full-ledger scan, run on demand rather than on every page view (see
+       +page.server.ts's checkBalance) — a ledger that doesn't balance
+       belongs at the top once checked, not buried in a log. -->
+  {#if balanceCheck !== null}
+    {#if balanceCheck.length > 0}
+      <div role="alert" class="alert alert-error mt-4">
+        <span class="iconify lucide--triangle-alert size-5"></span>
+        <div>
+          <p class="font-medium">
+            {balanceCheck.length} entr{balanceCheck.length === 1
+              ? "y does"
+              : "ies do"} not balance.
+          </p>
+          <p class="text-sm">
+            {balanceCheck.map((u) => u.entry_number).join(", ")}
+          </p>
+        </div>
       </div>
-    </div>
+    {:else}
+      <div role="status" class="alert alert-success mt-4">
+        <span class="iconify lucide--circle-check size-5"></span>
+        <span>Every entry balances.</span>
+      </div>
+    {/if}
   {/if}
 
-  {#if data.mayWrite}
-    <div class="mt-4 flex justify-end">
+  <div class="mt-4 flex items-center justify-between gap-2">
+    <form
+      method="POST"
+      action="?/checkBalance"
+      use:enhance={() => {
+        checkingBalance = true
+        return async ({ result, update }) => {
+          checkingBalance = false
+          if (result.type === "success" && result.data) {
+            balanceCheck = result.data.unbalanced as typeof balanceCheck
+          }
+          await update({ reset: false })
+        }
+      }}
+    >
+      <button class="btn btn-sm" disabled={checkingBalance}>
+        {checkingBalance ? "Checking…" : "Check for imbalances"}
+      </button>
+    </form>
+
+    {#if data.mayWrite}
       <a href="/accounting/journal-entries/new" class="btn btn-primary btn-sm">
         <span class="iconify lucide--plus size-4"></span>
         New entry
       </a>
-    </div>
-  {/if}
+    {/if}
+  </div>
 
   <form method="GET" class="mt-4 flex flex-wrap items-end gap-3">
     <fieldset class="fieldset">
@@ -144,6 +194,9 @@
                     <p class="text-base-content/70 mb-2 text-xs">
                       {e.line_count} lines
                       {#if e.reference}· {e.reference}{/if}
+                      {#if (data.lines[e.id]?.length ?? 0) < e.line_count}
+                        · showing the first {data.lines[e.id]?.length ?? 0}
+                      {/if}
                     </p>
                     <!-- Loaded with the page, not on expand — avoids per-row N+1. -->
                     <table class="table table-sm">
@@ -186,6 +239,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
     </div>
   {/if}
 </div>

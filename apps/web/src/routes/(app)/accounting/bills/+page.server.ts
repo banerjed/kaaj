@@ -7,6 +7,8 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
+const PAGE_SIZE = 20
+
 /** /accounting/bills — accounts payable. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -20,13 +22,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", BILL_STATUSES) ?? ""
   const unapprovedOnly = url.searchParams.get("unapproved") === "1"
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
-  return withTenant(actorFrom(locals), async (tx) => ({
-    bills: await pay.listBills(tx, { status, unapprovedOnly }),
-    statuses: BILL_STATUSES,
-    filters: { status, unapprovedOnly },
-    mayWrite: can(ctx, "accounting.write"),
-    // For per-market number formatting; see localeForCurrency.
-    locations: await locationsRepo.list(tx),
-  }))
+  return withTenant(actorFrom(locals), async (tx) => {
+    const [bills, total] = await Promise.all([
+      pay.listBills(tx, {
+        status,
+        unapprovedOnly,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      pay.countBills(tx, { status, unapprovedOnly }),
+    ])
+    return {
+      bills,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
+      statuses: BILL_STATUSES,
+      filters: { status, unapprovedOnly },
+      mayWrite: can(ctx, "accounting.write"),
+      // For per-market number formatting; see localeForCurrency.
+      locations: await locationsRepo.list(tx),
+    }
+  })
 }

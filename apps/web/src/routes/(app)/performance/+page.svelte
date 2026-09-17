@@ -5,6 +5,7 @@
   import type { Tone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
 
@@ -28,6 +29,23 @@
     data.goals.filter((g) => g.employee_id === employeeId)
 
   const cycle = $derived(data.cycles[0])
+
+  // Each list keeps its own page param — paging through feedback shouldn't
+  // also move the reviews list, so each url preserves the OTHER one's page.
+  function reviewsPageUrl(page: number): string {
+    const params = new URLSearchParams({
+      feedback_page: String(data.feedbackPage),
+    })
+    params.set("reviews_page", String(page))
+    return `?${params.toString()}`
+  }
+  function feedbackPageUrl(page: number): string {
+    const params = new URLSearchParams({
+      reviews_page: String(data.reviewsPage),
+    })
+    params.set("feedback_page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Performance" />
@@ -250,6 +268,12 @@
           </li>
         {/each}
       </ul>
+      <Pagination
+        page={data.feedbackPage}
+        pageSize={data.pageSize}
+        total={data.feedbackTotal}
+        hrefFor={feedbackPageUrl}
+      />
     </div>
   {/if}
 
@@ -300,6 +324,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.reviewsPage}
+        pageSize={data.pageSize}
+        total={data.reviewsTotal}
+        hrefFor={reviewsPageUrl}
+      />
     </div>
   {/if}
 

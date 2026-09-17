@@ -158,17 +158,42 @@ const TASK_SELECT = `
 /** Tasks for a hire, or assigned to someone, or both. */
 export async function tasks(
   tx: Tx,
-  filters: { employeeId?: string; assignedTo?: string } = {},
+  filters: {
+    employeeId?: string
+    assignedTo?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<OnboardingTask[]> {
   const employee = filters.employeeId || null
   const assignee = filters.assignedTo || null
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<OnboardingTask[]>`
     ${tx.unsafe(TASK_SELECT)}
      WHERE (${employee}::uuid IS NULL OR o.employee_id = ${employee}::uuid)
        AND (${assignee}::uuid IS NULL
             OR o.assigned_to_employee_id = ${assignee}::uuid)
      ORDER BY o.due_date ASC NULLS LAST, o.task_id ASC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `tasks`, for the list page's pagination controls. */
+export async function countTasks(
+  tx: Tx,
+  filters: { employeeId?: string; assignedTo?: string } = {},
+): Promise<number> {
+  const employee = filters.employeeId || null
+  const assignee = filters.assignedTo || null
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM hr_onboarding_tasks o
+     WHERE (${employee}::uuid IS NULL OR o.employee_id = ${employee}::uuid)
+       AND (${assignee}::uuid IS NULL
+            OR o.assigned_to_employee_id = ${assignee}::uuid)
+  `
+  return n
 }
 
 /** Tasks whose status and completion date disagree. */

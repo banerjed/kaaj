@@ -25,10 +25,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const bill = await pay.billById(tx, params.id)
     if (!bill) error(404, "No such bill")
+    const [lines, linesTotal, payments, paymentsTotal] = await Promise.all([
+      pay.billLines(tx, bill.id),
+      pay.countBillLines(tx, bill.id),
+      pay.paymentsForBill(tx, bill.id),
+      pay.countPaymentsForBill(tx, bill.id),
+    ])
     return {
       bill,
-      lines: await pay.billLines(tx, bill.id),
-      payments: await pay.paymentsForBill(tx, bill.id),
+      lines,
+      linesTotal,
+      payments,
+      paymentsTotal,
       mayWrite: can(ctx, "accounting.write"),
       methods: METHODS,
       bankAccounts: await tx<{ id: string; account_name: string }[]>`

@@ -57,20 +57,102 @@ const INVOICE_SELECT = `
     LEFT JOIN customers c ON c.id = i.customer_id
 `
 
+/**
+ * Same columns as `INVOICE_SELECT`, minus `line_subtotal`/`line_count` — those
+ * are a per-row correlated subquery over `invoice_lines`, fine for
+ * `invoiceById`'s single row but a full scan of that table PER ROW on a
+ * paginated list as it grows. `listInvoices` fetches this instead and merges
+ * in `invoiceLineTotalsFor`'s one batched aggregate query, the same
+ * "one query for the page, not one per row" shape as `ledgerLinesForEntries`.
+ */
+const INVOICE_LIST_SELECT = `
+  SELECT i.id, i.invoice_number,
+         c.customer_name,
+         to_char(i.invoice_date,'YYYY-MM-DD') AS invoice_date,
+         to_char(i.due_date,'YYYY-MM-DD')     AS due_date,
+         i.currency,
+         i.subtotal::text    AS subtotal,
+         i.tax_total::text   AS tax_total,
+         i.total::text       AS total,
+         i.amount_paid::text     AS amount_paid,
+         i.amount_credited::text AS amount_credited,
+         i.amount_due::text      AS amount_due,
+         i.status,
+         (i.due_date < CURRENT_DATE
+            AND i.amount_due > 0
+            AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')) AS is_overdue
+    FROM invoices i
+    LEFT JOIN customers c ON c.id = i.customer_id
+`
+
+/** `line_subtotal`/`line_count` for a set of invoices, in one query — see `INVOICE_LIST_SELECT`. */
+async function invoiceLineTotalsFor(
+  tx: Tx,
+  invoiceIds: string[],
+): Promise<Record<string, { line_subtotal: string; line_count: number }>> {
+  if (invoiceIds.length === 0) return {}
+  const rows = await tx<
+    { invoice_id: string; line_subtotal: string; line_count: number }[]
+  >`
+    SELECT invoice_id::text AS invoice_id,
+           (sum(amount) - sum(discount_amount))::text AS line_subtotal,
+           count(*)::int AS line_count
+      FROM invoice_lines
+     WHERE invoice_id = ANY(${invoiceIds}::uuid[])
+     GROUP BY invoice_id
+  `
+  const out: Record<string, { line_subtotal: string; line_count: number }> = {}
+  for (const { invoice_id, ...totals } of rows) out[invoice_id] = totals
+  return out
+}
+
 export async function listInvoices(
   tx: Tx,
-  filters: { status?: string; overdueOnly?: boolean } = {},
+  filters: {
+    status?: string
+    overdueOnly?: boolean
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<InvoiceRow[]> {
-  const { status = "", overdueOnly = false } = filters
-  return tx<InvoiceRow[]>`
-    ${tx.unsafe(INVOICE_SELECT)}
+  const { status = "", overdueOnly = false, limit = null, offset = 0 } = filters
+  const rows = await tx<Omit<InvoiceRow, "line_subtotal" | "line_count">[]>`
+    ${tx.unsafe(INVOICE_LIST_SELECT)}
      WHERE (${status} = '' OR i.status = ${status})
        AND (${overdueOnly} = FALSE
             OR (i.due_date < CURRENT_DATE
                 AND i.amount_due > 0
                 AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')))
      ORDER BY i.invoice_date DESC, i.invoice_number DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+  const totals = await invoiceLineTotalsFor(
+    tx,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => ({
+    ...r,
+    line_subtotal: totals[r.id]?.line_subtotal ?? null,
+    line_count: totals[r.id]?.line_count ?? 0,
+  }))
+}
+
+/** The total matching a filter set — same predicates as `listInvoices`, for the list page's pagination controls. */
+export async function countInvoices(
+  tx: Tx,
+  filters: { status?: string; overdueOnly?: boolean } = {},
+): Promise<number> {
+  const { status = "", overdueOnly = false } = filters
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM invoices i
+     WHERE (${status} = '' OR i.status = ${status})
+       AND (${overdueOnly} = FALSE
+            OR (i.due_date < CURRENT_DATE
+                AND i.amount_due > 0
+                AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')))
+  `
+  return n
 }
 
 export async function invoiceById(
@@ -94,6 +176,17 @@ export type InvoiceLine = {
   account_name: string | null
 }
 
+/**
+ * A real invoice's line count is bounded by what a person can type on one
+ * document, not by tenure — unlike the table's own SCALE_SENSITIVE
+ * classification, which is about `invoice_lines` as a whole across every
+ * invoice. A cap here is defense against a single row with far more lines
+ * than that (a bad import, a bug elsewhere), not a real business limit — the
+ * page reports the true count so a page that trips it looks truncated, not
+ * wrong.
+ */
+const DOCUMENT_CHILD_CAP = 500
+
 export async function invoiceLines(
   tx: Tx,
   invoiceId: string,
@@ -109,7 +202,19 @@ export async function invoiceLines(
       LEFT JOIN chart_of_accounts a ON a.id = l.revenue_account_id
      WHERE l.invoice_id = ${invoiceId}::uuid
      ORDER BY l.line_number NULLS LAST
+     LIMIT ${DOCUMENT_CHILD_CAP}
   `
+}
+
+/** The true count behind `invoiceLines`'s capped list, so a truncated page can say so. */
+export async function countInvoiceLines(
+  tx: Tx,
+  invoiceId: string,
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM invoice_lines WHERE invoice_id = ${invoiceId}::uuid
+  `
+  return n
 }
 
 /**
@@ -142,7 +247,22 @@ export async function paymentsFor(
       JOIN payments p ON p.id = al.payment_id
      WHERE al.invoice_id = ${invoiceId}::uuid
      ORDER BY p.payment_date DESC
+     LIMIT ${DOCUMENT_CHILD_CAP}
   `
+}
+
+/** The true count behind `paymentsFor`'s capped list, so a truncated page can say so. */
+export async function countPaymentsFor(
+  tx: Tx,
+  invoiceId: string,
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM payment_allocations al
+      JOIN payments p ON p.id = al.payment_id
+     WHERE al.invoice_id = ${invoiceId}::uuid
+  `
+  return n
 }
 
 /** Credit memos issued against one invoice, newest first. */
@@ -178,7 +298,19 @@ export async function creditsFor(
       FROM invoice_credits
      WHERE invoice_id = ${invoiceId}::uuid
      ORDER BY created_at DESC
+     LIMIT ${DOCUMENT_CHILD_CAP}
   `
+}
+
+/** The true count behind `creditsFor`'s capped list, so a truncated page can say so. */
+export async function countCreditsFor(
+  tx: Tx,
+  invoiceId: string,
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM invoice_credits WHERE invoice_id = ${invoiceId}::uuid
+  `
+  return n
 }
 
 export type ArAgingRow = {
@@ -344,7 +476,13 @@ const LEDGER_SELECT = `
 
 export async function ledger(
   tx: Tx,
-  filters: { from?: string; to?: string; status?: string } = {},
+  filters: {
+    from?: string
+    to?: string
+    status?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<LedgerEntry[]> {
   // NULL rather than '' for a cast parameter: SQL does not short-circuit, so
   // an empty string still reaches ::date and postgres.js raises
@@ -353,13 +491,34 @@ export async function ledger(
   const from = filters.from || null
   const to = filters.to || null
   const status = filters.status ?? ""
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<LedgerEntry[]>`
     ${tx.unsafe(LEDGER_SELECT)}
      WHERE (${from}::date IS NULL OR je.entry_date >= ${from}::date)
        AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
        AND (${status} = '' OR je.status = ${status})
      ORDER BY je.entry_date DESC, je.entry_number DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `ledger`, for the list page's pagination controls. */
+export async function countLedger(
+  tx: Tx,
+  filters: { from?: string; to?: string; status?: string } = {},
+): Promise<number> {
+  const from = filters.from || null
+  const to = filters.to || null
+  const status = filters.status ?? ""
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM journal_entries je
+     WHERE (${from}::date IS NULL OR je.entry_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+       AND (${status} = '' OR je.status = ${status})
+  `
+  return n
 }
 
 /** Entries whose debits don't equal their credits — checked at request time, not just by the schema/harness. */
@@ -1505,6 +1664,15 @@ export type LedgerLine = {
   currency: string | null
 }
 
+/**
+ * Same cap and reasoning as `DOCUMENT_CHILD_CAP` above — a real journal
+ * entry's line count is bounded by what a person can post at once, not by
+ * tenure. Applied PER ENTRY here (a `LATERAL` limit), not to the batch as a
+ * whole, so one oversized entry on the page can't crowd out every other
+ * entry's lines.
+ */
+const LEDGER_ENTRY_LINE_CAP = 500
+
 export async function ledgerLines(
   tx: Tx,
   entryId: string,
@@ -1520,27 +1688,34 @@ export async function ledgerLines(
       LEFT JOIN chart_of_accounts a ON a.id = l.account_id
      WHERE l.entry_id = ${entryId}::uuid
      ORDER BY l.line_number NULLS LAST
+     LIMIT ${LEDGER_ENTRY_LINE_CAP}
   `
 }
 
-/** Every line for a set of entries, in one query — avoids N+1 as rows expand. */
+/** Every line for a set of entries, in one query — avoids N+1 as rows expand, and caps each entry the same way `ledgerLines` does. */
 export async function ledgerLinesForEntries(
   tx: Tx,
   entryIds: string[],
 ): Promise<Record<string, LedgerLine[]>> {
   if (entryIds.length === 0) return {}
   const rows = await tx<(LedgerLine & { entry_id: string })[]>`
-    SELECT l.entry_id::text AS entry_id,
-           l.id, l.line_number,
-           a.account_code, a.account_name,
-           l.description,
-           l.debit_amount::text  AS debit_amount,
-           l.credit_amount::text AS credit_amount,
-           l.currency
-      FROM journal_entry_lines l
-      LEFT JOIN chart_of_accounts a ON a.id = l.account_id
-     WHERE l.entry_id = ANY(${entryIds}::uuid[])
-     ORDER BY l.entry_id, l.line_number NULLS LAST
+    SELECT je.id::text AS entry_id, lines.*
+      FROM journal_entries je
+      CROSS JOIN LATERAL (
+        SELECT l.id, l.line_number,
+               a.account_code, a.account_name,
+               l.description,
+               l.debit_amount::text  AS debit_amount,
+               l.credit_amount::text AS credit_amount,
+               l.currency
+          FROM journal_entry_lines l
+          LEFT JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE l.entry_id = je.id
+         ORDER BY l.line_number NULLS LAST
+         LIMIT ${LEDGER_ENTRY_LINE_CAP}
+      ) lines
+     WHERE je.id = ANY(${entryIds}::uuid[])
+     ORDER BY je.id
   `
   const out: Record<string, LedgerLine[]> = {}
   for (const r of rows) {

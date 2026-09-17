@@ -2070,6 +2070,50 @@ can actually write — call the real endpoint and read the response**, the
 same way `L48` says a guard never observed failing is not evidence a guard
 exists.
 
+### L85 — an index that textually matches `ORDER BY ... DESC NULLS LAST` was never used, because a DESC btree index defaults to NULLS FIRST
+
+`idx_hr_feedback_date ON hr_feedback (tenant_id, feedback_date DESC, feedback_id)`
+looks like it satisfies `ORDER BY feedback_date DESC NULLS LAST, feedback_id ASC`
+— same columns, same directions — but Postgres's default null placement for a
+DESC column is NULLS FIRST, the opposite of what the query asks for. The
+planner correctly refuses to use it (using it would return the wrong order for
+NULL rows) and falls back to a full scan + sort, silently: no error, no
+warning, just a query that never gets faster no matter how obviously "right"
+the index looks in a migration diff. `feedback_date` is nullable; `invoice_date`,
+`bill_date` and `entry_date` are not, and none of those pages ask for
+`NULLS LAST` at all — which is why the same class of index worked immediately
+for invoices, bills and journal entries and silently didn't for feedback. Found
+only by forcing the index with `enable_seqscan = off` and confirming the
+planner *still* wouldn't pick it, then checking the column's nullability.
+**Any index built to support `ORDER BY <nullable column> DESC` must spell out
+`DESC NULLS LAST` explicitly if that's what the query asks for** — the column
+list matching is not enough; the null-ordering has to match too, and it never
+will by accident for a DESC sort on a nullable column.
+
+### L86 — a load-test seeder cloned a table's rows without re-pointing their foreign key, so every clone attached to the SAME original parent, corrupting it
+
+`scripts/loadtest.mjs` clones one existing row N times to simulate a
+SCALE_SENSITIVE table at scale — realistic for a table like `invoices`, where
+the clone's own id becomes the new parent for anything referencing it. It is
+NOT realistic for a *child* table cloned the same way: `invoice_lines`,
+`journal_entry_lines`, `bill_lines` and `tasks` all clone the template row
+verbatim, foreign key included, so 200,000 new lines all still point at the
+ONE original invoice/entry/bill/project — not at 200,000 new parents. Two
+distinct failures came out of this: an invoice's real `line_subtotal` now sums
+200,000 lines instead of a handful (the timeout this session started from),
+and a real journal entry's debits and credits now disagree by billions (a
+genuine, if reversible, corruption of `unbalanced()`'s invariant for as long as
+the seed is loaded) — while 200,000 newly-inserted invoice/bill/project rows
+end up with ZERO lines/tasks each, which is its own fixture-invariant
+violation (`accounting.test.ts`'s "every invoice has lines" assertion fails
+against seeded data, correctly). **A seeder that clones a PARENT row is safe;
+a seeder that clones a CHILD row and reuses the parent's foreign key
+concentrates every clone onto one real parent instead of spreading load
+realistically** — worth knowing before trusting a "large table" load test's
+per-row costs, and worth fixing in the seeder itself if it needs to keep
+being the load-bearing regression fixture the team is running against
+indefinitely rather than a one-off stress test.
+
 ---
 
 ## Conventions

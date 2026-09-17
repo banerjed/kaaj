@@ -5,6 +5,7 @@
   import { invoiceStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
@@ -12,6 +13,18 @@
   /** An invoice is read in the market it was raised in, never converted. */
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      status: data.filters.status,
+      overdue: data.filters.overdueOnly ? "1" : "",
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Invoices" />
@@ -128,6 +141,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
     </div>
   {/if}
 </div>

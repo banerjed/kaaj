@@ -145,9 +145,9 @@
 
   <h2 class="mt-6 text-base font-medium">
     Tasks
-    <span class="badge badge-sm ms-1">{data.tasks.length}</span>
+    <span class="badge badge-sm ms-1">{data.tasksTotal}</span>
     <!-- Shown only when the denormalised count disagrees with the actual tasks (L58). -->
-    {#if data.project.task_count !== data.tasks.length}
+    {#if data.project.task_count !== data.tasksTotal}
       <span class="badge badge-error badge-sm ms-1">
         row claims {data.project.task_count}
       </span>
@@ -251,6 +251,11 @@
           </tbody>
         </table>
       </div>
+      {#if data.tasksTotal > data.tasks.length}
+        <p class="text-base-content/70 border-base-200 border-t p-3 text-xs">
+          Showing the first {data.tasks.length} of {data.tasksTotal} tasks.
+        </p>
+      {/if}
     </div>
   {/if}
 </div>

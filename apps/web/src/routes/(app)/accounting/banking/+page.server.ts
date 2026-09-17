@@ -9,6 +9,8 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
+const PAGE_SIZE = 20
+
 /** /accounting/banking — accounts, and the transactions still to reconcile. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -26,22 +28,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const accountId = f.uuid("account")
   const status = f.choice("status", BANK_TRANSACTION_STATUSES) ?? ""
   if (!f.ok) error(400, "That is not a valid account.")
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => {
-    const transactions = await pay.bankTransactions(tx, {
-      accountId: accountId ?? "",
-      status,
-    })
+    const filters = { accountId: accountId ?? "", status }
+    const [transactions, total] = await Promise.all([
+      pay.bankTransactions(tx, {
+        ...filters,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      pay.countBankTransactions(tx, filters),
+    ])
     const unmatchedIds = transactions
       .filter((t) => t.status === "unmatched")
       .map((t) => t.id)
     return {
       accounts: await pay.bankAccounts(tx),
       transactions,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
       candidates: await pay.candidatePaymentsForTransactions(tx, unmatchedIds),
       mayWrite: can(ctx, "accounting.write"),
       statuses: BANK_TRANSACTION_STATUSES,
-      filters: { accountId: accountId ?? "", status },
+      filters,
       // For per-market number formatting; see localeForCurrency.
       locations: await locationsRepo.list(tx),
     }

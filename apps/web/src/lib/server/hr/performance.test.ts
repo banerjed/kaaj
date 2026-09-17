@@ -197,7 +197,10 @@ describe("the page's own load, not just the repository", () => {
   const runLoad = async (locals: App.Locals) => {
     const { load } =
       await import("../../../routes/(app)/performance/+page.server")
-    return (await load({ locals } as never)) as {
+    return (await load({
+      locals,
+      url: new URL("http://localhost/performance"),
+    } as never)) as {
       reviews: reviews.Review[]
       readsAll: boolean
       progress: { status: string; n: number }[]

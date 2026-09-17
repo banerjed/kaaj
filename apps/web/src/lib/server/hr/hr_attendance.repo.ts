@@ -68,6 +68,8 @@ export async function list(
     to?: string
     employeeId?: string
     status?: string
+    limit?: number
+    offset?: number
   } = {},
 ): Promise<AttendanceDay[]> {
   const { status = "" } = filters
@@ -76,6 +78,8 @@ export async function list(
   const from = filters.from || null
   const to = filters.to || null
   const employee = filters.employeeId || null
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<AttendanceDay[]>`
     ${tx.unsafe(SELECT)}
      WHERE (${from}::date IS NULL OR a.attendance_date >= ${from}::date)
@@ -83,7 +87,33 @@ export async function list(
        AND (${status} = '' OR a.status = ${status})
        AND (${employee}::uuid IS NULL OR a.employee_id = ${employee}::uuid)
      ORDER BY a.attendance_date DESC, employee_name ASC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
+export async function count(
+  tx: Tx,
+  filters: {
+    from?: string
+    to?: string
+    employeeId?: string
+    status?: string
+  } = {},
+): Promise<number> {
+  const { status = "" } = filters
+  const from = filters.from || null
+  const to = filters.to || null
+  const employee = filters.employeeId || null
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM hr_attendance a
+     WHERE (${from}::date IS NULL OR a.attendance_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR a.attendance_date <= ${to}::date)
+       AND (${status} = '' OR a.status = ${status})
+       AND (${employee}::uuid IS NULL OR a.employee_id = ${employee}::uuid)
+  `
+  return n
 }
 
 export type AttendanceTotals = {

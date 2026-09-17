@@ -5,13 +5,21 @@
   import type { Tone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
 
+  // Bucketed client-side, same accepted tradeoff as attendance/time-off:
+  // for the HR-wide list this only reflects the current PAGE of tasks, not
+  // every task ever created.
   const open = $derived(data.tasks.filter((t) => t.status !== "completed"))
   const done = $derived(data.tasks.filter((t) => t.status === "completed"))
+
+  function pageUrl(page: number): string {
+    return `?page=${page}`
+  }
 
   const statusTone = (t: { status: string; overdue: boolean }): Tone =>
     t.overdue ? "critical" : t.status === "completed" ? "positive" : "neutral"
@@ -120,5 +128,16 @@
       icon="lucide--check-check"
       message="No onboarding tasks for you."
     />
+  {/if}
+
+  {#if data.readsAll}
+    <div class="card bg-base-100 mt-6 shadow">
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageUrl}
+      />
+    </div>
   {/if}
 </div>

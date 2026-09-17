@@ -95,19 +95,46 @@ const SELECT = `
 
 export async function list(
   tx: Tx,
-  filters: { employeeId?: string; projectId?: string; status?: string } = {},
+  filters: {
+    employeeId?: string
+    projectId?: string
+    status?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<TimeEntryRow[]> {
   const { status = "" } = filters
   // NULL rather than '' for the uuid cast (L37).
   const employeeId = filters.employeeId || null
   const projectId = filters.projectId || null
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<TimeEntryRow[]>`
     ${tx.unsafe(SELECT)}
      WHERE (${employeeId}::uuid IS NULL OR te.employee_id = ${employeeId}::uuid)
        AND (${projectId}::uuid IS NULL OR te.project_id = ${projectId}::uuid)
        AND (${status} = '' OR te.status = ${status})
      ORDER BY te.entry_date DESC, te.created_at DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
+export async function count(
+  tx: Tx,
+  filters: { employeeId?: string; projectId?: string; status?: string } = {},
+): Promise<number> {
+  const { status = "" } = filters
+  const employeeId = filters.employeeId || null
+  const projectId = filters.projectId || null
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM time_tracking_entries te
+     WHERE (${employeeId}::uuid IS NULL OR te.employee_id = ${employeeId}::uuid)
+       AND (${projectId}::uuid IS NULL OR te.project_id = ${projectId}::uuid)
+       AND (${status} = '' OR te.status = ${status})
+  `
+  return n
 }
 
 export async function byId(tx: Tx, id: string): Promise<TimeEntryRow | null> {
@@ -120,6 +147,15 @@ export async function byId(tx: Tx, id: string): Promise<TimeEntryRow | null> {
 /** For the create form's project -> task cascade. Not a `projects.repo.ts`
  * concern — this is time tracking's own view (id/name/project only, no
  * board fields), across every open project rather than one at a time. */
+/**
+ * A time-entry picker for open work, not the project's whole history —
+ * `tasks` grows without bound across every project ever run (SCALE_SENSITIVE),
+ * so this excludes finished tasks (nobody logs a NEW entry against one) and
+ * caps the rest defensively, the same reasoning as `DOCUMENT_CHILD_CAP`
+ * elsewhere in this session's fixes.
+ */
+const OPEN_TASK_PICKER_CAP = 2000
+
 export async function tasksForActiveProjects(
   tx: Tx,
 ): Promise<{ id: string; task_name: string; project_id: string }[]> {
@@ -128,7 +164,9 @@ export async function tasksForActiveProjects(
       FROM tasks t
       JOIN projects p ON p.id = t.project_id
      WHERE p.archived_at IS NULL
+       AND t.status <> 'done'
      ORDER BY t.task_name
+     LIMIT ${OPEN_TASK_PICKER_CAP}
   ` as never
 }
 

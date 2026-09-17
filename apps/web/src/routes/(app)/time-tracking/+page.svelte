@@ -9,6 +9,7 @@
   import { timeEntryStatusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
 
@@ -38,6 +39,18 @@
       (e) => e.status === "approved" || e.status === "rejected",
     ),
   )
+
+  // Built from `data.filters`, not `window.location` — this renders during
+  // SSR too, where `window` doesn't exist.
+  function pageUrl(page: number): string {
+    const params = new URLSearchParams({
+      status: data.filters.status,
+      mine: data.filters.mine ? "1" : "",
+    })
+    for (const [k, v] of [...params]) if (v === "") params.delete(k)
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
 </script>
 
 <PageHead title="Time Tracking" />
@@ -246,6 +259,20 @@
       </ul>
     </div>
   {/if}
+
+  <!-- Bounds `data.entries` itself — the three sections above are split from
+       whatever this one page contains, so an approval sitting on a later
+       page won't show in "Awaiting a decision" until you page to it.
+       Narrowing with a status/mine filter avoids that; the alternative, an
+       unbounded query, is what actually crashed this page at scale. -->
+  <div class="card bg-base-100 mt-6 shadow">
+    <Pagination
+      page={data.page}
+      pageSize={data.pageSize}
+      total={data.total}
+      hrefFor={pageUrl}
+    />
+  </div>
 </div>
 
 <!-- Log time ---------------------------------------------------------- -->

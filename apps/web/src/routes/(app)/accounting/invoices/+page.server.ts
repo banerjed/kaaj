@@ -21,6 +21,8 @@ const STATUSES = [
   "written_off",
 ] as const
 
+const PAGE_SIZE = 20
+
 /** /accounting/invoices — accounts receivable; gated to finance. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -34,13 +36,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", STATUSES) ?? ""
   const overdueOnly = url.searchParams.get("overdue") === "1"
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
-  return withTenant(actorFrom(locals), async (tx) => ({
-    invoices: await acc.listInvoices(tx, { status, overdueOnly }),
-    statuses: STATUSES,
-    filters: { status, overdueOnly },
-    mayWrite: can(ctx, "accounting.write"),
-    // For per-market number formatting; see localeForCurrency.
-    locations: await locationsRepo.list(tx),
-  }))
+  return withTenant(actorFrom(locals), async (tx) => {
+    const [invoices, total] = await Promise.all([
+      acc.listInvoices(tx, {
+        status,
+        overdueOnly,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      acc.countInvoices(tx, { status, overdueOnly }),
+    ])
+    return {
+      invoices,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
+      statuses: STATUSES,
+      filters: { status, overdueOnly },
+      mayWrite: can(ctx, "accounting.write"),
+      // For per-market number formatting; see localeForCurrency.
+      locations: await locationsRepo.list(tx),
+    }
+  })
 }

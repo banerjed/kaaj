@@ -130,16 +130,28 @@ const results = []
 for (const path of paths) {
   const timings = []
   let status = null
+  let failure = null
+  // One page that never resolves (an unbounded query, a hung render) must
+  // not take the rest of the sweep down with it — recorded as its own
+  // result instead.
   for (let i = 0; i < REPEATS; i++) {
-    const response = await page.goto(`${BASE_URL}${path}`)
-    status = response?.status() ?? status
-    const ms = serverTimingMs(response)
-    if (ms !== null) timings.push(ms)
+    try {
+      const response = await page.goto(`${BASE_URL}${path}`, {
+        timeout: 30_000,
+      })
+      status = response?.status() ?? status
+      const ms = serverTimingMs(response)
+      if (ms !== null) timings.push(ms)
+    } catch (e) {
+      failure = e instanceof Error ? e.message.split("\n")[0] : String(e)
+      break
+    }
   }
   timings.sort((a, b) => a - b)
   results.push({
     path,
     status,
+    failure,
     min: timings[0] ?? null,
     median: timings.length ? timings[Math.floor(timings.length / 2)] : null,
     max: timings.at(-1) ?? null,
@@ -148,19 +160,27 @@ for (const path of paths) {
 
 await browser.close()
 
-results.sort((a, b) => (b.median ?? -1) - (a.median ?? -1))
+// A failure ranks above every measured time — it is worse than any number,
+// not merely unmeasured.
+results.sort((a, b) => {
+  if (a.failure && !b.failure) return -1
+  if (b.failure && !a.failure) return 1
+  return (b.median ?? -1) - (a.median ?? -1)
+})
 console.log(`\n${"path".padEnd(65)}min      median   max      status`)
 console.log("-".repeat(100))
 for (const r of results) {
   const fmt = (n) => (n === null ? "  —  " : n.toFixed(1).padStart(5))
-  console.log(
-    `${r.path.padEnd(65)}${fmt(r.min)}    ${fmt(r.median)}    ${fmt(r.max)}    ${r.status ?? "—"}`,
-  )
+  const line = r.failure
+    ? `${r.path.padEnd(65)}FAILED: ${r.failure}`
+    : `${r.path.padEnd(65)}${fmt(r.min)}    ${fmt(r.median)}    ${fmt(r.max)}    ${r.status ?? "—"}`
+  console.log(line)
 }
 
+const failed = results.filter((r) => r.failure)
 const over = results.filter((r) => r.median !== null && r.median > THRESHOLD_MS)
 console.log(
-  `\n${over.length} / ${results.length} pages have a median server-render time over ${THRESHOLD_MS}ms`,
+  `\n${failed.length} page(s) failed to render at all; ${over.length} / ${results.length - failed.length} of the rest have a median server-render time over ${THRESHOLD_MS}ms`,
 )
 
 if (unresolved.length) {

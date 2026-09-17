@@ -99,18 +99,104 @@ const BILL_SELECT = `
     LEFT JOIN employees e ON e.id::text = b.approved_by::text
 `
 
+/**
+ * Same columns as `BILL_SELECT`, minus `line_subtotal`/`line_count` — those
+ * are a per-row correlated subquery over `bill_lines`, fine for `billById`'s
+ * single row but a full scan of that table PER ROW on a paginated list as it
+ * grows. `listBills` fetches this instead and merges in
+ * `billLineTotalsFor`'s one batched aggregate query — same shape as
+ * `accounting.repo.ts`'s `invoiceLineTotalsFor`.
+ */
+const BILL_LIST_SELECT = `
+  SELECT b.id, b.bill_number,
+         v.vendor_name,
+         to_char(b.bill_date,'YYYY-MM-DD') AS bill_date,
+         to_char(b.due_date,'YYYY-MM-DD')  AS due_date,
+         b.currency,
+         b.subtotal::text    AS subtotal,
+         b.tax_total::text   AS tax_total,
+         b.total::text       AS total,
+         b.amount_paid::text AS amount_paid,
+         b.amount_due::text  AS amount_due,
+         b.status, b.requires_approval,
+         e.first_name || ' ' || e.last_name AS approved_by_name,
+         (b.due_date < CURRENT_DATE
+            AND b.amount_due > 0
+            AND b.status NOT IN ('draft', 'void', 'cancelled')) AS is_overdue
+    FROM bills b
+    LEFT JOIN vendors v   ON v.id = b.vendor_id
+    LEFT JOIN employees e ON e.id::text = b.approved_by::text
+`
+
+/** `line_subtotal`/`line_count` for a set of bills, in one query — see `BILL_LIST_SELECT`. */
+async function billLineTotalsFor(
+  tx: Tx,
+  billIds: string[],
+): Promise<Record<string, { line_subtotal: string; line_count: number }>> {
+  if (billIds.length === 0) return {}
+  const rows = await tx<
+    { bill_id: string; line_subtotal: string; line_count: number }[]
+  >`
+    SELECT bill_id::text AS bill_id,
+           sum(amount)::text AS line_subtotal,
+           count(*)::int AS line_count
+      FROM bill_lines
+     WHERE bill_id = ANY(${billIds}::uuid[])
+     GROUP BY bill_id
+  `
+  const out: Record<string, { line_subtotal: string; line_count: number }> = {}
+  for (const { bill_id, ...totals } of rows) out[bill_id] = totals
+  return out
+}
+
 export async function listBills(
   tx: Tx,
-  filters: { status?: string; unapprovedOnly?: boolean } = {},
+  filters: {
+    status?: string
+    unapprovedOnly?: boolean
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<BillRow[]> {
-  const { status = "", unapprovedOnly = false } = filters
-  return tx<BillRow[]>`
-    ${tx.unsafe(BILL_SELECT)}
+  const {
+    status = "",
+    unapprovedOnly = false,
+    limit = null,
+    offset = 0,
+  } = filters
+  const rows = await tx<Omit<BillRow, "line_subtotal" | "line_count">[]>`
+    ${tx.unsafe(BILL_LIST_SELECT)}
      WHERE (${status} = '' OR b.status = ${status})
        AND (${unapprovedOnly} = FALSE
             OR (b.requires_approval = TRUE AND b.approved_at IS NULL))
      ORDER BY b.bill_date DESC, b.bill_number DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+  const totals = await billLineTotalsFor(
+    tx,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => ({
+    ...r,
+    line_subtotal: totals[r.id]?.line_subtotal ?? null,
+    line_count: totals[r.id]?.line_count ?? 0,
+  }))
+}
+
+/** The total matching a filter set — same predicates as `listBills`, for the list page's pagination controls. */
+export async function countBills(
+  tx: Tx,
+  filters: { status?: string; unapprovedOnly?: boolean } = {},
+): Promise<number> {
+  const { status = "", unapprovedOnly = false } = filters
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM bills b
+     WHERE (${status} = '' OR b.status = ${status})
+       AND (${unapprovedOnly} = FALSE
+            OR (b.requires_approval = TRUE AND b.approved_at IS NULL))
+  `
+  return n
 }
 
 /** Fixed windows offered on the "due soon" filter — a `select`, not free text. */
@@ -174,6 +260,9 @@ export type BillLine = {
   account_name: string | null
 }
 
+/** Same cap and reasoning as `accounting.repo.ts`'s `DOCUMENT_CHILD_CAP`. */
+const DOCUMENT_CHILD_CAP = 500
+
 export async function billLines(tx: Tx, billId: string): Promise<BillLine[]> {
   return tx<BillLine[]>`
     SELECT l.id, l.line_number, l.description,
@@ -186,7 +275,16 @@ export async function billLines(tx: Tx, billId: string): Promise<BillLine[]> {
       LEFT JOIN chart_of_accounts a ON a.id = l.expense_account_id
      WHERE l.bill_id = ${billId}::uuid
      ORDER BY l.line_number NULLS LAST
+     LIMIT ${DOCUMENT_CHILD_CAP}
   `
+}
+
+/** The true count behind `billLines`'s capped list, so a truncated page can say so. */
+export async function countBillLines(tx: Tx, billId: string): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM bill_lines WHERE bill_id = ${billId}::uuid
+  `
+  return n
 }
 
 /** What has been paid against one bill. */
@@ -204,7 +302,22 @@ export async function paymentsForBill(
       JOIN payments p ON p.id = al.payment_id
      WHERE al.bill_id = ${billId}::uuid
      ORDER BY p.payment_date DESC
+     LIMIT ${DOCUMENT_CHILD_CAP}
   `
+}
+
+/** The true count behind `paymentsForBill`'s capped list, so a truncated page can say so. */
+export async function countPaymentsForBill(
+  tx: Tx,
+  billId: string,
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM payment_allocations al
+      JOIN payments p ON p.id = al.payment_id
+     WHERE al.bill_id = ${billId}::uuid
+  `
+  return n
 }
 
 // -- Banking ----------------------------------------------------------------
@@ -226,29 +339,98 @@ export type BankAccountRow = {
 }
 
 /**
+ * `transaction_count`/`unmatched_count` for a set of bank accounts, in one
+ * query — a real bound array (`= ANY($1)`) rather than a correlated
+ * subquery per account, the same fix as `invoiceLineTotalsFor`.
+ */
+async function bankAccountCountsFor(
+  tx: Tx,
+  accountIds: string[],
+): Promise<
+  Record<string, { transaction_count: number; unmatched_count: number }>
+> {
+  if (accountIds.length === 0) return {}
+  const rows = await tx<
+    {
+      bank_account_id: string
+      transaction_count: number
+      unmatched_count: number
+    }[]
+  >`
+    SELECT bank_account_id::text AS bank_account_id,
+           count(*)::int AS transaction_count,
+           count(*) FILTER (WHERE status = 'unmatched')::int AS unmatched_count
+      FROM bank_transactions
+     WHERE bank_account_id = ANY(${accountIds}::uuid[])
+     GROUP BY bank_account_id
+  `
+  const out: Record<
+    string,
+    { transaction_count: number; unmatched_count: number }
+  > = {}
+  for (const { bank_account_id, ...c } of rows) out[bank_account_id] = c
+  return out
+}
+
+/**
+ * The latest transaction's balance, per account. `bank_accounts` is bounded
+ * by how many accounts the firm actually has (NOT_SCALE_SENSITIVE) — small
+ * enough that one query per account is fine, and deliberately NOT batched
+ * into a single `= ANY(...)` query: a window function's top-1-per-partition
+ * still has to walk every row of whichever account has the most transactions
+ * before it can move to the next partition, where a plain `ORDER BY ...
+ * LIMIT 1` against one literal account id lets the planner seek straight to
+ * it via `idx_bank_transactions_account_date` — proven by measurement to be
+ * the faster shape here, not merely tidier-looking.
+ */
+async function feedBalancesFor(
+  tx: Tx,
+  accountIds: string[],
+): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {}
+  for (const id of accountIds) {
+    const [row] = await tx<{ balance: string | null }[]>`
+      SELECT balance::text AS balance FROM bank_transactions
+       WHERE bank_account_id = ${id}::uuid
+       ORDER BY transaction_date DESC, created_at DESC
+       LIMIT 1
+    `
+    out[id] = row?.balance ?? null
+  }
+  return out
+}
+
+/**
  * The firm's bank accounts. `current_balance` (bank-reported) and
  * `feed_balance` (derived from imported transactions) can legitimately
  * disagree, so both are returned rather than one hiding the other.
  */
 export async function bankAccounts(tx: Tx): Promise<BankAccountRow[]> {
-  return tx<BankAccountRow[]>`
+  const accounts = await tx<
+    Omit<
+      BankAccountRow,
+      "feed_balance" | "transaction_count" | "unmatched_count"
+    >[]
+  >`
     SELECT a.id, a.account_name, a.bank_name, a.currency,
            a.current_balance::text   AS current_balance,
            a.available_balance::text AS available_balance,
-           (SELECT t.balance::text FROM bank_transactions t
-             WHERE t.bank_account_id = a.id
-             ORDER BY t.transaction_date DESC, t.created_at DESC
-             LIMIT 1) AS feed_balance,
-           (SELECT count(*)::int FROM bank_transactions t
-             WHERE t.bank_account_id = a.id) AS transaction_count,
-           (SELECT count(*)::int FROM bank_transactions t
-             WHERE t.bank_account_id = a.id AND t.status = 'unmatched')
-             AS unmatched_count,
            a.last_synced_at, a.feed_enabled
       FROM bank_accounts a
      WHERE a.is_active
      ORDER BY a.account_name
   `
+  const ids = accounts.map((a) => a.id)
+  const [counts, feedBalances] = await Promise.all([
+    bankAccountCountsFor(tx, ids),
+    feedBalancesFor(tx, ids),
+  ])
+  return accounts.map((a) => ({
+    ...a,
+    feed_balance: feedBalances[a.id] ?? null,
+    transaction_count: counts[a.id]?.transaction_count ?? 0,
+    unmatched_count: counts[a.id]?.unmatched_count ?? 0,
+  }))
 }
 
 export type BankTransactionRow = {
@@ -267,12 +449,19 @@ export type BankTransactionRow = {
 
 export async function bankTransactions(
   tx: Tx,
-  filters: { accountId?: string; status?: string } = {},
+  filters: {
+    accountId?: string
+    status?: string
+    limit?: number
+    offset?: number
+  } = {},
 ): Promise<BankTransactionRow[]> {
   // NULL rather than '' for the uuid: SQL does not short-circuit, so the cast
   // is evaluated either way and raises on an empty string (L37).
   const accountId = filters.accountId || null
   const status = filters.status ?? ""
+  const limit = filters.limit ?? null
+  const offset = filters.offset ?? 0
   return tx<BankTransactionRow[]>`
     SELECT t.id,
            to_char(t.transaction_date,'YYYY-MM-DD') AS transaction_date,
@@ -286,7 +475,24 @@ export async function bankTransactions(
      WHERE (${accountId}::uuid IS NULL OR t.bank_account_id = ${accountId}::uuid)
        AND (${status} = '' OR t.status = ${status})
      ORDER BY t.transaction_date DESC, t.created_at DESC
+     ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
+}
+
+/** The total matching a filter set — same predicates as `bankTransactions`, for the list page's pagination controls. */
+export async function countBankTransactions(
+  tx: Tx,
+  filters: { accountId?: string; status?: string } = {},
+): Promise<number> {
+  const accountId = filters.accountId || null
+  const status = filters.status ?? ""
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM bank_transactions t
+     WHERE (${accountId}::uuid IS NULL OR t.bank_account_id = ${accountId}::uuid)
+       AND (${status} = '' OR t.status = ${status})
+  `
+  return n
 }
 
 // ---------------------------------------------------------------------------
@@ -634,30 +840,45 @@ export type CandidatePayment = {
  * payment id. One query for the whole set, to avoid N+1 as the unmatched
  * list grows (mirrors `ledgerLinesForEntries`).
  */
+/**
+ * A picker shows the best few matches, not every payment that could
+ * plausibly match — `payments` is SCALE_SENSITIVE (one row per payment
+ * recorded, indefinitely), so joining it to every unmatched transaction with
+ * no cap was a real N×M blowup: a `LATERAL` per-transaction search bounded
+ * by this cap, rather than a single join materialising every candidate for
+ * every transaction before sorting.
+ */
+const CANDIDATE_PAYMENT_CAP = 10
+
 export async function candidatePaymentsForTransactions(
   tx: Tx,
   transactionIds: string[],
 ): Promise<Record<string, CandidatePayment[]>> {
   if (transactionIds.length === 0) return {}
   const rows = await tx<(CandidatePayment & { transaction_id: string })[]>`
-    SELECT t.id AS transaction_id,
-           p.id, p.payment_number,
-           to_char(p.payment_date,'YYYY-MM-DD') AS payment_date,
-           p.amount::text AS amount, p.currency,
-           coalesce(c.customer_name, v.vendor_name) AS counterparty_name
+    SELECT t.id AS transaction_id, cand.*
       FROM bank_transactions t
       JOIN bank_accounts a ON a.id = t.bank_account_id
-      JOIN payments p ON p.currency = a.currency
-       AND ((t.amount > 0 AND p.customer_id IS NOT NULL)
-            OR (t.amount < 0 AND p.vendor_id IS NOT NULL))
-      LEFT JOIN customers c ON c.id = p.customer_id
-      LEFT JOIN vendors v   ON v.id = p.vendor_id
+      CROSS JOIN LATERAL (
+        SELECT p.id, p.payment_number,
+               to_char(p.payment_date,'YYYY-MM-DD') AS payment_date,
+               p.amount::text AS amount, p.currency,
+               coalesce(c.customer_name, v.vendor_name) AS counterparty_name
+          FROM payments p
+          LEFT JOIN customers c ON c.id = p.customer_id
+          LEFT JOIN vendors v   ON v.id = p.vendor_id
+         WHERE p.currency = a.currency
+           AND ((t.amount > 0 AND p.customer_id IS NOT NULL)
+                OR (t.amount < 0 AND p.vendor_id IS NOT NULL))
+           AND NOT EXISTS (
+                 SELECT 1 FROM bank_transactions o
+                  WHERE o.matched_to_type = 'payment' AND o.matched_to_id = p.id
+               )
+         ORDER BY abs(p.amount - abs(t.amount)) ASC, p.payment_date DESC
+         LIMIT ${CANDIDATE_PAYMENT_CAP}
+      ) cand
      WHERE t.id = ANY(${transactionIds}::uuid[])
-       AND NOT EXISTS (
-             SELECT 1 FROM bank_transactions o
-              WHERE o.matched_to_type = 'payment' AND o.matched_to_id = p.id
-           )
-     ORDER BY t.id, abs(p.amount - abs(t.amount)) ASC, p.payment_date DESC
+     ORDER BY t.id
   `
   const out: Record<string, CandidatePayment[]> = {}
   for (const r of rows) {
