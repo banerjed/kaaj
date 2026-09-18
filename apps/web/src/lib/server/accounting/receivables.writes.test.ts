@@ -727,16 +727,23 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
   })
 
   it("recognizes a loss when the settlement-date rate is lower than the booking rate", async () => {
-    // A rate below the 1.27 booking rate — inserted via a superuser
-    // connection (app_user has no write policy on exchange_rates at all)
-    // and removed again in `finally`, since it is a separate connection
-    // from the rolled-back `tx`.
+    // EUR, not GBP: the inserted rate is committed on a separate connection
+    // (app_user has no write policy on exchange_rates at all), outside the
+    // rolled-back `tx`, so it is visible to any other test's currently-open
+    // transaction until the `finally` below removes it — a different
+    // currency from every other test in this file keeps that window from
+    // corrupting a concurrently-running one that reads GBP's own latest rate
+    // (the "gain" test above relies on the fixture's actual GBP history).
     await superuser`
       INSERT INTO exchange_rates (from_currency, to_currency, rate_date, rate, inverse_rate, source)
-      VALUES ('GBP', 'USD', '2026-03-14', 1.20, 1 / 1.20, 'manual')
+      VALUES ('EUR', 'USD', '2026-02-20', 1.05, 1 / 1.05, 'manual')
     `
     try {
       const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+        await tx`
+          UPDATE invoices SET currency = 'EUR', exchange_rate = 1.10
+           WHERE id = ${GBP}::uuid
+        `
         const { paymentNumber } = await acc.recordPayment(
           tx,
           NORTHWIND,
@@ -750,20 +757,20 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
           `
         return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
       })
-      // Cash converts at 1.20 (5000 * 1.20 = 6000), the receivable still
-      // clears at the 1.27 booking rate (6350) — the 350.00 shortfall is
+      // Cash converts at 1.05 (5000 * 1.05 = 5250), the receivable still
+      // clears at the 1.10 booking rate (5500) — the 250.00 shortfall is
       // the loss.
       expect(lines).toEqual([
-        { account_code: "1000", debit: "6000.00", credit: "0.00" },
-        { account_code: "1100", debit: "0.00", credit: "6350.00" },
-        { account_code: "4200", debit: "350.00", credit: "0.00" },
+        { account_code: "1000", debit: "5250.00", credit: "0.00" },
+        { account_code: "1100", debit: "0.00", credit: "5500.00" },
+        { account_code: "4200", debit: "250.00", credit: "0.00" },
       ])
       expect(unbalanced).toEqual([])
-      expect(allocation.fx_gain_loss).toBe("-350.00")
+      expect(allocation.fx_gain_loss).toBe("-250.00")
     } finally {
       await superuser`
         DELETE FROM exchange_rates
-         WHERE from_currency = 'GBP' AND rate_date = '2026-03-14'
+         WHERE from_currency = 'EUR' AND rate_date = '2026-02-20'
       `
     }
   })

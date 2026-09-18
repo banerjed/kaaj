@@ -602,12 +602,17 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
     bankAccountId: "7585ab47-4908-5830-a959-65711784fc61",
   }
 
-  async function asGbpBill(tx: Tx): Promise<void> {
+  async function asForeignBill(
+    tx: Tx,
+    currency: string,
+    bookingRate: string,
+  ): Promise<void> {
     await tx`
-      UPDATE bills SET currency = 'GBP', exchange_rate = 1.27
+      UPDATE bills SET currency = ${currency}, exchange_rate = ${bookingRate}::numeric
        WHERE id = ${APPROVED}::uuid
     `
   }
+  const asGbpBill = (tx: Tx) => asForeignBill(tx, "GBP", "1.27")
 
   async function journalLines(tx: Tx, reference: string) {
     return tx<{ account_code: string; debit: string; credit: string }[]>`
@@ -656,13 +661,20 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
   })
 
   it("recognizes a gain when the settlement-date rate is lower than the booking rate", async () => {
+    // AUD, not GBP: the inserted rate is committed on a separate connection
+    // (app_user has no write policy on exchange_rates at all), outside the
+    // rolled-back `tx`, so it is visible to any other test's currently-open
+    // transaction until the `finally` below removes it — a currency nothing
+    // else in either write-path test file touches keeps that window from
+    // corrupting a concurrently-running test that reads GBP's own latest
+    // rate (the "loss" test above relies on the fixture's actual history).
     await superuser`
       INSERT INTO exchange_rates (from_currency, to_currency, rate_date, rate, inverse_rate, source)
-      VALUES ('GBP', 'USD', '2026-03-13', 1.20, 1 / 1.20, 'manual')
+      VALUES ('AUD', 'USD', '2026-03-13', 0.65, 1 / 0.65, 'manual')
     `
     try {
       const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
-        await asGbpBill(tx)
+        await asForeignBill(tx, "AUD", "0.68")
         const { paymentNumber } = await pay.recordVendorPayment(
           tx,
           NORTHWIND,
@@ -676,19 +688,19 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
           `
         return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
       })
-      // 1000 * 1.20 (settlement) = 1200.00 cash — 70.00 less than the
-      // 1270.00 the payable was booked at, a gain to the payer.
+      // 1000 * 0.65 (settlement) = 650.00 cash — 30.00 less than the 680.00
+      // the payable was booked at (1000 * 0.68), a gain to the payer.
       expect(lines).toEqual([
-        { account_code: "2000", debit: "1270.00", credit: "0.00" },
-        { account_code: "1000", debit: "0.00", credit: "1200.00" },
-        { account_code: "4200", debit: "0.00", credit: "70.00" },
+        { account_code: "2000", debit: "680.00", credit: "0.00" },
+        { account_code: "1000", debit: "0.00", credit: "650.00" },
+        { account_code: "4200", debit: "0.00", credit: "30.00" },
       ])
       expect(unbalanced).toEqual([])
-      expect(allocation.fx_gain_loss).toBe("70.00")
+      expect(allocation.fx_gain_loss).toBe("30.00")
     } finally {
       await superuser`
         DELETE FROM exchange_rates
-         WHERE from_currency = 'GBP' AND rate_date = '2026-03-13'
+         WHERE from_currency = 'AUD' AND rate_date = '2026-03-13'
       `
     }
   })

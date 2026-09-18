@@ -56,6 +56,7 @@ const PAGES: { path: string; heading: string }[] = [
     heading: "Tax Summary",
   },
   { path: "/accounting/exchange-rates", heading: "Exchange Rates" },
+  { path: "/accounting/fx-revaluation", heading: "FX Revaluation" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {
     path: "/accounting/trial-balance?as_of=2026-01-21&compare_as_of=2025-01-01",

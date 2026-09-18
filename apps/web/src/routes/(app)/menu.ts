@@ -210,6 +210,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-fx-revaluation",
+        label: "FX Revaluation",
+        url: "/accounting/fx-revaluation",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-trial-balance",
         label: "Trial Balance",
         url: "/accounting/trial-balance",

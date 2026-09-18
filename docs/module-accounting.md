@@ -243,7 +243,7 @@ the same verdicts at user-story grain.
 *Status: **DONE**. `payables.test.ts:143` ("counts what still needs matching") and `:177` ("shows every reconciliation state the screen has to render") — real, tested.*
 
 **US-ACC-031**: As an Accountant, I want to reconcile multiple bank accounts including foreign currency accounts, so that all cash is tracked.
-*Status: **PARTIAL**. Multiple bank accounts are supported and tested (`payables.test.ts:97`, "keeps the bank's balance and the feed's balance as separate facts", run across all accounts). Foreign-currency bank account *revaluation* at period-end does not exist (see US-ACC-053 and [19-accounting-test-plan.md §3.3](19-accounting-test-plan.md)).*
+*Status: **PARTIAL**. Multiple bank accounts are supported and tested (`payables.test.ts:97`, "keeps the bank's balance and the feed's balance as separate facts", run across all accounts). Foreign-currency bank account *revaluation* at period-end still does not exist — US-ACC-053's report-only revaluation (2026-09-18, see the Tier 7 entry) deliberately covers invoices/bills only, not bank balances, since a bank account has no stored per-account booking rate to revalue against. See [19-accounting-test-plan.md §3.3](19-accounting-test-plan.md).*
 
 ### General Ledger & Chart of Accounts
 
@@ -311,13 +311,13 @@ the same verdicts at user-story grain.
 *Status: **DONE**. Same evidence as US-ACC-005.*
 
 **US-ACC-052**: As an Accountant, I want exchange rates to update automatically, so that valuations are current.
-*Status: **PARTIAL** (2026-09-14). Same increment as US-ACC-036: `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR from Yahoo Finance, `accounting.write`-gated and audited. "Update automatically" is the remaining gap — refresh is manual-trigger only, no scheduler exists in this repo. Yahoo's endpoint is unofficial and unversioned (no API key, no SLA); a per-currency failure is isolated and surfaced rather than failing the whole refresh, which is what a shape change on Yahoo's side would trip. Valuations (period-end FX revaluation, US-ACC-053) still don't consume this table — that's Tier 7's third item, unstarted.*
+*Status: **PARTIAL** (2026-09-14). Same increment as US-ACC-036: `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR from Yahoo Finance, `accounting.write`-gated and audited. "Update automatically" is the remaining gap — refresh is manual-trigger only, no scheduler exists in this repo. Yahoo's endpoint is unofficial and unversioned (no API key, no SLA); a per-currency failure is isolated and surfaced rather than failing the whole refresh, which is what a shape change on Yahoo's side would trip. This table now feeds both US-ACC-053 (revaluation) and US-ACC-054 (settlement), as of 2026-09-18.*
 
 **US-ACC-053**: As a CFO, I want to see unrealized gains/losses on foreign currency balances, so that I understand FX exposure.
-*Status: **MISSING**. No period-end revaluation of open foreign-currency AR/AP/bank balances exists anywhere.*
+*Status: **PARTIAL** (2026-09-18) — the story as literally written ("I want to see") is done: `/accounting/fx-revaluation` reports unrealized gain/loss on every open foreign-currency invoice/bill as of a chosen date. Report-only by design, not a stopping point chosen for convenience — see the Tier 7 entry in this document for why posting a non-reversing adjustment would double-count against US-ACC-054's own settlement recognition. Bank account balances are excluded from the report (no per-account booking rate exists to revalue against); posting/reversal is unbuilt.*
 
 **US-ACC-054**: As an Accountant, I want to record realized gains/losses when foreign invoices are paid, so that P&L reflects actual FX impact.
-*Status: **MISSING** — and this is dead code, not just an untested feature. `recordPayment` reuses the invoice's *original* `exchange_rate` rather than looking up a new settlement-date rate (confirmed by reading the full function body in `accounting.repo.ts`), so there is no rate delta to realize a gain or loss from. `payment_allocations.fx_gain_loss` is a real column that stays at its schema default of `0` — nothing ever writes to it. No test pays a foreign-currency invoice (the fixture's `GBP` invoice) at a rate different from booking; every `recordPayment` test uses a USD invoice. `INV-ACC-004` in `packages/spec-tests` tests the correct formula as a pure function, disconnected from this real path. See the top-of-document correction in [19-accounting-test-plan.md](19-accounting-test-plan.md).*
+*Status: **DONE** (2026-09-18). `recordPayment`/`recordVendorPayment` look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate, writing `payment_allocations.fx_gain_loss`. See the Tier 7 entry in this document for the shape and its two documented simplifications. Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` against the real database (gain, loss, and both fallbacks), and `INV-ACC-004` in `packages/spec-tests` remains the reference formula these were built to match.*
 
 **US-ACC-055**: As a Business Owner, I want to run reports in my base currency with automatic conversion, so that I can consolidate multi-currency operations.
 *Status: **MISSING**. Every invoice/bill carries its own `base_total` (converted at its own rate, correctly — see US-ACC-005), but there is no consolidated *report* of any kind to run in base currency (see Financial Reporting section above).*
@@ -2653,14 +2653,29 @@ either way.
       date" — `settlementFxDelta` logs the latter via `log.info`, but
       nothing surfaces it in the product; a CFO reading the allocations
       table later can't tell the two apart without checking the logs.
-- [ ] Period-end FX revaluation of open AR/AP/bank balances (unrealized
-      gain/loss). US-ACC-053. §3.3. Also closes US-ACC-031's remaining gap
-      (see its status block above) — the two are the same underlying
-      feature, not separate work.
-- [ ] ~~Foreign-currency bank account reconciliation.~~ Folded into the item
-      above — US-ACC-031's own status block says its remaining gap IS
-      period-end revaluation; there is no separate reconciliation feature to
-      build.
+- [x] Period-end FX revaluation — report-only (2026-09-18).
+      `/accounting/fx-revaluation` (`fx_revaluation.repo.ts`) shows
+      unrealized gain/loss on every open foreign-currency invoice and bill
+      as of a chosen date, comparing each one's own booking rate against the
+      latest rate on file on or before that date. Deliberately posts
+      nothing: a non-reversing adjustment would double-count against
+      settlement FX gain/loss's own recognition (the item above) once the
+      same invoice/bill actually settles, and this codebase has no
+      reversing-entry mechanism (a `reverses_entry_id` link plus something
+      to fire the reversal at next period open) to prevent that. Posting is
+      a real, larger follow-on feature, not a rejected idea — this closes
+      the user story as written ("see unrealized gains/losses") without
+      answering the harder posting question wrongly. **Bank account
+      balances are NOT included**, unlike invoices/bills: a `bank_account`
+      has no stored per-account booking rate to revalue against (its GL
+      cash account is shared across all bank accounts of that currency, and
+      `current_balance` is a live native-currency figure with no
+      base-currency baseline attached) — a defensible number here would need
+      its own design, not a proxy borrowed from AR/AP's shape. US-ACC-053.
+      §3.3. Also closes US-ACC-031's remaining gap (see its status block
+      above) for invoices/bills — the two are the same underlying feature,
+      not separate work; **bank-account reconciliation's revaluation half
+      specifically remains open**, for the reason above.
 
 ### Tier 8 — Automation
 
