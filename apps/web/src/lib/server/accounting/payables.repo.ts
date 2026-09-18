@@ -3,7 +3,10 @@ import {
   postJournal,
   AccountingRefused,
   nextSequenceNumber,
+  accountIdOrNull,
+  settlementFxDelta,
   type PaymentForDocument,
+  type JournalLine,
 } from "./accounting.repo"
 
 /**
@@ -49,6 +52,8 @@ const ACCOUNTS = {
   cash: "1000",
   inputTax: "1200",
   payable: "2000",
+  /** Same netted account accounting.repo.ts posts realized AR settlement FX to. */
+  fxGainLoss: "4200",
 } as const
 
 export type BillRow = {
@@ -733,6 +738,84 @@ export async function recordVendorPayment(
     3,
   )
 
+  const fx = await settlementFxDelta(tx, {
+    currency: before.currency,
+    amount: input.amount,
+    bookingRate: before.exchange_rate,
+    settlementDate: input.paymentDate,
+  })
+  const fxAccountId = fx.noMovement
+    ? null
+    : await accountIdOrNull(tx, ACCOUNTS.fxGainLoss)
+  const recognizeFx = fxAccountId !== null && !fx.noMovement
+
+  // `postJournal` carries one currency/rate for the whole entry, but a
+  // settlement inherently needs two: cash converts at the NEW (settlement)
+  // rate while the payable clears at the OLD (booking) rate. The gain/loss
+  // itself has no native-currency equivalent — it is a pure base-currency
+  // artifact of translation — so when there is one to recognize, the entry
+  // is posted directly in USD instead.
+  let lines: JournalLine[]
+  let entryCurrency: string
+  let entryExchangeRate: string
+  let fxGainLoss = "0"
+  if (recognizeFx) {
+    lines = [
+      {
+        accountCode: ACCOUNTS.payable,
+        debit: fx.bookingBase,
+        credit: null,
+        description: `Against ${before.bill_number}`,
+      },
+      {
+        accountCode: ACCOUNTS.cash,
+        debit: null,
+        credit: fx.cashBase,
+        description: paymentNumber,
+      },
+    ]
+    // A payable's cash line is a CREDIT, the opposite side from a
+    // receivable's — so the same `cashBaseGreater` relationship reads as the
+    // opposite outcome: paying more USD than the payable was booked at is a
+    // loss (debit); paying less is a gain (credit).
+    if (fx.cashBaseGreater) {
+      lines.push({
+        accountCode: ACCOUNTS.fxGainLoss,
+        debit: fx.deltaAbs,
+        credit: null,
+        description: `FX loss on settlement of ${before.bill_number}`,
+      })
+      fxGainLoss = `-${fx.deltaAbs}`
+    } else {
+      lines.push({
+        accountCode: ACCOUNTS.fxGainLoss,
+        debit: null,
+        credit: fx.deltaAbs,
+        description: `FX gain on settlement of ${before.bill_number}`,
+      })
+      fxGainLoss = fx.deltaAbs
+    }
+    entryCurrency = "USD"
+    entryExchangeRate = "1"
+  } else {
+    lines = [
+      {
+        accountCode: ACCOUNTS.payable,
+        debit: input.amount,
+        credit: null,
+        description: `Against ${before.bill_number}`,
+      },
+      {
+        accountCode: ACCOUNTS.cash,
+        debit: null,
+        credit: input.amount,
+        description: paymentNumber,
+      },
+    ]
+    entryCurrency = before.currency
+    entryExchangeRate = before.exchange_rate
+  }
+
   const entryId = await postJournal(
     tx,
     tenantId,
@@ -742,22 +825,9 @@ export async function recordVendorPayment(
       sourceId: input.billId,
       description: `Payment against ${before.bill_number}`,
       reference: paymentNumber,
-      currency: before.currency,
-      exchangeRate: before.exchange_rate,
-      lines: [
-        {
-          accountCode: ACCOUNTS.payable,
-          debit: input.amount,
-          credit: null,
-          description: `Against ${before.bill_number}`,
-        },
-        {
-          accountCode: ACCOUNTS.cash,
-          debit: null,
-          credit: input.amount,
-          description: paymentNumber,
-        },
-      ],
+      currency: entryCurrency,
+      exchangeRate: entryExchangeRate,
+      lines,
     },
     actorId,
   )
@@ -782,11 +852,12 @@ export async function recordVendorPayment(
 
   await tx`
     INSERT INTO payment_allocations (
-      tenant_id, payment_id, bill_id, amount, base_amount
+      tenant_id, payment_id, bill_id, amount, base_amount, fx_gain_loss
     ) VALUES (
       ${tenantId}::uuid, ${payment.id}::uuid, ${input.billId}::uuid,
       ${input.amount}::numeric,
-      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2)
+      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2),
+      ${fxGainLoss}::numeric
     )
   `
 

@@ -2619,15 +2619,48 @@ either way.
       see their status blocks above). Settlement gain/loss, revaluation
       and reconciliation below still don't read this table — that's their
       own remaining work, not closed by this item.
-- [ ] Settlement FX gain/loss. Gated on the above: `recordPayment` needs a
-      real settlement-date rate to realize a gain/loss against — it
-      currently reuses the invoice's booking rate, so `payment_allocations
-      .fx_gain_loss` never leaves its default of `0`. This is a missing
-      feature, not a bug fix — don't schedule it before Tier 7's first item
-      exists. US-ACC-054. §3.2.
+- [x] Settlement FX gain/loss (2026-09-18). `recordPayment`/`recordVendorPayment`
+      now look up the settlement-date rate (`exchange_rates.repo.ts`'s new
+      `rateAsOf`) and realize the gain/loss against the settlement-date rate
+      versus the invoice's/bill's own booking rate, via a shared
+      `settlementFxDelta` helper in `accounting.repo.ts`. When there is a
+      gain/loss to recognize, the entry posts in USD rather than the
+      invoice's native currency: `postJournal` carries one currency/rate per
+      entry, but a settlement inherently needs two (cash converts at the new
+      rate, the receivable/payable clears at the old one), and the gain/loss
+      line itself has no native-currency equivalent — the DB's
+      `ck_journal_entry_lines_one_sided_positive` constraint requires every
+      line to carry a nonzero native amount, which rules out a
+      native-currency-zero "base-only" plug line. Falls back to today's
+      booking-rate 2-line entry — never refusing the payment — when there is
+      no rate on file for the settlement date, or the tenant's chart of
+      accounts has no `4200` account (seeded for Northwind only; a new
+      tenant needs it added before this recognizes anything). Reuses `4200`
+      for both directions (debit for a loss, credit for a gain) rather than
+      adding a separate loss account. `recordLockboxPayment` is NOT covered —
+      the spec names only the two single-invoice/bill functions, and a
+      lockbox batch can span invoices with different booking rates, which is
+      real added complexity left for later. Tested in
+      `receivables.writes.test.ts`/`payables.writes.test.ts` (gain, loss, and
+      both fallbacks) against the real database. US-ACC-054. §3.2.
+      Two known simplifications, not fixed here: `payments.exchange_rate`/
+      `base_amount` still store the booking rate rather than the settlement
+      rate (nothing reads them today, so this is inert, but a future reader
+      of "how much USD hit the bank" would get the wrong answer from that
+      column specifically — `payment_allocations.fx_gain_loss` and the
+      journal are the correct source). And a `fx_gain_loss` of exactly `0`
+      is indistinguishable from "no rate was on file for the settlement
+      date" — `settlementFxDelta` logs the latter via `log.info`, but
+      nothing surfaces it in the product; a CFO reading the allocations
+      table later can't tell the two apart without checking the logs.
 - [ ] Period-end FX revaluation of open AR/AP/bank balances (unrealized
-      gain/loss). US-ACC-053. §3.3.
-- [ ] Foreign-currency bank account reconciliation. US-ACC-031 (second half).
+      gain/loss). US-ACC-053. §3.3. Also closes US-ACC-031's remaining gap
+      (see its status block above) — the two are the same underlying
+      feature, not separate work.
+- [ ] ~~Foreign-currency bank account reconciliation.~~ Folded into the item
+      above — US-ACC-031's own status block says its remaining gap IS
+      period-end revaluation; there is no separate reconciliation feature to
+      build.
 
 ### Tier 8 — Automation
 

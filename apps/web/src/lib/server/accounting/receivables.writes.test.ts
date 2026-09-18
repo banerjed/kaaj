@@ -1,8 +1,21 @@
 import { afterAll, describe, expect, it } from "vitest"
+import postgres from "postgres"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
 import * as acc from "./accounting.repo"
 import { AccountingRefused } from "./accounting.repo"
+
+/**
+ * `exchange_rates` carries no write policy for `app_user` at all (only the
+ * service role writes it, via `fx_rates.ts`) — a raw superuser connection,
+ * same escape hatch as `fx_rates.test.ts`, is the only way to seed a rate
+ * for a settlement-FX test. Test-only; application code never gets this.
+ */
+const superuser = postgres(
+  process.env.DATABASE_URL ??
+    "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+  { types: {} },
+)
 
 /**
  * The receivables write path, against the real database — asserts the ledger
@@ -653,6 +666,138 @@ describe("receiving a payment", () => {
       return { allocated, paid }
     })
     expect(paid.amount_paid).toBe(allocated.total)
+  })
+})
+
+describe("settlement FX gain/loss (US-ACC-054)", () => {
+  /** INV-2026-002 — GBP, booked at 1.27, 16,000.00 outstanding. */
+  const GBP_PAYMENT = {
+    invoiceId: GBP,
+    amount: "5000.00",
+    paymentDate: "2026-03-15",
+    method: "wire_transfer",
+    reference: "TT-GBP-01",
+    bankAccountId: "7585ab47-4908-5830-a959-65711784fc61",
+  }
+
+  async function journalLines(tx: Tx, reference: string) {
+    return tx<{ account_code: string; debit: string; credit: string }[]>`
+      SELECT a.account_code, l.debit_amount::text AS debit,
+             l.credit_amount::text AS credit
+        FROM journal_entry_lines l
+        JOIN journal_entries e ON e.id = l.entry_id
+        JOIN chart_of_accounts a ON a.id = l.account_id
+       WHERE e.reference = ${reference}
+       ORDER BY l.line_number
+    `
+  }
+
+  afterAll(async () => {
+    await superuser.end({ timeout: 5 })
+  })
+
+  it("recognizes a gain when the settlement-date rate is higher than the booking rate", async () => {
+    // The fixture already carries a later GBP rate (1.28, 2026-02-07) above
+    // the invoice's own booking rate (1.27) — no rate data to fabricate.
+    // Recognizing a gain/loss posts the entry in USD (see settlementFxDelta):
+    // cash converts at the settlement rate (5000 * 1.28 = 6400), the
+    // receivable clears at the booking rate (5000 * 1.27 = 6350), and the
+    // 50.00 difference is the gain.
+    const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+      const { paymentNumber } = await acc.recordPayment(
+        tx,
+        NORTHWIND,
+        GBP_PAYMENT,
+        ACTOR,
+      )
+      const lines = await journalLines(tx, paymentNumber)
+      const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+        SELECT fx_gain_loss::text FROM payment_allocations
+         WHERE invoice_id = ${GBP}::uuid AND amount = 5000.00
+      `
+      return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+    })
+    expect(lines).toEqual([
+      { account_code: "1000", debit: "6400.00", credit: "0.00" },
+      { account_code: "1100", debit: "0.00", credit: "6350.00" },
+      { account_code: "4200", debit: "0.00", credit: "50.00" },
+    ])
+    expect(unbalanced).toEqual([])
+    expect(allocation.fx_gain_loss).toBe("50.00")
+  })
+
+  it("recognizes a loss when the settlement-date rate is lower than the booking rate", async () => {
+    // A rate below the 1.27 booking rate — inserted via a superuser
+    // connection (app_user has no write policy on exchange_rates at all)
+    // and removed again in `finally`, since it is a separate connection
+    // from the rolled-back `tx`.
+    await superuser`
+      INSERT INTO exchange_rates (from_currency, to_currency, rate_date, rate, inverse_rate, source)
+      VALUES ('GBP', 'USD', '2026-03-14', 1.20, 1 / 1.20, 'manual')
+    `
+    try {
+      const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+        const { paymentNumber } = await acc.recordPayment(
+          tx,
+          NORTHWIND,
+          { ...GBP_PAYMENT, reference: "TT-GBP-02" },
+          ACTOR,
+        )
+        const lines = await journalLines(tx, paymentNumber)
+        const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+            SELECT fx_gain_loss::text FROM payment_allocations
+             WHERE invoice_id = ${GBP}::uuid AND amount = 5000.00
+          `
+        return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+      })
+      // Cash converts at 1.20 (5000 * 1.20 = 6000), the receivable still
+      // clears at the 1.27 booking rate (6350) — the 350.00 shortfall is
+      // the loss.
+      expect(lines).toEqual([
+        { account_code: "1000", debit: "6000.00", credit: "0.00" },
+        { account_code: "1100", debit: "0.00", credit: "6350.00" },
+        { account_code: "4200", debit: "350.00", credit: "0.00" },
+      ])
+      expect(unbalanced).toEqual([])
+      expect(allocation.fx_gain_loss).toBe("-350.00")
+    } finally {
+      await superuser`
+        DELETE FROM exchange_rates
+         WHERE from_currency = 'GBP' AND rate_date = '2026-03-14'
+      `
+    }
+  })
+
+  it("falls back to the booking rate — no FX line — when the tenant has no FX gain/loss account", async () => {
+    const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+      // app_user has no DELETE grant on chart_of_accounts at all; renaming
+      // the code out of the way (allowed: UPDATE is granted) has the same
+      // effect for `accountIdOrNull`, and rolls back with everything else.
+      await tx`
+        UPDATE chart_of_accounts SET account_code = '4200-TEST-HIDDEN'
+         WHERE tenant_id = ${NORTHWIND}::uuid AND account_code = '4200'
+      `
+      const { paymentNumber } = await acc.recordPayment(
+        tx,
+        NORTHWIND,
+        { ...GBP_PAYMENT, reference: "TT-GBP-03" },
+        ACTOR,
+      )
+      const lines = await journalLines(tx, paymentNumber)
+      const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+        SELECT fx_gain_loss::text FROM payment_allocations
+         WHERE invoice_id = ${GBP}::uuid AND amount = 5000.00
+      `
+      return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+    })
+    // Both lines fall back to the (same) booking rate, in GBP — trivially
+    // balanced, exactly today's pre-US-ACC-054 behavior.
+    expect(lines).toEqual([
+      { account_code: "1000", debit: "5000.00", credit: "0.00" },
+      { account_code: "1100", debit: "0.00", credit: "5000.00" },
+    ])
+    expect(unbalanced).toEqual([])
+    expect(allocation.fx_gain_loss).toBe("0.00")
   })
 })
 

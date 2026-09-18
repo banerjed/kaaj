@@ -1,5 +1,7 @@
 import type { Tx } from "../db/tenant"
 import { compareDecimal } from "$lib/decimal"
+import { rateAsOf } from "./exchange_rates.repo"
+import { log } from "$lib/server/log"
 
 /**
  * Invoices and the general ledger. Money stays a string and sums happen in SQL.
@@ -1767,6 +1769,14 @@ const ACCOUNTS = {
   retainedEarnings: "3000",
   revenue: "4000",
   badDebtExpense: "5500",
+  /**
+   * Netted — one account for both directions (a debit line for a loss, a
+   * credit line for a gain), a standard small-business practice. Not every
+   * tenant's chart of accounts has this seeded; `accountIdOrNull` is used
+   * for it specifically so a settlement degrades to today's 2-line entry
+   * instead of throwing on a tenant with no such account.
+   */
+  fxGainLoss: "4200",
 } as const
 
 export class AccountingRefused extends Error {
@@ -1833,6 +1843,17 @@ async function accountId(tx: Tx, code: string): Promise<string> {
   `
   if (!row) throw new AccountingRefused("no_such_account", code)
   return row.id
+}
+
+/** Like `accountId`, but `null` instead of throwing when the code is unseeded. */
+export async function accountIdOrNull(
+  tx: Tx,
+  code: string,
+): Promise<string | null> {
+  const [row] = await tx<{ id: string }[]>`
+    SELECT id FROM chart_of_accounts WHERE account_code = ${code}
+  `
+  return row?.id ?? null
 }
 
 /**
@@ -2476,6 +2497,84 @@ async function settleInvoiceAfterPayment(
 }
 
 /**
+ * The base-currency delta between cash moving at the settlement-date rate
+ * and the same amount booked at the invoice/bill's own rate (US-ACC-054).
+ * Direction-neutral on purpose: whether `cashBaseGreater` means a gain or a
+ * loss depends on which side of the entry the cash line sits on — an AR
+ * settlement's cash line is a debit, a payables one a credit, so the same
+ * relationship reads as the opposite outcome. The caller decides that; this
+ * only computes the numbers, in one query so both figures round the same
+ * way the journal lines they feed will.
+ */
+export async function settlementFxDelta(
+  tx: Tx,
+  params: {
+    currency: string
+    amount: string
+    bookingRate: string
+    settlementDate: string
+  },
+): Promise<{
+  cashBase: string
+  bookingBase: string
+  deltaAbs: string
+  cashBaseGreater: boolean
+  noMovement: boolean
+}> {
+  if (params.currency === "USD") {
+    // No FX rate applies to USD itself — skip the lookup query on what is
+    // the common case for a domestic tenant.
+    return {
+      cashBase: params.amount,
+      bookingBase: params.amount,
+      deltaAbs: "0",
+      cashBaseGreater: false,
+      noMovement: true,
+    }
+  }
+
+  let settlementRate = await rateAsOf(
+    tx,
+    params.currency,
+    params.settlementDate,
+  )
+  if (settlementRate === null) {
+    log.info({
+      msg: "no exchange rate on file for the settlement date; settling at the booking rate, no FX gain/loss recognized",
+      currency: params.currency,
+      settlementDate: params.settlementDate,
+    })
+    settlementRate = params.bookingRate
+  }
+
+  const [row] = await tx<
+    {
+      cash_base: string
+      booking_base: string
+      delta_abs: string
+      cash_base_greater: boolean
+      no_movement: boolean
+    }[]
+  >`
+    SELECT round(${params.amount}::numeric * ${settlementRate}::numeric, 2)::text AS cash_base,
+           round(${params.amount}::numeric * ${params.bookingRate}::numeric, 2)::text AS booking_base,
+           abs(round(${params.amount}::numeric * ${settlementRate}::numeric, 2)
+             - round(${params.amount}::numeric * ${params.bookingRate}::numeric, 2))::text AS delta_abs,
+           round(${params.amount}::numeric * ${settlementRate}::numeric, 2)
+             > round(${params.amount}::numeric * ${params.bookingRate}::numeric, 2) AS cash_base_greater,
+           round(${params.amount}::numeric * ${settlementRate}::numeric, 2)
+             = round(${params.amount}::numeric * ${params.bookingRate}::numeric, 2) AS no_movement
+  `
+  return {
+    cashBase: row.cash_base,
+    bookingBase: row.booking_base,
+    deltaAbs: row.delta_abs,
+    cashBaseGreater: row.cash_base_greater,
+    noMovement: row.no_movement,
+  }
+}
+
+/**
  * Receive money against an invoice.
  *
  *   DR Cash at Bank            amount
@@ -2483,6 +2582,14 @@ async function settleInvoiceAfterPayment(
  *
  * Refused if it would overpay — checked here so the message is useful rather
  * than a bare CHECK-constraint failure.
+ *
+ * When the settlement-date rate differs from the invoice's own booking rate
+ * (US-ACC-054), a third line recognizes the realized FX gain/loss against
+ * `ACCOUNTS.fxGainLoss` — credited for a gain (cash converts to more USD than
+ * the receivable was booked at), debited for a loss. Skipped, falling back
+ * to today's two-line entry at the booking rate, when there is no rate on
+ * file for the settlement date or the tenant's chart of accounts has no such
+ * account — a foreign settlement must never be refused for either reason.
  */
 export async function recordPayment(
   tx: Tx,
@@ -2525,6 +2632,82 @@ export async function recordPayment(
     SELECT customer_id FROM invoices WHERE id = ${input.invoiceId}::uuid
   `
 
+  const fx = await settlementFxDelta(tx, {
+    currency: before.currency,
+    amount: input.amount,
+    bookingRate: before.exchange_rate,
+    settlementDate: input.paymentDate,
+  })
+  const fxAccountId = fx.noMovement
+    ? null
+    : await accountIdOrNull(tx, ACCOUNTS.fxGainLoss)
+  const recognizeFx = fxAccountId !== null && !fx.noMovement
+
+  // `postJournal` carries one currency/rate for the whole entry, but a
+  // settlement inherently needs two: cash converts at the NEW (settlement)
+  // rate while the receivable clears at the OLD (booking) rate. The
+  // gain/loss itself has no native-currency equivalent at all — it is a
+  // pure base-currency artifact of translation — so when there is one to
+  // recognize, the entry is posted directly in USD instead.
+  let lines: JournalLine[]
+  let entryCurrency: string
+  let entryExchangeRate: string
+  let fxGainLoss = "0"
+  if (recognizeFx) {
+    lines = [
+      {
+        accountCode: ACCOUNTS.cash,
+        debit: fx.cashBase,
+        credit: null,
+        description: paymentNumber,
+      },
+      {
+        accountCode: ACCOUNTS.receivable,
+        debit: null,
+        credit: fx.bookingBase,
+        description: `Against ${before.invoice_number}`,
+      },
+    ]
+    // Cash converting to more USD than the receivable was booked at is a
+    // gain (credit); less is a loss (debit) — see `settlementFxDelta`.
+    if (fx.cashBaseGreater) {
+      lines.push({
+        accountCode: ACCOUNTS.fxGainLoss,
+        debit: null,
+        credit: fx.deltaAbs,
+        description: `FX gain on settlement of ${before.invoice_number}`,
+      })
+      fxGainLoss = fx.deltaAbs
+    } else {
+      lines.push({
+        accountCode: ACCOUNTS.fxGainLoss,
+        debit: fx.deltaAbs,
+        credit: null,
+        description: `FX loss on settlement of ${before.invoice_number}`,
+      })
+      fxGainLoss = `-${fx.deltaAbs}`
+    }
+    entryCurrency = "USD"
+    entryExchangeRate = "1"
+  } else {
+    lines = [
+      {
+        accountCode: ACCOUNTS.cash,
+        debit: input.amount,
+        credit: null,
+        description: paymentNumber,
+      },
+      {
+        accountCode: ACCOUNTS.receivable,
+        debit: null,
+        credit: input.amount,
+        description: `Against ${before.invoice_number}`,
+      },
+    ]
+    entryCurrency = before.currency
+    entryExchangeRate = before.exchange_rate
+  }
+
   const entryId = await postJournal(
     tx,
     tenantId,
@@ -2534,22 +2717,9 @@ export async function recordPayment(
       sourceId: input.invoiceId,
       description: `Payment received against ${before.invoice_number}`,
       reference: paymentNumber,
-      currency: before.currency,
-      exchangeRate: before.exchange_rate,
-      lines: [
-        {
-          accountCode: ACCOUNTS.cash,
-          debit: input.amount,
-          credit: null,
-          description: paymentNumber,
-        },
-        {
-          accountCode: ACCOUNTS.receivable,
-          debit: null,
-          credit: input.amount,
-          description: `Against ${before.invoice_number}`,
-        },
-      ],
+      currency: entryCurrency,
+      exchangeRate: entryExchangeRate,
+      lines,
     },
     actorId,
   )
@@ -2574,11 +2744,12 @@ export async function recordPayment(
 
   await tx`
     INSERT INTO payment_allocations (
-      tenant_id, payment_id, invoice_id, amount, base_amount
+      tenant_id, payment_id, invoice_id, amount, base_amount, fx_gain_loss
     ) VALUES (
       ${tenantId}::uuid, ${payment.id}::uuid, ${input.invoiceId}::uuid,
       ${input.amount}::numeric,
-      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2)
+      round(${input.amount}::numeric * ${before.exchange_rate}::numeric, 2),
+      ${fxGainLoss}::numeric
     )
   `
 

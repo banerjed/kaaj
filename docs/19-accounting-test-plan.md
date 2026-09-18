@@ -26,12 +26,18 @@ call-outs.
 
 **Two corrections from the first coverage-mapping pass** (previously
 `20-accounting-test-coverage-mapping.md`, now folded in here and deleted):
-1. **Settlement FX gain/loss (§3.2) is not implemented, not just untested.**
-   `recordPayment` reuses the invoice's *original* `exchange_rate` rather than
-   a new settlement-date rate, and never writes `payment_allocations.fx_gain_loss`
-   (it stays at its schema default of 0). The column and the spec-tests unit
-   test (`INV-ACC-004`) exist; the real code path that would populate them
-   does not.
+1. **Settlement FX gain/loss (§3.2) — implemented 2026-09-18, no longer a
+   live finding.** `recordPayment`/`recordVendorPayment` now look up the
+   settlement-date rate and write `payment_allocations.fx_gain_loss`. See the
+   Tier 7 entry in `module-accounting.md` for the shape (posts in USD when
+   there is a gain/loss to recognize, falls back to the booking rate rather
+   than refusing when no rate/account is on file) and
+   `receivables.writes.test.ts`/`payables.writes.test.ts` for the tests. What
+   was true at the time of the original pass: `recordPayment` reused the
+   invoice's *original* `exchange_rate` rather than a new settlement-date
+   rate, so the column stayed at its schema default of 0 — the column and
+   the spec-tests unit test (`INV-ACC-004`) existed before the real code
+   path that populates them did.
 2. **A posted journal entry's immutability was unenforced, not unreachable —
    fixed 2026-09-12, no longer a live finding.** At the time of the first
    coverage-mapping pass, the RLS `accounting_update` policy
@@ -220,8 +226,8 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 - Rounding on FX conversion follows a documented rule and is applied identically on the debit and credit side. **[DONE]**
   *`receivables.writes.test.ts:187` ("rounds each part before summing, on a rate where it matters") is a deliberately chosen rate/amount (GBP 1.27, `100.01`) that distinguishes round-then-sum from sum-then-round, asserting `127.01 + 127.01 = 254.02` rather than the naive `254.03` — a real, sharp test, not an incidental pass.*
 
-### 3.2 Settlement FX gain/loss — **[MISSING]**
-*See the correction at the top of this document. `recordPayment`/`recordVendorPayment` both reuse the invoice's/bill's original `exchange_rate` (`accounting.repo.ts`, confirmed by reading the full function body) rather than looking up a new settlement-date rate, so there is no rate delta to realize a gain or loss from — `payment_allocations.fx_gain_loss` is inserted only implicitly via its schema default of `0` (`accounting.repo.ts` never mentions the column). No test pays a foreign-currency invoice at a different rate than it was booked; every `recordPayment` test in `receivables.writes.test.ts` uses the `PARTIAL` (USD) or `DRAFT` (USD) fixture invoices, never the `GBP` one. `INV-ACC-004`'s `calculateRealizedFxGainLoss` in `packages/spec-tests` tests the correct *formula* as a pure function, but nothing connects it to the real write path.*
+### 3.2 Settlement FX gain/loss — **[DONE]** (2026-09-18)
+*See the correction at the top of this document. `recordPayment`/`recordVendorPayment` now look up the settlement-date rate (`exchange_rates.repo.ts`'s `rateAsOf`) and realize the gain/loss against it versus the invoice's/bill's booking rate, writing `payment_allocations.fx_gain_loss`. `receivables.writes.test.ts` ("settlement FX gain/loss (US-ACC-054)") and `payables.writes.test.ts` (same) each cover a gain, a loss, and the fallback to the booking rate when no settlement-date rate or no FX gain/loss account exists for the tenant — against the real `GBP` fixture invoice/a temporarily-foreign-currency bill, not a mock. `INV-ACC-004`'s `calculateRealizedFxGainLoss` in `packages/spec-tests` is the reference formula/sign convention these tests were built to match.*
 
 ### 3.3 Revaluation (period-end) — **[MISSING]**
 *No code revalues open foreign-currency AR/AP/bank balances at period-end; no unrealized-gain/loss test exists anywhere.*

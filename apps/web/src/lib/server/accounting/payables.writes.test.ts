@@ -1,8 +1,21 @@
 import { afterAll, describe, expect, it } from "vitest"
+import postgres from "postgres"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
 import * as pay from "./payables.repo"
 import { AccountingRefused } from "./accounting.repo"
+
+/**
+ * `exchange_rates` carries no write policy for `app_user` at all (only the
+ * service role writes it, via `fx_rates.ts`) — a raw superuser connection,
+ * same escape hatch as `fx_rates.test.ts`, is the only way to seed a rate
+ * for a settlement-FX test. Test-only; application code never gets this.
+ */
+const superuser = postgres(
+  process.env.DATABASE_URL ??
+    "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+  { types: {} },
+)
 
 /**
  * The payables write path, against the real database — asserts the ledger
@@ -573,6 +586,139 @@ describe("paying a vendor", () => {
       return { allocated, paid }
     })
     expect(paid.amount_paid).toBe(allocated.total)
+  })
+})
+
+describe("settlement FX gain/loss (US-ACC-054)", () => {
+  // No bill in the fixture is foreign-currency — converted from the
+  // otherwise-unrelated APPROVED (USD) bill within the rollback, matching
+  // the pattern receivables.writes.test.ts uses to exercise a GBP invoice.
+  const GBP_PAYMENT = {
+    billId: APPROVED,
+    amount: "1000.00",
+    paymentDate: "2026-03-15",
+    method: "wire_transfer",
+    reference: "WIRE-GBP-01",
+    bankAccountId: "7585ab47-4908-5830-a959-65711784fc61",
+  }
+
+  async function asGbpBill(tx: Tx): Promise<void> {
+    await tx`
+      UPDATE bills SET currency = 'GBP', exchange_rate = 1.27
+       WHERE id = ${APPROVED}::uuid
+    `
+  }
+
+  async function journalLines(tx: Tx, reference: string) {
+    return tx<{ account_code: string; debit: string; credit: string }[]>`
+      SELECT a.account_code, l.debit_amount::text AS debit,
+             l.credit_amount::text AS credit
+        FROM journal_entry_lines l
+        JOIN journal_entries e ON e.id = l.entry_id
+        JOIN chart_of_accounts a ON a.id = l.account_id
+       WHERE e.reference = ${reference}
+       ORDER BY l.line_number
+    `
+  }
+
+  afterAll(async () => {
+    await superuser.end({ timeout: 5 })
+  })
+
+  it("recognizes a loss when the settlement-date rate is higher than the booking rate", async () => {
+    // Paying more USD than the payable was booked at (currency strengthened)
+    // is a loss — the opposite interpretation from a receivable's gain for
+    // the same relationship (settlementFxDelta, payables.repo.ts).
+    const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+      await asGbpBill(tx)
+      const { paymentNumber } = await pay.recordVendorPayment(
+        tx,
+        NORTHWIND,
+        GBP_PAYMENT,
+        ACTOR,
+      )
+      const lines = await journalLines(tx, paymentNumber)
+      const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+        SELECT fx_gain_loss::text FROM payment_allocations
+         WHERE bill_id = ${APPROVED}::uuid AND amount = 1000.00
+      `
+      return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+    })
+    // 1000 * 1.28 (settlement) = 1280.00 cash; 1000 * 1.27 (booking) =
+    // 1270.00 clears the payable; the 10.00 shortfall is the loss.
+    expect(lines).toEqual([
+      { account_code: "2000", debit: "1270.00", credit: "0.00" },
+      { account_code: "1000", debit: "0.00", credit: "1280.00" },
+      { account_code: "4200", debit: "10.00", credit: "0.00" },
+    ])
+    expect(unbalanced).toEqual([])
+    expect(allocation.fx_gain_loss).toBe("-10.00")
+  })
+
+  it("recognizes a gain when the settlement-date rate is lower than the booking rate", async () => {
+    await superuser`
+      INSERT INTO exchange_rates (from_currency, to_currency, rate_date, rate, inverse_rate, source)
+      VALUES ('GBP', 'USD', '2026-03-13', 1.20, 1 / 1.20, 'manual')
+    `
+    try {
+      const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+        await asGbpBill(tx)
+        const { paymentNumber } = await pay.recordVendorPayment(
+          tx,
+          NORTHWIND,
+          { ...GBP_PAYMENT, reference: "WIRE-GBP-02" },
+          ACTOR,
+        )
+        const lines = await journalLines(tx, paymentNumber)
+        const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+            SELECT fx_gain_loss::text FROM payment_allocations
+             WHERE bill_id = ${APPROVED}::uuid AND amount = 1000.00
+          `
+        return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+      })
+      // 1000 * 1.20 (settlement) = 1200.00 cash — 70.00 less than the
+      // 1270.00 the payable was booked at, a gain to the payer.
+      expect(lines).toEqual([
+        { account_code: "2000", debit: "1270.00", credit: "0.00" },
+        { account_code: "1000", debit: "0.00", credit: "1200.00" },
+        { account_code: "4200", debit: "0.00", credit: "70.00" },
+      ])
+      expect(unbalanced).toEqual([])
+      expect(allocation.fx_gain_loss).toBe("70.00")
+    } finally {
+      await superuser`
+        DELETE FROM exchange_rates
+         WHERE from_currency = 'GBP' AND rate_date = '2026-03-13'
+      `
+    }
+  })
+
+  it("falls back to the booking rate — no FX line — when the tenant has no FX gain/loss account", async () => {
+    const { lines, allocation, unbalanced } = await inRollback(async (tx) => {
+      await asGbpBill(tx)
+      await tx`
+        UPDATE chart_of_accounts SET account_code = '4200-TEST-HIDDEN'
+         WHERE tenant_id = ${NORTHWIND}::uuid AND account_code = '4200'
+      `
+      const { paymentNumber } = await pay.recordVendorPayment(
+        tx,
+        NORTHWIND,
+        { ...GBP_PAYMENT, reference: "WIRE-GBP-03" },
+        ACTOR,
+      )
+      const lines = await journalLines(tx, paymentNumber)
+      const [allocation] = await tx<{ fx_gain_loss: string }[]>`
+        SELECT fx_gain_loss::text FROM payment_allocations
+         WHERE bill_id = ${APPROVED}::uuid AND amount = 1000.00
+      `
+      return { lines, allocation, unbalanced: await unbalancedEntries(tx) }
+    })
+    expect(lines).toEqual([
+      { account_code: "2000", debit: "1000.00", credit: "0.00" },
+      { account_code: "1000", debit: "0.00", credit: "1000.00" },
+    ])
+    expect(unbalanced).toEqual([])
+    expect(allocation.fx_gain_loss).toBe("0.00")
   })
 })
 

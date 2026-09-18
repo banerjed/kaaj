@@ -29,3 +29,27 @@ export async function listCurrentExchangeRates(
      ORDER BY from_currency, to_currency, rate_date DESC
   `
 }
+
+/**
+ * The `currency`→USD rate in effect on `asOfDate` — the latest rate dated on
+ * or before it, since refresh is manual-trigger-only (US-ACC-052's own
+ * remaining gap) and a rate for the exact day is not guaranteed to exist.
+ * Returns `null` when no rate at or before that date is on file at all;
+ * callers fall back to treating no rate as no gain/loss rather than
+ * refusing a real settlement.
+ */
+export async function rateAsOf(
+  tx: Tx,
+  currency: string,
+  asOfDate: string,
+): Promise<string | null> {
+  const [row] = await tx<{ rate: string }[]>`
+    SELECT rate::text
+      FROM exchange_rates
+     WHERE from_currency = ${currency} AND to_currency = 'USD'
+       AND rate_date <= ${asOfDate}::date
+     ORDER BY rate_date DESC
+     LIMIT 1
+  `
+  return row?.rate ?? null
+}
