@@ -953,3 +953,20 @@ test("a batch vendor payment with no bills selected is refused, not silently a n
 
   await expect(page.getByText(/select at least one bill/i)).toBeVisible()
 })
+
+test("a reconciliation rule with no matching criteria is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Read-only: createReconciliationRule's own no_criteria refusal fires
+  // before any INSERT, since the form leaves every condition field blank —
+  // no rule actually gets created.
+  await page.goto("/accounting/banking/rules")
+  const form = page.locator('form[action="?/create"]')
+  await form.locator('input[name="rule_name"]').fill("Matches everything")
+  await form
+    .locator('select[name="category_account_id"]')
+    .selectOption({ index: 1 })
+  await form.getByRole("button", { name: /create rule/i }).click()
+
+  await expect(page.getByText(/a rule needs at least one of/i)).toBeVisible()
+})

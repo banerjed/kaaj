@@ -217,6 +217,21 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "match",
     why: "Ties a bank statement line to the firm's own records — the classic reconciliation question is who confirmed that a given deposit or withdrawal was this specific payment.",
   },
+  {
+    route: "accounting/banking/rules",
+    action: "create",
+    why: "A standing rule that will silently recategorize future transactions to a chosen GL account — who set it up, and against which account, matters the same way a new payroll policy does.",
+  },
+  {
+    route: "accounting/banking/rules",
+    action: "toggle",
+    why: "Deactivating a rule stops future auto-categorization the same way archiving a policy does; reactivating resumes it — both change what happens to money nobody manually reviewed.",
+  },
+  {
+    route: "accounting/banking/rules",
+    action: "apply",
+    why: "Moves potentially many transactions between GL categories in one run with no per-transaction review — the batch summary (count and rule) is the record of what changed and why, the same trail matchBankTransaction keeps per-transaction.",
+  },
 
   // -- Payroll: the record of money leaving the firm -----------------------
   {

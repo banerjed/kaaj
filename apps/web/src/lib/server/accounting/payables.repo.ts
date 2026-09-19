@@ -1315,6 +1315,263 @@ export async function matchBankTransaction(
 }
 
 // ---------------------------------------------------------------------------
+// Bank reconciliation rules (US-ACC-029) — recurring transactions
+// categorized automatically. `action_type` is fixed to 'categorize': the
+// table's other columns (auto_match, create_transaction, vendor_id,
+// customer_id) anticipate matching a transaction to a payment or vendor/
+// customer directly, but bank_transactions has no vendor_id/customer_id
+// column to write that onto — categorizing to a chart-of-accounts row is
+// the only action this schema can actually carry out today.
+// ---------------------------------------------------------------------------
+
+/** Observed values in bank_transactions.transaction_type — plain varchar,
+ *  no CHECK behind it, so this list IS the constraint (L57). */
+export const RECONCILIATION_TRANSACTION_TYPES = ["credit", "debit"] as const
+export type ReconciliationTransactionType =
+  (typeof RECONCILIATION_TRANSACTION_TYPES)[number]
+
+export type ReconciliationRuleRow = {
+  id: string
+  rule_name: string
+  is_active: boolean
+  bank_account_id: string | null
+  bank_account_name: string | null
+  description_contains: string | null
+  description_regex: string | null
+  amount_equals: string | null
+  amount_tolerance: string | null
+  amount_min: string | null
+  amount_max: string | null
+  transaction_type: string | null
+  category_account_id: string
+  category_account_code: string
+  category_account_name: string
+  priority: number
+  times_applied: number
+  last_applied_at: string | null
+}
+
+/** Every rule, active or not — this table is small and admin-authored
+ *  (NOT_SCALE_SENSITIVE), so no paging. */
+export async function listReconciliationRules(
+  tx: Tx,
+): Promise<ReconciliationRuleRow[]> {
+  return tx<ReconciliationRuleRow[]>`
+    SELECT r.id::text AS id, r.rule_name, r.is_active,
+           r.bank_account_id::text AS bank_account_id, ba.account_name AS bank_account_name,
+           r.description_contains, r.description_regex,
+           r.amount_equals::text AS amount_equals,
+           r.amount_tolerance::text AS amount_tolerance,
+           r.amount_min::text AS amount_min, r.amount_max::text AS amount_max,
+           r.transaction_type,
+           r.category_account_id::text AS category_account_id,
+           c.account_code AS category_account_code, c.account_name AS category_account_name,
+           r.priority, r.times_applied, r.last_applied_at
+      FROM bank_reconciliation_rules r
+      JOIN chart_of_accounts c ON c.id = r.category_account_id
+      LEFT JOIN bank_accounts ba ON ba.id = r.bank_account_id
+     ORDER BY r.priority DESC, r.rule_name
+  `
+}
+
+export type CategoryAccountOption = {
+  id: string
+  account_code: string
+  account_name: string
+}
+
+/** The chart of accounts, for the rule form's category picker. */
+export async function categoryAccountsForPicker(
+  tx: Tx,
+): Promise<CategoryAccountOption[]> {
+  return tx<CategoryAccountOption[]>`
+    SELECT id::text AS id, account_code, account_name
+      FROM chart_of_accounts
+     WHERE is_active
+     ORDER BY account_code
+  `
+}
+
+export type NewReconciliationRule = {
+  ruleName: string
+  bankAccountId: string | null
+  descriptionContains: string | null
+  descriptionRegex: string | null
+  amountEquals: string | null
+  amountTolerance: string | null
+  amountMin: string | null
+  amountMax: string | null
+  transactionType: ReconciliationTransactionType | null
+  categoryAccountId: string
+  priority: number
+}
+
+export async function createReconciliationRule(
+  tx: Tx,
+  tenantId: string,
+  input: NewReconciliationRule,
+  actorId: string,
+): Promise<{ id: string }> {
+  if (
+    input.descriptionContains === null &&
+    input.descriptionRegex === null &&
+    input.amountEquals === null &&
+    input.amountMin === null &&
+    input.amountMax === null
+  ) {
+    throw new AccountingRefused("no_criteria")
+  }
+
+  if (input.descriptionRegex !== null) {
+    const [{ ok }] = await tx<{ ok: boolean }[]>`
+      SELECT app.is_valid_regex(${input.descriptionRegex}) AS ok
+    `
+    if (!ok) throw new AccountingRefused("invalid_regex")
+  }
+
+  const [category] = await tx<{ id: string }[]>`
+    SELECT id FROM chart_of_accounts WHERE id = ${input.categoryAccountId}::uuid
+  `
+  if (!category) throw new AccountingRefused("no_such_account")
+
+  if (input.bankAccountId !== null) {
+    const [account] = await tx<{ id: string }[]>`
+      SELECT id FROM bank_accounts WHERE id = ${input.bankAccountId}::uuid
+    `
+    if (!account) throw new AccountingRefused("no_such_bank_account")
+  }
+
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO bank_reconciliation_rules (
+      tenant_id, bank_account_id, rule_name, description_contains,
+      description_regex, amount_equals, amount_tolerance, amount_min,
+      amount_max, transaction_type, action_type, category_account_id,
+      priority, created_by, updated_by
+    ) VALUES (
+      ${tenantId}::uuid, ${input.bankAccountId}::uuid, ${input.ruleName},
+      ${input.descriptionContains}, ${input.descriptionRegex},
+      ${input.amountEquals}, ${input.amountTolerance}, ${input.amountMin},
+      ${input.amountMax}, ${input.transactionType}, 'categorize',
+      ${input.categoryAccountId}::uuid, ${input.priority},
+      ${actorId}::uuid, ${actorId}::uuid
+    )
+    RETURNING id::text AS id
+  `
+  return row
+}
+
+/** Flips is_active — recomputed from the current row rather than trusting a
+ *  client-submitted boolean, so a stale form can only ever toggle, never
+ *  force a state a concurrent edit already moved away from. No DELETE: a
+ *  rule that should stop firing is deactivated, never removed. */
+export async function toggleReconciliationRule(
+  tx: Tx,
+  ruleId: string,
+  actorId: string,
+): Promise<{ from: boolean; to: boolean }> {
+  const [row] = await tx<{ is_active: boolean }[]>`
+    UPDATE bank_reconciliation_rules
+       SET is_active = NOT is_active, updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${ruleId}::uuid
+     RETURNING is_active
+  `
+  if (!row) throw new AccountingRefused("no_such_rule")
+  return { from: !row.is_active, to: row.is_active }
+}
+
+export type AppliedRule = { ruleId: string; ruleName: string; count: number }
+
+/**
+ * Categorizes every unmatched transaction that a rule matches — one
+ * set-based UPDATE, not a per-transaction loop, since bank_transactions is
+ * SCALE_SENSITIVE. Priority order picks a single rule per transaction when
+ * more than one matches (DISTINCT ON, tie-broken by priority DESC, then
+ * created_at, then id for a fully deterministic result). Manually
+ * triggered: no scheduler exists in this codebase (matches the exchange-
+ * rate refresh and batch-payment precedent).
+ */
+export async function applyReconciliationRules(
+  tx: Tx,
+  tenantId: string,
+  bankAccountId: string | null,
+): Promise<{ categorized: number; byRule: AppliedRule[] }> {
+  const applied = await tx<{ rule_id: string; rule_name: string; n: number }[]>`
+    WITH matches AS (
+      SELECT DISTINCT ON (t.id)
+             t.id AS transaction_id, r.id AS rule_id, r.rule_name,
+             r.category_account_id
+        FROM bank_transactions t
+        JOIN bank_reconciliation_rules r
+          ON r.tenant_id = t.tenant_id
+         AND r.is_active
+         AND r.action_type = 'categorize'
+         AND (r.bank_account_id IS NULL OR r.bank_account_id = t.bank_account_id)
+         AND (r.description_contains IS NULL
+              OR t.description ILIKE '%' || r.description_contains || '%')
+         AND (r.description_regex IS NULL OR t.description ~ r.description_regex)
+         AND (r.transaction_type IS NULL OR r.transaction_type = t.transaction_type)
+         -- A debit is stored negative; amount_equals/min/max are entered as
+         -- the positive size of the transaction, direction being what
+         -- transaction_type is for. Compared against abs(), not the signed
+         -- value, so "amount equals 299.00" matches a -299.00 debit.
+         AND (r.amount_equals IS NULL
+              OR abs(abs(t.amount) - r.amount_equals) <= coalesce(r.amount_tolerance, 0))
+         AND (r.amount_min IS NULL OR abs(t.amount) >= r.amount_min)
+         AND (r.amount_max IS NULL OR abs(t.amount) <= r.amount_max)
+       WHERE t.tenant_id = ${tenantId}::uuid
+         AND t.status = 'unmatched'
+         AND (${bankAccountId}::uuid IS NULL OR t.bank_account_id = ${bankAccountId}::uuid)
+       ORDER BY t.id, r.priority DESC, r.created_at ASC, r.id ASC
+    ),
+    categorized AS (
+      UPDATE bank_transactions t
+         SET status = 'categorized', category_account_id = m.category_account_id,
+             matching_rule_id = m.rule_id, match_confidence = 1.00,
+             updated_at = now()
+        FROM matches m
+       WHERE t.id = m.transaction_id
+      RETURNING m.rule_id, m.rule_name
+    )
+    SELECT rule_id::text AS rule_id, rule_name, count(*)::int AS n
+      FROM categorized
+     GROUP BY rule_id, rule_name
+  `
+
+  // times_applied is the CURRENT count of transactions this rule has
+  // categorized, not a lifetime tally — recomputed from the real rows
+  // (L58), so it drops if one of them is later re-matched to a payment
+  // (matchBankTransaction clears matching_rule_id). last_applied_at only
+  // advances for rules that fired just now. One aggregate pass over
+  // bank_transactions (idx_bank_transactions_matching_rule_id), LEFT JOINed
+  // to every rule, rather than a per-rule correlated subquery — the latter
+  // would be one full index probe per rule instead of one scan total.
+  const appliedRuleIds = applied.map((a) => a.rule_id)
+  await tx`
+    UPDATE bank_reconciliation_rules r
+       SET times_applied = coalesce(c.n, 0),
+           last_applied_at = CASE WHEN r.id = ANY(${appliedRuleIds}::uuid[])
+                                   THEN now() ELSE r.last_applied_at END
+      FROM bank_reconciliation_rules br
+      LEFT JOIN (
+        SELECT matching_rule_id, count(*) AS n
+          FROM bank_transactions
+         WHERE tenant_id = ${tenantId}::uuid AND matching_rule_id IS NOT NULL
+         GROUP BY matching_rule_id
+      ) c ON c.matching_rule_id = br.id
+     WHERE r.id = br.id AND br.tenant_id = ${tenantId}::uuid
+  `
+
+  return {
+    categorized: applied.reduce((sum, a) => sum + a.n, 0),
+    byRule: applied.map((a) => ({
+      ruleId: a.rule_id,
+      ruleName: a.rule_name,
+      count: a.n,
+    })),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Writes — entering a vendor bill as a draft
 // ---------------------------------------------------------------------------
 

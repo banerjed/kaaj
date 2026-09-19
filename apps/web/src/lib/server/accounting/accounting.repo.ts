@@ -1832,7 +1832,20 @@ export class AccountingRefused extends Error {
       | "customer_tax_exempt"
       // The same bill named twice in one batch payment run — same shape as
       // `duplicate_invoice`, on the payables side.
-      | "duplicate_bill",
+      | "duplicate_bill"
+      // A reconciliation rule's bank_account_id names a row that isn't
+      // there — kept distinct from `no_such_account` (chart_of_accounts).
+      | "no_such_bank_account"
+      | "no_such_rule"
+      // A rule with none of description_contains/description_regex/
+      // amount_equals/amount_min/amount_max set would match every
+      // transaction — refused rather than silently accepted.
+      | "no_criteria"
+      // Postgres's ARE dialect diverges from JS regex (backreferences,
+      // POSIX classes, lookbehind) — checked via app.is_valid_regex so a
+      // pattern that would raise `invalid_regular_expression` is caught at
+      // creation, not on every future apply-rules run.
+      | "invalid_regex",
     readonly detail?: string,
   ) {
     super(reason)

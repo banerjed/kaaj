@@ -1167,3 +1167,333 @@ describe("candidate payments for the matching picker", () => {
     expect(candidates).toEqual({})
   })
 })
+
+describe("bank reconciliation rules (US-ACC-029)", () => {
+  /** Operating Account USD — CREDIT_TXN and DEBIT_TXN both live here.
+   *  GBP_TXN lives on a different account, for the "scoped to one account"
+   *  test — TRAVEL_ACCOUNT (5200) is the module-level category account. */
+  const USD_ACCOUNT = "6d55e7d0-f085-5951-9f28-2fcd1b75c6bc"
+  /** Office & Facilities (5400) — a second, distinct category for the
+   *  priority-order test. */
+  const OFFICE_ACCOUNT = "9d558ace-8adc-52ed-811a-de519ad88a29"
+  /** The rule the fixture seeds: matches "JetBrains", already fired once
+   *  (against a transaction that is no longer 'unmatched'). */
+  const JETBRAINS_RULE = "73d3f520-f923-54bd-aab7-9f75d145f087"
+
+  const NEW_RULE = {
+    bankAccountId: null,
+    descriptionContains: null,
+    descriptionRegex: null,
+    amountEquals: null,
+    amountTolerance: null,
+    amountMin: null,
+    amountMax: null,
+    transactionType: null,
+    priority: 0,
+  } as const
+
+  describe("createReconciliationRule", () => {
+    it("creates a rule with valid inputs", async () => {
+      const rules = await inRollback(async (tx) => {
+        await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "Categorize AWS charges",
+            descriptionContains: "AWS BATCH",
+            categoryAccountId: TRAVEL_ACCOUNT,
+            priority: 5,
+          },
+          ACTOR,
+        )
+        return pay.listReconciliationRules(tx)
+      })
+      const created = rules.find(
+        (r) => r.rule_name === "Categorize AWS charges",
+      )
+      expect(created).toMatchObject({
+        is_active: true,
+        description_contains: "AWS BATCH",
+        category_account_code: "5200",
+        priority: 5,
+        times_applied: 0,
+      })
+    })
+
+    it("refuses a rule with no matching criteria", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            pay.createReconciliationRule(
+              tx,
+              NORTHWIND,
+              {
+                ...NEW_RULE,
+                ruleName: "Matches everything",
+                categoryAccountId: TRAVEL_ACCOUNT,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_criteria",
+      )
+    })
+
+    it("refuses an unknown category account", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            pay.createReconciliationRule(
+              tx,
+              NORTHWIND,
+              {
+                ...NEW_RULE,
+                ruleName: "Bad category",
+                descriptionContains: "X",
+                categoryAccountId: "00000000-0000-0000-0000-000000000000",
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_account",
+      )
+    })
+
+    it("refuses an unknown bank account", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            pay.createReconciliationRule(
+              tx,
+              NORTHWIND,
+              {
+                ...NEW_RULE,
+                ruleName: "Bad account",
+                descriptionContains: "X",
+                bankAccountId: "00000000-0000-0000-0000-000000000000",
+                categoryAccountId: TRAVEL_ACCOUNT,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_bank_account",
+      )
+    })
+
+    it("refuses an invalid regex, without harming the transaction for what follows", async () => {
+      const secondId = await inRollback(async (tx) => {
+        let firstError: unknown
+        try {
+          await pay.createReconciliationRule(
+            tx,
+            NORTHWIND,
+            {
+              ...NEW_RULE,
+              ruleName: "Bad regex",
+              descriptionRegex: "[invalid(",
+              categoryAccountId: TRAVEL_ACCOUNT,
+            },
+            ACTOR,
+          )
+        } catch (e) {
+          firstError = e
+        }
+        expect(firstError).toBeInstanceOf(AccountingRefused)
+        expect((firstError as AccountingRefused).reason).toBe("invalid_regex")
+
+        // Same transaction as the refusal above — proves createReconciliationRule
+        // never lets a bad regex reach Postgres as a raised error (which would
+        // abort the whole transaction), only ever a checked boolean.
+        const { id } = await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "Good regex",
+            descriptionRegex: "^AWS.*WIRE$",
+            categoryAccountId: TRAVEL_ACCOUNT,
+          },
+          ACTOR,
+        )
+        return id
+      })
+      expect(secondId).toBeTruthy()
+    })
+  })
+
+  describe("toggleReconciliationRule", () => {
+    it("flips is_active, recomputed from the current row", async () => {
+      const { first, second } = await inRollback(async (tx) => {
+        const first = await pay.toggleReconciliationRule(
+          tx,
+          JETBRAINS_RULE,
+          ACTOR,
+        )
+        const second = await pay.toggleReconciliationRule(
+          tx,
+          JETBRAINS_RULE,
+          ACTOR,
+        )
+        return { first, second }
+      })
+      expect(first).toEqual({ from: true, to: false })
+      expect(second).toEqual({ from: false, to: true })
+    })
+
+    it("refuses a rule that does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            pay.toggleReconciliationRule(
+              tx,
+              "00000000-0000-0000-0000-000000000000",
+              ACTOR,
+            ),
+          ),
+        "no_such_rule",
+      )
+    })
+  })
+
+  describe("applyReconciliationRules", () => {
+    it("categorizes a matching unmatched transaction and recomputes times_applied", async () => {
+      const { result, txn, rule } = await inRollback(async (tx) => {
+        const { id: ruleId } = await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "Categorize AWS charges",
+            descriptionContains: "AWS BATCH",
+            categoryAccountId: TRAVEL_ACCOUNT,
+            priority: 5,
+          },
+          ACTOR,
+        )
+        const result = await pay.applyReconciliationRules(tx, NORTHWIND, null)
+        const [txn] = await tx<
+          {
+            status: string
+            category_account_id: string
+            matching_rule_id: string
+            match_confidence: string
+          }[]
+        >`
+          SELECT status, category_account_id::text AS category_account_id,
+                 matching_rule_id::text AS matching_rule_id,
+                 match_confidence::text AS match_confidence
+            FROM bank_transactions WHERE id = ${DEBIT_TXN}::uuid
+        `
+        const [rule] = await tx<
+          { times_applied: number; last_applied_at: string | null }[]
+        >`
+          SELECT times_applied, last_applied_at
+            FROM bank_reconciliation_rules WHERE id = ${ruleId}::uuid
+        `
+        return { result, txn, rule }
+      })
+      expect(result.categorized).toBe(1)
+      expect(result.byRule).toEqual([
+        {
+          ruleId: expect.any(String),
+          ruleName: "Categorize AWS charges",
+          count: 1,
+        },
+      ])
+      expect(txn).toMatchObject({
+        status: "categorized",
+        category_account_id: TRAVEL_ACCOUNT,
+        match_confidence: "1.00",
+      })
+      expect(txn.matching_rule_id).toBe(result.byRule[0].ruleId)
+      expect(rule.times_applied).toBe(1)
+      expect(rule.last_applied_at).not.toBeNull()
+    })
+
+    it("leaves a transaction that is no longer unmatched untouched", async () => {
+      // The seeded JetBrains rule already fired once, against a transaction
+      // that is now 'categorized' — re-running finds nothing left to do.
+      const result = await inRollback((tx) =>
+        pay.applyReconciliationRules(tx, NORTHWIND, null),
+      )
+      expect(result.categorized).toBe(0)
+      expect(result.byRule).toEqual([])
+    })
+
+    it("picks the higher-priority rule when two rules both match", async () => {
+      const txn = await inRollback(async (tx) => {
+        // Both match CREDIT_TXN ("ACME REMITTANCE"); OFFICE wins on priority.
+        await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "Low priority — ACME",
+            descriptionContains: "ACME",
+            categoryAccountId: TRAVEL_ACCOUNT,
+            priority: 1,
+          },
+          ACTOR,
+        )
+        const { id: winnerId } = await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "High priority — REMITTANCE",
+            descriptionContains: "REMITTANCE",
+            categoryAccountId: OFFICE_ACCOUNT,
+            priority: 10,
+          },
+          ACTOR,
+        )
+        await pay.applyReconciliationRules(tx, NORTHWIND, null)
+        const [txn] = await tx<
+          { category_account_id: string; matching_rule_id: string }[]
+        >`
+          SELECT category_account_id::text AS category_account_id,
+                 matching_rule_id::text AS matching_rule_id
+            FROM bank_transactions WHERE id = ${CREDIT_TXN}::uuid
+        `
+        return { ...txn, winnerId }
+      })
+      expect(txn.category_account_id).toBe(OFFICE_ACCOUNT)
+      expect(txn.matching_rule_id).toBe(txn.winnerId)
+    })
+
+    it("scoped to one bank account leaves transactions on another untouched", async () => {
+      const { usd, gbp } = await inRollback(async (tx) => {
+        // Matches both CREDIT_TXN ("ACME REMITTANCE", USD_ACCOUNT) and
+        // GBP_TXN ("Unidentified client remittance", GBP_ACCOUNT).
+        await pay.createReconciliationRule(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_RULE,
+            ruleName: "Any remittance",
+            descriptionContains: "remittance",
+            categoryAccountId: TRAVEL_ACCOUNT,
+          },
+          ACTOR,
+        )
+        const result = await pay.applyReconciliationRules(
+          tx,
+          NORTHWIND,
+          USD_ACCOUNT,
+        )
+        const rows = await tx<{ id: string; status: string }[]>`
+          SELECT id::text AS id, status FROM bank_transactions
+           WHERE id = ANY(${[CREDIT_TXN, GBP_TXN]}::uuid[])
+        `
+        return {
+          usd: rows.find((r) => r.id === CREDIT_TXN)!,
+          gbp: rows.find((r) => r.id === GBP_TXN)!,
+          categorized: result.categorized,
+        }
+      })
+      expect(usd.status).toBe("categorized")
+      expect(gbp.status).toBe("unmatched")
+    })
+  })
+})

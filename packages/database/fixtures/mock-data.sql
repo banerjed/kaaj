@@ -1125,8 +1125,14 @@ UPDATE bank_accounts SET
     last_synced_at = '2026-02-08T09:00:00Z'
 WHERE feed_enabled;
 
-INSERT INTO bank_reconciliation_rules (id, tenant_id, bank_account_id, rule_name, description_contains, action_type, category_account_id, auto_match, create_transaction, priority, created_at, updated_at, created_by) VALUES
-    ('73d3f520-f923-54bd-aab7-9f75d145f087', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'Categorize software subscriptions', 'JetBrains', 'categorize', '030e294b-88ad-544e-841a-cfda187885ac', TRUE, TRUE, 10, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+-- description_regex/amount_*/transaction_type are set explicitly here, to a
+-- story consistent with the rule's own JetBrains charge (a -299.00 debit),
+-- rather than left NULL for the generic "no empty column" backfill further
+-- down to fill with placeholder text — US-ACC-029 is the first feature to
+-- actually read and display these columns, and generic filler read as real
+-- rule conditions on the reconciliation-rules page.
+INSERT INTO bank_reconciliation_rules (id, tenant_id, bank_account_id, rule_name, description_contains, description_regex, amount_equals, amount_tolerance, amount_min, amount_max, transaction_type, action_type, category_account_id, auto_match, create_transaction, priority, created_at, updated_at, created_by) VALUES
+    ('73d3f520-f923-54bd-aab7-9f75d145f087', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', 'Categorize software subscriptions', 'JetBrains', 'JetBrains', 299.00, 5.00, 250.00, 350.00, 'debit', 'categorize', '030e294b-88ad-544e-841a-cfda187885ac', TRUE, TRUE, 10, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 INSERT INTO bank_transactions (id, tenant_id, bank_account_id, transaction_date, value_date, description, reference, amount, balance, transaction_type, category_account_id, status, matched_to_type, matched_to_id, match_confidence, matching_rule_id, imported_at, created_at, updated_at) VALUES
     ('ba95034d-6bfa-57cb-95ec-74c7779a11a4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc', '2026-01-22', '2026-01-22', 'ACME PAYMENT INV-2026-001', 'ACH-ACME-001', 42300.00, 248500.00, 'credit', 'a6ecad5d-10af-5286-807b-cd31b3266d99', 'reconciled', 'payment', '26361e4b-8a87-5b2a-a692-10ec68e02875', 0.98, NULL, '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z', '2026-01-22T09:00:00Z'),

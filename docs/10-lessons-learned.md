@@ -2116,6 +2116,42 @@ indefinitely rather than a one-off stress test.
 
 ---
 
+### L87 — a fixture's generic "no empty column" backfill wrote placeholder text into columns no code had ever read, and it surfaced as real rule conditions the moment a feature finally read them
+
+`mock-data.sql`'s completeness sweep fills any NULL column, table by table,
+with a generic value keyed on type — `'Transaction Type 1'` for an unclassified
+varchar, `100.00` for a numeric, a boilerplate sentence for a free-text column
+(`'Seeded so this column is never empty — an empty column is a check that has
+stopped testing.'`). This is harmless as long as nothing reads the column: it
+exists only to satisfy "no column anywhere may be empty in the fixture," not to
+mean anything. `bank_reconciliation_rules`' one seeded row had exactly this —
+`description_regex`, `amount_equals`/`amount_min`/`amount_max` and
+`transaction_type` had sat as generic filler since the table was created,
+invisible because no application code queried them.
+
+US-ACC-029 (bank reconciliation rules) was the first feature to actually read
+those columns, and the filler stopped being inert the moment it did: the new
+`/accounting/banking/rules` page rendered `'Transaction Type 1'` as a real rule
+condition, and — worse — `applyReconciliationRules()`'s matching logic would
+have treated the placeholder `transaction_type` as a real constraint,
+permanently disabling the seeded rule (no real transaction is ever typed
+`'Transaction Type 1'`). No test caught this: every existing assertion about
+that row only checked `status`/`matching_rule_id` after a hand-seeded match,
+never the rule's own matching columns, because nothing before this feature had
+a reason to. Found by looking at the live page, not by a failing test.
+
+**A column a generic backfill filled is not verified data — it is exactly as
+untested as a NULL, just harder to notice.** Before shipping a feature that is
+the first reader of a long-dormant column, check whether its seeded value came
+from the completeness sweep rather than a deliberate INSERT, and replace it
+with something consistent with that row's own story if so — the fix here was
+to set `description_regex`/`amount_*`/`transaction_type` explicitly in the
+`bank_reconciliation_rules` INSERT itself, values consistent with the rule's
+own "JetBrains, -299.00, debit" story, so the backfill's `WHERE ... IS NULL`
+UPDATE became a no-op for that row.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

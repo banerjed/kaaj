@@ -28,6 +28,7 @@ bank_transactions	idx_bank_transactions_created	CREATE INDEX idx_bank_transactio
 bank_transactions	idx_bank_transactions_date	CREATE INDEX idx_bank_transactions_date ON public.bank_transactions USING btree (tenant_id, transaction_date DESC, created_at DESC)
 bank_transactions	idx_bank_transactions_external_id	CREATE UNIQUE INDEX idx_bank_transactions_external_id ON public.bank_transactions USING btree (tenant_id, bank_account_id, bank_transaction_id) WHERE (bank_transaction_id IS NOT NULL)
 bank_transactions	idx_bank_transactions_matched_to_id	CREATE INDEX idx_bank_transactions_matched_to_id ON public.bank_transactions USING btree (tenant_id, matched_to_id)
+bank_transactions	idx_bank_transactions_matching_rule_id	CREATE INDEX idx_bank_transactions_matching_rule_id ON public.bank_transactions USING btree (tenant_id, matching_rule_id) WHERE (matching_rule_id IS NOT NULL)
 bank_transactions	idx_bank_transactions_status	CREATE INDEX idx_bank_transactions_status ON public.bank_transactions USING btree (tenant_id, status)
 bill_lines	bill_lines_pkey	CREATE UNIQUE INDEX bill_lines_pkey ON public.bill_lines USING btree (id)
 bill_lines	idx_bill_lines_bill_id	CREATE INDEX idx_bill_lines_bill_id ON public.bill_lines USING btree (tenant_id, bill_id)

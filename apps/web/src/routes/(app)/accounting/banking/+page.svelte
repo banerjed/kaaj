@@ -56,6 +56,15 @@
     ]}
   />
 
+  {#if data.mayWrite}
+    <div class="mt-4 flex justify-end">
+      <a href="/accounting/banking/rules" class="btn btn-ghost btn-sm">
+        <span class="iconify lucide--wand-sparkles size-4"></span>
+        Reconciliation rules
+      </a>
+    </div>
+  {/if}
+
   {#if form?.matched}
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>

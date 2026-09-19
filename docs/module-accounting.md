@@ -237,7 +237,7 @@ the same verdicts at user-story grain.
 *Status: **DONE**. `candidatePaymentsForTransactions` returns same-currency, same-direction, still-unmatched payments for a set of transactions — a real suggestion mechanism, tested in `payables.writes.test.ts:463` ("offers only same-currency, same-direction, still-unmatched payments"). The human still picks the match (`matchBankTransaction`, tested at `:364`, `:380`, `:401`, `:412`, `:423`) — nothing auto-applies a suggestion, which the story doesn't actually require.*
 
 **US-ACC-029**: As an Accountant, I want to create rules for recurring transactions, so that they're categorized automatically.
-*Status: **MISSING**. `bank_reconciliation_rules` table exists; it is never queried anywhere in `payables.repo.ts`.*
+*Status: **DONE** (2026-09-19). `/accounting/banking/rules` — a rule names an optional bank account, description contains/regex, amount range and direction, and a chart-of-accounts category; the exchange-rate-refresh precedent from Tier 7 applies here too: there is no scheduler in this codebase, so "Apply rules" is a manual-trigger action, run whenever new transactions come in, rather than automatic. `action_type` is fixed to `'categorize'` — the table's other columns (`auto_match`, `create_transaction`, `vendor_id`, `customer_id`) anticipate matching a transaction straight to a payment or vendor/customer, but `bank_transactions` has no `vendor_id`/`customer_id` column to write that onto, so categorizing to a GL account is the only action this schema can actually carry out today. `applyReconciliationRules()` in `payables.repo.ts` is one set-based UPDATE (bank_transactions is SCALE_SENSITIVE), priority-ordered with a fully deterministic tie-break; `times_applied` is recomputed from the real rows each run (L58), not incremented, so it is a current count rather than a lifetime tally and drops if a categorized transaction is later re-matched to a payment. A rule's `description_regex` is validated at creation via `app.is_valid_regex()` (new migration) rather than a JS `RegExp` check, since Postgres's ARE dialect diverges from JS regex and a pattern that passes JS validation can still raise from Postgres — which would otherwise turn every future apply-rules run into a 500. Fixed a pre-existing fixture bug in the same pass: the seeded rule's `description_regex`/`amount_*`/`transaction_type` columns had been filled by the fixture's generic "no empty column" backfill with placeholder text (e.g. `'Transaction Type 1'`) that had never been rendered or evaluated by any code before this feature — now corrected to values consistent with the rule's own story. Tested in `payables.writes.test.ts` ("bank reconciliation rules (US-ACC-029)") against the real database, plus smoke/form-errors e2e cases, and verified live end-to-end (create a rule, apply it, confirm the transaction categorized and the audit trail recorded).*
 
 **US-ACC-030**: As a Finance Manager, I want to see which transactions are unreconciled, so that I know what needs attention.
 *Status: **DONE**. `payables.test.ts:143` ("counts what still needs matching") and `:177` ("shows every reconciliation state the screen has to render") — real, tested.*
@@ -2685,8 +2685,8 @@ either way.
       an implementation one; neither `module-accounting.md` nor
       `accounting-gap-analysis.md` names this as a known gap before now.
 - [ ] Bank feed integration (Plaid/Yodlee). US-ACC-027.
-- [ ] Bank reconciliation rules (auto-categorization) —
-      `bank_reconciliation_rules` table exists, unused. US-ACC-029.
+- [x] Bank reconciliation rules (auto-categorization) (2026-09-19).
+      US-ACC-029. See its status block above for the shape and scope.
 - [x] Batch vendor payment runs (2026-09-19). US-ACC-025. See its status
       block above for the shape and scope.
 - [ ] Automated payment reminders for overdue invoices. US-ACC-003.
