@@ -589,6 +589,281 @@ describe("paying a vendor", () => {
   })
 })
 
+describe("batch vendor payment run (US-ACC-025)", () => {
+  /** Sarah Johnson — approves the freshly created bills below, so paying
+   *  them with ACTOR afterward is never a self-approval. */
+  const APPROVER = "6d466aa9-e51a-5d52-9015-152600855932"
+  let billCounter = 0
+
+  /** A fresh, real approved bill — built through createBill/approveBill
+   *  rather than reopening a 'paid' fixture row, which would need to
+   *  reconcile stale `payment_allocations` history against
+   *  `ck_bills_amounts_reconcile`/`ck_payment_allocations_one_document` for
+   *  no benefit; a genuinely new bill has neither problem. */
+  async function freshApprovedBill(
+    tx: Tx,
+    vendorId: string,
+    exchangeRate: string,
+    amount: string,
+  ): Promise<{ id: string; billNumber: string }> {
+    billCounter += 1
+    const billNumber = `BILL-BATCH-TEST-${billCounter}`
+    const { id } = await pay.createBill(
+      tx,
+      NORTHWIND,
+      {
+        vendorId,
+        billNumber,
+        reference: null,
+        billDate: "2026-03-10",
+        dueDate: "2026-04-10",
+        exchangeRate,
+        paymentTerms: null,
+        notes: null,
+        lines: [oneBillLine({ unitPrice: amount, taxAmount: "0" })],
+      },
+      ACTOR,
+    )
+    await pay.approveBill(tx, NORTHWIND, id, APPROVER)
+    return { id, billNumber }
+  }
+
+  const BATCH = {
+    billIds: [] as string[],
+    paymentDate: "2026-03-15",
+    method: "wire_transfer",
+    reference: "BATCH-99001",
+    bankAccountId: "6d55e7d0-f085-5951-9f28-2fcd1b75c6bc",
+  }
+
+  it("pays bills across vendors in one run, one payment per vendor", async () => {
+    const { result, unbalanced, rows } = await inRollback(async (tx) => {
+      // Two AWS bills (APPROVED plus a fresh one) and one JetBrains bill —
+      // exercises both "two bills, one vendor, one payment" and "one
+      // payment per vendor" in a single batch.
+      const aws2 = await freshApprovedBill(
+        tx,
+        AWS_VENDOR,
+        "1.000000",
+        "1000.00",
+      )
+      const jetbrains = await freshApprovedBill(
+        tx,
+        JETBRAINS_VENDOR,
+        "1.090000",
+        "500.00",
+      )
+      const result = await pay.payBillsInBatch(
+        tx,
+        NORTHWIND,
+        { ...BATCH, billIds: [APPROVED, aws2.id, jetbrains.id] },
+        ACTOR,
+      )
+      const rows = await tx<
+        {
+          payment_number: string
+          vendor_name: string
+          amount: string
+          has_journal_entry: boolean
+        }[]
+      >`
+        SELECT p.payment_number, v.vendor_name, p.amount::text AS amount,
+               p.journal_entry_id IS NOT NULL AS has_journal_entry
+          FROM payments p
+          JOIN vendors v ON v.id = p.vendor_id
+         WHERE p.payment_number = ANY(
+                 ${result.payments.map((p) => p.paymentNumber)}::text[]
+               )
+      `
+      return { result, unbalanced: await unbalancedEntries(tx), rows }
+    })
+    expect(unbalanced).toEqual([])
+    const byVendor = new Map(result.payments.map((p) => [p.vendorName, p]))
+    // APPROVED (1981.53) + the fresh AWS bill (1000.00), one payment.
+    const aws = byVendor.get("Amazon Web Services")
+    expect(aws?.total).toBe("2981.53")
+    expect(aws?.billNumbers.sort()).toEqual([
+      "BILL-AWS-2026-01",
+      "BILL-BATCH-TEST-1",
+    ])
+    const jetbrains = byVendor.get("JetBrains")
+    expect(jetbrains?.total).toBe("500.00")
+    expect(jetbrains?.billNumbers).toEqual(["BILL-BATCH-TEST-2"])
+    expect(result.payments).toHaveLength(2)
+
+    // The row a reconciliation actually reads: one payment per vendor, the
+    // right amount against the right vendor, with a journal entry attached.
+    const rowsByVendor = new Map(rows.map((r) => [r.vendor_name, r]))
+    expect(rowsByVendor.get("Amazon Web Services")).toMatchObject({
+      amount: "2981.53",
+      has_journal_entry: true,
+    })
+    expect(rowsByVendor.get("JetBrains")).toMatchObject({
+      amount: "500.00",
+      has_journal_entry: true,
+    })
+    expect(rows).toHaveLength(2)
+  })
+
+  it("posts one payable line per bill and a single cash line, balanced", async () => {
+    const lines = await inRollback(async (tx) => {
+      const aws2 = await freshApprovedBill(
+        tx,
+        AWS_VENDOR,
+        "1.000000",
+        "1000.00",
+      )
+      const { payments } = await pay.payBillsInBatch(
+        tx,
+        NORTHWIND,
+        { ...BATCH, billIds: [APPROVED, aws2.id] },
+        ACTOR,
+      )
+      return tx<{ account_code: string; debit: string; credit: string }[]>`
+        SELECT a.account_code, l.debit_amount::text AS debit,
+               l.credit_amount::text AS credit
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.entry_id
+          JOIN chart_of_accounts a ON a.id = l.account_id
+         WHERE e.reference = ${payments[0].paymentNumber}
+         ORDER BY l.line_number
+      `
+    })
+    expect(lines).toEqual([
+      { account_code: "2000", debit: "1981.53", credit: "0.00" },
+      { account_code: "2000", debit: "1000.00", credit: "0.00" },
+      { account_code: "1000", debit: "0.00", credit: "2981.53" },
+    ])
+  })
+
+  it("marks every bill in the batch paid", async () => {
+    const statuses = await inRollback(async (tx) => {
+      const aws2 = await freshApprovedBill(
+        tx,
+        AWS_VENDOR,
+        "1.000000",
+        "1000.00",
+      )
+      await pay.payBillsInBatch(
+        tx,
+        NORTHWIND,
+        { ...BATCH, billIds: [APPROVED, aws2.id] },
+        ACTOR,
+      )
+      return tx<{ id: string; status: string }[]>`
+        SELECT id::text AS id, status FROM bills
+         WHERE id = ANY(${[APPROVED, aws2.id]}::uuid[])
+      `
+    })
+    expect(statuses.every((s) => s.status === "paid")).toBe(true)
+  })
+
+  it("refuses an empty batch", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.payBillsInBatch(tx, NORTHWIND, { ...BATCH, billIds: [] }, ACTOR),
+        ),
+      "no_lines",
+    )
+  })
+
+  it("refuses the same bill named twice", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.payBillsInBatch(
+            tx,
+            NORTHWIND,
+            { ...BATCH, billIds: [APPROVED, APPROVED] },
+            ACTOR,
+          ),
+        ),
+      "duplicate_bill",
+    )
+  })
+
+  it("refuses a bill that's already fully paid", async () => {
+    // BILL-AWS-2026-02A is 'paid' in the fixture, untouched.
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          pay.payBillsInBatch(
+            tx,
+            NORTHWIND,
+            {
+              ...BATCH,
+              billIds: [APPROVED, "b07bca71-9562-5a5f-91b1-b749912c242d"],
+            },
+            ACTOR,
+          ),
+        ),
+      "wrong_status",
+    )
+  })
+
+  it("refuses the approver paying their own bill", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          const aws2 = await freshApprovedBill(
+            tx,
+            AWS_VENDOR,
+            "1.000000",
+            "1000.00",
+          )
+          return pay.payBillsInBatch(
+            tx,
+            NORTHWIND,
+            { ...BATCH, billIds: [aws2.id] },
+            APPROVER,
+          )
+        }),
+      "self_approval",
+    )
+  })
+
+  it("refuses a batch spanning currencies within the same vendor", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          const aws2 = await freshApprovedBill(
+            tx,
+            AWS_VENDOR,
+            "1.270000",
+            "1000.00",
+          )
+          await tx`
+            UPDATE bills SET currency = 'GBP' WHERE id = ${aws2.id}::uuid
+          `
+          return pay.payBillsInBatch(
+            tx,
+            NORTHWIND,
+            { ...BATCH, billIds: [APPROVED, aws2.id] },
+            ACTOR,
+          )
+        }),
+      "currency_mismatch",
+    )
+  })
+
+  it("does not recognize settlement FX gain/loss — matching recordLockboxPayment's own scope", async () => {
+    const allocations = await inRollback(async (tx) => {
+      await pay.payBillsInBatch(
+        tx,
+        NORTHWIND,
+        { ...BATCH, billIds: [APPROVED] },
+        ACTOR,
+      )
+      return tx<{ fx_gain_loss: string }[]>`
+        SELECT fx_gain_loss::text FROM payment_allocations
+         WHERE bill_id = ${APPROVED}::uuid
+      `
+    })
+    expect(allocations.every((a) => a.fx_gain_loss === "0.00")).toBe(true)
+  })
+})
+
 describe("settlement FX gain/loss (US-ACC-054)", () => {
   // No bill in the fixture is foreign-currency — converted from the
   // otherwise-unrelated APPROVED (USD) bill within the rollback (via

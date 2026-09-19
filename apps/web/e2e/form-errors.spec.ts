@@ -936,3 +936,20 @@ test("a balance sheet comparison date with no 'as of' date is refused, not silen
     page.getByText(/give an 'as of' date to compare against/i),
   ).toBeVisible()
 })
+
+test("a batch vendor payment with no bills selected is refused, not silently a no-op", async ({
+  page,
+}) => {
+  // Read-only, like every other case here: fills in the payment details but
+  // checks no bill, so payBillsInBatch's own no_lines refusal fires before
+  // anything is written — no fixture bill actually gets paid.
+  await page.goto("/accounting/bills?status=approved")
+  const form = page.locator('form[action="?/payBatch"]')
+  await form.locator('input[name="payment_date"]').fill("2026-03-15")
+  await form
+    .locator('select[name="payment_method"]')
+    .selectOption("wire_transfer")
+  await form.getByRole("button", { name: /pay selected/i }).click()
+
+  await expect(page.getByText(/select at least one bill/i)).toBeVisible()
+})

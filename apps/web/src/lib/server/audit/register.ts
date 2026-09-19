@@ -208,6 +208,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "Cash leaving the firm against a debt. 'Who paid this, how much, and when' is the question every reconciliation and every vendor dispute asks.",
   },
   {
+    route: "accounting/bills",
+    action: "payBatch",
+    why: "Cash leaving the firm against several bills at once, across any number of vendors — same reconciliation need as a single vendor payment, multiplied. 'Who paid this batch, which bills, and how much' is the same question recordPayment's own entry protects.",
+  },
+  {
     route: "accounting/banking",
     action: "match",
     why: "Ties a bank statement line to the firm's own records — the classic reconciliation question is who confirmed that a given deposit or withdrawal was this specific payment.",

@@ -223,7 +223,7 @@ the same verdicts at user-story grain.
 *Status: **DONE** (2026-09-13). `/accounting/ap-due-soon` lists approved, unpaid bills due within a chosen window (7/14/30/60 days) of a chosen date — forward-looking, and distinct from `is_overdue`'s present-tense flag. See `payables.repo.ts`'s `apDueSoon()` and `payables.test.ts`'s "AP due soon" suite.*
 
 **US-ACC-025**: As a Finance Manager, I want to pay multiple vendor bills in a single batch, so that I save time.
-*Status: **MISSING**. `recordVendorPayment` operates on one bill per call; no batch/payment-run feature exists.*
+*Status: **DONE** (2026-09-19). `/accounting/bills` — checkboxes on the list plus a "Pay selected" action, `payBillsInBatch()` in `payables.repo.ts`. Each selected bill is paid in full (a batch run is "clear this stack," not a place to enter partial amounts); one payment/journal entry per vendor, since the schema ties a payment to a single vendor, so a batch spanning vendors becomes several payments automatically. All-or-nothing — every bill validated before any write. Matches `recordLockboxPayment`'s own precedent in excluding settlement FX gain/loss (a batch can span bills at different booking rates even within one vendor). The one user-entered `reference` is copied onto every payment the batch produces, so if a later bank-reconciliation feature matches by reference, N payments sharing one string is ambiguous — reconciliation should match by amount/date/vendor too, not reference alone. Tested in `payables.writes.test.ts` ("batch vendor payment run") against the real database, plus a smoke/form-errors e2e case.*
 
 **US-ACC-026**: As an Accountant, I want to reconcile vendor statements with our records, so that accounts are accurate.
 *Status: **MISSING**. Bank-transaction-to-payment matching exists (see US-ACC-028) but that's a different reconciliation (bank feed vs. internal payments) — there's no vendor-statement-specific reconciliation feature.*
@@ -2687,7 +2687,8 @@ either way.
 - [ ] Bank feed integration (Plaid/Yodlee). US-ACC-027.
 - [ ] Bank reconciliation rules (auto-categorization) —
       `bank_reconciliation_rules` table exists, unused. US-ACC-029.
-- [ ] Batch vendor payment runs. US-ACC-025.
+- [x] Batch vendor payment runs (2026-09-19). US-ACC-025. See its status
+      block above for the shape and scope.
 - [ ] Automated payment reminders for overdue invoices. US-ACC-003.
 
 ### Tier 9 — New modules (largest effort, product decisions)

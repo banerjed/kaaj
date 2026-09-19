@@ -1829,7 +1829,10 @@ export class AccountingRefused extends Error {
       | "no_such_period"
       // US-ACC-050: a line carries tax for a customer exempt as of the
       // invoice's own date.
-      | "customer_tax_exempt",
+      | "customer_tax_exempt"
+      // The same bill named twice in one batch payment run — same shape as
+      // `duplicate_invoice`, on the payables side.
+      | "duplicate_bill",
     readonly detail?: string,
   ) {
     super(reason)

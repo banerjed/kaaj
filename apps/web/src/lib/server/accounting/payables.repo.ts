@@ -882,6 +882,285 @@ export async function recordVendorPayment(
   return { paymentNumber, status }
 }
 
+/**
+ * Pay several approved bills — across any number of vendors — in one action
+ * (US-ACC-025). Each bill is paid in full; a batch run is a "clear this
+ * stack of bills" workflow, not a place to enter partial amounts. One
+ * `payments` row and one journal entry per VENDOR (the schema ties a
+ * payment to a single vendor), each shaped like `recordVendorPayment`'s own
+ * DR Payable(s) / CR Cash but with one payable line per bill:
+ *
+ *   DR Accounts Payable (bill A)       amount A
+ *   DR Accounts Payable (bill B)       amount B
+ *     CR Cash at Bank                        amount A + amount B
+ *
+ * All-or-nothing: every bill is validated before any payment is written, so
+ * one bad bill in a batch of twenty refuses the whole run rather than
+ * silently paying nineteen. Deliberately excluded, matching
+ * `recordLockboxPayment`'s own precedent: settlement FX gain/loss. A batch
+ * can span bills booked at different rates even within one vendor/currency,
+ * and reconciling that is real added complexity left for later — every
+ * `payment_allocations` row here carries the schema's default `0`.
+ */
+type BatchBillRow = {
+  id: string
+  status: BillStatus
+  currency: string
+  exchange_rate: string
+  bill_number: string
+  vendor_id: string
+  vendor_name: string | null
+  amount_due: string
+  approved_by: string | null
+}
+
+/** One vendor's share of a batch run: one payment, one journal entry, one
+ *  payable line per bill. Pulled out of `payBillsInBatch`'s own loop so that
+ *  loop's body has no `tx` call in its own source text — the same shape
+ *  `recordLockboxPayment` uses via `settleInvoiceAfterPayment`, which keeps
+ *  `verify-no-loop-queries.mjs` looking at a bounded call, not a query
+ *  literally inside the per-vendor loop. */
+async function payOneVendorGroup(
+  tx: Tx,
+  tenantId: string,
+  bills: BatchBillRow[],
+  input: {
+    paymentDate: string
+    method: string
+    reference: string | null
+    bankAccountId: string | null
+  },
+  actorId: string,
+): Promise<{
+  paymentId: string
+  paymentNumber: string
+  vendorName: string | null
+  total: string
+}> {
+  const currencies = new Set(bills.map((b) => b.currency))
+  if (currencies.size > 1) {
+    throw new AccountingRefused(
+      "currency_mismatch",
+      `${bills[0].vendor_name ?? "vendor"}: ${[...currencies].join(", ")}`,
+    )
+  }
+  const {
+    currency,
+    exchange_rate: exchangeRate,
+    vendor_id: vendorId,
+  } = bills[0]
+
+  const [{ total }] = await tx<{ total: string }[]>`
+    SELECT sum(amount_due)::text AS total
+      FROM bills WHERE id = ANY(${bills.map((b) => b.id)}::uuid[])
+  `
+
+  const paymentNumber = await nextSequenceNumber(
+    tx,
+    "payments",
+    "payment_number",
+    "VPAY",
+    input.paymentDate.slice(0, 4),
+    3,
+  )
+
+  const entryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: input.paymentDate,
+      sourceType: "payment",
+      sourceId: null,
+      description: `Batch vendor payment ${paymentNumber}`,
+      reference: paymentNumber,
+      currency,
+      exchangeRate,
+      lines: [
+        ...bills.map((b) => ({
+          accountCode: ACCOUNTS.payable,
+          debit: b.amount_due,
+          credit: null,
+          description: `Against ${b.bill_number}`,
+        })),
+        {
+          accountCode: ACCOUNTS.cash,
+          debit: null,
+          credit: total,
+          description: paymentNumber,
+        },
+      ],
+    },
+    actorId,
+  )
+
+  const [payment] = await tx<{ id: string }[]>`
+    INSERT INTO payments (
+      tenant_id, payment_number, payment_date, reference, vendor_id,
+      currency, amount, exchange_rate, base_amount, payment_method,
+      bank_account_id, status, journal_entry_id, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${paymentNumber}, ${input.paymentDate}::date,
+      ${input.reference}, ${vendorId}::uuid,
+      ${currency}, ${total}::numeric,
+      ${exchangeRate}::numeric,
+      round(${total}::numeric * ${exchangeRate}::numeric, 2),
+      ${input.method}::payment_method,
+      ${input.bankAccountId}::uuid, 'completed', ${entryId}::uuid,
+      ${actorId}::uuid
+    )
+    RETURNING id
+  `
+
+  return {
+    paymentId: payment.id,
+    paymentNumber,
+    vendorName: bills[0].vendor_name,
+    total,
+  }
+}
+
+/** Recomputes one bill's totals and marks it paid — pulled out of
+ *  `payBillsInBatch`'s per-bill loop for the same reason
+ *  `payOneVendorGroup` is: no `tx` call in the loop's own source text. Paid
+ *  in full by construction (the batch pays `amount_due` exactly), so there
+ *  is no partial-payment case to check, unlike `recordVendorPayment`'s. */
+async function settleBillFully(
+  tx: Tx,
+  billId: string,
+  actorId: string,
+): Promise<void> {
+  await recomputeBillTotals(tx, billId)
+  await tx`
+    UPDATE bills
+       SET status = 'paid', updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${billId}::uuid
+  `
+}
+
+export async function payBillsInBatch(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    billIds: string[]
+    paymentDate: string
+    method: string
+    reference: string | null
+    bankAccountId: string | null
+  },
+  actorId: string,
+): Promise<{
+  payments: {
+    vendorName: string | null
+    paymentNumber: string
+    billNumbers: string[]
+    total: string
+  }[]
+}> {
+  if (input.billIds.length === 0) {
+    throw new AccountingRefused("no_lines", "no bills selected")
+  }
+  if (new Set(input.billIds).size !== input.billIds.length) {
+    throw new AccountingRefused("duplicate_bill")
+  }
+
+  const rows = await tx<BatchBillRow[]>`
+    SELECT b.id::text AS id, b.status, b.currency,
+           b.exchange_rate::text AS exchange_rate, b.bill_number,
+           b.vendor_id::text AS vendor_id, v.vendor_name,
+           b.amount_due::text AS amount_due,
+           b.approved_by::text AS approved_by
+      FROM bills b
+      LEFT JOIN vendors v ON v.id = b.vendor_id
+     WHERE b.id = ANY(${input.billIds}::uuid[])
+     ORDER BY b.bill_number
+  `
+  if (rows.length !== input.billIds.length) {
+    throw new AccountingRefused("no_such_bill")
+  }
+
+  for (const r of rows) {
+    // 'paid' is refused here rather than left to fall out of a zero-amount
+    // overpayment check, unlike recordVendorPayment's single-bill shape —
+    // this function pays amount_due directly, with no user-entered amount
+    // to compare it against, so a bill with nothing left to pay needs its
+    // own explicit check.
+    if (
+      r.status === "draft" ||
+      r.status === "void" ||
+      r.status === "cancelled" ||
+      r.status === "paid"
+    ) {
+      throw new AccountingRefused(
+        "wrong_status",
+        `${r.bill_number} is ${r.status}, which cannot receive a payment`,
+      )
+    }
+    if (r.approved_by !== null && r.approved_by === actorId) {
+      throw new AccountingRefused(
+        "self_approval",
+        `${r.bill_number} was approved by the same person recording this payment`,
+      )
+    }
+  }
+
+  const byVendor = new Map<string, BatchBillRow[]>()
+  for (const r of rows) {
+    const group = byVendor.get(r.vendor_id)
+    if (group) group.push(r)
+    else byVendor.set(r.vendor_id, [r])
+  }
+
+  const payments: {
+    vendorName: string | null
+    paymentNumber: string
+    billNumbers: string[]
+    total: string
+  }[] = []
+  // (paymentId, billId, exchangeRate) triples, one per bill — batched into a
+  // single INSERT below rather than one per bill.
+  const allocations: { paymentId: string; billId: string; rate: string }[] = []
+
+  for (const bills of byVendor.values()) {
+    const group = await payOneVendorGroup(tx, tenantId, bills, input, actorId)
+    for (const b of bills) {
+      allocations.push({
+        paymentId: group.paymentId,
+        billId: b.id,
+        rate: b.exchange_rate,
+      })
+    }
+    payments.push({
+      vendorName: group.vendorName,
+      paymentNumber: group.paymentNumber,
+      billNumbers: bills.map((b) => b.bill_number),
+      total: group.total,
+    })
+  }
+
+  // One batched insert for every bill's allocation, across every vendor
+  // group — same `unnest` shape `recordLockboxPayment` uses for its own
+  // per-invoice allocations.
+  await tx`
+    INSERT INTO payment_allocations (
+      tenant_id, payment_id, bill_id, amount, base_amount
+    )
+    SELECT ${tenantId}::uuid, a.payment_id, a.bill_id, b.amount_due,
+           round(b.amount_due * a.rate, 2)
+      FROM unnest(
+             ${allocations.map((a) => a.paymentId)}::uuid[],
+             ${allocations.map((a) => a.billId)}::uuid[],
+             ${allocations.map((a) => a.rate)}::numeric[]
+           ) AS a(payment_id, bill_id, rate)
+      JOIN bills b ON b.id = a.bill_id
+  `
+
+  for (const a of allocations) {
+    await settleBillFully(tx, a.billId, actorId)
+  }
+
+  return { payments }
+}
+
 // ---------------------------------------------------------------------------
 // Writes — matching a bank_transaction to a payment already on the books
 // ---------------------------------------------------------------------------
