@@ -591,9 +591,11 @@ describe("paying a vendor", () => {
 
 describe("settlement FX gain/loss (US-ACC-054)", () => {
   // No bill in the fixture is foreign-currency — converted from the
-  // otherwise-unrelated APPROVED (USD) bill within the rollback, matching
-  // the pattern receivables.writes.test.ts uses to exercise a GBP invoice.
-  const GBP_PAYMENT = {
+  // otherwise-unrelated APPROVED (USD) bill within the rollback (via
+  // asForeignBill below), matching the pattern receivables.writes.test.ts
+  // uses to exercise a foreign-currency invoice. The currency itself is
+  // set per test, not baked into this payment.
+  const FOREIGN_PAYMENT = {
     billId: APPROVED,
     amount: "1000.00",
     paymentDate: "2026-03-15",
@@ -639,7 +641,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
       const { paymentNumber } = await pay.recordVendorPayment(
         tx,
         NORTHWIND,
-        GBP_PAYMENT,
+        FOREIGN_PAYMENT,
         ACTOR,
       )
       const lines = await journalLines(tx, paymentNumber)
@@ -678,7 +680,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
         const { paymentNumber } = await pay.recordVendorPayment(
           tx,
           NORTHWIND,
-          { ...GBP_PAYMENT, reference: "WIRE-GBP-02" },
+          { ...FOREIGN_PAYMENT, reference: "WIRE-AUD-02" },
           ACTOR,
         )
         const lines = await journalLines(tx, paymentNumber)
@@ -715,7 +717,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
       const { paymentNumber } = await pay.recordVendorPayment(
         tx,
         NORTHWIND,
-        { ...GBP_PAYMENT, reference: "WIRE-GBP-03" },
+        { ...FOREIGN_PAYMENT, reference: "WIRE-GBP-03" },
         ACTOR,
       )
       const lines = await journalLines(tx, paymentNumber)

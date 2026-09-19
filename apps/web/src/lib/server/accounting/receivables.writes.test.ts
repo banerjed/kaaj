@@ -670,8 +670,10 @@ describe("receiving a payment", () => {
 })
 
 describe("settlement FX gain/loss (US-ACC-054)", () => {
-  /** INV-2026-002 — GBP, booked at 1.27, 16,000.00 outstanding. */
-  const GBP_PAYMENT = {
+  /** INV-2026-002 — GBP by default, booked at 1.27, 16,000.00 outstanding.
+   *  One test below temporarily converts it to EUR within its own
+   *  rollback — the currency isn't baked into this payment. */
+  const FOREIGN_PAYMENT = {
     invoiceId: GBP,
     amount: "5000.00",
     paymentDate: "2026-03-15",
@@ -707,7 +709,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
       const { paymentNumber } = await acc.recordPayment(
         tx,
         NORTHWIND,
-        GBP_PAYMENT,
+        FOREIGN_PAYMENT,
         ACTOR,
       )
       const lines = await journalLines(tx, paymentNumber)
@@ -747,7 +749,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
         const { paymentNumber } = await acc.recordPayment(
           tx,
           NORTHWIND,
-          { ...GBP_PAYMENT, reference: "TT-GBP-02" },
+          { ...FOREIGN_PAYMENT, reference: "TT-EUR-02" },
           ACTOR,
         )
         const lines = await journalLines(tx, paymentNumber)
@@ -787,7 +789,7 @@ describe("settlement FX gain/loss (US-ACC-054)", () => {
       const { paymentNumber } = await acc.recordPayment(
         tx,
         NORTHWIND,
-        { ...GBP_PAYMENT, reference: "TT-GBP-03" },
+        { ...FOREIGN_PAYMENT, reference: "TT-GBP-03" },
         ACTOR,
       )
       const lines = await journalLines(tx, paymentNumber)
