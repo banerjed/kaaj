@@ -177,6 +177,10 @@ const NOT_SCALE_SENSITIVE = new Map([
     "recurring_schedules",
     "one row per active subscription-billing arrangement; bounded by customer count",
   ],
+  [
+    "amortization_schedules",
+    "one row per deferred-revenue/prepaid arrangement; bounded by how many the tenant runs at once",
+  ],
   ["tax_rates", "small, admin-authored config"],
   ["tenant_registry", "one row per tenant, in the control plane"],
   ["tenant_settings", "one row per tenant setting; small, admin-authored"],

@@ -98,6 +98,10 @@
     </form>
 
     {#if data.mayWrite}
+      <a href="/accounting/accruals" class="btn btn-ghost btn-sm">
+        <span class="iconify lucide--calendar-clock size-4"></span>
+        Accruals & deferrals
+      </a>
       <a href="/accounting/journal-entries/new" class="btn btn-primary btn-sm">
         <span class="iconify lucide--plus size-4"></span>
         New entry

@@ -252,6 +252,21 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "generate",
     why: "Creates potentially many draft invoices in one run with no per-invoice review before they exist — the batch summary (count and customers) is the record of what was generated and from which schedules, the same trail the reconciliation rules' apply keeps.",
   },
+  {
+    route: "accounting/accruals",
+    action: "recordAccrual",
+    why: "Posts two real journal entries immediately — money moving on the ledger, the same reasoning as the manual journal entry form's own create action.",
+  },
+  {
+    route: "accounting/accruals",
+    action: "createSchedule",
+    why: "A standing arrangement that will silently post recognition entries on its own schedule — who set it up, for how much, over how many periods, matters the same way a new recurring invoice schedule does.",
+  },
+  {
+    route: "accounting/accruals",
+    action: "postDue",
+    why: "Posts potentially many recognition entries in one run with no per-entry review before they exist — same trail as recurring invoices' generate and the reconciliation rules' apply.",
+  },
 
   // -- Payroll: the record of money leaving the firm -----------------------
   {

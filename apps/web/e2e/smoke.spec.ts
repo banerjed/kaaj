@@ -47,6 +47,7 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/accounting/journal-entries/new",
     heading: "New journal entry",
   },
+  { path: "/accounting/accruals", heading: "Accruals & Deferrals" },
   { path: "/accounting/periods", heading: "Accounting Periods" },
   { path: "/accounting/year-end-close", heading: "Year-End Close" },
   {

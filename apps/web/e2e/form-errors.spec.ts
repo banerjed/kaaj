@@ -1008,3 +1008,27 @@ test("creating a recurring schedule with no lines is refused, not silently accep
   expect(result.status).toBe(400)
   expect(result.raw).toMatch(/lines/i)
 })
+
+test("recording an accrual against the last period is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Read-only: March 2026 is the fixture's LAST period, so recordAccrual's
+  // own no_such_period refusal fires before either journal entry posts —
+  // driven through the real form/UI, not a crafted POST, since picking the
+  // last period from the dropdown is a genuine, reachable user action.
+  await page.goto("/accounting/accruals")
+  const form = page.locator('form[action="?/recordAccrual"]')
+  await form.locator('select[name="period_id"]').selectOption({
+    label: "March 2026",
+  })
+  await form.locator('select[name="expense_account_id"]').selectOption({
+    index: 1,
+  })
+  await form.locator('input[name="amount"]').fill("100.00")
+  await form
+    .locator('input[name="description"]')
+    .fill("Test accrual with no next period")
+  await form.getByRole("button", { name: /record accrual/i }).click()
+
+  await expect(page.getByText(/no period follows/i)).toBeVisible()
+})

@@ -164,6 +164,16 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "That customer no longer exists. Reload the page and pick one from the current list.",
   },
+  amortization_schedules_balance_sheet_account_id_fkey: {
+    errorFields: ["balance_sheet_account_id"],
+    message:
+      "That account no longer exists. Reload the page and pick from the current list.",
+  },
+  amortization_schedules_income_statement_account_id_fkey: {
+    errorFields: ["income_statement_account_id"],
+    message:
+      "That account no longer exists. Reload the page and pick from the current list.",
+  },
   fk_bills_vendor_id: {
     errorFields: ["vendor_id"],
     message:

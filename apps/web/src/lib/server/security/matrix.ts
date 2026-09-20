@@ -143,6 +143,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "A standing billing arrangement with a named customer and a commercial rate — the same commercial detail invoice_lines already carries.",
   },
+  amortization_schedules: {
+    defense: "rls",
+    audience: "finance",
+    why: "A standing deferred-revenue/prepaid-expense arrangement and its dollar amount — commercial detail, same as recurring_schedules.",
+  },
   journal_entries: {
     defense: "rls",
     audience: "finance",

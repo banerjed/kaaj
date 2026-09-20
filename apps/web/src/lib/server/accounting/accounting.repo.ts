@@ -1777,6 +1777,11 @@ const ACCOUNTS = {
    * instead of throwing on a tenant with no such account.
    */
   fxGainLoss: "4200",
+  // §11: one blanket account for every accrual, same convention as
+  // fxGainLoss above — an amortization schedule's balance-sheet and
+  // income-statement accounts are picked per schedule instead (createAmortizationSchedule),
+  // since a tenant may keep separate deferred-revenue/prepaid accounts per line of business.
+  accruedLiabilities: "2150",
 } as const
 
 export class AccountingRefused extends Error {
@@ -1847,7 +1852,11 @@ export class AccountingRefused extends Error {
       // creation, not on every future apply-rules run.
       | "invalid_regex"
       // A recurring schedule's id names a row that isn't there (US-ACC-004).
-      | "no_such_schedule",
+      | "no_such_schedule"
+      // An accrual's period has no successor to reverse into — kept distinct
+      // from no_such_period so the message doesn't describe the wrong problem
+      // (a missing period vs. a real, terminal one) from the same detail shape.
+      | "no_next_period",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2014,6 +2023,10 @@ export async function postJournal(
     currency: string
     exchangeRate: string
     lines: JournalLine[]
+    /** An adjusting entry (accrual, its reversal, or an amortization
+     *  posting) — shown as a badge on the ledger; every other caller leaves
+     *  this absent. */
+    isAdjusting?: boolean
   },
   actorId: string,
 ): Promise<string> {
@@ -2056,12 +2069,13 @@ export async function postJournal(
   const [head] = await tx<{ id: string }[]>`
     INSERT INTO journal_entries (
       tenant_id, entry_number, entry_date, source_type, source_id,
-      description, reference, status, accounting_period, fiscal_year,
-      posted_at, posted_by, created_by
+      description, reference, status, is_adjusting, accounting_period,
+      fiscal_year, posted_at, posted_by, created_by
     ) VALUES (
       ${tenantId}::uuid, ${entryNumber}, ${entry.date}::date,
       ${entry.sourceType}, ${entry.sourceId}::uuid,
       ${entry.description}, ${entry.reference}, 'posted',
+      ${entry.isAdjusting ?? false},
       ${entry.date.slice(0, 7)}, ${year},
       now(), ${actorId}::uuid, ${actorId}::uuid
     )
@@ -3583,6 +3597,397 @@ export async function reopenPeriod(
   `
   if (!updated) throw new AccountingRefused("no_such_period", periodId)
   return { periodName: before.period_name }
+}
+
+// ---------------------------------------------------------------------------
+// §11: accruals (auto-reversing) and deferred revenue/prepaid expense
+// amortization — a genuine specification gap until now (neither
+// module-accounting.md nor accounting-gap-analysis.md named it before
+// 2026-09-20).
+// ---------------------------------------------------------------------------
+
+export type AccrualResult = {
+  accrualEntryId: string
+  accrualEntryNumber: string
+  reversalEntryId: string
+  reversalEntryNumber: string
+  reversalDate: string
+}
+
+/**
+ * Records a month-end accrual AND its reversal in the same call — unlike
+ * every other Tier 8 item this session, there is no manual-trigger gap here:
+ * accounting convention posts BOTH halves immediately (the accrual dated the
+ * period's last day, the reversal dated the very next period's first day),
+ * never on a future schedule. `journal_entries` is immutable once posted
+ * (20260912060000), so "reverse" always means a second, independent entry —
+ * never an edit of the first.
+ *
+ * Always an ACCRUED EXPENSE (debit the picked expense account, credit the
+ * one blanket Accrued Liabilities account) — the far more common month-end
+ * case than accrued revenue, which this does not build (a documented scope
+ * line, not an oversight; see module-accounting.md's status block).
+ */
+export async function recordAccrual(
+  tx: Tx,
+  tenantId: string,
+  input: {
+    periodId: string
+    expenseAccountId: string
+    amount: string
+    description: string
+    reference: string | null
+  },
+  actorId: string,
+): Promise<AccrualResult> {
+  const [period] = await tx<
+    {
+      period_name: string
+      start_date: string
+      end_date: string
+      status: string
+    }[]
+  >`
+    SELECT period_name, start_date::text, end_date::text, status
+      FROM accounting_periods WHERE id = ${input.periodId}::uuid
+  `
+  if (!period) throw new AccountingRefused("no_such_period", input.periodId)
+  if (period.status !== "open") {
+    throw new AccountingRefused(
+      "period_closed",
+      `${period.period_name} is ${period.status}`,
+    )
+  }
+
+  // The reversal's period is found by adjacency (the next row after this
+  // one), never by adding a calendar interval to end_date — periods are
+  // real, possibly non-contiguous rows, the same reasoning generateDueInvoices'
+  // due-schedule query uses accounting_periods' own rows rather than
+  // computing dates from scratch.
+  const [nextPeriod] = await tx<{ period_name: string; start_date: string }[]>`
+    SELECT period_name, start_date::text FROM accounting_periods
+     WHERE tenant_id = ${tenantId}::uuid AND start_date > ${period.end_date}::date
+     ORDER BY start_date LIMIT 1
+  `
+  if (!nextPeriod) {
+    throw new AccountingRefused("no_next_period", period.period_name)
+  }
+
+  const [expenseAccount] = await tx<{ account_code: string }[]>`
+    SELECT account_code FROM chart_of_accounts WHERE id = ${input.expenseAccountId}::uuid
+  `
+  if (!expenseAccount) {
+    throw new AccountingRefused("no_such_account", input.expenseAccountId)
+  }
+
+  const [tenant] = await tx<{ default_currency: string }[]>`
+    SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
+  `
+  const currency = tenant?.default_currency ?? "USD"
+
+  const accrualEntryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: period.end_date,
+      sourceType: "accrual",
+      sourceId: null,
+      description: input.description,
+      reference: input.reference,
+      currency,
+      exchangeRate: "1",
+      lines: [
+        {
+          accountCode: expenseAccount.account_code,
+          debit: input.amount,
+          credit: "0",
+          description: input.description,
+        },
+        {
+          accountCode: ACCOUNTS.accruedLiabilities,
+          debit: "0",
+          credit: input.amount,
+          description: input.description,
+        },
+      ],
+      isAdjusting: true,
+    },
+    actorId,
+  )
+
+  const reversalDescription = `Reversal of: ${input.description}`
+  const reversalEntryId = await postJournal(
+    tx,
+    tenantId,
+    {
+      date: nextPeriod.start_date,
+      sourceType: "accrual_reversal",
+      sourceId: accrualEntryId,
+      description: reversalDescription,
+      reference: input.reference,
+      currency,
+      exchangeRate: "1",
+      lines: [
+        {
+          accountCode: ACCOUNTS.accruedLiabilities,
+          debit: input.amount,
+          credit: "0",
+          description: reversalDescription,
+        },
+        {
+          accountCode: expenseAccount.account_code,
+          debit: "0",
+          credit: input.amount,
+          description: reversalDescription,
+        },
+      ],
+      isAdjusting: true,
+    },
+    actorId,
+  )
+
+  const [[accrualRow], [reversalRow]] = await Promise.all([
+    tx<{ entry_number: string }[]>`
+      SELECT entry_number FROM journal_entries WHERE id = ${accrualEntryId}::uuid
+    `,
+    tx<{ entry_number: string }[]>`
+      SELECT entry_number FROM journal_entries WHERE id = ${reversalEntryId}::uuid
+    `,
+  ])
+
+  return {
+    accrualEntryId,
+    accrualEntryNumber: accrualRow.entry_number,
+    reversalEntryId,
+    reversalEntryNumber: reversalRow.entry_number,
+    reversalDate: nextPeriod.start_date,
+  }
+}
+
+export const AMORTIZATION_KINDS = [
+  "deferred_revenue",
+  "prepaid_expense",
+] as const
+export type AmortizationKind = (typeof AMORTIZATION_KINDS)[number]
+
+export type AmortizationScheduleRow = {
+  id: string
+  kind: AmortizationKind
+  balance_sheet_account_id: string
+  balance_sheet_account_name: string
+  income_statement_account_id: string
+  income_statement_account_name: string
+  total_amount: string
+  periods_total: number
+  periods_posted: number
+  next_run_date: string
+  description: string
+  reference: string | null
+}
+
+export async function listAmortizationSchedules(
+  tx: Tx,
+): Promise<AmortizationScheduleRow[]> {
+  return tx<AmortizationScheduleRow[]>`
+    SELECT s.id::text AS id, s.kind,
+           s.balance_sheet_account_id::text AS balance_sheet_account_id,
+           bs.account_code || ' — ' || bs.account_name AS balance_sheet_account_name,
+           s.income_statement_account_id::text AS income_statement_account_id,
+           inc.account_code || ' — ' || inc.account_name AS income_statement_account_name,
+           s.total_amount::text, s.periods_total,
+           coalesce(cnt.n, 0)::int AS periods_posted,
+           to_char(s.next_run_date,'YYYY-MM-DD') AS next_run_date,
+           s.description, s.reference
+      FROM amortization_schedules s
+      JOIN chart_of_accounts bs ON bs.id = s.balance_sheet_account_id
+      JOIN chart_of_accounts inc ON inc.id = s.income_statement_account_id
+      LEFT JOIN (
+        SELECT source_id, count(*) AS n FROM journal_entries
+         WHERE source_type = 'amortization' GROUP BY source_id
+      ) cnt ON cnt.source_id = s.id
+     ORDER BY s.next_run_date, s.description
+  `
+}
+
+export type NewAmortizationSchedule = {
+  kind: AmortizationKind
+  balanceSheetAccountId: string
+  incomeStatementAccountId: string
+  totalAmount: string
+  periodsTotal: number
+  nextRunDate: string
+  description: string
+  reference: string | null
+}
+
+/**
+ * Which of the two accounts is debited vs. credited is the only difference
+ * between the two kinds — deferred_revenue drains a LIABILITY into revenue,
+ * prepaid_expense drains an ASSET into expense. No validation that the
+ * picked accounts are actually that account type: the manual journal entry
+ * form (US-ACC-034) makes the same call, trusting the accountant over a
+ * type check.
+ */
+export async function createAmortizationSchedule(
+  tx: Tx,
+  tenantId: string,
+  input: NewAmortizationSchedule,
+  actorId: string,
+): Promise<{ id: string }> {
+  const ids = [input.balanceSheetAccountId, input.incomeStatementAccountId]
+  const accounts = await tx<{ id: string }[]>`
+    SELECT id FROM chart_of_accounts WHERE id = ANY(${ids}::uuid[])
+  `
+  if (accounts.length !== new Set(ids).size) {
+    throw new AccountingRefused(
+      "no_such_account",
+      "one of the selected accounts",
+    )
+  }
+
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO amortization_schedules (
+      tenant_id, kind, balance_sheet_account_id, income_statement_account_id,
+      total_amount, periods_total, next_run_date, description, reference,
+      created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${input.kind},
+      ${input.balanceSheetAccountId}::uuid, ${input.incomeStatementAccountId}::uuid,
+      ${input.totalAmount}::numeric, ${input.periodsTotal},
+      ${input.nextRunDate}::date, ${input.description}, ${input.reference},
+      ${actorId}::uuid
+    )
+    RETURNING id
+  `
+  return { id: row.id }
+}
+
+export type PostedAmortization = {
+  scheduleId: string
+  entryId: string
+  entryNumber: string
+  description: string
+  amount: string
+}
+
+/**
+ * Posts one recognition entry per schedule due today or earlier that has
+ * not yet completed its full run — bounded by how many deferred/prepaid
+ * arrangements the tenant has (NOT_SCALE_SENSITIVE), the same shape as
+ * generateDueInvoices. periods_posted is COUNTED from journal_entries, never
+ * stored (L58): a schedule whose posting failed partway is repaired by the
+ * next run instead of carrying a wrong number forward.
+ *
+ * Each period recognizes total_amount / periods_total, ROUNDED — except the
+ * LAST period, which recognizes whatever is left, so the schedule always
+ * finishes at exactly zero rather than a few cents short or over (computed
+ * in SQL, per CLAUDE.md § Money: arithmetic on money never happens in JS).
+ */
+export async function postDueAmortizations(
+  tx: Tx,
+  tenantId: string,
+  actorId: string,
+): Promise<PostedAmortization[]> {
+  const due = await tx<
+    {
+      id: string
+      kind: AmortizationKind
+      balance_sheet_code: string
+      income_statement_code: string
+      description: string
+      reference: string | null
+      this_amount: string
+      next_run_date: string
+    }[]
+  >`
+    SELECT s.id::text AS id, s.kind,
+           bs.account_code AS balance_sheet_code,
+           inc.account_code AS income_statement_code,
+           s.description, s.reference,
+           (CASE WHEN coalesce(cnt.n, 0) + 1 = s.periods_total
+              THEN s.total_amount - round(s.total_amount / s.periods_total, 2) * (s.periods_total - 1)
+              ELSE round(s.total_amount / s.periods_total, 2)
+            END)::text AS this_amount,
+           to_char(s.next_run_date, 'YYYY-MM-DD') AS next_run_date
+      FROM amortization_schedules s
+      JOIN chart_of_accounts bs ON bs.id = s.balance_sheet_account_id
+      JOIN chart_of_accounts inc ON inc.id = s.income_statement_account_id
+      LEFT JOIN (
+        SELECT source_id, count(*) AS n FROM journal_entries
+         WHERE source_type = 'amortization' GROUP BY source_id
+      ) cnt ON cnt.source_id = s.id
+     WHERE s.tenant_id = ${tenantId}::uuid
+       AND s.next_run_date <= CURRENT_DATE
+       AND coalesce(cnt.n, 0) < s.periods_total
+     ORDER BY s.next_run_date
+     FOR UPDATE OF s
+  `
+
+  const [tenant] = await tx<{ default_currency: string }[]>`
+    SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
+  `
+  const currency = tenant?.default_currency ?? "USD"
+
+  const results: PostedAmortization[] = []
+  for (const sched of due) {
+    const isDeferredRevenue = sched.kind === "deferred_revenue"
+    const entryId = await postJournal(
+      tx,
+      tenantId,
+      {
+        date: sched.next_run_date,
+        sourceType: "amortization",
+        sourceId: sched.id,
+        description: sched.description,
+        reference: sched.reference,
+        currency,
+        exchangeRate: "1",
+        lines: [
+          {
+            accountCode: isDeferredRevenue
+              ? sched.balance_sheet_code
+              : sched.income_statement_code,
+            debit: sched.this_amount,
+            credit: "0",
+            description: sched.description,
+          },
+          {
+            accountCode: isDeferredRevenue
+              ? sched.income_statement_code
+              : sched.balance_sheet_code,
+            debit: "0",
+            credit: sched.this_amount,
+            description: sched.description,
+          },
+        ],
+        isAdjusting: true,
+      },
+      actorId,
+    )
+    const [{ entry_number: entryNumber }] = await tx<
+      { entry_number: string }[]
+    >`
+      SELECT entry_number FROM journal_entries WHERE id = ${entryId}::uuid
+    `
+    results.push({
+      scheduleId: sched.id,
+      entryId,
+      entryNumber,
+      description: sched.description,
+      amount: sched.this_amount,
+    })
+  }
+
+  if (results.length > 0) {
+    await tx`
+      UPDATE amortization_schedules
+         SET next_run_date = (next_run_date + interval '1 month')::date,
+             updated_at = now(), updated_by = ${actorId}::uuid
+       WHERE id = ANY(${results.map((r) => r.scheduleId)}::uuid[])
+    `
+  }
+
+  return results
 }
 
 export type YearEndCloseLine = {

@@ -316,7 +316,7 @@ the same verdicts at user-story grain.
 *Status: **PARTIAL** (2026-09-14). Same increment as US-ACC-036: `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR from Yahoo Finance, `accounting.write`-gated and audited. "Update automatically" is the remaining gap — refresh is manual-trigger only, no scheduler exists in this repo. Yahoo's endpoint is unofficial and unversioned (no API key, no SLA); a per-currency failure is isolated and surfaced rather than failing the whole refresh, which is what a shape change on Yahoo's side would trip. This table now feeds both US-ACC-053 (revaluation) and US-ACC-054 (settlement), as of 2026-09-18.*
 
 **US-ACC-053**: As a CFO, I want to see unrealized gains/losses on foreign currency balances, so that I understand FX exposure.
-*Status: **PARTIAL** (2026-09-18) — the story as literally written ("I want to see") is done: `/accounting/fx-revaluation` reports unrealized gain/loss on every open foreign-currency invoice/bill as of a chosen date. Report-only by design, not a stopping point chosen for convenience — see the Tier 7 entry in this document for why posting a non-reversing adjustment would double-count against US-ACC-054's own settlement recognition. Bank account balances are excluded from the report (no per-account booking rate exists to revalue against); posting/reversal is unbuilt.*
+*Status: **PARTIAL** (2026-09-18) — the story as literally written ("I want to see") is done: `/accounting/fx-revaluation` reports unrealized gain/loss on every open foreign-currency invoice/bill as of a chosen date. Report-only by design, not a stopping point chosen for convenience — see the Tier 7 entry in this document for why posting a non-reversing adjustment would double-count against US-ACC-054's own settlement recognition. Bank account balances are excluded from the report (no per-account booking rate exists to revalue against); posting/reversal is unbuilt. §11's auto-reversing accrual infrastructure (`recordAccrual()`, 2026-09-20) COULD now carry this — a period-end unrealized FX adjustment is conventionally exactly this shape (an accrual reversed on the next period's first day, which avoids the double-count against US-ACC-054's settlement recognition the note above warns about) — but it has not been retrofitted here, a deliberate decision, not an oversight.*
 
 **US-ACC-054**: As an Accountant, I want to record realized gains/losses when foreign invoices are paid, so that P&L reflects actual FX impact.
 *Status: **DONE** (2026-09-18). `recordPayment`/`recordVendorPayment` look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate, writing `payment_allocations.fx_gain_loss`. See the Tier 7 entry in this document for the shape and its two documented simplifications. Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` against the real database (gain, loss, and both fallbacks), and `INV-ACC-004` in `packages/spec-tests` remains the reference formula these were built to match.*
@@ -2685,10 +2685,76 @@ either way.
       recurring invoices exist at `/accounting/recurring-invoices`; recurring
       BILLS do not, since `bills` has no recurring columns at all. See its
       status block above).
-- [ ] Accruals (auto-reversing) and deferred revenue/prepaid expense
-      amortization. §11 — flagged as a genuine specification gap, not just
-      an implementation one; neither `module-accounting.md` nor
-      `accounting-gap-analysis.md` names this as a known gap before now.
+- [x] Accruals (auto-reversing) — DONE (2026-09-20). [ ] Deferred
+      revenue/prepaid expense amortization — PARTIAL. §11 — flagged as a
+      genuine specification gap, not just an implementation one; neither
+      `module-accounting.md` nor `accounting-gap-analysis.md` named this as
+      a known gap before now.
+
+      `recordAccrual()` posts BOTH the accrual and its reversal
+      immediately, from `/accounting/accruals` — unlike every other Tier 8
+      item, there is no manual-trigger gap here: accounting convention
+      posts both halves at once (the accrual dated the picked period's last
+      day, the reversal dated the very next period's first day), never on a
+      future schedule, so this genuinely completes its story. Always an
+      ACCRUED EXPENSE (debit a picked expense account, credit one blanket
+      Accrued Liabilities account, `ACCOUNTS.accruedLiabilities` = "2150")
+      — accrued REVENUE is a documented scope line, not an oversight; the
+      far more common month-end case is expense. `journal_entries` is
+      immutable once posted (20260912060000), so the reversal is always a
+      second, independent entry, never an edit of the first. Both entries
+      set the previously-dormant `is_adjusting` flag, finally lighting up
+      the ledger's own "adjusting" badge (`ledger/+page.svelte`), unused
+      since it was added.
+
+      Deferred revenue and prepaid expense amortization are ONE mechanism,
+      not two — a balance-sheet account (a liability for deferred revenue,
+      an asset for prepaid) draining into an income-statement account
+      (revenue or expense) on a schedule; direction is the only
+      difference. A new `amortization_schedules` table mirrors
+      `recurring_schedules`' own shape deliberately (a template,
+      `next_run_date`, a manual "Post due amortizations" action, advanced
+      per posting) rather than inventing a second schedule model. Each
+      period recognizes `total_amount / periods_total`, ROUNDED — except
+      the LAST period, which recognizes whatever is left, so a schedule
+      always finishes at exactly zero rather than a few cents short or
+      over (computed in SQL; CLAUDE.md § Money forbids money arithmetic in
+      JS). `periods_posted` is COUNTED from `journal_entries`
+      (`source_type = 'amortization'`, `source_id` = the schedule's id)
+      every time it's needed, never stored (L58). Each posting is dated
+      the SCHEDULE's own `next_run_date` — the period being recognized —
+      never the day the button happens to be clicked; a schedule caught
+      up over several clicks posts each entry into the period it was
+      actually due for, not all of them into whichever period the last
+      click landed in (self-caught before shipping: an earlier draft used
+      `CURRENT_DATE`, which would have misdated every catch-up posting and
+      made the closed-period guard check the wrong period entirely). That
+      guard is now genuinely reachable: `postDueAmortizations` refuses
+      `period_closed` if ANY due schedule's own date falls in a closed
+      period, and — same all-or-nothing discipline as
+      `generateDueInvoices` — none of that click's other schedules post
+      either, so one schedule due into a closed period blocks the whole
+      run until the period is reopened. PARTIAL
+      because: always monthly (not configurable), no early cancellation/write-off of a
+      schedule created in error (correct it with a manual journal entry —
+      same gap recurring invoice schedules have), and both accounts are
+      picked freely per schedule with no validation that they're actually
+      the right account TYPE (the manual journal entry form, US-ACC-034,
+      makes the same trust call). Both halves tested in
+      `accounting.writes.test.ts` ("accruals and amortization (§11)")
+      against the real database — including period adjacency, the
+      last-period rounding remainder ($100.00 over 3 periods: $33.33,
+      $33.33, $33.34), both recognition directions, the posting-date fix
+      itself (asserted on `entry_date`), and the closed-period refusal —
+      and verified live end-to-end (accrual + reversal posted and visible
+      on the ledger, both schedule kinds posted, idempotent re-run).
+
+      FX revaluation (`/accounting/fx-revaluation`, Tier 7) is report-only
+      today; period-end unrealized FX gain/loss is conventionally an
+      auto-reversing accrual, so this infrastructure COULD let it post
+      instead of only reporting. Not retrofitted in this commit — a
+      separate, deliberate decision, same as recurring bills being left out
+      of recurring invoices.
 - [ ] Bank feed integration (Plaid/Yodlee). US-ACC-027.
 - [x] Bank reconciliation rules (auto-categorization) (2026-09-19).
       US-ACC-029. See its status block above for the shape and scope.

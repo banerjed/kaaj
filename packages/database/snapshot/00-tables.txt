@@ -1,5 +1,6 @@
 # table	rls_enabled	rls_forced
 accounting_periods	t	t
+amortization_schedules	t	t
 audit_log	t	t
 bank_accounts	t	t
 bank_reconciliation_rules	t	t

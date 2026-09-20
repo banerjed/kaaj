@@ -495,7 +495,14 @@ INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, accoun
     ('030e294b-88ad-544e-841a-cfda187885ac', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5300', 'Software Subscriptions', '{"en-US": "Software Subscriptions"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('9d558ace-8adc-52ed-811a-de519ad88a29', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5400', 'Office & Facilities', '{"en-US": "Office & Facilities"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
     ('5a8f3f2e-9c4d-5b1a-8e6f-2d9c7a4b1e35', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5500', 'Bad Debt Expense', '{"en-US": "Bad Debt Expense"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
-    ('47289db6-a99e-5207-8f78-a62e982f8e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5600', 'Payment Processing Fees', '{"en-US": "Payment Processing Fees"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0);
+    ('47289db6-a99e-5207-8f78-a62e982f8e20', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5600', 'Payment Processing Fees', '{"en-US": "Payment Processing Fees"}'::jsonb, 'expense', 'operating_expense', FALSE, TRUE, 'USD', 0),
+    -- §11: accruals (auto-reversing) and deferred revenue/prepaid expense
+    -- amortization. ACCOUNTS.accruedLiabilities/deferredRevenue/prepaidExpenses
+    -- in accounting.repo.ts — a tenant without these seeded gets a plain
+    -- no_such_account refusal, same as a tenant missing ACCOUNTS.revenue.
+    ('ddfd486d-99db-4491-8880-7ff5ee7fd1d4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1150', 'Prepaid Expenses', '{"en-US": "Prepaid Expenses"}'::jsonb, 'asset', 'current_asset', FALSE, TRUE, 'USD', 0),
+    ('e0256f81-c54b-410e-bea3-94f5944d761d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2150', 'Accrued Liabilities', '{"en-US": "Accrued Liabilities"}'::jsonb, 'liability', 'current_liability', FALSE, TRUE, 'USD', 0),
+    ('83f308bc-9c29-45ad-a54a-e62965935e86', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2300', 'Deferred Revenue', '{"en-US": "Deferred Revenue"}'::jsonb, 'liability', 'current_liability', FALSE, TRUE, 'USD', 0);
 
 -- These three were the fixture's only payroll_tax_rates rows, and none of
 -- them describe payroll: they are sales tax / VAT config, seeded here only
@@ -675,6 +682,14 @@ SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.label, v.url, v.ord::int,
         ('IT-0001', 'IT asset tagging policy', 'https://wiki.example/it/asset-tagging', 2),
         ('CS-0001', 'Client escalation runbook', 'https://wiki.example/support/escalation-runbook', 1)
        ) AS v(ticket_number, label, url, ord) ON v.ticket_number = t.ticket_number;
+
+-- §11: deferred revenue / prepaid expense amortization schedules. Both
+-- next_run_date fixed in the past (2026-09-01), same reasoning as the
+-- recurring-invoice schedule above — genuinely due, and stays due for a
+-- long time rather than going stale the day after this was written.
+INSERT INTO amortization_schedules (id, tenant_id, kind, balance_sheet_account_id, income_statement_account_id, total_amount, periods_total, next_run_date, description, reference, created_at, updated_at, created_by, updated_by) VALUES
+    ('5587c31c-0af5-491d-a7b0-90bbd85bcc4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'deferred_revenue', '83f308bc-9c29-45ad-a54a-e62965935e86', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 12000.00, 12, '2026-09-01', 'Annual support contract - Acme Manufacturing', 'DEFREV-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('eb1956cf-071a-4bf4-965a-18f706670bba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'prepaid_expense', 'ddfd486d-99db-4491-8880-7ff5ee7fd1d4', '030e294b-88ad-544e-841a-cfda187885ac', 6000.00, 12, '2026-09-01', 'Annual JetBrains license prepayment', 'PREPAID-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Backs INV-2026-005 below ("Recurring support retainer") — same id an
 -- earlier fixture pass already wrote into invoices.recurring_schedule_id in

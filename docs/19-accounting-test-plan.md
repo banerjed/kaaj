@@ -346,20 +346,28 @@ Also directly tested and worth recording even though not a named bullet above: `
 ---
 
 ## 11. Recurring Transactions, Accruals & Deferrals — **[PARTIAL]** (2026-09-20)
-Recurring INVOICE templates exist (2026-09-20): `recurring_schedules` +
+Recurring INVOICE templates exist: `recurring_schedules` +
 `/accounting/recurring-invoices`, generating a draft invoice per due
 schedule on demand (US-ACC-004 — see `module-accounting.md`'s status block
 for the shape). Recurring BILLS still do not — `bills` carries no recurring
-columns at all, a separate gap. No accrual-reversal logic and no
-deferred-revenue/prepaid-expense amortization exist anywhere in code, still
-confirmed by direct search (`rg -il 'recurring|deferred_revenue|accrual'`
-under `apps/web/src/lib/server` and `packages`) for those two — every hit
-there is an unrelated HR/compensation module (time-off policies, holiday
-accrual balances, compensation allowances), none of it accounting. This
-remains a genuine specification gap in `module-accounting.md` itself for
-the accrual/deferral half, not merely an implementation gap: recurring
-invoices were Enhancement #7 in `accounting-gap-analysis.md` (now built),
-but accrual/deferral still aren't mentioned as a gap in either document.
+columns at all, a separate gap.
+
+Auto-reversing accruals are DONE: `recordAccrual()` posts the accrual and
+its reversal together, immediately, from `/accounting/accruals` — the one
+item in this section that needed no manual-trigger gap, since accounting
+convention posts both halves at once rather than on a schedule. Deferred
+revenue/prepaid expense amortization is PARTIAL: an `amortization_schedules`
+table mirrors `recurring_schedules`' own shape (a template, `next_run_date`,
+a manual "post due" action), with a rounding-remainder rule so a schedule
+always finishes at exactly zero. See `module-accounting.md`'s Tier 8 entry
+for the full shape and its documented gaps (monthly-only, no early
+cancellation, no account-type validation).
+
+This remains a genuine specification gap in `module-accounting.md` itself
+for having gone unnamed for so long, not an implementation gap any more:
+recurring invoices were Enhancement #7 in `accounting-gap-analysis.md`, and
+accruals/deferrals were named only in this test plan before 2026-09-20 —
+both are now built.
 
 ---
 

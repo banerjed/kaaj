@@ -54,20 +54,20 @@ directory in the repo.
 
 | Step | Proves | Count |
 |---|---|---|
-| tenant isolation | every RLS policy actually filters, per table | 666 |
+| tenant isolation | every RLS policy actually filters, per table | 672 |
 | specification | the schema answers the module specs | 173 |
 | schema invariants | ADR design rules hold, and a bad claim fails closed | 157 |
-| structure snapshot | the schema is exactly what was committed | 4,261 lines |
+| structure snapshot | the schema is exactly what was committed | 4,290 lines |
 | enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 96 |
+| authorization | every form action authorizes; no DELETE in app code | 99 |
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 5 exempt |
-| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 79 |
+| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 80 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
 | sensitive cols classified | every column is in the matrix or the not-sensitive list | — |
-| writes are audited | every action is in the audit register, either list | 56 + 29 |
-| refusals have a message | every constraint a form can trip answers with a sentence | 32 |
+| writes are audited | every action is in the audit register, either list | 59 + 29 |
+| refusals have a message | every constraint a form can trip answers with a sentence | 34 |
 | service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |

@@ -461,6 +461,7 @@ const ACCOUNTING = [
   "bank_transactions",
   "bank_reconciliation_rules",
   "recurring_schedules",
+  "amortization_schedules",
   "payments",
   "payment_allocations",
   "journal_entries",

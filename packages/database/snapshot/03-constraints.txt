@@ -1,6 +1,10 @@
 # table	constraint	type	definition
 accounting_periods	accounting_periods_pkey	p	PRIMARY KEY (id)
 accounting_periods	accounting_periods_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+amortization_schedules	amortization_schedules_balance_sheet_account_id_fkey	f	FOREIGN KEY (balance_sheet_account_id) REFERENCES chart_of_accounts(id)
+amortization_schedules	amortization_schedules_income_statement_account_id_fkey	f	FOREIGN KEY (income_statement_account_id) REFERENCES chart_of_accounts(id)
+amortization_schedules	amortization_schedules_pkey	p	PRIMARY KEY (id)
+amortization_schedules	amortization_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 audit_log	audit_log_pkey	p	PRIMARY KEY (id)
 audit_log	audit_log_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bank_accounts	bank_accounts_pkey	p	PRIMARY KEY (id)

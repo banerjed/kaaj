@@ -104,7 +104,7 @@ fi
 
 if [ "$RUN_DB" = 1 ]; then
   echo "${B}Database${N}"
-  step "tenant isolation (666)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
+  step "tenant isolation (672)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-rls.sql
   step "specification (173)"       psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -f packages/database/tests/verify-stories.sql
   step "schema invariants (157)"    psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -v strict=1 -v enum_fixture="$ROOT/packages/enums/dist/expected-enums.sql" -f packages/database/tests/verify-invariants.sql
   step "structure snapshot"        packages/database/scripts/db-snapshot.sh --check

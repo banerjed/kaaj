@@ -19,6 +19,10 @@ import {
   equityStatement,
   equityStatementTotals,
   taxLiabilitySummary,
+  recordAccrual,
+  createAmortizationSchedule,
+  listAmortizationSchedules,
+  postDueAmortizations,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -1569,5 +1573,367 @@ describe("tax liability by jurisdiction", () => {
     expect(ny?.output_tax).toBe("0")
     expect(ny?.input_tax).toBe("161.53")
     expect(ny?.net_liability).toBe("-161.53")
+  })
+})
+
+describe("accruals and amortization (§11)", () => {
+  const FEBRUARY = "5b1446f7-7db5-54f5-bf88-a3c4527d6027" // open, ends 2026-02-28
+  const JANUARY_CLOSED = "c4fff2b2-1b53-592f-84f6-586e3b2ca0dc" // closed
+  const MARCH = "00c27197-c84b-5af8-b168-1799c7df579d" // open — the LAST fixture period, nothing follows it
+  const SOFTWARE_SUBSCRIPTIONS = "030e294b-88ad-544e-841a-cfda187885ac"
+  const ACCRUED_LIABILITIES_CODE = "2150"
+
+  describe("recordAccrual", () => {
+    it("posts the accrual on the period's end date and its reversal on the next period's start date", async () => {
+      const { result, lines } = await inRollback(async (tx) => {
+        const result = await recordAccrual(
+          tx,
+          NORTHWIND,
+          {
+            periodId: FEBRUARY,
+            expenseAccountId: SOFTWARE_SUBSCRIPTIONS,
+            amount: "1200.00",
+            description: "Accrued February hosting invoice",
+            reference: null,
+          },
+          ACTOR,
+        )
+        const lines = await tx<
+          {
+            entry_number: string
+            account_code: string
+            debit_amount: string
+            credit_amount: string
+            entry_date: string
+            source_type: string
+            source_id: string | null
+            is_adjusting: boolean
+          }[]
+        >`
+          SELECT je.entry_number, ca.account_code,
+                 l.debit_amount::text, l.credit_amount::text,
+                 je.entry_date::text, je.source_type, je.source_id::text, je.is_adjusting
+            FROM journal_entry_lines l
+            JOIN journal_entries je ON je.id = l.entry_id
+            JOIN chart_of_accounts ca ON ca.id = l.account_id
+           WHERE je.id = ANY(ARRAY[${result.accrualEntryId}, ${result.reversalEntryId}]::uuid[])
+           ORDER BY je.entry_date, l.line_number
+        `
+        return { result, lines }
+      })
+
+      expect(result.reversalDate).toBe("2026-03-01")
+      expect(lines).toEqual([
+        {
+          entry_number: result.accrualEntryNumber,
+          account_code: "5300",
+          debit_amount: "1200.00",
+          credit_amount: "0.00",
+          entry_date: "2026-02-28",
+          source_type: "accrual",
+          source_id: null,
+          is_adjusting: true,
+        },
+        {
+          entry_number: result.accrualEntryNumber,
+          account_code: ACCRUED_LIABILITIES_CODE,
+          debit_amount: "0.00",
+          credit_amount: "1200.00",
+          entry_date: "2026-02-28",
+          source_type: "accrual",
+          source_id: null,
+          is_adjusting: true,
+        },
+        {
+          entry_number: result.reversalEntryNumber,
+          account_code: ACCRUED_LIABILITIES_CODE,
+          debit_amount: "1200.00",
+          credit_amount: "0.00",
+          entry_date: "2026-03-01",
+          source_type: "accrual_reversal",
+          source_id: result.accrualEntryId,
+          is_adjusting: true,
+        },
+        {
+          entry_number: result.reversalEntryNumber,
+          account_code: "5300",
+          debit_amount: "0.00",
+          credit_amount: "1200.00",
+          entry_date: "2026-03-01",
+          source_type: "accrual_reversal",
+          source_id: result.accrualEntryId,
+          is_adjusting: true,
+        },
+      ])
+    })
+
+    it("refuses a closed period", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            recordAccrual(
+              tx,
+              NORTHWIND,
+              {
+                periodId: JANUARY_CLOSED,
+                expenseAccountId: SOFTWARE_SUBSCRIPTIONS,
+                amount: "100.00",
+                description: "x",
+                reference: null,
+              },
+              ACTOR,
+            ),
+          ),
+        "period_closed",
+      )
+    })
+
+    it("refuses a period with nothing after it to reverse into", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            recordAccrual(
+              tx,
+              NORTHWIND,
+              {
+                periodId: MARCH,
+                expenseAccountId: SOFTWARE_SUBSCRIPTIONS,
+                amount: "100.00",
+                description: "x",
+                reference: null,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_next_period",
+      )
+    })
+
+    it("refuses an account that does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            recordAccrual(
+              tx,
+              NORTHWIND,
+              {
+                periodId: FEBRUARY,
+                expenseAccountId: "00000000-0000-0000-0000-000000000000",
+                amount: "100.00",
+                description: "x",
+                reference: null,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_account",
+      )
+    })
+
+    it("refuses a period id that does not exist, distinctly from one with nothing after it", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            recordAccrual(
+              tx,
+              NORTHWIND,
+              {
+                periodId: "00000000-0000-0000-0000-000000000000",
+                expenseAccountId: SOFTWARE_SUBSCRIPTIONS,
+                amount: "100.00",
+                description: "x",
+                reference: null,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_period",
+      )
+    })
+  })
+
+  describe("amortization schedules", () => {
+    const DEFERRED_REVENUE_SCHEDULE = "5587c31c-0af5-491d-a7b0-90bbd85bcc4a" // Acme, $12,000 / 12mo
+    const PREPAID_SCHEDULE = "eb1956cf-071a-4bf4-965a-18f706670bba" // $6,000 / 12mo
+    const DEFERRED_REVENUE_ACCOUNT = "83f308bc-9c29-45ad-a54a-e62965935e86"
+    const CONSULTING_REVENUE = "6d1ef213-cb96-5ad4-beaf-1d4e07242d65"
+
+    it("lists the fixture schedules with zero periods posted", async () => {
+      const rows = await inRollback((tx) => listAmortizationSchedules(tx))
+      const deferred = rows.find((r) => r.id === DEFERRED_REVENUE_SCHEDULE)
+      expect(deferred).toMatchObject({
+        kind: "deferred_revenue",
+        total_amount: "12000.00",
+        periods_total: 12,
+        periods_posted: 0,
+      })
+    })
+
+    it("refuses a schedule whose account does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            createAmortizationSchedule(
+              tx,
+              NORTHWIND,
+              {
+                kind: "prepaid_expense",
+                balanceSheetAccountId: "00000000-0000-0000-0000-000000000000",
+                incomeStatementAccountId: SOFTWARE_SUBSCRIPTIONS,
+                totalAmount: "1000.00",
+                periodsTotal: 10,
+                nextRunDate: "2026-09-01",
+                description: "x",
+                reference: null,
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_account",
+      )
+    })
+
+    it("posts an even monthly recognition for a $12,000/12mo deferred-revenue schedule, and advances one month", async () => {
+      const { posted, entry, posted_entry, schedule } = await inRollback(
+        async (tx) => {
+          const posted = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+          const found = posted.find(
+            (p) => p.scheduleId === DEFERRED_REVENUE_SCHEDULE,
+          )!
+          const [entry] = await tx<
+            {
+              account_code: string
+              debit_amount: string
+              credit_amount: string
+            }[]
+          >`
+          SELECT ca.account_code, l.debit_amount::text, l.credit_amount::text
+            FROM journal_entry_lines l
+            JOIN chart_of_accounts ca ON ca.id = l.account_id
+           WHERE l.entry_id = ${found.entryId}::uuid
+           ORDER BY l.line_number
+        `
+          const [posted_entry] = await tx<{ entry_date: string }[]>`
+          SELECT entry_date::text FROM journal_entries WHERE id = ${found.entryId}::uuid
+        `
+          const [schedule] = await tx<{ next_run_date: string }[]>`
+          SELECT next_run_date::text FROM amortization_schedules
+           WHERE id = ${DEFERRED_REVENUE_SCHEDULE}::uuid
+        `
+          return { posted, entry, posted_entry, schedule }
+        },
+      )
+      expect(
+        posted.find((p) => p.scheduleId === DEFERRED_REVENUE_SCHEDULE),
+      ).toMatchObject({ amount: "1000.00" })
+      expect(schedule.next_run_date).toBe("2026-10-01")
+      // Dated the RECOGNIZED period (the schedule's own next_run_date before
+      // it advanced), never the day the button happened to be clicked — a
+      // stale schedule caught up over several clicks must not land every
+      // entry in whichever period the last click fell in.
+      expect(posted_entry.entry_date).toBe("2026-09-01")
+      // DR the liability draining down, CR revenue recognized.
+      expect(entry).toMatchObject({
+        account_code: "2300",
+        debit_amount: "1000.00",
+        credit_amount: "0.00",
+      })
+    })
+
+    it("posts the opposite direction for a prepaid expense schedule", async () => {
+      const { entry } = await inRollback(async (tx) => {
+        const posted = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+        const found = posted.find((p) => p.scheduleId === PREPAID_SCHEDULE)!
+        const entry = await tx<
+          {
+            account_code: string
+            debit_amount: string
+            credit_amount: string
+          }[]
+        >`
+          SELECT ca.account_code, l.debit_amount::text, l.credit_amount::text
+            FROM journal_entry_lines l
+            JOIN chart_of_accounts ca ON ca.id = l.account_id
+           WHERE l.entry_id = ${found.entryId}::uuid
+           ORDER BY l.line_number
+        `
+        return { entry }
+      })
+      // DR expense recognized, CR the asset draining down.
+      expect(entry[0]).toMatchObject({ account_code: "5300" })
+      expect(entry[1]).toMatchObject({ account_code: "1150" })
+    })
+
+    it("does not post the same schedule twice in the same run", async () => {
+      const { first, second } = await inRollback(async (tx) => {
+        const first = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+        const second = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+        return { first, second }
+      })
+      expect(first.length).toBeGreaterThan(0)
+      expect(second).toEqual([])
+    })
+
+    it("refuses the whole run when a due schedule falls inside a closed period", async () => {
+      // Dated by its own next_run_date (not the click date, see the test
+      // above) — a schedule due inside a closed period must refuse rather
+      // than post silently into a month the books have already closed.
+      await refusedBecause(
+        () =>
+          inRollback(async (tx) => {
+            await createAmortizationSchedule(
+              tx,
+              NORTHWIND,
+              {
+                kind: "deferred_revenue",
+                balanceSheetAccountId: DEFERRED_REVENUE_ACCOUNT,
+                incomeStatementAccountId: CONSULTING_REVENUE,
+                totalAmount: "1200.00",
+                periodsTotal: 12,
+                nextRunDate: "2026-01-15",
+                description: "Due inside closed January",
+                reference: null,
+              },
+              ACTOR,
+            )
+            return postDueAmortizations(tx, NORTHWIND, ACTOR)
+          }),
+        "period_closed",
+      )
+    })
+
+    it("the last period absorbs the rounding remainder so the schedule ends at exactly zero", async () => {
+      const amounts = await inRollback(async (tx) => {
+        const { id } = await createAmortizationSchedule(
+          tx,
+          NORTHWIND,
+          {
+            kind: "deferred_revenue",
+            balanceSheetAccountId: DEFERRED_REVENUE_ACCOUNT,
+            incomeStatementAccountId: CONSULTING_REVENUE,
+            totalAmount: "100.00",
+            periodsTotal: 3,
+            nextRunDate: "2026-09-01",
+            description: "Uneven three-period test schedule",
+            reference: null,
+          },
+          ACTOR,
+        )
+        const seen: string[] = []
+        for (let i = 0; i < 3; i++) {
+          await tx`UPDATE amortization_schedules SET next_run_date = '2026-09-01' WHERE id = ${id}::uuid`
+          const posted = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+          const mine = posted.find((p) => p.scheduleId === id)
+          seen.push(mine!.amount)
+        }
+        // A 4th call, still due, posts nothing more — periods_posted (3) has
+        // reached periods_total (3), independent of next_run_date.
+        await tx`UPDATE amortization_schedules SET next_run_date = '2026-09-01' WHERE id = ${id}::uuid`
+        const fourth = await postDueAmortizations(tx, NORTHWIND, ACTOR)
+        expect(fourth.find((p) => p.scheduleId === id)).toBeUndefined()
+        return seen
+      })
+      expect(amounts).toEqual(["33.33", "33.33", "33.34"])
+    })
   })
 })

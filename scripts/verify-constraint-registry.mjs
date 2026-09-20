@@ -39,6 +39,7 @@ const FORM_WRITTEN = [
   "bill_lines",
   "tax_rates",
   "recurring_schedules",
+  "amortization_schedules",
 ]
 
 /**
@@ -81,6 +82,7 @@ const CANNOT_BE_TRIPPED = new Map([
     "fk_invoices_recurring_schedule_id",
     "set only by generateDueInvoices from a schedule id it just read from the database, never from form input — and schedules are only ever deactivated, never deleted, so the row it points at cannot disappear",
   ],
+  ["amortization_schedules_tenant_id_fkey", "tenant_id comes from the session"],
   [
     "tax_rates_rate_check",
     "FormReader's decimal(rate, { min: 0 }) already refuses a negative rate before this is reached",

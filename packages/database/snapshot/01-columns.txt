@@ -11,6 +11,20 @@ accounting_periods	9	closed_by	uuid	f
 accounting_periods	10	closed_at	timestamp with time zone	f	
 accounting_periods	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 accounting_periods	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+amortization_schedules	1	id	uuid	t	gen_random_uuid()
+amortization_schedules	2	tenant_id	uuid	t	
+amortization_schedules	3	kind	character varying(20)	t	
+amortization_schedules	4	balance_sheet_account_id	uuid	t	
+amortization_schedules	5	income_statement_account_id	uuid	t	
+amortization_schedules	6	total_amount	numeric(15,2)	t	
+amortization_schedules	7	periods_total	integer	t	
+amortization_schedules	8	next_run_date	date	t	
+amortization_schedules	9	description	text	t	
+amortization_schedules	10	reference	character varying(100)	f	
+amortization_schedules	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+amortization_schedules	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+amortization_schedules	13	created_by	uuid	f	
+amortization_schedules	14	updated_by	uuid	f	
 audit_log	1	id	bigint	t	
 audit_log	2	tenant_id	uuid	t	
 audit_log	3	actor_user_id	uuid	f	

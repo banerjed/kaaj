@@ -57,6 +57,11 @@ const EXEMPT = new Set([
   // transactions before it can move to the next partition, where a literal
   // `ORDER BY ... LIMIT 1` per account lets the planner seek straight to it.
   "apps/web/src/lib/server/accounting/payables.repo.ts:for (const id of accountIds) {",
+
+  // Bounded by how many deferred-revenue/prepaid schedules are due at once
+  // (NOT_SCALE_SENSITIVE), same reasoning as generateDueInvoices' own
+  // per-schedule postJournal call just above.
+  "apps/web/src/lib/server/accounting/accounting.repo.ts:for (const sched of due) {",
 ])
 
 function* tsFiles(dir) {
