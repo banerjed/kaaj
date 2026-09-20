@@ -159,6 +159,11 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "That customer no longer exists. Reload the page and pick one from the current list.",
   },
+  recurring_schedules_customer_id_fkey: {
+    errorFields: ["customer_id"],
+    message:
+      "That customer no longer exists. Reload the page and pick one from the current list.",
+  },
   fk_bills_vendor_id: {
     errorFields: ["vendor_id"],
     message:

@@ -72,7 +72,11 @@
   {/if}
 
   {#if data.mayWrite}
-    <div class="mt-4 flex justify-end">
+    <div class="mt-4 flex justify-end gap-2">
+      <a href="/accounting/recurring-invoices" class="btn btn-ghost btn-sm">
+        <span class="iconify lucide--repeat size-4"></span>
+        Recurring invoices
+      </a>
       <a href="/accounting/invoices/new" class="btn btn-primary btn-sm">
         <span class="iconify lucide--plus size-4"></span>
         New invoice

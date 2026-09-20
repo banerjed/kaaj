@@ -138,6 +138,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "How incoming transactions map to the ledger — read together with bank_transactions, it explains the firm's banking relationships.",
   },
+  recurring_schedules: {
+    defense: "rls",
+    audience: "finance",
+    why: "A standing billing arrangement with a named customer and a commercial rate — the same commercial detail invoice_lines already carries.",
+  },
   journal_entries: {
     defense: "rls",
     audience: "finance",

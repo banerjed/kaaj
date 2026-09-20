@@ -1425,3 +1425,233 @@ describe("payment reminders (US-ACC-003)", () => {
     })
   })
 })
+
+describe("recurring invoice schedules (US-ACC-004)", () => {
+  const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+  /** Backs INV-2026-005 ("Recurring support retainer"), monthly, due 2026-09-01 — safely in the past for a long time. */
+  const SCHEDULE = "4d83e8af-2f37-52ff-8971-5e10e9e651b9"
+
+  const NEW_SCHEDULE = {
+    customerId: ACME,
+    frequency: "monthly" as const,
+    nextRunDate: "2026-10-01",
+    dueInDays: 30,
+    exchangeRate: "1.000000",
+    paymentTerms: "Net 30",
+    notes: null,
+    lines: [
+      {
+        description: "Monthly retainer",
+        quantity: "1.00",
+        unitPrice: "2000.00",
+        discountPercent: "0",
+        taxAmount: "0",
+        taxRateId: null,
+      },
+    ],
+  }
+
+  describe("listRecurringSchedules", () => {
+    it("returns the fixture schedule with its customer and line count", async () => {
+      const rows = await inRollback((tx) => acc.listRecurringSchedules(tx))
+      const row = rows.find((r) => r.id === SCHEDULE)
+      expect(row).toMatchObject({
+        customer_name: "Acme Manufacturing",
+        frequency: "monthly",
+        is_active: true,
+        line_count: 1,
+      })
+    })
+  })
+
+  describe("createRecurringSchedule", () => {
+    it("creates a schedule with its template lines stored as a real JSON array", async () => {
+      // Not just "the insert didn't throw" — `tx.json()` vs. a hand-rolled
+      // `${JSON.stringify(...)}::jsonb` looked identical until read back:
+      // the latter double-encodes, storing a JSON STRING containing the
+      // array text rather than the array itself, which only breaks the
+      // first time something reads it (jsonb_array_length, generateDueInvoices).
+      const row = await inRollback(async (tx) => {
+        const { id } = await acc.createRecurringSchedule(
+          tx,
+          NORTHWIND,
+          NEW_SCHEDULE,
+          ACTOR,
+        )
+        const [r] = await tx<{ id: string; kind: string }[]>`
+          SELECT id::text AS id, jsonb_typeof(template_lines) AS kind
+            FROM recurring_schedules WHERE id = ${id}::uuid
+        `
+        return r
+      })
+      expect(row.id).toMatch(/^[0-9a-f-]{36}$/)
+      expect(row.kind).toBe("array")
+    })
+
+    it("refuses no lines", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            acc.createRecurringSchedule(
+              tx,
+              NORTHWIND,
+              { ...NEW_SCHEDULE, lines: [] },
+              ACTOR,
+            ),
+          ),
+        "no_lines",
+      )
+    })
+
+    it("refuses a customer that does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            acc.createRecurringSchedule(
+              tx,
+              NORTHWIND,
+              {
+                ...NEW_SCHEDULE,
+                customerId: "00000000-0000-0000-0000-000000000000",
+              },
+              ACTOR,
+            ),
+          ),
+        "no_such_customer",
+      )
+    })
+  })
+
+  describe("toggleRecurringSchedule", () => {
+    it("flips is_active", async () => {
+      const { from, to } = await inRollback((tx) =>
+        acc.toggleRecurringSchedule(tx, SCHEDULE, ACTOR),
+      )
+      expect(from).toBe(true)
+      expect(to).toBe(false)
+    })
+
+    it("refuses a schedule that does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            acc.toggleRecurringSchedule(
+              tx,
+              "00000000-0000-0000-0000-000000000000",
+              ACTOR,
+            ),
+          ),
+        "no_such_schedule",
+      )
+    })
+  })
+
+  describe("generateDueInvoices", () => {
+    it("generates a draft invoice from a due schedule, linked back to it", async () => {
+      const { generated, invoice } = await inRollback(async (tx) => {
+        const generated = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        const [invoice] = await tx<
+          {
+            status: string
+            is_recurring: boolean
+            recurring_schedule_id: string
+          }[]
+        >`
+          SELECT status, is_recurring, recurring_schedule_id::text AS recurring_schedule_id
+            FROM invoices WHERE id = ${generated[0].invoiceId}::uuid
+        `
+        return { generated, invoice }
+      })
+      expect(generated).toEqual([
+        {
+          scheduleId: SCHEDULE,
+          invoiceId: expect.any(String),
+          invoiceNumber: expect.stringMatching(/^INV-\d{4}-\d{3}$/),
+          customerName: "Acme Manufacturing",
+        },
+      ])
+      expect(invoice).toEqual({
+        status: "draft",
+        is_recurring: true,
+        recurring_schedule_id: SCHEDULE,
+      })
+    })
+
+    it("advances the schedule's next_run_date by one month, past today", async () => {
+      const row = await inRollback(async (tx) => {
+        await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        const [r] = await tx<{ advanced: boolean }[]>`
+          SELECT next_run_date = '2026-10-01'::date AS advanced
+            FROM recurring_schedules WHERE id = ${SCHEDULE}::uuid
+        `
+        return r
+      })
+      expect(row.advanced).toBe(true)
+    })
+
+    it("does not generate the same schedule twice in the same run", async () => {
+      const { first, second } = await inRollback(async (tx) => {
+        const first = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        const second = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        return { first, second }
+      })
+      expect(first).toHaveLength(1)
+      expect(second).toHaveLength(0)
+    })
+
+    it("skips an inactive schedule", async () => {
+      const generated = await inRollback(async (tx) => {
+        await acc.toggleRecurringSchedule(tx, SCHEDULE, ACTOR)
+        return acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+      })
+      expect(generated).toEqual([])
+    })
+
+    it("drifts off month-end permanently once a monthly schedule crosses February", async () => {
+      // Postgres CLAMPS date + interval rather than overflowing: Jan 31 + 1
+      // month is Feb 28, not Mar 3 — and the schedule then advances from
+      // Feb 28, so it never returns to the 31st. A known, documented
+      // limitation (module-accounting.md's US-ACC-004 status block), not a
+      // bug to fix here — an anchor-day column would be the fix, and is
+      // scope this feature doesn't need yet.
+      const dates = await inRollback(async (tx) => {
+        await tx`
+          UPDATE recurring_schedules
+             SET next_run_date = '2026-01-31'
+           WHERE id = ${SCHEDULE}::uuid
+        `
+        const first = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        const [{ next_run_date: afterFirst }] = await tx<
+          { next_run_date: string }[]
+        >`SELECT next_run_date::text FROM recurring_schedules WHERE id = ${SCHEDULE}::uuid`
+        // Already 2026-02-28 after the first run (CURRENT_DATE is 2026-09-20
+        // in this environment) — the second call needs no setup of its own.
+        const second = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        const [{ next_run_date: afterSecond }] = await tx<
+          { next_run_date: string }[]
+        >`SELECT next_run_date::text FROM recurring_schedules WHERE id = ${SCHEDULE}::uuid`
+        return { first, afterFirst, second, afterSecond }
+      })
+      expect(dates.first).toHaveLength(1)
+      expect(dates.afterFirst).toBe("2026-02-28")
+      expect(dates.second).toHaveLength(1)
+      expect(dates.afterSecond).toBe("2026-03-28")
+    })
+
+    it("refuses, naming the customer, when its schedule's tax-bearing lines hit a now-exempt customer", async () => {
+      // The schedule's one template line carries $443.75 of tax — set after
+      // the schedule was created, exactly the L60 shape createInvoice's own
+      // exemption check exists for: a customer can become exempt any time
+      // after a schedule (or a manual invoice) was set up.
+      await expect(
+        inRollback(async (tx) => {
+          await tx`UPDATE customers SET is_tax_exempt = true WHERE id = ${ACME}::uuid`
+          return acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
+        }),
+      ).rejects.toMatchObject({
+        reason: "customer_tax_exempt",
+        detail: "Acme Manufacturing",
+      })
+    })
+  })
+})

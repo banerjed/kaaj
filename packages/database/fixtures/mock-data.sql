@@ -676,6 +676,19 @@ SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.label, v.url, v.ord::int,
         ('CS-0001', 'Client escalation runbook', 'https://wiki.example/support/escalation-runbook', 1)
        ) AS v(ticket_number, label, url, ord) ON v.ticket_number = t.ticket_number;
 
+-- Backs INV-2026-005 below ("Recurring support retainer") — same id an
+-- earlier fixture pass already wrote into invoices.recurring_schedule_id in
+-- anticipation of this table (US-ACC-004). next_run_date is fixed in the
+-- past (2026-09-01) rather than computed from INV-2026-005's own Feb 2026
+-- generation, on purpose: a schedule genuinely due for its next run, that
+-- stays due for a long time rather than going stale the day after it's
+-- written (same reasoning as INV-2026-002's last_reminded_at above).
+INSERT INTO recurring_schedules (id, tenant_id, customer_id, frequency, next_run_date, due_in_days, exchange_rate, payment_terms, notes, template_lines, is_active, created_at, updated_at, created_by, updated_by) VALUES
+    ('4d83e8af-2f37-52ff-8971-5e10e9e651b9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'monthly', '2026-09-01', 15, 1.0, 'net_30',
+     'Support retainer per the Feb 2026 SOW — invoice on the 1st of each month.',
+     '[{"description":"Recurring support retainer","quantity":"1.00","unitPrice":"5000.00","discountPercent":"0.00","taxAmount":"443.75","taxRateId":"a1952ec4-9252-5bbf-89aa-9f2e89d7ef53"}]'::jsonb,
+     TRUE, '2026-02-01T09:00:00Z', '2026-02-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
 -- Invoices in mixed states, multi-currency with base conversion
 INSERT INTO invoices (id, tenant_id, customer_id, invoice_number, invoice_date, due_date, currency, exchange_rate, base_currency, subtotal, tax_total, total, amount_paid, amount_due, base_subtotal, base_tax_total, base_total, base_amount_paid, base_amount_due, status, payment_terms) VALUES
     ('c72699f8-700c-5760-a8e8-19ae6dfd53c5', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'INV-2026-001', '2026-01-21', '2026-02-20', 'USD', 1.0, 'USD', 42300.0, 0, 42300.0, 42300.0, 0, 42300.0, 0, 42300.0, 42300.0, 0, 'paid', 'net_30'),

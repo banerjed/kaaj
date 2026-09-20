@@ -86,6 +86,7 @@ pm_project_templates	t	t
 pm_task_attachments	t	t
 pm_task_comments	t	t
 projects	t	t
+recurring_schedules	t	t
 tasks	t	t
 tax_rates	t	t
 tenant_registry	t	t

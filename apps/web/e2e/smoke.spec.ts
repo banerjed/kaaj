@@ -36,6 +36,10 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/payroll/payslips", heading: "Payslips" },
   { path: "/accounting/invoices", heading: "Invoices" },
   { path: "/accounting/invoices/new", heading: "New invoice" },
+  {
+    path: "/accounting/recurring-invoices",
+    heading: "Recurring invoices",
+  },
   { path: "/accounting/bills", heading: "Bills" },
   { path: "/accounting/bills/new", heading: "New bill" },
   { path: "/accounting/ledger", heading: "Ledger" },

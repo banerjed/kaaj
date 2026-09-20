@@ -457,6 +457,9 @@ projects	idx_projects_parent_project_id	CREATE INDEX idx_projects_parent_project
 projects	idx_projects_project_id	CREATE INDEX idx_projects_project_id ON public.projects USING btree (tenant_id, project_id)
 projects	projects_pkey	CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)
 projects	projects_tenant_id_project_id_key	CREATE UNIQUE INDEX projects_tenant_id_project_id_key ON public.projects USING btree (tenant_id, project_id)
+recurring_schedules	idx_recurring_schedules_due	CREATE INDEX idx_recurring_schedules_due ON public.recurring_schedules USING btree (tenant_id, next_run_date) WHERE is_active
+recurring_schedules	idx_recurring_schedules_tenant_id	CREATE INDEX idx_recurring_schedules_tenant_id ON public.recurring_schedules USING btree (tenant_id)
+recurring_schedules	recurring_schedules_pkey	CREATE UNIQUE INDEX recurring_schedules_pkey ON public.recurring_schedules USING btree (id)
 tasks	idx_tasks_created	CREATE INDEX idx_tasks_created ON public.tasks USING btree (tenant_id, created_at DESC)
 tasks	idx_tasks_custom_fields	CREATE INDEX idx_tasks_custom_fields ON public.tasks USING gin (custom_fields jsonb_path_ops)
 tasks	idx_tasks_parent_task_id	CREATE INDEX idx_tasks_parent_task_id ON public.tasks USING btree (tenant_id, parent_task_id)

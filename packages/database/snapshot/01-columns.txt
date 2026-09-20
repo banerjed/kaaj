@@ -1814,6 +1814,21 @@ projects	59	updated_at	timestamp with time zone	t	now()
 projects	60	created_by	text	t	
 projects	61	updated_by	text	f	
 projects	62	archived_at	timestamp with time zone	f	
+recurring_schedules	1	id	uuid	t	gen_random_uuid()
+recurring_schedules	2	tenant_id	uuid	t	
+recurring_schedules	3	customer_id	uuid	t	
+recurring_schedules	4	frequency	character varying(20)	t	
+recurring_schedules	5	next_run_date	date	t	
+recurring_schedules	6	due_in_days	integer	t	30
+recurring_schedules	7	exchange_rate	numeric(12,6)	t	1.0
+recurring_schedules	8	payment_terms	character varying(50)	f	
+recurring_schedules	9	notes	text	f	
+recurring_schedules	10	template_lines	jsonb	t	
+recurring_schedules	11	is_active	boolean	t	true
+recurring_schedules	12	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+recurring_schedules	13	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+recurring_schedules	14	created_by	uuid	f	
+recurring_schedules	15	updated_by	uuid	f	
 tasks	1	id	uuid	t	gen_random_uuid()
 tasks	2	tenant_id	uuid	t	
 tasks	3	task_id	text	f	

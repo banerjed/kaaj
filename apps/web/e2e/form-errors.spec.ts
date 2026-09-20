@@ -983,3 +983,28 @@ test("sending payment reminders with no invoice selected is refused, not silentl
 
   await expect(page.getByText(/select at least one invoice/i)).toBeVisible()
 })
+
+test("creating a recurring schedule with no lines is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Read-only, same shape as invoices/new's own "no lines" case above —
+  // Acme Manufacturing (USD) is a real fixture customer, line_count is the
+  // thing under test. A crafted POST, not the UI: the create form itself
+  // never lets line_count reach 0 (removeLine keeps at least one row).
+  const response = await page.request.post(
+    "/accounting/recurring-invoices?/create",
+    {
+      form: {
+        customer_id: "e40d0f18-1333-5cd1-a969-f5113df51e70",
+        frequency: "monthly",
+        next_run_date: "2026-03-10",
+        due_in_days: "30",
+        exchange_rate: "1.000000",
+        line_count: "0",
+      },
+    },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/lines/i)
+})

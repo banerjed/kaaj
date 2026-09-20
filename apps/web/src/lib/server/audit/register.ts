@@ -237,6 +237,21 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "apply",
     why: "Moves potentially many transactions between GL categories in one run with no per-transaction review — the batch summary (count and rule) is the record of what changed and why, the same trail matchBankTransaction keeps per-transaction.",
   },
+  {
+    route: "accounting/recurring-invoices",
+    action: "create",
+    why: "A standing arrangement that will silently bill a named customer on its own schedule — who set it up, for how much, matters the same way a new reconciliation rule does.",
+  },
+  {
+    route: "accounting/recurring-invoices",
+    action: "toggle",
+    why: "Deactivating a schedule stops future billing the same way deactivating a reconciliation rule stops future auto-categorization; reactivating resumes it.",
+  },
+  {
+    route: "accounting/recurring-invoices",
+    action: "generate",
+    why: "Creates potentially many draft invoices in one run with no per-invoice review before they exist — the batch summary (count and customers) is the record of what was generated and from which schedules, the same trail the reconciliation rules' apply keeps.",
+  },
 
   // -- Payroll: the record of money leaving the firm -----------------------
   {

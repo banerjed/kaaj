@@ -239,6 +239,7 @@ invoice_lines	invoice_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES 
 invoices	ck_invoices_amounts_reconcile	c	CHECK (((subtotal >= (0)::numeric) AND (tax_total >= (0)::numeric) AND (total >= (0)::numeric) AND (amount_paid >= (0)::numeric) AND (amount_due >= (0)::numeric) AND (amount_credited >= (0)::numeric) AND (base_subtotal >= (0)::numeric) AND (base_tax_total >= (0)::numeric) AND (base_total >= (0)::numeric) AND (base_amount_paid >= (0)::numeric) AND (base_amount_due >= (0)::numeric) AND (base_amount_credited >= (0)::numeric) AND (total = (subtotal + tax_total)) AND (amount_due = ((total - amount_paid) - amount_credited)) AND (base_total = (base_subtotal + base_tax_total)) AND (base_amount_due = ((base_total - base_amount_paid) - base_amount_credited))))
 invoices	fk_invoices_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 invoices	fk_invoices_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
+invoices	fk_invoices_recurring_schedule_id	f	FOREIGN KEY (recurring_schedule_id) REFERENCES recurring_schedules(id)
 invoices	invoices_pkey	p	PRIMARY KEY (id)
 invoices	invoices_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 jobs	jobs_pkey	p	PRIMARY KEY (id)
@@ -348,6 +349,9 @@ pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFER
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
+recurring_schedules	recurring_schedules_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+recurring_schedules	recurring_schedules_pkey	p	PRIMARY KEY (id)
+recurring_schedules	recurring_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tasks	tasks_pkey	p	PRIMARY KEY (id)
 tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)

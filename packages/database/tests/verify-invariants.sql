@@ -627,7 +627,8 @@ INSERT INTO _jsonb_money VALUES
   ('payroll_india_salary_structure', 'other_allowances'),
   ('firm_job_levels',       'salary_ranges'),
   ('firm_benefit_items',    'costs_by_currency'),
-  ('firm_payroll_policies', 'overtime_rules');
+  ('firm_payroll_policies', 'overtime_rules'),
+  ('recurring_schedules',   'template_lines');
 
 DO $money$
 DECLARE

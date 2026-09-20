@@ -1845,7 +1845,9 @@ export class AccountingRefused extends Error {
       // POSIX classes, lookbehind) — checked via app.is_valid_regex so a
       // pattern that would raise `invalid_regular_expression` is caught at
       // creation, not on every future apply-rules run.
-      | "invalid_regex",
+      | "invalid_regex"
+      // A recurring schedule's id names a row that isn't there (US-ACC-004).
+      | "no_such_schedule",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2274,6 +2276,9 @@ export async function createInvoice(
     paymentTerms: string | null
     notes: string | null
     lines: NewInvoiceLine[]
+    /** Set only when this draft is generated FROM a recurring schedule
+     *  (US-ACC-004) — absent for the manual create-invoice form. */
+    recurringScheduleId?: string
   },
   actorId: string,
 ): Promise<{ id: string; invoiceNumber: string }> {
@@ -2333,14 +2338,17 @@ export async function createInvoice(
           subtotal, tax_total, total, amount_paid, amount_due,
           base_subtotal, base_tax_total, base_total,
           base_amount_paid, base_amount_due,
-          payment_terms, notes, status, created_by
+          payment_terms, notes, status, created_by,
+          is_recurring, recurring_schedule_id
         ) VALUES (
           ${tenantId}::uuid, ${input.customerId}::uuid, ${invoiceNumber},
           ${input.invoiceDate}::date, ${input.dueDate}::date,
           ${customer.currency}, ${input.exchangeRate}::numeric, ${baseCurrency},
           0, 0, 0, 0, 0,
           0, 0, 0, 0, 0,
-          ${input.paymentTerms}, ${input.notes}, 'draft', ${actorId}::uuid
+          ${input.paymentTerms}, ${input.notes}, 'draft', ${actorId}::uuid,
+          ${input.recurringScheduleId !== undefined},
+          ${input.recurringScheduleId ?? null}::uuid
         )
         RETURNING id
       `
@@ -3239,6 +3247,234 @@ export async function recordRemindersSent(
     UPDATE invoices SET last_reminded_at = now()
      WHERE id = ANY(${invoiceIds}::uuid[])
   `
+}
+
+// ---------------------------------------------------------------------------
+// Recurring invoice schedules (US-ACC-004) — no scheduler exists in this
+// codebase (same precedent as payment reminders above and the reconciliation
+// rules' apply-now action), so "automated" is a manual "generate due
+// invoices" action, not a cron running on its own. Unlike reminders,
+// generating an invoice has no external dependency forcing a best-effort
+// design — advancing a schedule's next_run_date and inserting its invoice
+// happen in the SAME transaction, all-or-nothing across the whole run
+// (`payBillsInBatch`'s discipline, not the reminders' one), and a schedule
+// this run already advanced is not picked up again by a concurrent or
+// repeated click — see generateDueInvoices' own comment for the mechanism.
+// ---------------------------------------------------------------------------
+
+export const RECURRING_FREQUENCIES = [
+  "weekly",
+  "monthly",
+  "quarterly",
+  "annual",
+] as const
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number]
+
+export type RecurringScheduleRow = {
+  id: string
+  customer_id: string
+  customer_name: string
+  frequency: RecurringFrequency
+  next_run_date: string
+  due_in_days: number
+  exchange_rate: string
+  payment_terms: string | null
+  notes: string | null
+  is_active: boolean
+  line_count: number
+}
+
+export async function listRecurringSchedules(
+  tx: Tx,
+): Promise<RecurringScheduleRow[]> {
+  return tx<RecurringScheduleRow[]>`
+    SELECT s.id::text AS id, s.customer_id::text AS customer_id, c.customer_name,
+           s.frequency, to_char(s.next_run_date,'YYYY-MM-DD') AS next_run_date,
+           s.due_in_days, s.exchange_rate::text AS exchange_rate,
+           s.payment_terms, s.notes, s.is_active,
+           jsonb_array_length(s.template_lines) AS line_count
+      FROM recurring_schedules s
+      JOIN customers c ON c.id = s.customer_id
+     ORDER BY s.next_run_date, c.customer_name
+  `
+}
+
+export type NewRecurringSchedule = {
+  customerId: string
+  frequency: RecurringFrequency
+  nextRunDate: string
+  dueInDays: number
+  exchangeRate: string
+  paymentTerms: string | null
+  notes: string | null
+  lines: NewInvoiceLine[]
+}
+
+/**
+ * A recurring billing arrangement, not an invoice — `createInvoice`'s own
+ * customer/line checks are re-run fresh at generation time in
+ * `generateDueInvoices`, the same "never trust stale state" discipline
+ * `invoicesForReminder` uses, rather than assumed to still hold from here.
+ */
+export async function createRecurringSchedule(
+  tx: Tx,
+  tenantId: string,
+  input: NewRecurringSchedule,
+  actorId: string,
+): Promise<{ id: string }> {
+  if (input.lines.length === 0) throw new AccountingRefused("no_lines")
+
+  const [customer] = await tx<{ id: string }[]>`
+    SELECT id FROM customers WHERE id = ${input.customerId}::uuid
+  `
+  if (!customer) throw new AccountingRefused("no_such_customer")
+
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO recurring_schedules (
+      tenant_id, customer_id, frequency, next_run_date, due_in_days,
+      exchange_rate, payment_terms, notes, template_lines, is_active, created_by
+    ) VALUES (
+      ${tenantId}::uuid, ${input.customerId}::uuid, ${input.frequency},
+      ${input.nextRunDate}::date, ${input.dueInDays}, ${input.exchangeRate}::numeric,
+      ${input.paymentTerms}, ${input.notes},
+      ${tx.json(input.lines as never)}, true, ${actorId}::uuid
+    )
+    RETURNING id
+  `
+  return { id: row.id }
+}
+
+export async function toggleRecurringSchedule(
+  tx: Tx,
+  scheduleId: string,
+  actorId: string,
+): Promise<{ from: boolean; to: boolean }> {
+  const [row] = await tx<{ is_active: boolean }[]>`
+    UPDATE recurring_schedules
+       SET is_active = NOT is_active, updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${scheduleId}::uuid
+     RETURNING is_active
+  `
+  if (!row) throw new AccountingRefused("no_such_schedule")
+  return { from: !row.is_active, to: row.is_active }
+}
+
+export type GeneratedInvoice = {
+  scheduleId: string
+  invoiceId: string
+  invoiceNumber: string
+  customerName: string
+}
+
+/**
+ * Generates one draft invoice per schedule due today or earlier — bounded by
+ * how many active recurring schedules the tenant has (NOT_SCALE_SENSITIVE:
+ * one row per subscription-billing arrangement, not per invoice or event),
+ * never by invoices or customers. `createInvoice` runs once per due
+ * schedule inside the loop below — a real per-run cost, invisible to
+ * verify-no-loop-queries.mjs since its own queries live inside that
+ * function rather than lexically in this loop — accepted for the same
+ * reason `payBillsInBatch`/`applyReconciliationRules` accept their own
+ * bounded per-row cost against a NOT_SCALE_SENSITIVE driving set.
+ *
+ * `FOR UPDATE` on the read below blocks a concurrent second run on the same
+ * schedules until the first commits; under READ COMMITTED (this codebase's
+ * unchanged default), a blocked `SELECT ... FOR UPDATE` re-checks its WHERE
+ * clause against the row's post-commit version once unblocked — so a
+ * schedule this run already advanced past today is excluded from the second
+ * run, not generated twice. Left as a draft, exactly like the manual
+ * create-invoice form: generation automates the tedious line entry, not the
+ * decision to actually send it.
+ */
+export async function generateDueInvoices(
+  tx: Tx,
+  tenantId: string,
+  actorId: string,
+): Promise<GeneratedInvoice[]> {
+  const due = await tx<
+    {
+      id: string
+      customer_id: string
+      customer_name: string
+      next_run_date: string
+      due_date: string
+      exchange_rate: string
+      payment_terms: string | null
+      template_lines: NewInvoiceLine[]
+    }[]
+  >`
+    SELECT s.id::text AS id, s.customer_id::text AS customer_id, c.customer_name,
+           to_char(s.next_run_date,'YYYY-MM-DD') AS next_run_date,
+           to_char(s.next_run_date + s.due_in_days, 'YYYY-MM-DD') AS due_date,
+           s.exchange_rate::text AS exchange_rate,
+           s.payment_terms, s.template_lines
+      FROM recurring_schedules s
+      JOIN customers c ON c.id = s.customer_id
+     WHERE s.tenant_id = ${tenantId}::uuid
+       AND s.is_active
+       AND s.next_run_date <= CURRENT_DATE
+     ORDER BY s.next_run_date
+     FOR UPDATE OF s
+  `
+
+  const results: GeneratedInvoice[] = []
+  for (const s of due) {
+    let invoiceId: string
+    let invoiceNumber: string
+    try {
+      ;({ id: invoiceId, invoiceNumber } = await createInvoice(
+        tx,
+        tenantId,
+        {
+          customerId: s.customer_id,
+          invoiceDate: s.next_run_date,
+          dueDate: s.due_date,
+          exchangeRate: s.exchange_rate,
+          paymentTerms: s.payment_terms,
+          notes: null,
+          lines: s.template_lines,
+          recurringScheduleId: s.id,
+        },
+        actorId,
+      ))
+    } catch (e) {
+      // Re-thrown with WHICH schedule stalled — createInvoice itself has no
+      // way to know it was called from a schedule, so its own refusal names
+      // no customer at all. Only fills in the customer when the original
+      // detail is absent (customer_tax_exempt, number_taken carry none) —
+      // no_such_account already names the missing account code, which
+      // matters more than which customer's schedule tripped over it.
+      if (e instanceof AccountingRefused) {
+        throw new AccountingRefused(e.reason, e.detail ?? s.customer_name)
+      }
+      throw e
+    }
+    results.push({
+      scheduleId: s.id,
+      invoiceId,
+      invoiceNumber,
+      customerName: s.customer_name,
+    })
+  }
+
+  if (results.length > 0) {
+    // One batched advance for every schedule actually processed, not a
+    // per-row UPDATE inside the loop above (SCALE_SENSITIVE-loop discipline
+    // even though this table is not scale-sensitive — a habit worth keeping).
+    await tx`
+      UPDATE recurring_schedules
+         SET next_run_date = (next_run_date + CASE frequency
+               WHEN 'weekly' THEN interval '1 week'
+               WHEN 'monthly' THEN interval '1 month'
+               WHEN 'quarterly' THEN interval '3 months'
+               WHEN 'annual' THEN interval '1 year'
+             END)::date,
+             updated_at = now(), updated_by = ${actorId}::uuid
+       WHERE id = ANY(${results.map((r) => r.scheduleId)}::uuid[])
+    `
+  }
+
+  return results
 }
 
 /**

@@ -38,6 +38,7 @@ const FORM_WRITTEN = [
   "bills",
   "bill_lines",
   "tax_rates",
+  "recurring_schedules",
 ]
 
 /**
@@ -75,6 +76,11 @@ const CANNOT_BE_TRIPPED = new Map([
   ["bills_tenant_id_fkey", "tenant_id comes from the session"],
   ["bill_lines_tenant_id_fkey", "tenant_id comes from the session"],
   ["tax_rates_tenant_id_fkey", "tenant_id comes from the session"],
+  ["recurring_schedules_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "fk_invoices_recurring_schedule_id",
+    "set only by generateDueInvoices from a schedule id it just read from the database, never from form input — and schedules are only ever deactivated, never deleted, so the row it points at cannot disappear",
+  ],
   [
     "tax_rates_rate_check",
     "FormReader's decimal(rate, { min: 0 }) already refuses a negative rate before this is reached",
@@ -162,10 +168,7 @@ const CANNOT_BE_TRIPPED = new Map([
     "fk_bill_lines_bill_id",
     "bill_id comes from the bill createBill just inserted, not the form",
   ],
-  [
-    "invoice_lines_tenant_id_fkey",
-    "tenant_id comes from the session",
-  ],
+  ["invoice_lines_tenant_id_fkey", "tenant_id comes from the session"],
   [
     "fk_invoice_lines_invoice_id",
     "invoice_id comes from the invoice createInvoice just inserted, not the form",

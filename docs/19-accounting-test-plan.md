@@ -345,17 +345,21 @@ Also directly tested and worth recording even though not a named bullet above: `
 
 ---
 
-## 11. Recurring Transactions, Accruals & Deferrals — **[MISSING]**, entirely
-No recurring invoice/bill template, no accrual-reversal logic, and no
-deferred-revenue/prepaid-expense amortization exists anywhere in code.
-Confirmed by direct search (`rg -il 'recurring|deferred_revenue|accrual'`
-under `apps/web/src/lib/server` and `packages`) — every hit is an unrelated
-HR/compensation module (time-off policies, holiday accrual balances,
-compensation allowances), none of it accounting. This is a genuine
-specification gap in `module-accounting.md` itself, not merely an
-implementation gap: recurring invoices are Enhancement #7 in
-`accounting-gap-analysis.md`, but accrual/deferral aren't mentioned as a gap
-in either document, meaning nobody has flagged this as missing before now.
+## 11. Recurring Transactions, Accruals & Deferrals — **[PARTIAL]** (2026-09-20)
+Recurring INVOICE templates exist (2026-09-20): `recurring_schedules` +
+`/accounting/recurring-invoices`, generating a draft invoice per due
+schedule on demand (US-ACC-004 — see `module-accounting.md`'s status block
+for the shape). Recurring BILLS still do not — `bills` carries no recurring
+columns at all, a separate gap. No accrual-reversal logic and no
+deferred-revenue/prepaid-expense amortization exist anywhere in code, still
+confirmed by direct search (`rg -il 'recurring|deferred_revenue|accrual'`
+under `apps/web/src/lib/server` and `packages`) for those two — every hit
+there is an unrelated HR/compensation module (time-off policies, holiday
+accrual balances, compensation allowances), none of it accounting. This
+remains a genuine specification gap in `module-accounting.md` itself for
+the accrual/deferral half, not merely an implementation gap: recurring
+invoices were Enhancement #7 in `accounting-gap-analysis.md` (now built),
+but accrual/deferral still aren't mentioned as a gap in either document.
 
 ---
 
