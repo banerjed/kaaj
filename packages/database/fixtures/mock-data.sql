@@ -703,6 +703,14 @@ UPDATE invoice_lines SET
     tracking_categories = '{"region": "UK", "project": "britannia-loyalty"}'::jsonb
 WHERE invoice_id = 'a31732ea-dadb-575f-bd99-cbcfeaba29da';
 
+-- INV-2026-002 was reminded once already, well in the past — real fixture
+-- completeness for the new column, and a genuinely eligible-for-another-
+-- reminder overdue invoice (as opposed to reminded_today = true, which a
+-- test seeds itself with `now()` rather than a date fixed here that would
+-- go stale the day after it was written).
+UPDATE invoices SET last_reminded_at = '2026-08-01T09:00:00Z'
+WHERE id = 'a31732ea-dadb-575f-bd99-cbcfeaba29da';
+
 UPDATE invoice_lines SET
     tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53',
     tax_amount = 3214.97

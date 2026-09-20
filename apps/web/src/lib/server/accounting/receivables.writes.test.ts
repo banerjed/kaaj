@@ -1325,3 +1325,103 @@ describe("voiding", () => {
     )
   })
 })
+
+describe("payment reminders (US-ACC-003)", () => {
+  describe("invoicesForReminder", () => {
+    it("returns eligible overdue invoices with the customer's email", async () => {
+      const rows = await inRollback((tx) =>
+        acc.invoicesForReminder(tx, NORTHWIND, [GBP, PARTIAL]),
+      )
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      expect(byId.get(GBP)).toMatchObject({
+        invoice_number: "INV-2026-002",
+        email: "ap@britco.example",
+        reminded_today: false,
+      })
+      expect(byId.get(PARTIAL)).toMatchObject({
+        invoice_number: "INV-2026-004",
+        email: "ap@acme.example",
+        reminded_today: false,
+      })
+    })
+
+    it("flags an invoice already reminded earlier today", async () => {
+      const row = await inRollback(async (tx) => {
+        // `now()` inside the test's own transaction, not a hardcoded
+        // timestamp — a fixed date would stop being "today" the day after
+        // this test was written.
+        await tx`UPDATE invoices SET last_reminded_at = now() WHERE id = ${GBP}::uuid`
+        const [r] = await acc.invoicesForReminder(tx, NORTHWIND, [GBP])
+        return r
+      })
+      expect(row.reminded_today).toBe(true)
+    })
+
+    it("refuses a fully paid invoice (not eligible for a reminder)", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) => acc.invoicesForReminder(tx, NORTHWIND, [PAID])),
+        "no_such_invoice",
+      )
+    })
+
+    it("refuses a draft invoice", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) => acc.invoicesForReminder(tx, NORTHWIND, [DRAFT])),
+        "no_such_invoice",
+      )
+    })
+
+    it("refuses the same invoice named twice in one batch", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            acc.invoicesForReminder(tx, NORTHWIND, [GBP, GBP]),
+          ),
+        "duplicate_invoice",
+      )
+    })
+
+    it("refuses an invoice that does not exist", async () => {
+      await refusedBecause(
+        () =>
+          inRollback((tx) =>
+            acc.invoicesForReminder(tx, NORTHWIND, [
+              "00000000-0000-0000-0000-000000000000",
+            ]),
+          ),
+        "no_such_invoice",
+      )
+    })
+  })
+
+  describe("recordRemindersSent", () => {
+    it("sets last_reminded_at for every given invoice", async () => {
+      const row = await inRollback(async (tx) => {
+        await acc.recordRemindersSent(tx, [PARTIAL])
+        const [r] = await tx<{ reminded_today: boolean }[]>`
+          SELECT (last_reminded_at IS NOT NULL
+                  AND last_reminded_at::date = CURRENT_DATE) AS reminded_today
+            FROM invoices WHERE id = ${PARTIAL}::uuid
+        `
+        return r
+      })
+      expect(row.reminded_today).toBe(true)
+    })
+
+    it("does nothing, without a query, for an empty list", async () => {
+      const row = await inRollback(async (tx) => {
+        await acc.recordRemindersSent(tx, [])
+        const [r] = await tx<{ unchanged: boolean }[]>`
+          SELECT last_reminded_at = '2026-08-01T09:00:00Z'::timestamptz
+                   AS unchanged
+            FROM invoices WHERE id = ${GBP}::uuid
+        `
+        return r
+      })
+      // Still the fixture's seeded, well-in-the-past value — untouched.
+      expect(row.unchanged).toBe(true)
+    })
+  })
+})

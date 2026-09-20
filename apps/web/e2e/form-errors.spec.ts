@@ -970,3 +970,16 @@ test("a reconciliation rule with no matching criteria is refused, not silently a
 
   await expect(page.getByText(/a rule needs at least one of/i)).toBeVisible()
 })
+
+test("sending payment reminders with no invoice selected is refused, not silently a no-op", async ({
+  page,
+}) => {
+  // Read-only: no checkbox is checked, so sendReminders's own invoice_ids
+  // rejection fires before invoicesForReminder ever runs — no email sent,
+  // no fixture invoice touched.
+  await page.goto("/accounting/invoices?overdue=1")
+  const form = page.locator('form[action="?/sendReminders"]')
+  await form.getByRole("button", { name: /send reminders/i }).click()
+
+  await expect(page.getByText(/select at least one invoice/i)).toBeVisible()
+})

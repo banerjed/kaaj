@@ -1175,6 +1175,7 @@ invoices	38	created_by	uuid	f
 invoices	39	updated_by	uuid	f	
 invoices	40	amount_credited	numeric(15,2)	t	0
 invoices	41	base_amount_credited	numeric(15,2)	t	0
+invoices	42	last_reminded_at	timestamp with time zone	f	
 jobs	1	id	uuid	t	gen_random_uuid()
 jobs	2	tenant_id	uuid	t	
 jobs	3	job_type	text	t	

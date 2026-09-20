@@ -1,0 +1,37 @@
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Payment reminder</title>
+  </head>
+  <body
+    style="font-family: Helvetica, sans-serif; font-size: 16px; line-height: 1.4; background-color: #f4f5f6; margin: 0; padding: 24px;"
+  >
+    <table
+      role="presentation"
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      style="max-width: 560px; width: 100%; margin: 0 auto; background: #ffffff; border: 1px solid #eaebed; border-radius: 12px;"
+    >
+      <tr>
+        <td style="padding: 24px;">
+          <p style="margin: 0 0 16px;">
+            This is a reminder that invoice
+            <strong>{{invoiceNumber}}</strong>
+            from
+            {{firmName}}, for
+            <strong>{{amountDue}}</strong>, was due on
+            {{dueDate}}
+            and remains unpaid.
+          </p>
+          <p style="margin: 0 0 16px;">
+            Please arrange payment at your earliest convenience. If you have
+            already sent payment, please disregard this notice.
+          </p>
+          <p style="margin: 0; color: #6b7280;">{{firmName}}</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

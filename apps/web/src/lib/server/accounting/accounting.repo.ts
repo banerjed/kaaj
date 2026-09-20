@@ -3166,6 +3166,81 @@ export async function voidInvoice(
   return { from: before.status }
 }
 
+// ---------------------------------------------------------------------------
+// Payment reminders (US-ACC-003) — no scheduler exists in this codebase
+// (same precedent as the Tier 7 exchange-rate refresh and the reconciliation
+// rules' "apply now" action), so sending is a manual, select-and-send
+// action, not a configured cadence. That is the gap between this and the
+// user story's "set up automated ... reminders" — see the roadmap entry.
+// ---------------------------------------------------------------------------
+
+export type ReminderCandidate = {
+  id: string
+  invoice_number: string
+  currency: string
+  amount_due: string
+  due_date: string
+  email: string | null
+  customer_name: string
+  /** Guards against a second click the same day, not a strict 24h cooldown
+   *  — the DB session's own calendar day, computed entirely in SQL so it
+   *  never depends on the app server's clock. */
+  reminded_today: boolean
+  company_name: string
+  default_locale: string
+}
+
+/**
+ * The eligible subset of a submitted invoice-id set, re-validated fresh
+ * against the database — never trusted from which checkboxes a client
+ * happened to submit. Bounded by the size of that set (at most one page of
+ * checkboxes), not a scan of every overdue invoice in the tenant, unlike
+ * `payBillsInBatch`'s own candidate query.
+ */
+export async function invoicesForReminder(
+  tx: Tx,
+  tenantId: string,
+  invoiceIds: string[],
+): Promise<ReminderCandidate[]> {
+  if (new Set(invoiceIds).size !== invoiceIds.length) {
+    throw new AccountingRefused("duplicate_invoice")
+  }
+  const rows = await tx<ReminderCandidate[]>`
+    SELECT i.id::text AS id, i.invoice_number,
+           i.currency, i.amount_due::text AS amount_due,
+           to_char(i.due_date,'YYYY-MM-DD') AS due_date,
+           c.email, c.customer_name,
+           (i.last_reminded_at IS NOT NULL
+             AND i.last_reminded_at::date = CURRENT_DATE) AS reminded_today,
+           t.company_name, t.default_locale
+      FROM invoices i
+      LEFT JOIN customers c ON c.id = i.customer_id
+      JOIN tenants t ON t.id = i.tenant_id
+     WHERE i.id = ANY(${invoiceIds}::uuid[])
+       AND i.tenant_id = ${tenantId}::uuid
+       AND i.due_date < CURRENT_DATE
+       AND i.amount_due > 0
+       AND i.status NOT IN ('draft', 'void', 'credited', 'written_off')
+  `
+  if (rows.length !== invoiceIds.length) {
+    throw new AccountingRefused("no_such_invoice")
+  }
+  return rows
+}
+
+/** One batched UPDATE for every invoice actually emailed, never a per-row
+ *  loop — called with only the ids `sendTemplatedEmail` confirmed went out. */
+export async function recordRemindersSent(
+  tx: Tx,
+  invoiceIds: string[],
+): Promise<void> {
+  if (invoiceIds.length === 0) return
+  await tx`
+    UPDATE invoices SET last_reminded_at = now()
+     WHERE id = ANY(${invoiceIds}::uuid[])
+  `
+}
+
 /**
  * Period management (US-ACC-035, `INV-ACC-002`). `accounting_periods.status`
  * is a plain `varchar` with no CHECK, same shape as every other free-text

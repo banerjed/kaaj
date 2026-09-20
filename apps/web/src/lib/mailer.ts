@@ -89,6 +89,17 @@ export const sendUserEmail = async ({
   })
 }
 
+/**
+ * `sent: false` distinguishes WHY, rather than collapsing every non-send
+ * into one falsy value — a caller that needs to know whether an email
+ * actually went out (rather than fire-and-forget) cannot tell "Resend
+ * rejected it" from "no API key in this environment" from a bare boolean,
+ * and the two call for very different messages to whoever triggered the send.
+ */
+export type SendEmailResult =
+  | { sent: true }
+  | { sent: false; reason: "not_configured" | "no_body" | "send_failed" }
+
 export const sendTemplatedEmail = async ({
   subject,
   to_emails,
@@ -101,10 +112,10 @@ export const sendTemplatedEmail = async ({
   from_email: string
   template_name: string
   template_properties: Record<string, string>
-}) => {
+}): Promise<SendEmailResult> => {
   if (!env.PRIVATE_RESEND_API_KEY) {
     // Email is optional; no error if unconfigured.
-    return
+    return { sent: false, reason: "not_configured" }
   }
 
   let plaintextBody: string | undefined = undefined
@@ -136,7 +147,7 @@ export const sendTemplatedEmail = async ({
       "No email body: requires plaintextBody or htmlBody. Template: ",
       template_name,
     )
-    return
+    return { sent: false, reason: "no_body" }
   }
 
   try {
@@ -157,8 +168,11 @@ export const sendTemplatedEmail = async ({
 
     if (resp.error) {
       console.log("Failed to send email, error:", resp.error)
+      return { sent: false, reason: "send_failed" }
     }
+    return { sent: true }
   } catch (e) {
     console.log("Failed to send email, error:", e)
+    return { sent: false, reason: "send_failed" }
   }
 }

@@ -113,7 +113,7 @@ describe("mailer", () => {
 
   describe("sendTemplatedEmail", () => {
     it("sends templated email", async () => {
-      await mailer.sendTemplatedEmail({
+      const result = await mailer.sendTemplatedEmail({
         subject: "Test subject",
         from_email: "from@example.com",
         to_emails: ["to@example.com"],
@@ -124,6 +124,7 @@ describe("mailer", () => {
         },
       })
 
+      expect(result).toEqual({ sent: true })
       expect(mockSend).toHaveBeenCalled()
       const email = mockSend.mock.calls[0][0]
       expect(email.from).toEqual("from@example.com")
@@ -136,6 +137,64 @@ describe("mailer", () => {
       expect(email.html).toContain("Test Company")
       expect(email.text).toContain("https://test.com")
       expect(email.text).toContain("Test Company")
+    })
+
+    it("reports not_configured, and never calls Resend, with no API key", async () => {
+      const { env } = await import("$env/dynamic/private")
+      env.PRIVATE_RESEND_API_KEY = ""
+
+      const result = await mailer.sendTemplatedEmail({
+        subject: "Test subject",
+        from_email: "from@example.com",
+        to_emails: ["to@example.com"],
+        template_name: "welcome_email",
+        template_properties: {},
+      })
+
+      expect(result).toEqual({ sent: false, reason: "not_configured" })
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it("reports send_failed when Resend itself rejects the send", async () => {
+      mockSend.mockResolvedValueOnce({
+        error: { message: "invalid `from` address" },
+      })
+
+      const result = await mailer.sendTemplatedEmail({
+        subject: "Test subject",
+        from_email: "from@example.com",
+        to_emails: ["to@example.com"],
+        template_name: "welcome_email",
+        template_properties: {},
+      })
+
+      expect(result).toEqual({ sent: false, reason: "send_failed" })
+    })
+  })
+
+  describe("payment_reminder template", () => {
+    it("renders the invoice, amount and firm name into both bodies", async () => {
+      const result = await mailer.sendTemplatedEmail({
+        subject: "Payment reminder: Invoice INV-2026-002",
+        from_email: "Northwind Consulting <reminders@example.com>",
+        to_emails: ["ap@britco.example"],
+        template_name: "payment_reminder",
+        template_properties: {
+          invoiceNumber: "INV-2026-002",
+          firmName: "Northwind Consulting",
+          amountDue: "$18,860.00",
+          dueDate: "Feb 20, 2026",
+        },
+      })
+
+      expect(result).toEqual({ sent: true })
+      const email = mockSend.mock.calls[0][0]
+      for (const body of [email.text, email.html]) {
+        expect(body).toContain("INV-2026-002")
+        expect(body).toContain("Northwind Consulting")
+        expect(body).toContain("$18,860.00")
+        expect(body).toContain("Feb 20, 2026")
+      }
     })
   })
 })
