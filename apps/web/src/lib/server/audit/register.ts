@@ -312,6 +312,16 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "update",
     why: "Default currency, timezone and locale. Every figure in the product is formatted against these, and the timezone moves date boundaries.",
   },
+  {
+    route: "settings/company",
+    action: "uploadLogo",
+    why: "Company branding rendered on customer-facing documents (invoice PDFs) — who set the firm's public identity, and when.",
+  },
+  {
+    route: "settings/company",
+    action: "removeLogo",
+    why: "The same branding, cleared — an invoice PDF generated afterward silently loses the logo, worth being able to explain.",
+  },
 
   // -- Ticketing: grants that change who may READ a ticket -------------------
   {

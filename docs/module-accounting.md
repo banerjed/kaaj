@@ -149,7 +149,7 @@ the same verdicts at user-story grain.
 ### Invoice Management
 
 **US-ACC-001**: As a Business Owner, I want to create professional invoices with my company branding, so that I can bill customers quickly and maintain brand consistency.
-*Status: **PARTIAL** (updated 2026-09-11, was MISSING). `/accounting/invoices/new` now creates a real draft invoice with line items — `createInvoice()` in `accounting.repo.ts`, tested in `receivables.writes.test.ts`. Still **MISSING**: company branding, and any PDF/template output (see US-ACC-008, still MISSING). "Quickly" is a fair description of the create form itself; the promised output document does not exist yet.*
+*Status: **PARTIAL** (updated 2026-09-21). `/accounting/invoices/new` now creates a real draft invoice with line items — `createInvoice()` in `accounting.repo.ts`, tested in `receivables.writes.test.ts`. Company branding infrastructure now exists: `/settings/company`'s new "Logo" card uploads a PNG/JPEG to a private, tenant-isolated Supabase Storage bucket (`tenant-logos`, `20260921030000_add_tenant_logo_storage.sql`) — `tenants.logo_storage_key` records the object, at a fixed per-tenant key (`<tenant_id>/logo`, always upserted, so a re-upload in a different format never leaves a stale second file). Storage RLS — not just the app's own `tenant.settings.write` gate — is the real isolation boundary here, mirroring every other tenant_isolation policy in this schema (`app.current_tenant_id()`), and was verified against the real local storage-api service before being trusted: same-tenant upload/read succeed, a cross-tenant write is rejected with a genuine RLS violation, and a cross-tenant read reports not-found rather than the content. Tested end-to-end against the real Storage service in `settings/company/logo.server.test.ts` (upload, overwrite-in-place, removal, and both cross-tenant negative cases), plus a read-only e2e refusal case for a non-image upload. Still **MISSING**: the PDF/template output itself that would actually render this branding (see US-ACC-008, still MISSING) — this pass built the branding ASSET, not the document. "Quickly" is a fair description of the create form itself; the promised output document does not exist yet.*
 
 **US-ACC-002**: As an Accountant, I want to send invoices with online payment links (Stripe, PayPal), so that customers can pay immediately and improve cash flow.
 *Status: **MISSING**. `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` are schema columns `issueInvoice` never writes to. Stripe integration in this codebase is wired only to Kaaj's own SaaS subscription billing (`(admin)/account/billing`), not customer invoicing.*
@@ -2836,8 +2836,11 @@ either way.
 - [ ] PDF generation + company branding on invoices. US-ACC-001,
       US-ACC-008. `invoices.pdf_url` is an unused column; no
       PDF-generation or email-sending code exists for invoices anywhere.
-      Company branding (logo, colors on the generated document) has no
-      storage or rendering path today either.
+      The branding ASSET now has a home (2026-09-21): `/settings/company`
+      uploads a logo to a private, tenant-isolated Storage bucket
+      (`tenants.logo_storage_key`) — see US-ACC-001's status block above
+      for the shape. The document that would render it — the PDF itself,
+      and the email that would carry it (US-ACC-008) — is still unbuilt.
 - [ ] Online payment links (Stripe/PayPal) on customer invoices — distinct
       from Kaaj's existing Stripe integration, which is wired only to its
       own SaaS subscription billing (`(admin)/account/billing`). US-ACC-002.

@@ -2152,6 +2152,36 @@ UPDATE became a no-op for that row.
 
 ---
 
+### L88 — Supabase Storage's `storage.objects`/`storage.buckets` reject direct SQL DELETE, by an on-table trigger
+
+`storage.protect_delete()` raises `Direct deletion from storage tables is not
+allowed. Use the Storage API instead` on any raw `DELETE` against those two
+tables — discovered while cleaning up a scratch bucket created to verify a new
+RLS policy by hand. This bites test cleanup specifically: every other
+tenant-scoped table in this schema can be reset with a plain `DELETE ...
+WHERE tenant_id = ...` inside a rolled-back transaction (or, for the handful
+of tables written by the service role, a superuser connection cleaning up
+its own rows explicitly — `fx_rates.test.ts`'s existing pattern), but a
+Storage object cannot — cleanup has to go through the Storage API's own
+DELETE endpoint (`supabase.storage.from(bucket).remove([key])` /
+`DELETE /storage/v1/bucket/:id` for a whole bucket), not a query. It also
+means a test that uploads to Storage is never covered by `inRollback`'s
+Postgres-transaction rollback: the object survives even if the surrounding
+`tx` never commits, so a real cleanup call in `afterEach`/`finally` is not
+optional the way it is for an ordinary table row.
+
+Separately, and worth confirming again the first time a new feature needs it:
+Storage's own service (`storage-api`) sets `request.jwt.claims` per request
+exactly like PostgREST does, so an existing tenant-scoping RLS function
+(`app.current_tenant_id()`, already used everywhere else in this schema) works
+unchanged on `storage.objects` policies — verified by minting a real session
+via password sign-in and curling the local storage endpoint directly, both
+for a same-tenant object (succeeds) and a cross-tenant one (a write is
+rejected with a genuine RLS violation; a read reports 404, not the content).
+No service-role workaround was needed for tenant-scoped Storage access.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

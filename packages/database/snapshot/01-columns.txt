@@ -1989,6 +1989,7 @@ tenants	42	registration_number	text	f
 tenants	43	created_by	text	f	
 tenants	44	version	integer	f	1
 tenants	45	brand_color	text	t	'default'::text
+tenants	46	logo_storage_key	text	f	
 ticketing_attachments	1	id	uuid	t	gen_random_uuid()
 ticketing_attachments	2	tenant_id	uuid	t	
 ticketing_attachments	3	attachment_id	text	f	

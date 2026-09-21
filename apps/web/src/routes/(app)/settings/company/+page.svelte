@@ -102,12 +102,70 @@
       <span class="iconify lucide--check size-5"></span>
       <span>Company profile saved.</span>
     </div>
+  {:else if form?.logoUpdated}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Logo updated.</span>
+    </div>
+  {:else if form?.logoRemoved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Logo removed.</span>
+    </div>
   {:else if form?.message}
     <div role="alert" class="alert alert-error mt-4">
       <span class="iconify lucide--circle-alert size-5"></span>
       <span>{form.message}</span>
     </div>
   {/if}
+
+  <!-- Logo — a separate form: a file input cannot live inside the profile
+       form below without nesting two <form> elements. -->
+  <div class="card bg-base-100 mt-4 shadow">
+    <div class="card-body gap-4">
+      <h2 class="card-title text-base">Logo</h2>
+      <p class="text-base-content/70 text-xs">
+        Shown on generated invoice PDFs. PNG or JPEG, up to 2MB.
+      </p>
+      <div class="flex flex-wrap items-center gap-4">
+        {#if company.logo_storage_key}
+          <img
+            src="/settings/company/logo"
+            alt="Company logo"
+            class="border-base-300 h-16 w-auto rounded border object-contain p-1"
+          />
+        {:else}
+          <div
+            class="border-base-300 text-base-content/50 flex h-16 w-16 items-center justify-center rounded border border-dashed text-xs"
+          >
+            No logo
+          </div>
+        {/if}
+        <form
+          method="POST"
+          action="?/uploadLogo"
+          enctype="multipart/form-data"
+          use:enhance={keepValues}
+          class="flex items-center gap-2"
+        >
+          <input
+            type="file"
+            name="logo"
+            accept="image/png,image/jpeg"
+            aria-invalid={err.aria("logo")}
+            class={`file-input file-input-sm ${err.input("logo")}`}
+            required
+          />
+          <button type="submit" class="btn btn-sm">Upload</button>
+        </form>
+        {#if company.logo_storage_key}
+          <form method="POST" action="?/removeLogo" use:enhance={keepValues}>
+            <button type="submit" class="btn btn-sm btn-ghost">Remove</button>
+          </form>
+        {/if}
+      </div>
+    </div>
+  </div>
 
   <form
     method="POST"

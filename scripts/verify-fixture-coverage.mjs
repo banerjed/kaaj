@@ -64,6 +64,13 @@ const EXPECTED_SPARSE = new Map([
     "populated by a periodic health-check job (ADR-009), which is not built " +
       "— out of scope for the routing mechanism this table exists to prove",
   ],
+  [
+    "tenants.logo_storage_key",
+    "the fixture's one tenant has not uploaded a logo — the upload/remove " +
+      "path is tested directly against the real local Storage service " +
+      "(settings/company/logo.server.test.ts), which a fixture row cannot " +
+      "represent (the object itself lives outside Postgres)",
+  ],
 ])
 
 const url = process.env.DATABASE_URL

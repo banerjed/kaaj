@@ -49,6 +49,27 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 }
 
+// pdfkit (US-ACC-001 invoice branding) embeds only these two raster formats
+// directly — an SVG upload would need rasterizing first, so it's refused
+// rather than accepted and silently failing at render time.
+const LOGO_ALLOWED_TYPES = ["image/png", "image/jpeg"] as const
+const LOGO_MAX_BYTES = 2 * 1024 * 1024
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff]
+
+/** Checks the file's actual magic bytes against its declared MIME type. */
+function hasImageSignature(bytes: Uint8Array, declaredType: string): boolean {
+  const signature =
+    declaredType === "image/png"
+      ? PNG_SIGNATURE
+      : declaredType === "image/jpeg"
+        ? JPEG_SIGNATURE
+        : null
+  if (!signature) return false
+  return signature.every((byte, i) => bytes[i] === byte)
+}
+
 /** Every figure in the product is formatted against these. */
 const AUDITED_FIELDS = [
   "company_name",
@@ -180,5 +201,109 @@ export const actions: Actions = {
       if (refused) return refused
       throw e
     }
+  },
+
+  uploadLogo: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "tenant.settings.write")
+
+    const data = await request.formData()
+    const file = data.get("logo")
+    if (!(file instanceof File) || file.size === 0) {
+      return fail(400, {
+        errorFields: ["logo"],
+        message: "Choose an image to upload.",
+      })
+    }
+    if (
+      !LOGO_ALLOWED_TYPES.includes(
+        file.type as (typeof LOGO_ALLOWED_TYPES)[number],
+      )
+    ) {
+      return fail(400, {
+        errorFields: ["logo"],
+        message: "Logo must be a PNG or JPEG image.",
+      })
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      return fail(400, {
+        errorFields: ["logo"],
+        message: "Logo must be 2MB or smaller.",
+      })
+    }
+
+    // `file.type` is the CLIENT's own declared MIME type — a crafted POST can
+    // claim image/png on arbitrary bytes. The magic bytes are what pdfkit
+    // actually parses at render time, so this is the one place to refuse a
+    // mismatch: at upload, as a field error, not as a 500 on every future
+    // invoice PDF for this tenant.
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    if (!hasImageSignature(bytes, file.type)) {
+      return fail(400, {
+        errorFields: ["logo"],
+        message: "That file's contents don't match a PNG or JPEG image.",
+      })
+    }
+
+    // Fixed key, always upserted — a re-upload in a different format never
+    // leaves a stale second file behind to clean up.
+    const key = `${locals.tenantId}/logo`
+    const { error: uploadError } = await locals.supabase.storage
+      .from("tenant-logos")
+      .upload(key, bytes, { contentType: file.type, upsert: true })
+    if (uploadError) {
+      return fail(400, {
+        errorFields: [],
+        message: "Could not upload the logo. Try again.",
+      })
+    }
+
+    const saved = await withTenant(actorFrom(locals), async (tx) => {
+      const before = await tenants.getCurrent(tx)
+      await tenants.setLogoStorageKey(tx, key)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "update",
+        entityType: "tenants",
+        entityId: locals.tenantId,
+        module: "platform-tenancy",
+        changes: audit.diff(before, { logo_storage_key: key }, [
+          "logo_storage_key",
+        ]),
+      })
+      return await tenants.getCurrent(tx)
+    })
+    return { logoUpdated: true, company: saved }
+  },
+
+  removeLogo: async ({ locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "tenant.settings.write")
+
+    const key = `${locals.tenantId}/logo`
+    const { error: removeError } = await locals.supabase.storage
+      .from("tenant-logos")
+      .remove([key])
+    if (removeError) {
+      return fail(400, {
+        errorFields: [],
+        message: "Could not remove the logo. Try again.",
+      })
+    }
+
+    const saved = await withTenant(actorFrom(locals), async (tx) => {
+      const before = await tenants.getCurrent(tx)
+      await tenants.setLogoStorageKey(tx, null)
+      await audit.record(tx, contextFrom(locals)!, {
+        action: "update",
+        entityType: "tenants",
+        entityId: locals.tenantId,
+        module: "platform-tenancy",
+        changes: audit.diff(before, { logo_storage_key: null }, [
+          "logo_storage_key",
+        ]),
+      })
+      return await tenants.getCurrent(tx)
+    })
+    return { logoRemoved: true, company: saved }
   },
 }

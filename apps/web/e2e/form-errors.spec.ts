@@ -1032,3 +1032,22 @@ test("recording an accrual against the last period is refused, not silently acce
 
   await expect(page.getByText(/no period follows/i)).toBeVisible()
 })
+
+test("uploading a non-image file as a company logo is refused, not silently accepted", async ({
+  page,
+}) => {
+  // Read-only: validation rejects the file before any Storage call, the
+  // same "refuse before the write" shape as every other case in this file.
+  const response = await page.request.post("/settings/company?/uploadLogo", {
+    multipart: {
+      logo: {
+        name: "not-a-logo.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("not an image"),
+      },
+    },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/PNG or JPEG/i)
+})

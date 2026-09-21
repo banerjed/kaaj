@@ -27,6 +27,7 @@ export type Tenant = {
   primary_contact_name: string | null
   primary_contact_email: string | null
   primary_contact_phone: string | null
+  logo_storage_key: string | null
 }
 
 const COLUMNS = `
@@ -35,7 +36,8 @@ const COLUMNS = `
   default_locale, supported_locales,
   default_currency, supported_currencies,
   default_timezone, date_format, time_format,
-  primary_contact_name, primary_contact_email, primary_contact_phone
+  primary_contact_name, primary_contact_email, primary_contact_phone,
+  logo_storage_key
 `
 
 /** The caller's own tenant. */
@@ -90,4 +92,16 @@ export async function update(tx: Tx, patch: TenantUpdate): Promise<Tenant> {
     RETURNING ${tx.unsafe(COLUMNS)}
   `
   return row
+}
+
+/**
+ * Written by the logo upload/remove actions only — kept separate from
+ * `update()` so the general company-profile form can never accidentally
+ * clear or overwrite it with a stale value from an unrelated submit.
+ */
+export async function setLogoStorageKey(
+  tx: Tx,
+  key: string | null,
+): Promise<void> {
+  await tx`UPDATE tenants SET logo_storage_key = ${key}, updated_at = now()`
 }
