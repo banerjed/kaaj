@@ -1019,21 +1019,63 @@ async function payOneVendorGroup(
   }
 }
 
-/** Recomputes one bill's totals and marks it paid — pulled out of
- *  `payBillsInBatch`'s per-bill loop for the same reason
- *  `payOneVendorGroup` is: no `tx` call in the loop's own source text. Paid
- *  in full by construction (the batch pays `amount_due` exactly), so there
- *  is no partial-payment case to check, unlike `recordVendorPayment`'s. */
-async function settleBillFully(
+/** Recomputes every bill's totals and marks it paid, in one set-based
+ *  UPDATE keyed on `= ANY(billIds)` — a batched generalisation of
+ *  `recomputeBillTotals`, not a per-bill call inside a loop: `bills` and
+ *  `payment_allocations` are both `SCALE_SENSITIVE`, and a per-bill version
+ *  here would be a real N+1 against both of them on every batch payment run,
+ *  the same shape `payOneVendorGroup`'s own comment already reasons about
+ *  avoiding for `payment_allocations`. `target` guarantees exactly one
+ *  output row per bill id even when a bill has no lines or no allocations
+ *  yet, matching `recomputeBillTotals`'s own no-GROUP-BY aggregate shape.
+ *  Paid in full by construction (the batch pays `amount_due` exactly), so
+ *  there is no partial-payment case to check, unlike
+ *  `recordVendorPayment`'s. */
+async function settleBillsFullyBatch(
   tx: Tx,
-  billId: string,
+  billIds: string[],
   actorId: string,
 ): Promise<void> {
-  await recomputeBillTotals(tx, billId)
   await tx`
-    UPDATE bills
-       SET status = 'paid', updated_at = now(), updated_by = ${actorId}::uuid
-     WHERE id = ${billId}::uuid
+    WITH target AS (
+      SELECT unnest(${billIds}::uuid[]) AS id
+    ),
+    line_totals AS (
+      SELECT t.id AS bill_id,
+             coalesce(sum(l.amount), 0)     AS subtotal,
+             coalesce(sum(l.tax_amount), 0) AS tax_total
+        FROM target t
+        LEFT JOIN bill_lines l ON l.bill_id = t.id
+       GROUP BY t.id
+    ),
+    paid AS (
+      SELECT t.id AS bill_id,
+             coalesce(sum(a.amount), 0)      AS amount_paid,
+             coalesce(sum(a.base_amount), 0) AS base_amount_paid
+        FROM target t
+        LEFT JOIN payment_allocations a ON a.bill_id = t.id
+       GROUP BY t.id
+    )
+    UPDATE bills b
+       SET subtotal    = lt.subtotal,
+           tax_total   = lt.tax_total,
+           total       = lt.subtotal + lt.tax_total,
+           amount_paid = p.amount_paid,
+           amount_due  = (lt.subtotal + lt.tax_total) - p.amount_paid,
+           base_subtotal    = round(lt.subtotal  * b.exchange_rate, 2),
+           base_tax_total   = round(lt.tax_total * b.exchange_rate, 2),
+           base_total       = round(lt.subtotal  * b.exchange_rate, 2)
+                            + round(lt.tax_total * b.exchange_rate, 2),
+           base_amount_paid = p.base_amount_paid,
+           base_amount_due  = round(lt.subtotal  * b.exchange_rate, 2)
+                            + round(lt.tax_total * b.exchange_rate, 2)
+                            - p.base_amount_paid,
+           status     = 'paid',
+           updated_at = now(),
+           updated_by = ${actorId}::uuid
+      FROM line_totals lt
+      JOIN paid p ON p.bill_id = lt.bill_id
+     WHERE b.id = lt.bill_id
   `
 }
 
@@ -1154,9 +1196,11 @@ export async function payBillsInBatch(
       JOIN bills b ON b.id = a.bill_id
   `
 
-  for (const a of allocations) {
-    await settleBillFully(tx, a.billId, actorId)
-  }
+  await settleBillsFullyBatch(
+    tx,
+    allocations.map((a) => a.billId),
+    actorId,
+  )
 
   return { payments }
 }

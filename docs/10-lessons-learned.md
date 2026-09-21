@@ -2240,6 +2240,48 @@ just the first two times this happened.
 
 ---
 
+### L91 — a helper pulled out of a loop to satisfy `verify-no-loop-queries.mjs` hid a real N+1, and a transaction held across a reminder batch's send loop wasn't backported from the fix already applied three commits later to a near-identical function
+
+Two commits from the same two-day window, found by a background code-review
+pass rather than by `./check` (both were green throughout):
+
+`payBillsInBatch` (`payables.repo.ts`) called a `settleBillFully(tx, billId,
+actorId)` helper once per bill after the payment allocations were inserted.
+The helper itself has no `tx` call inside a loop, and `payOneVendorGroup` —
+one function above it, doing the equivalent per-vendor work — has a comment
+explicitly reasoning about keeping `verify-no-loop-queries.mjs` looking at "a
+bounded call, not a query literally inside the loop." That reasoning is true
+about the *checker*, not about the *database*: `settleBillFully` still ran two
+real round trips per bill, sequentially, against two `SCALE_SENSITIVE` tables
+(`bills`, `payment_allocations`), for every bill in the batch. Pulling a query
+out of a loop's own source text defeats the lexical scanner; it does not
+defeat the N+1. Fixed by replacing the per-bill call with one set-based
+`UPDATE ... FROM ... WHERE b.id = ANY(billIds)`, the same shape
+`recomputeBillTotals` already uses per-row, generalised with a `target AS
+(SELECT unnest(...))` CTE so a bill with no lines or no allocations yet still
+produces exactly one output row (an `INNER JOIN` on a `GROUP BY` would have
+silently skipped it).
+
+Separately, `sendReminders` (`accounting/invoices/+page.server.ts`) opened one
+`withTenant` transaction and held it open across a loop that sends one real
+templated email per selected invoice — a Postgres connection pinned for N
+sequential HTTP round trips. `emailInvoice`, in the same file's sibling
+route, had this exact problem and was already restructured into
+read-then-send-then-write, three commits later in the same window — but nobody
+went back and applied the same restructuring here, because nothing failed:
+no checker looks for a transaction spanning a network call, only for one
+spanning a query loop. Fixed the same way `emailInvoice` was: read
+`invoicesForReminder` + `locations` in one short transaction, send with no
+transaction open, then a second short transaction for
+`recordRemindersSent` + `audit.record`.
+
+The rule this adds to L1's family: a fix applied to one function is not a fix
+to the pattern. When a review finds one instance, grep siblings that do the
+same kind of thing for the same shape before considering it closed — a
+codebase this size will have written it more than once in the same sitting.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

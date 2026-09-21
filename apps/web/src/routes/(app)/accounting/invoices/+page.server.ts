@@ -128,68 +128,78 @@ export const actions: Actions = {
     if (!f.ok) return fail(400, f.problem())
 
     try {
-      return await withTenant(actorFrom(locals), async (tx) => {
-        const rows = await acc.invoicesForReminder(
-          tx,
-          locals.tenantId!,
-          invoiceIds,
-        )
-        const locations = await locationsRepo.list(tx)
-        // No per-tenant verified sending domain exists yet — every reminder
-        // goes out through the platform's own shared address, with the
-        // firm's name as the display name so the recipient sees who it's
-        // actually from.
-        const senderAddress =
-          env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL
+      // Read-then-send-then-write, in three steps — no transaction open
+      // across the send loop below, which is one real outbound HTTP round
+      // trip per selected invoice. The same restructuring emailInvoice uses
+      // for its own single send: a transaction held across a network call
+      // is the shape `verify-no-loop-queries.mjs` exists to catch for a
+      // query, and this is its network-call equivalent, worse here because
+      // a reminder batch is N invoices holding one Postgres connection for
+      // the whole run rather than one.
+      const { rows, locations } = await withTenant(
+        actorFrom(locals),
+        async (tx) => ({
+          rows: await acc.invoicesForReminder(tx, locals.tenantId!, invoiceIds),
+          locations: await locationsRepo.list(tx),
+        }),
+      )
 
-        const sentIds: string[] = []
-        const skipped: { invoiceNumber: string; reason: string }[] = []
-        for (const inv of rows) {
-          if (!inv.email) {
-            skipped.push({
-              invoiceNumber: inv.invoice_number,
-              reason: "no email on file",
-            })
-            continue
-          }
-          if (inv.reminded_today) {
-            skipped.push({
-              invoiceNumber: inv.invoice_number,
-              reason: "already reminded today",
-            })
-            continue
-          }
-          const locale = localeForCurrency(
-            locations,
-            inv.currency,
-            inv.default_locale,
-          )
-          const result = await sendTemplatedEmail({
-            subject: `Payment reminder: Invoice ${inv.invoice_number}`,
-            to_emails: [inv.email],
-            from_email: `${inv.company_name} <${senderAddress}>`,
-            template_name: "payment_reminder",
-            template_properties: {
-              invoiceNumber: inv.invoice_number,
-              firmName: inv.company_name,
-              amountDue: money(inv.amount_due, inv.currency, locale),
-              dueDate: calendarDate(inv.due_date, locale),
-            },
+      // No per-tenant verified sending domain exists yet — every reminder
+      // goes out through the platform's own shared address, with the
+      // firm's name as the display name so the recipient sees who it's
+      // actually from.
+      const senderAddress =
+        env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL
+
+      const sentIds: string[] = []
+      const skipped: { invoiceNumber: string; reason: string }[] = []
+      for (const inv of rows) {
+        if (!inv.email) {
+          skipped.push({
+            invoiceNumber: inv.invoice_number,
+            reason: "no email on file",
           })
-          if (result.sent) {
-            sentIds.push(inv.id)
-          } else {
-            skipped.push({
-              invoiceNumber: inv.invoice_number,
-              reason:
-                result.reason === "not_configured"
-                  ? "email is not configured for this environment"
-                  : "the email failed to send",
-            })
-          }
+          continue
         }
+        if (inv.reminded_today) {
+          skipped.push({
+            invoiceNumber: inv.invoice_number,
+            reason: "already reminded today",
+          })
+          continue
+        }
+        const locale = localeForCurrency(
+          locations,
+          inv.currency,
+          inv.default_locale,
+        )
+        const result = await sendTemplatedEmail({
+          subject: `Payment reminder: Invoice ${inv.invoice_number}`,
+          to_emails: [inv.email],
+          from_email: `${inv.company_name} <${senderAddress}>`,
+          template_name: "payment_reminder",
+          template_properties: {
+            invoiceNumber: inv.invoice_number,
+            firmName: inv.company_name,
+            amountDue: money(inv.amount_due, inv.currency, locale),
+            dueDate: calendarDate(inv.due_date, locale),
+          },
+        })
+        if (result.sent) {
+          sentIds.push(inv.id)
+        } else {
+          skipped.push({
+            invoiceNumber: inv.invoice_number,
+            reason:
+              result.reason === "not_configured"
+                ? "email is not configured for this environment"
+                : "the email failed to send",
+          })
+        }
+      }
 
-        if (sentIds.length > 0) {
+      if (sentIds.length > 0) {
+        await withTenant(actorFrom(locals), async (tx) => {
           await acc.recordRemindersSent(tx, sentIds)
           const remindedRows = rows.filter((r) => sentIds.includes(r.id))
           // No single entityId spans a batch, so `invoice_numbers` and
@@ -212,10 +222,10 @@ export const actions: Actions = {
               },
             },
           })
-        }
+        })
+      }
 
-        return { reminded: { sent: sentIds.length, skipped } }
-      })
+      return { reminded: { sent: sentIds.length, skipped } }
     } catch (e) {
       if (e instanceof AccountingRefused) return fail(400, refusal(e))
       const refused = constraintFailure(e)
