@@ -1066,3 +1066,32 @@ test("emailing a draft invoice is refused, not silently sent", async ({
   expect(result.status).toBe(400)
   expect(result.raw).toMatch(/draft/i)
 })
+
+test("saving a malformed Stripe key is refused before ever calling Stripe", async ({
+  page,
+}) => {
+  // Read-only: the format check runs before any network call, so a garbage
+  // value never reaches Stripe, matching the logo upload's own
+  // "refuse before the write" shape.
+  const response = await page.request.post(
+    "/accounting/payment-gateway?/save",
+    { form: { secret_key: "not-a-stripe-key" } },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/stripe secret key/i)
+})
+
+test("creating a payment link with no Stripe key configured is refused, not silently a no-op", async ({
+  page,
+}) => {
+  // Read-only: no fixture tenant has configured Stripe, so this always
+  // reaches the honest "not configured" refusal.
+  const response = await page.request.post(
+    "/accounting/invoices/a31732ea-dadb-575f-bd99-cbcfeaba29da?/createPaymentLink",
+    { form: {} },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/no stripe key/i)
+})

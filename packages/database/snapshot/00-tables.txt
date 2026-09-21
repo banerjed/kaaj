@@ -65,6 +65,7 @@ jobs	t	t
 journal_entries	t	t
 journal_entry_lines	t	t
 payment_allocations	t	t
+payment_gateway_settings	t	t
 payments	t	t
 payroll_deduction_definitions	t	t
 payroll_employee_deductions	t	t

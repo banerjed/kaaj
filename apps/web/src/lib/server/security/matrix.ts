@@ -128,6 +128,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "The firm's own account numbers — a direct fraud target if read by anyone outside finance.",
   },
+  payment_gateway_settings: {
+    defense: "rls",
+    audience: "finance",
+    why: "A tenant's own Stripe secret key — whoever reads it can create charges and payment links against the tenant's live Stripe account.",
+  },
   bank_transactions: {
     defense: "rls",
     audience: "finance",

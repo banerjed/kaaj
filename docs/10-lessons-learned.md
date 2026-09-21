@@ -2207,6 +2207,37 @@ column's seeded value came from the sweep before trusting it — holds
 regardless of which table it recurs on; this entry exists mainly to record
 that it already has, so the next occurrence is recognized faster.
 
+### L90 — `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` carried the same sweep filler, a third recurrence, caught before shipping this time
+
+L87/L89's shape again, on the same `invoices` table L89 already touched.
+The sweep had filled every invoice with a fake `https://pay.northwind.
+example/invoices/...` URL and a `'GoCardless'`/`'Stripe'` gateway label —
+plausible-looking, and no repository function had ever selected any of the
+three columns, so nothing noticed. Building Stripe payment links
+(US-ACC-002) made `invoices/[id]/+page.svelte` render `payment_url`
+verbatim as a real, clickable "Payment link" — which would have shown a
+fabricated Stripe-branded link on an invoice that never actually had one,
+the same "correct-looking value, wrong place" shape the whole disclosure
+section warns about, just for availability rather than a leak.
+
+Caught this time by recognizing the L87/L89 pattern by name while building
+the feature that would have exposed it, rather than by a live screenshot
+after the fact. Fixed the same way both prior entries were, with one
+difference this table's own spec check (`verify-stories.sql`'s US-ACC-002)
+forced: it asserts at least one invoice HAS a populated payment link, so
+"all NULL" isn't an option here the way it was for L89. The blanket sweep
+is gone; in its place, one deliberately-chosen invoice (INV-2026-004)
+carries a payment link shaped exactly like what `createInvoicePaymentLink`
+actually produces (`payment_gateway = 'stripe'`, a `buy.stripe.com/test_`
+URL) — a single, honest example rather than every invoice getting a
+gateway ("GoCardless") this feature doesn't even implement.
+
+The rule this keeps confirming: a column that has carried the sweep's
+filler since the fixture was written is not evidence anyone verified it —
+it is evidence nothing has read it yet. Check every "no empty column"
+value against what actually reads it before trusting it as real data, not
+just the first two times this happened.
+
 ---
 
 ## Conventions

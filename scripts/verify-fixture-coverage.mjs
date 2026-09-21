@@ -71,6 +71,27 @@ const EXPECTED_SPARSE = new Map([
       "(settings/company/logo.server.test.ts), which a fixture row cannot " +
       "represent (the object itself lives outside Postgres)",
   ],
+  [
+    "payment_gateway_settings.tenant_id",
+    "no fixture tenant has configured Stripe, so the table has no rows at " +
+      "all — a hand-written secret_key_ct envelope would fail pii.test.ts, " +
+      "which opens every sealed fixture value. The save/validate/disconnect " +
+      "path is tested against a real database with a mocked Stripe client " +
+      "(payment_gateway.repo.test.ts)",
+  ],
+  ...[
+    "secret_key_ct",
+    "secret_key_last4",
+    "is_live_mode",
+    "verified_at",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by",
+  ].map((col) => [
+    `payment_gateway_settings.${col}`,
+    "same table as tenant_id above — no fixture tenant has configured Stripe",
+  ]),
 ])
 
 const url = process.env.DATABASE_URL

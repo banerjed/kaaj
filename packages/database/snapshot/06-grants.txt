@@ -132,6 +132,8 @@ journal_entry_lines	app_user	INSERT,SELECT,UPDATE
 journal_entry_lines	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payment_allocations	app_user	INSERT,SELECT,UPDATE
 payment_allocations	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+payment_gateway_settings	app_user	INSERT,SELECT,UPDATE
+payment_gateway_settings	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payments	app_user	INSERT,SELECT,UPDATE
 payments	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payroll_deduction_definitions	app_user	INSERT,SELECT,UPDATE

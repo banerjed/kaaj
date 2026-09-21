@@ -328,6 +328,22 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "The same branding, cleared — an invoice PDF generated afterward silently loses the logo, worth being able to explain.",
   },
 
+  {
+    route: "accounting/payment-gateway",
+    action: "save",
+    why: "Whoever's Stripe account customer payments now flow into — a credential change with real money behind it.",
+  },
+  {
+    route: "accounting/payment-gateway",
+    action: "disconnect",
+    why: "Invoices issued afterward silently carry no payment link — worth being able to explain why one stopped appearing.",
+  },
+  {
+    route: "accounting/invoices/[id]",
+    action: "createPaymentLink",
+    why: "Adds a real Stripe Payment Link to a specific invoice after the fact — the same commercial-terms change `issue`'s own payment_url write already gets audited for.",
+  },
+
   // -- Ticketing: grants that change who may READ a ticket -------------------
   {
     route: "ticketing/[id]",

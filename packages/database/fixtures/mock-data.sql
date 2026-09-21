@@ -745,9 +745,15 @@ UPDATE invoice_lines SET
 WHERE id = '9ce4ba89-2258-53c2-94e7-f9afee5aa317';
 
 UPDATE invoices SET
-    payment_url = 'https://pay.northwind.example/invoices/' || lower(invoice_number),
-    payment_gateway = CASE WHEN customer_id = 'ac7a04b4-a28e-5a15-9993-596db32c8d4e' THEN 'GoCardless' ELSE 'Stripe' END,
-    payment_gateway_id = 'gw_' || lower(replace(invoice_number, '-', '_')),
+    -- payment_url/payment_gateway/payment_gateway_id deliberately NOT set
+    -- here (L90): the generic completeness-sweep this block replaces used to
+    -- fill them with fake "GoCardless"/"Stripe" values no fixture tenant
+    -- ever actually configured. invoices/[id]/+page.svelte now renders
+    -- payment_url verbatim as a clickable "Payment link" — the same L87/L89
+    -- shape recurring a third time, caught before shipping rather than
+    -- after. No fixture tenant has configured Stripe (see
+    -- payment_gateway_settings' own EXPECTED_SPARSE entries), so every
+    -- invoice's payment_url stays NULL until one actually is.
     footer_text = 'Thank you for your business.',
     tracking_categories = '{"segment": "professional_services"}'::jsonb,
     pdf_url = '/accounting/invoices/' || id || '/pdf',
@@ -784,6 +790,19 @@ UPDATE invoices SET
     -- renders this verbatim once issued.
     notes = 'Solar array maintenance, Q1 service window.'
 WHERE invoice_number = 'INV-2026-003';
+
+-- One deliberately-chosen example (US-ACC-002/verify-stories.sql), not the
+-- L90 blanket sweep: shaped exactly like what createInvoicePaymentLink
+-- actually writes (lowercase 'stripe', a buy.stripe.com/test_ URL, a
+-- plink_ id) on the one invoice a payment link demo does not overlap with —
+-- INV-2026-002 is exercised directly by
+-- accounting/invoices/[id]/page.server.test.ts's createPaymentLink suite,
+-- which expects to start from no link on that invoice.
+UPDATE invoices SET
+    payment_url = 'https://buy.stripe.com/test_00000000000000',
+    payment_gateway = 'stripe',
+    payment_gateway_id = 'plink_00000000000000'
+WHERE invoice_number = 'INV-2026-004';
 
 -- Journal entries
 INSERT INTO journal_entries (id, tenant_id, entry_number, entry_date, description, source_type, status, accounting_period, fiscal_year, posted_at) VALUES

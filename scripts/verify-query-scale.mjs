@@ -178,6 +178,10 @@ const NOT_SCALE_SENSITIVE = new Map([
     "one row per active subscription-billing arrangement; bounded by customer count",
   ],
   [
+    "payment_gateway_settings",
+    "at most one row per tenant, bounded by tenant count",
+  ],
+  [
     "amortization_schedules",
     "one row per deferred-revenue/prepaid arrangement; bounded by how many the tenant runs at once",
   ],

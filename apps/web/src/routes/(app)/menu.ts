@@ -210,6 +210,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         permission: "accounting.read",
       },
       {
+        id: "accounting-payment-gateway",
+        label: "Payment Gateway",
+        url: "/accounting/payment-gateway",
+        permission: "accounting.read",
+      },
+      {
         id: "accounting-fx-revaluation",
         label: "FX Revaluation",
         url: "/accounting/fx-revaluation",

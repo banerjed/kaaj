@@ -335,6 +335,7 @@ payment_allocations	idx_payment_allocations_created	CREATE INDEX idx_payment_all
 payment_allocations	idx_payment_allocations_invoice_id	CREATE INDEX idx_payment_allocations_invoice_id ON public.payment_allocations USING btree (tenant_id, invoice_id)
 payment_allocations	idx_payment_allocations_payment_id	CREATE INDEX idx_payment_allocations_payment_id ON public.payment_allocations USING btree (tenant_id, payment_id)
 payment_allocations	payment_allocations_pkey	CREATE UNIQUE INDEX payment_allocations_pkey ON public.payment_allocations USING btree (id)
+payment_gateway_settings	payment_gateway_settings_pkey	CREATE UNIQUE INDEX payment_gateway_settings_pkey ON public.payment_gateway_settings USING btree (tenant_id)
 payments	idx_payments_bank_account_id	CREATE INDEX idx_payments_bank_account_id ON public.payments USING btree (tenant_id, bank_account_id)
 payments	idx_payments_created	CREATE INDEX idx_payments_created ON public.payments USING btree (tenant_id, created_at DESC)
 payments	idx_payments_currency	CREATE INDEX idx_payments_currency ON public.payments USING btree (tenant_id, currency)

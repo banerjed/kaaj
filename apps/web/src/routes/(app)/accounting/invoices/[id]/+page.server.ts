@@ -4,6 +4,11 @@ import * as acc from "$lib/server/accounting/accounting.repo"
 import { AccountingRefused } from "$lib/server/accounting/accounting.repo"
 import { renderInvoicePdf } from "$lib/server/accounting/invoice_pdf"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
+import * as gateway from "$lib/server/accounting/payment_gateway.repo"
+import {
+  createInvoicePaymentLink,
+  UnsupportedCurrency,
+} from "$lib/server/accounting/stripe_gateway"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -142,6 +147,94 @@ function refusal(e: AccountingRefused) {
   }
 }
 
+type PaymentLinkResult =
+  | { outcome: "created"; link: { url: string; gatewayId: string } }
+  /** Not eligible, or no gateway configured — never a reason to fail the caller (e.g. `issue`). */
+  | { outcome: "skipped"; reason: string }
+  /** Eligible and configured, but the Stripe call itself failed. */
+  | { outcome: "failed"; warning: string }
+
+/**
+ * Decides whether an invoice gets a payment link and, if so, calls Stripe —
+ * but does NOT write the result or audit it. Reads the sealed key and the
+ * invoice inside one short transaction, then calls Stripe OUTSIDE any
+ * transaction (same split as `emailInvoice`). Never throws — an invoice
+ * that has already been issued and posted to the ledger must not be undone
+ * by a Stripe hiccup.
+ *
+ * The write + audit entry is left to each caller, deliberately: L40 needs
+ * them in the SAME transaction as each other, and verify-audit-coverage.mjs
+ * checks that lexically, action body by action body — a shared helper's own
+ * `audit.record` call would be invisible to it (a "review question, not an
+ * exemption" per its own doc comment). A few duplicated lines beats a write
+ * this checker can no longer see.
+ */
+async function decidePaymentLink(
+  locals: App.Locals,
+  invoiceId: string,
+): Promise<PaymentLinkResult> {
+  const [secretKey, invoice] = await withTenant(
+    actorFrom(locals),
+    async (tx): Promise<[string | null, acc.InvoiceRow | null]> => {
+      const key = await gateway.stripeSecretKeyFor(tx, locals.tenantId!)
+      return [key, await acc.invoiceById(tx, invoiceId)]
+    },
+  )
+
+  if (!invoice) return { outcome: "skipped", reason: "No such invoice." }
+  // The UI's own "may.createPaymentLink" gate already hides the retry
+  // button once a link exists — checked again here since a client-side
+  // gate is never the real boundary. Retry is for a missing link, not a
+  // replacement: minting a second live Payment Link would leave the first
+  // one (charging whatever was owed when IT was created) still chargeable
+  // in Stripe, and there would be nothing here to say so — the audit
+  // entry's own "from" would have to lie about what was there before.
+  if (invoice.payment_url) {
+    return {
+      outcome: "skipped",
+      reason: "This invoice already has a payment link.",
+    }
+  }
+  if (!secretKey) {
+    return {
+      outcome: "skipped",
+      reason: "No Stripe key is configured for this tenant.",
+    }
+  }
+  if (invoice.status === "draft" || invoice.status === "void") {
+    return {
+      outcome: "skipped",
+      reason: "A draft or void invoice has nothing to pay.",
+    }
+  }
+  if (!invoice.amount_due || Number(invoice.amount_due) <= 0) {
+    return { outcome: "skipped", reason: "Nothing is due on this invoice." }
+  }
+
+  try {
+    const link = await createInvoicePaymentLink(secretKey, {
+      invoiceId,
+      invoiceNumber: invoice.invoice_number,
+      tenantId: locals.tenantId!,
+      amountDue: invoice.amount_due,
+      currency: invoice.currency,
+    })
+    return { outcome: "created", link: { url: link.url, gatewayId: link.id } }
+  } catch (e) {
+    if (e instanceof UnsupportedCurrency) {
+      return {
+        outcome: "failed",
+        warning: `No payment link was created: ${invoice.currency} is not supported for online payment yet.`,
+      }
+    }
+    return {
+      outcome: "failed",
+      warning:
+        "Could not create a Stripe payment link for this invoice. You can retry from this page.",
+    }
+  }
+}
+
 export const actions: Actions = {
   /** Issue the invoice and recognise revenue in the same transaction. */
   issue: async ({ locals, params }) => {
@@ -149,8 +242,9 @@ export const actions: Actions = {
     const ctx = contextFrom(locals)
     requireCan(ctx, "accounting.write")
 
+    let issued: string
     try {
-      return await withTenant(actorFrom(locals), async (tx) => {
+      ;({ issued } = await withTenant(actorFrom(locals), async (tx) => {
         const { from, entryNumber } = await acc.issueInvoice(
           tx,
           locals.tenantId!,
@@ -171,11 +265,67 @@ export const actions: Actions = {
           },
         })
         return { issued: entryNumber }
-      })
+      }))
     } catch (e) {
       if (e instanceof AccountingRefused) return fail(400, refusal(e))
       throw e
     }
+
+    const linkResult = await decidePaymentLink(locals, params.id)
+    if (linkResult.outcome === "created") {
+      await withTenant(actorFrom(locals), async (tx) => {
+        await acc.setInvoicePaymentLink(
+          tx,
+          params.id,
+          ctx!.employeeId ?? ctx!.userId,
+          linkResult.link,
+        )
+        await audit.record(tx, ctx!, {
+          action: "update",
+          entityType: "invoices",
+          entityId: params.id,
+          module: "accounting",
+          changes: { payment_url: { from: null, to: linkResult.link.url } },
+        })
+      })
+    }
+    return {
+      issued,
+      paymentLinkWarning:
+        linkResult.outcome === "failed" ? linkResult.warning : null,
+    }
+  },
+
+  /** Retries payment-link creation — a transient Stripe failure at issuance, or an invoice issued before this feature existed. */
+  createPaymentLink: async ({ locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "accounting.write")
+
+    const result = await decidePaymentLink(locals, params.id)
+    if (result.outcome === "failed") {
+      return fail(400, { message: result.warning, errorFields: [] })
+    }
+    if (result.outcome === "skipped") {
+      return fail(400, { message: result.reason, errorFields: ["invoice"] })
+    }
+
+    await withTenant(actorFrom(locals), async (tx) => {
+      await acc.setInvoicePaymentLink(
+        tx,
+        params.id,
+        ctx!.employeeId ?? ctx!.userId,
+        result.link,
+      )
+      await audit.record(tx, ctx!, {
+        action: "update",
+        entityType: "invoices",
+        entityId: params.id,
+        module: "accounting",
+        changes: { payment_url: { from: null, to: result.link.url } },
+      })
+    })
+    return { linkCreated: true }
   },
 
   /** Receive money against it: DR Cash, CR Receivables, in the same write. */
@@ -465,6 +615,7 @@ export const actions: Actions = {
         firmName: data.company_name,
         amountDue: money(data.amount_due, data.currency, locale),
         dueDate: data.due_date ? calendarDate(data.due_date, locale) : "",
+        paymentUrl: data.payment_url ?? "",
       },
       attachments: [{ filename: `${data.invoice_number}.pdf`, content: pdf }],
     })

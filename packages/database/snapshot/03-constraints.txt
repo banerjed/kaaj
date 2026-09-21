@@ -265,6 +265,8 @@ payment_allocations	fk_payment_allocations_invoice_id	f	FOREIGN KEY (invoice_id)
 payment_allocations	fk_payment_allocations_payment_id	f	FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
 payment_allocations	payment_allocations_pkey	p	PRIMARY KEY (id)
 payment_allocations	payment_allocations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payment_gateway_settings	payment_gateway_settings_pkey	p	PRIMARY KEY (tenant_id)
+payment_gateway_settings	payment_gateway_settings_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 payments	ck_payments_positive_amounts	c	CHECK (((amount > (0)::numeric) AND (base_amount > (0)::numeric) AND (gateway_fee >= (0)::numeric)))
 payments	fk_payments_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
 payments	fk_payments_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)

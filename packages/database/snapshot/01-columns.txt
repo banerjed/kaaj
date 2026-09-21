@@ -1251,6 +1251,15 @@ payment_allocations	6	amount	numeric(15,2)	t
 payment_allocations	7	base_amount	numeric(15,2)	t	
 payment_allocations	8	fx_gain_loss	numeric(15,2)	f	0
 payment_allocations	9	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payment_gateway_settings	1	tenant_id	uuid	t	
+payment_gateway_settings	2	secret_key_ct	text	f	
+payment_gateway_settings	3	secret_key_last4	character varying(4)	f	
+payment_gateway_settings	4	is_live_mode	boolean	f	
+payment_gateway_settings	5	verified_at	timestamp with time zone	f	
+payment_gateway_settings	6	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payment_gateway_settings	7	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+payment_gateway_settings	8	created_by	uuid	f	
+payment_gateway_settings	9	updated_by	uuid	f	
 payments	1	id	uuid	t	gen_random_uuid()
 payments	2	tenant_id	uuid	t	
 payments	3	payment_number	character varying(50)	f	

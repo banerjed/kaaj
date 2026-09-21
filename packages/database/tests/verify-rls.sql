@@ -118,7 +118,13 @@ INSERT INTO _global_rows VALUES ('payroll_tax_rates'), ('translations');
 CREATE TEMP TABLE _no_fixture (tbl TEXT PRIMARY KEY);
 INSERT INTO _no_fixture VALUES
   ('compensation_premiums'), ('firm_benefit_items'), ('firm_benefits_packages'),
-  ('firm_benefits_plans'), ('firm_payroll_policies'), ('pm_project_templates');
+  ('firm_benefits_plans'), ('firm_payroll_policies'), ('pm_project_templates'),
+  -- No fixture tenant has configured Stripe (US-ACC-002) — a hand-written
+  -- secret_key_ct envelope would fail pii.test.ts, which opens every sealed
+  -- fixture value for real. Isolation for this table is exercised directly
+  -- against a real database in payment-gateway/page.server.test.ts instead
+  -- (save/disconnect, real seal/open, real RLS via app.reads_all_accounting()).
+  ('payment_gateway_settings');
 
 CREATE TEMP VIEW _targets AS
   SELECT c.relname AS tbl

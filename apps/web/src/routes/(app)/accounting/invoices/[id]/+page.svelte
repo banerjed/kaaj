@@ -34,6 +34,10 @@
     // issueInvoice's own gate on when pdf_url gets set.
     pdf: data.invoice.status !== "draft",
     email: data.mayWrite && data.invoice.status !== "draft",
+    createPaymentLink:
+      data.mayWrite &&
+      !data.invoice.payment_url &&
+      ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
   })
 
   /** `invoice_credits.credit_type` — a plain vocabulary column (L57); the
@@ -67,6 +71,17 @@
       <span>
         Issued. Revenue posted to the ledger as {form.issued}.
       </span>
+    </div>
+    {#if form.paymentLinkWarning}
+      <div role="alert" class="alert alert-warning mt-2">
+        <span class="iconify lucide--triangle-alert size-5"></span>
+        <span>{form.paymentLinkWarning}</span>
+      </div>
+    {/if}
+  {:else if form?.linkCreated}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Payment link created.</span>
     </div>
   {:else if form?.paid}
     <div role="status" class="alert alert-success mt-4">
@@ -293,8 +308,22 @@
     </div>
   {/if}
 
+  {#if data.invoice.payment_url}
+    <div class="alert alert-info mt-4">
+      <span class="iconify lucide--link size-5"></span>
+      <span>
+        Payment link: <a
+          href={data.invoice.payment_url}
+          target="_blank"
+          rel="noopener"
+          class="link">{data.invoice.payment_url}</a
+        >
+      </span>
+    </div>
+  {/if}
+
   <!-- Each posts a balanced journal entry; POST only, never a link. -->
-  {#if may.issue || may.pay || may.credit || may.writeOff || may.void || may.pdf || may.email}
+  {#if may.issue || may.pay || may.credit || may.writeOff || may.void || may.pdf || may.email || may.createPaymentLink}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {#if may.issue}
         <form method="POST" action="?/issue">
@@ -354,6 +383,14 @@
           <button class="btn btn-outline btn-sm">
             <span class="iconify lucide--mail size-4"></span>
             Email invoice
+          </button>
+        </form>
+      {/if}
+      {#if may.createPaymentLink}
+        <form method="POST" action="?/createPaymentLink" use:enhance>
+          <button class="btn btn-outline btn-sm">
+            <span class="iconify lucide--link size-4"></span>
+            Create payment link
           </button>
         </form>
       {/if}

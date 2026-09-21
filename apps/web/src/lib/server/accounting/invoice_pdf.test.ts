@@ -37,6 +37,7 @@ function sample(overrides: Partial<InvoiceForPdf> = {}): InvoiceForPdf {
     payment_terms: "Net 30",
     notes: null,
     footer_text: null,
+    payment_url: null,
     customer_name: "Acme Manufacturing",
     customer_email: "ap@acme.example",
     customer_billing_address: { city: "New York", state: "NY", country: "US" },
@@ -89,6 +90,22 @@ describe("renderInvoicePdf (US-ACC-001)", () => {
       { compress: false },
     )
     expect(decodedText(pdf)).toContain("Thank you for your business.")
+  })
+
+  it("renders a pay-online line when a payment link exists, and omits it otherwise", async () => {
+    const withLink = await renderInvoicePdf(
+      sample({ payment_url: "https://buy.stripe.com/test_abc123" }),
+      null,
+      { compress: false },
+    )
+    expect(decodedText(withLink)).toContain("Pay this invoice online")
+
+    const withoutLink = await renderInvoicePdf(
+      sample({ payment_url: null }),
+      null,
+      { compress: false },
+    )
+    expect(decodedText(withoutLink)).not.toContain("Pay this invoice online")
   })
 
   it("degrades to no logo, rather than a failed PDF, when the logo bytes are unreadable", async () => {

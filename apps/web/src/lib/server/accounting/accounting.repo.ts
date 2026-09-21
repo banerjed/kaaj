@@ -29,6 +29,8 @@ export type InvoiceRow = {
   line_count: number
   /** Past due, still owing, and not draft/void — decided against the DB's date. */
   is_overdue: boolean
+  /** A Stripe Payment Link (US-ACC-002) — absent from `listInvoices`' lighter query; only `invoiceById` selects it. */
+  payment_url?: string | null
 }
 
 const INVOICE_SELECT = `
@@ -43,7 +45,7 @@ const INVOICE_SELECT = `
          i.amount_paid::text     AS amount_paid,
          i.amount_credited::text AS amount_credited,
          i.amount_due::text      AS amount_due,
-         i.status,
+         i.status, i.payment_url,
          -- Net of discount, same as recomputeInvoiceTotals's own subtotal —
          -- otherwise every discounted invoice trips the "≠ lines" drift
          -- flag below by design, not by an actual stale total.
@@ -236,6 +238,8 @@ export type InvoiceForPdf = {
   payment_terms: string | null
   notes: string | null
   footer_text: string | null
+  /** A Stripe Payment Link (US-ACC-002), if one has been created for this invoice. */
+  payment_url: string | null
   customer_name: string
   customer_email: string | null
   customer_billing_address: Record<string, string> | null
@@ -278,7 +282,7 @@ export async function invoiceForPdf(
            i.amount_credited::text AS amount_credited,
            i.amount_due::text AS amount_due,
            i.status,
-           i.payment_terms, i.notes, i.footer_text,
+           i.payment_terms, i.notes, i.footer_text, i.payment_url,
            c.customer_name,
            c.email AS customer_email,
            c.billing_address AS customer_billing_address,
@@ -2601,6 +2605,29 @@ export async function issueInvoice(
     SELECT entry_number FROM journal_entries WHERE id = ${entryId}::uuid
   `
   return { from: before.status, entryNumber: entry.entry_number }
+}
+
+/**
+ * Records a Stripe Payment Link created for this invoice (US-ACC-002). Its
+ * own step, separate from `issueInvoice`, because creating the link is a
+ * network call to Stripe and must not run inside the transaction that posts
+ * the journal entry (same reasoning as `emailInvoice`'s split — a
+ * transaction held across a network call is the shape
+ * verify-no-loop-queries exists to catch elsewhere).
+ */
+export async function setInvoicePaymentLink(
+  tx: Tx,
+  invoiceId: string,
+  actorId: string,
+  link: { url: string; gatewayId: string },
+): Promise<void> {
+  await tx`
+    UPDATE invoices
+       SET payment_url = ${link.url}, payment_gateway = 'stripe',
+           payment_gateway_id = ${link.gatewayId},
+           updated_at = now(), updated_by = ${actorId}::uuid
+     WHERE id = ${invoiceId}::uuid
+  `
 }
 
 /**

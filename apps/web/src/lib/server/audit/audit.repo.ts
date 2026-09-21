@@ -37,6 +37,7 @@ const NEVER_LOGGED = new Set([
   "phone_primary_ct",
   "phone_secondary_ct",
   "routing_number_ct",
+  "secret_key_ct",
   "sort_code_ct",
   "ssn_tax_id_ct",
   "swift_code_ct",

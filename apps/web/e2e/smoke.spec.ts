@@ -61,6 +61,7 @@ const PAGES: { path: string; heading: string }[] = [
     heading: "Tax Summary",
   },
   { path: "/accounting/exchange-rates", heading: "Exchange Rates" },
+  { path: "/accounting/payment-gateway", heading: "Payment Gateway" },
   { path: "/accounting/fx-revaluation", heading: "FX Revaluation" },
   { path: "/accounting/trial-balance", heading: "Trial Balance" },
   {

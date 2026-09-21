@@ -167,12 +167,27 @@ export function renderInvoicePdf(
     totalRow("Credited", data.amount_credited)
   totalRow("Amount due", data.amount_due, true)
 
-  // -- Notes and footer -----------------------------------------------------
+  // -- Pay online, notes and footer ------------------------------------------
+  // Explicit x throughout this section: `totalRow`'s own explicit-x calls
+  // above leave the "cursor" wherever the totals column was, not the left
+  // margin — an unpositioned .text() after that renders sitting under
+  // Amount due.
+  if (data.payment_url) {
+    doc.moveDown(1)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor("#1a56db")
+      .text("Pay this invoice online", doc.page.margins.left, doc.y, {
+        width: pageWidth,
+        link: data.payment_url,
+        underline: true,
+      })
+      .fillColor("black")
+  }
+
   if (data.notes) {
     doc.moveDown(1)
-    // Explicit x: `totalRow`'s own explicit-x calls above leave the
-    // "cursor" wherever the totals column was, not the left margin —
-    // an unpositioned .text() after that renders sitting under Amount due.
     const notesX = doc.page.margins.left
     doc
       .font("Helvetica-Bold")
