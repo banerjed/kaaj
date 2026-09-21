@@ -2766,26 +2766,95 @@ either way.
 
 ### Tier 9 — New modules (largest effort, product decisions)
 
-- [ ] Expense management. Schema is fully designed (`expenses` table:
-      receipts, OCR fields, mileage, reimbursement workflow) with zero
+- [ ] Expense management. US-ACC-009–014. Schema is fully designed
+      (`expenses` table: `receipt_url`, `receipt_ocr_data`,
+      `mileage_distance`/`mileage_rate`, `reimbursement_status`,
+      `approved_by`/`approved_at`, `journal_entry_id`) with zero
       application code — confirmed no repo file, route, or app-level test
-      references it. RLS on the table is already tested. US-ACC-009–014.
-- [ ] Fixed assets & depreciation. §2.4.
-- [ ] Inventory / COGS. §2.5.
+      references it (`grep -rln "FROM expenses" apps/web/src/lib/server/`
+      returns nothing). RLS on the table IS already tested
+      (`row-visibility.test.ts`'s `ACCOUNTING` list) — the gap is entirely
+      the application layer, not the schema. Six sub-stories, none built:
+      mobile receipt capture (US-ACC-009), OCR/AI categorization
+      (US-ACC-010), spend-pattern analytics by category/vendor
+      (US-ACC-011), employee claim submission (US-ACC-012), manager
+      approve/reject (US-ACC-013), and sync to the GL (US-ACC-014). The
+      cheapest Tier 9 item to scope, since the data model needs no
+      migration — only application code.
+- [ ] Fixed assets & depreciation. §2.4 (`19-accounting-test-plan.md`);
+      `accounting-gap-analysis.md` Enhancement #19. No table, no code, no
+      test at all (`rg -il 'fixed.asset|depreciation'` finds nothing) —
+      needs schema from scratch. Scope per the gap analysis: asset
+      register, asset categories, depreciation calculation (multiple
+      methods), disposal tracking, inter-location transfers, maintenance
+      schedules, insurance tracking.
+- [ ] Inventory / COGS. §2.5; `accounting-gap-analysis.md` Gap #4. No
+      table, no code, no test — same status as fixed assets. Likely the
+      largest of the six by scope, and the P&L already has a documented
+      gap waiting on it ("no COGS/gross-margin subtotal" on
+      `/accounting/profit-loss`, US-ACC-038's status block). Phased per
+      the gap analysis: *Phase 1* — product/SKU master data,
+      quantity-on-hand, stock adjustments, low-stock alerts, average-cost
+      COGS, valuation reports; *Phase 2* — multi-location/warehouse,
+      FIFO/LIFO costing, serial/lot tracking, barcode scanning, kitting,
+      landed cost, stock transfers.
 - [ ] Budgeting (GL-account-level, distinct from the existing
-      project/task `budget` field). §14.
-- [ ] Multi-entity / consolidation. §3.4.
-- [ ] Purchase orders & three-way match. US-ACC-021 (procurement half).
+      project/task `budget` field, which is scoped to those tables and
+      does not roll up through the chart of accounts). §14;
+      `accounting-gap-analysis.md` Enhancement #6. No GL-account-level
+      budget table, comparison report, or variance test exists at all.
+      Scope: annual/department/project budgets by account, budget-vs-
+      actual reporting, variance analysis ($/%), budget alerts, approval
+      workflow, rolling forecasts.
+- [ ] Multi-entity / consolidation. §3.4; `accounting-gap-analysis.md`
+      Enhancement #13. Kaaj is single-entity-per-tenant today — no schema,
+      code, or test. Scope: multiple legal entities per tenant,
+      consolidated reporting, inter-company transactions, elimination
+      entries, entity-specific tax settings/COA/permissions. Likely the
+      most architecturally invasive item on this list — it may touch the
+      tenancy model itself (`tenant_id` currently maps to one entity), not
+      just the accounting module, and probably needs a design discussion
+      before any code.
+- [ ] Purchase orders & three-way match. US-ACC-021 (procurement half);
+      `19-accounting-test-plan.md` §2.2 ("no purchase-order feature
+      exists at all"); `accounting-gap-analysis.md` Gap #5. Bills can
+      already be entered manually (`/accounting/bills/new`, done), but
+      there is no PO concept anywhere — no table, no vendor-facing send,
+      no receipt tracking. Scope: PO lifecycle (create → send to vendor →
+      track status draft/sent/acknowledged/partial/completed/cancelled →
+      convert to bill on receipt), three-way match (PO ↔ receipt ↔ bill)
+      with tolerance rules (±5% quantity, ±2% price) and auto-match within
+      tolerance, amount-based PO approval workflow. Distinct from
+      US-ACC-021's still-open drag-and-drop file upload for bill entry
+      (`bills.file_url` unused) and US-ACC-022's OCR
+      (`bills.ocr_processed`/`ocr_data` unused) — those are smaller,
+      Tier-10-adjacent gaps on the *existing* bill-entry flow, not part of
+      building POs.
 
 ### Tier 10 — Polish
 
-- [ ] PDF generation + company branding on invoices. US-ACC-001, US-ACC-008.
+- [ ] PDF generation + company branding on invoices. US-ACC-001,
+      US-ACC-008. `invoices.pdf_url` is an unused column; no
+      PDF-generation or email-sending code exists for invoices anywhere.
+      Company branding (logo, colors on the generated document) has no
+      storage or rendering path today either.
 - [ ] Online payment links (Stripe/PayPal) on customer invoices — distinct
       from Kaaj's existing Stripe integration, which is wired only to its
-      own SaaS subscription billing. US-ACC-002.
-- [ ] Report export (Excel/PDF). US-ACC-045.
+      own SaaS subscription billing (`(admin)/account/billing`). US-ACC-002.
+      `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` are
+      schema columns `issueInvoice` never writes to.
+- [ ] Report export (Excel/PDF). US-ACC-045. No export path exists on any
+      report page — confirmed by `19-accounting-test-plan.md` §15
+      (`grep -rln "csv\|CSV\|pdf\|PDF"` under
+      `apps/web/src/routes/(app)/accounting/` returns nothing).
 - [ ] Central document management for financial records. Gap #11 in
-      `accounting-gap-analysis.md`.
+      `accounting-gap-analysis.md`. Today, documents attach only to
+      specific records (invoices, bills) — no central repository, no
+      cross-record document search, no expiration tracking. Scope per the
+      gap analysis: a central document library (folders, tags, full-text
+      search, OCR), version control, expiration/renewal tracking,
+      per-document access control, and an audit trail of who
+      viewed/downloaded each one.
 
 ---
 
