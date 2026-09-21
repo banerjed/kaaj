@@ -78,6 +78,7 @@ export const actions: Actions = {
     })
     const paymentTerms = f.text("payment_terms", { max: 50 })
     const notes = f.text("notes", { max: 2000 })
+    const footerText = f.text("footer_text", { max: 500 })
 
     // Read every field BEFORE the `!f.ok` gate (L33/L68) — including every
     // row, so a row that fails validation is reported, not silently dropped.
@@ -147,6 +148,7 @@ export const actions: Actions = {
             exchangeRate: exchangeRate!,
             paymentTerms,
             notes,
+            footerText,
             lines,
           },
           ctx!.employeeId ?? ctx!.userId,

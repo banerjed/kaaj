@@ -155,6 +155,23 @@
             maxlength="2000"
             rows="2"
           ></textarea>
+          <p class="text-base-content/70 mt-1 text-xs">
+            Printed on the invoice PDF — visible to the customer.
+          </p>
+        </fieldset>
+
+        <fieldset class="fieldset mt-2">
+          <legend class="fieldset-legend">Footer text</legend>
+          <input
+            name="footer_text"
+            class={`input w-full ${err.input("footer_text")}`}
+            aria-invalid={err.aria("footer_text")}
+            placeholder="Thank you for your business."
+            maxlength="500"
+          />
+          <p class="text-base-content/70 mt-1 text-xs">
+            Printed at the bottom of the invoice PDF.
+          </p>
         </fieldset>
       </div>
     </div>

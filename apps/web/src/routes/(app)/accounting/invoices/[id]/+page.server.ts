@@ -2,12 +2,16 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as acc from "$lib/server/accounting/accounting.repo"
 import { AccountingRefused } from "$lib/server/accounting/accounting.repo"
+import { renderInvoicePdf } from "$lib/server/accounting/invoice_pdf"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { sendTemplatedEmail } from "$lib/mailer"
+import { money, calendarDate, localeForCurrency } from "$lib/format"
+import { env } from "$env/dynamic/private"
 
 /** The `payment_method` enum, which `enumValue` reads from @kaaj/enums. */
 const METHODS = [
@@ -116,6 +120,11 @@ function refusal(e: AccountingRefused) {
       return {
         message:
           "This customer is tax-exempt as of the invoice date. Remove the tax amount from every line before issuing, or edit the date if the exemption has since expired.",
+        errorFields: ["invoice"],
+      }
+    case "too_many_lines":
+      return {
+        message: `This invoice has ${e.detail} lines — too many for a PDF.`,
         errorFields: ["invoice"],
       }
     default:
@@ -377,5 +386,106 @@ export const actions: Actions = {
       if (e instanceof AccountingRefused) return fail(400, refusal(e))
       throw e
     }
+  },
+
+  emailInvoice: async ({ locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "accounting.write")
+
+    type Refusal = { message: string; errorFields: string[] }
+
+    // Read-only lookup, its own short transaction: the PDF render below is
+    // CPU work and the logo download and email send are network calls, none
+    // of which should hold a Postgres transaction open while they run.
+    let data: acc.InvoiceForPdf
+    let locale: string
+    try {
+      ;[data, locale] = await withTenant(
+        actorFrom(locals),
+        async (tx): Promise<[acc.InvoiceForPdf, string]> => {
+          const invoiceData = await acc.invoiceForPdf(tx, params.id)
+          const [tenant, locations] = await Promise.all([
+            tx<{ default_locale: string }[]>`
+            SELECT default_locale FROM tenants WHERE id = ${locals.tenantId}::uuid
+          `,
+            locationsRepo.list(tx),
+          ])
+          return [
+            invoiceData,
+            localeForCurrency(
+              locations,
+              invoiceData.currency,
+              tenant[0]?.default_locale ?? "en-US",
+            ),
+          ]
+        },
+      )
+    } catch (e) {
+      if (e instanceof AccountingRefused) return fail(400, refusal(e))
+      throw e
+    }
+
+    // The UI's own "may.email" gate already excludes drafts — checked again
+    // here since a client-side gate is never the real boundary. A draft has
+    // nothing posted yet; emailing it would hand a customer a document that
+    // isn't actually owed.
+    if (data.status === "draft") {
+      return fail(400, {
+        message: "A draft invoice has not been issued yet — issue it first.",
+        errorFields: ["invoice"],
+      } satisfies Refusal)
+    }
+    if (!data.customer_email) {
+      return fail(400, {
+        message:
+          "This customer has no email on file. Add one before emailing an invoice.",
+        errorFields: ["invoice"],
+      } satisfies Refusal)
+    }
+
+    let logoBytes: Buffer | null = null
+    if (data.company_logo_storage_key) {
+      const { data: logo } = await locals.supabase.storage
+        .from("tenant-logos")
+        .download(data.company_logo_storage_key)
+      if (logo) logoBytes = Buffer.from(await logo.arrayBuffer())
+    }
+    const pdf = await renderInvoicePdf(data, logoBytes)
+
+    const senderAddress =
+      env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL
+    const result = await sendTemplatedEmail({
+      subject: `Invoice ${data.invoice_number} from ${data.company_name}`,
+      to_emails: [data.customer_email],
+      from_email: `${data.company_name} <${senderAddress}>`,
+      template_name: "invoice_email",
+      template_properties: {
+        invoiceNumber: data.invoice_number,
+        firmName: data.company_name,
+        amountDue: money(data.amount_due, data.currency, locale),
+        dueDate: data.due_date ? calendarDate(data.due_date, locale) : "",
+      },
+      attachments: [{ filename: `${data.invoice_number}.pdf`, content: pdf }],
+    })
+    if (!result.sent) {
+      return fail(400, {
+        message: `Could not send the email (${result.reason}).`,
+        errorFields: [],
+      } satisfies Refusal)
+    }
+
+    await withTenant(actorFrom(locals), async (tx) => {
+      await audit.record(tx, ctx!, {
+        action: "update",
+        entityType: "invoices",
+        entityId: params.id,
+        module: "accounting",
+        changes: {
+          emailed_to: { from: null, to: data.customer_email },
+        },
+      })
+    })
+    return { emailSent: data.customer_email }
   },
 }

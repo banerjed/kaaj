@@ -219,6 +219,98 @@ export async function countInvoiceLines(
   return n
 }
 
+export type InvoiceForPdf = {
+  id: string
+  invoice_number: string
+  reference: string | null
+  invoice_date: string
+  due_date: string | null
+  currency: string
+  subtotal: string
+  tax_total: string
+  total: string
+  amount_paid: string
+  amount_credited: string
+  amount_due: string
+  status: string
+  payment_terms: string | null
+  notes: string | null
+  footer_text: string | null
+  customer_name: string
+  customer_email: string | null
+  customer_billing_address: Record<string, string> | null
+  customer_tax_number: string | null
+  company_name: string
+  company_logo_storage_key: string | null
+  company_address_line1: string | null
+  company_address_line2: string | null
+  company_city: string | null
+  company_state: string | null
+  company_postal_code: string | null
+  company_country: string | null
+  company_phone: string | null
+  company_email: string | null
+  lines: InvoiceLine[]
+}
+
+/**
+ * Everything a PDF template needs, in one call — deliberately NOT a reuse of
+ * `INVOICE_SELECT`/`invoiceById`, which is built for the admin screen and is
+ * missing half of what a real document needs (customer email/address/tax
+ * number, the invoice's own reference/terms/notes/footer). Refuses past
+ * `DOCUMENT_CHILD_CAP` rather than rendering a silently truncated document —
+ * a screen can report the true count alongside a capped list; a PDF has no
+ * such caveat space.
+ */
+export async function invoiceForPdf(
+  tx: Tx,
+  invoiceId: string,
+): Promise<InvoiceForPdf> {
+  const [row] = await tx<Omit<InvoiceForPdf, "lines">[]>`
+    SELECT i.id, i.invoice_number, i.reference,
+           to_char(i.invoice_date,'YYYY-MM-DD') AS invoice_date,
+           to_char(i.due_date,'YYYY-MM-DD')     AS due_date,
+           i.currency,
+           i.subtotal::text AS subtotal,
+           i.tax_total::text AS tax_total,
+           i.total::text AS total,
+           i.amount_paid::text AS amount_paid,
+           i.amount_credited::text AS amount_credited,
+           i.amount_due::text AS amount_due,
+           i.status,
+           i.payment_terms, i.notes, i.footer_text,
+           c.customer_name,
+           c.email AS customer_email,
+           c.billing_address AS customer_billing_address,
+           c.tax_number AS customer_tax_number,
+           t.company_name,
+           t.logo_storage_key AS company_logo_storage_key,
+           hq.address_line1 AS company_address_line1,
+           hq.address_line2 AS company_address_line2,
+           hq.city AS company_city,
+           hq.state AS company_state,
+           hq.postal_code AS company_postal_code,
+           hq.country AS company_country,
+           hq.phone AS company_phone,
+           hq.email AS company_email
+      FROM invoices i
+      JOIN customers c ON c.id = i.customer_id
+      JOIN tenants t ON t.id = i.tenant_id
+      LEFT JOIN firm_locations hq
+             ON hq.tenant_id = i.tenant_id AND hq.is_headquarters
+     WHERE i.id = ${invoiceId}::uuid
+  `
+  if (!row) throw new AccountingRefused("no_such_invoice")
+
+  const lineCount = await countInvoiceLines(tx, invoiceId)
+  if (lineCount > DOCUMENT_CHILD_CAP) {
+    throw new AccountingRefused("too_many_lines", String(lineCount))
+  }
+
+  const lines = await invoiceLines(tx, invoiceId)
+  return { ...row, lines }
+}
+
 /**
  * One payment as it applies to a single invoice or bill — shared by
  * `paymentsFor()` here and `paymentsForBill()` in `payables.repo.ts`,
@@ -1856,7 +1948,11 @@ export class AccountingRefused extends Error {
       // An accrual's period has no successor to reverse into — kept distinct
       // from no_such_period so the message doesn't describe the wrong problem
       // (a missing period vs. a real, terminal one) from the same detail shape.
-      | "no_next_period",
+      | "no_next_period"
+      // A PDF is one document, unlike the screen's paginated-with-caveat
+      // list — refused outright past DOCUMENT_CHILD_CAP rather than
+      // silently rendering a truncated invoice (US-ACC-001).
+      | "too_many_lines",
     readonly detail?: string,
   ) {
     super(reason)
@@ -2289,6 +2385,7 @@ export async function createInvoice(
     exchangeRate: string
     paymentTerms: string | null
     notes: string | null
+    footerText: string | null
     lines: NewInvoiceLine[]
     /** Set only when this draft is generated FROM a recurring schedule
      *  (US-ACC-004) — absent for the manual create-invoice form. */
@@ -2352,7 +2449,7 @@ export async function createInvoice(
           subtotal, tax_total, total, amount_paid, amount_due,
           base_subtotal, base_tax_total, base_total,
           base_amount_paid, base_amount_due,
-          payment_terms, notes, status, created_by,
+          payment_terms, notes, footer_text, status, created_by,
           is_recurring, recurring_schedule_id
         ) VALUES (
           ${tenantId}::uuid, ${input.customerId}::uuid, ${invoiceNumber},
@@ -2360,7 +2457,7 @@ export async function createInvoice(
           ${customer.currency}, ${input.exchangeRate}::numeric, ${baseCurrency},
           0, 0, 0, 0, 0,
           0, 0, 0, 0, 0,
-          ${input.paymentTerms}, ${input.notes}, 'draft', ${actorId}::uuid,
+          ${input.paymentTerms}, ${input.notes}, ${input.footerText}, 'draft', ${actorId}::uuid,
           ${input.recurringScheduleId !== undefined},
           ${input.recurringScheduleId ?? null}::uuid
         )
@@ -2488,10 +2585,14 @@ export async function issueInvoice(
     actorId,
   )
 
+  // The route that actually renders the invoice, live, on every request —
+  // never a stored file (see invoice_pdf's own reasoning). A draft has no
+  // pdf_url: there is nothing yet worth handing to a customer.
   await tx`
     UPDATE invoices
        SET status = 'sent', sent_at = now(),
            journal_entry_id = ${entryId}::uuid,
+           pdf_url = '/accounting/invoices/' || id || '/pdf',
            updated_at = now(), updated_by = ${actorId}::uuid
      WHERE id = ${invoiceId}::uuid
   `
@@ -3446,6 +3547,7 @@ export async function generateDueInvoices(
           exchangeRate: s.exchange_rate,
           paymentTerms: s.payment_terms,
           notes: null,
+          footerText: null,
           lines: s.template_lines,
           recurringScheduleId: s.id,
         },

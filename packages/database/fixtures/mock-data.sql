@@ -750,13 +750,40 @@ UPDATE invoices SET
     payment_gateway_id = 'gw_' || lower(replace(invoice_number, '-', '_')),
     footer_text = 'Thank you for your business.',
     tracking_categories = '{"segment": "professional_services"}'::jsonb,
-    pdf_url = '/storage/invoices/' || invoice_number || '.pdf',
+    pdf_url = '/accounting/invoices/' || id || '/pdf',
     sent_at = invoice_date::timestamptz + INTERVAL '1 hour',
     viewed_at = invoice_date::timestamptz + INTERVAL '2 days',
     paid_at = CASE WHEN status='paid' THEN invoice_date::timestamptz + INTERVAL '1 day' ELSE NULL END,
     is_recurring = CASE WHEN invoice_number='INV-2026-005' THEN TRUE ELSE is_recurring END,
-    recurring_schedule_id = CASE WHEN invoice_number='INV-2026-005' THEN '4d83e8af-2f37-52ff-8971-5e10e9e651b9'::uuid ELSE recurring_schedule_id END
+    recurring_schedule_id = CASE WHEN invoice_number='INV-2026-005' THEN '4d83e8af-2f37-52ff-8971-5e10e9e651b9'::uuid ELSE recurring_schedule_id END,
+    -- Replaces the generic completeness-sweep filler below (L89): both
+    -- columns went unread by any feature until the invoice PDF became the
+    -- first reader, at which point placeholder text would have rendered
+    -- onto a real customer-facing document.
+    reference = CASE invoice_number
+        WHEN 'INV-2026-001' THEN 'PO-ACME-4471'
+        WHEN 'INV-2026-002' THEN 'PO-BRIT-1032'
+        WHEN 'INV-2026-004' THEN 'PO-ACME-4502'
+        WHEN 'INV-2026-005' THEN 'PO-ACME-4519'
+        ELSE reference
+    END,
+    notes = CASE invoice_number
+        WHEN 'INV-2026-001' THEN 'Discovery workshops and data mapping, per SOW dated 2026-01-10.'
+        WHEN 'INV-2026-002' THEN 'Q1 retail systems integration, milestone 2 of 3.'
+        WHEN 'INV-2026-004' THEN 'Cloud hosting and support, February.'
+        WHEN 'INV-2026-005' THEN 'Monthly subscription support — recurring.'
+        ELSE notes
+    END
 WHERE invoice_number IN ('INV-2026-001','INV-2026-002','INV-2026-004','INV-2026-005');
+
+-- INV-2026-003 (Helios, draft) is outside the block above — still owed a
+-- real value, not the same generic filler (L89).
+UPDATE invoices SET
+    reference = 'PO-HEL-2201',
+    -- Customer-facing, like every other invoice's notes column — the PDF
+    -- renders this verbatim once issued.
+    notes = 'Solar array maintenance, Q1 service window.'
+WHERE invoice_number = 'INV-2026-003';
 
 -- Journal entries
 INSERT INTO journal_entries (id, tenant_id, entry_number, entry_date, description, source_type, status, accounting_period, fiscal_year, posted_at) VALUES

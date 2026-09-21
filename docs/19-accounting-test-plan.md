@@ -401,13 +401,16 @@ chart of accounts — and does not roll up through the COA.
 
 ---
 
-## 15. Import, Export & Integration Correctness — **[MISSING]**, entirely
+## 15. Import, Export & Integration Correctness — **[MISSING]**, mostly
 No bulk-import path for opening balances or historical transactions, no
-export-then-reimport round-trip test, and no payment-gateway integration on
-the AR side — confirmed directly: `grep -rln "csv\|CSV\|pdf\|PDF"` under
-`apps/web/src/routes/(app)/accounting/` returns nothing. Stripe exists only
-under `(admin)/account/billing` for Kaaj's own SaaS subscription billing,
-unrelated to customer invoicing.
+export-then-reimport round-trip test, no report export (Excel/PDF, US-ACC-045
+— Tier 10, still open), and no payment-gateway integration on the AR side.
+Stripe exists only under `(admin)/account/billing` for Kaaj's own SaaS
+subscription billing, unrelated to customer invoicing. The one exception:
+a single invoice now has a real PDF generation path (US-ACC-001,
+2026-09-21, `/accounting/invoices/[id]/pdf`) — a different feature from the
+bulk export/import this section is about, but it means a `grep` for `pdf`
+under `apps/web/src/routes/(app)/accounting/` no longer returns nothing.
 
 ---
 

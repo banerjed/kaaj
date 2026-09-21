@@ -30,6 +30,10 @@
     writeOff:
       data.mayWrite &&
       ["sent", "partial", "overdue"].includes(data.invoice.status ?? ""),
+    // A draft has nothing worth handing to a customer yet — matches
+    // issueInvoice's own gate on when pdf_url gets set.
+    pdf: data.invoice.status !== "draft",
+    email: data.mayWrite && data.invoice.status !== "draft",
   })
 
   /** `invoice_credits.credit_type` — a plain vocabulary column (L57); the
@@ -88,6 +92,11 @@
           " ",
         )}.</span
       >
+    </div>
+  {:else if form?.emailSent}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Emailed to {form.emailSent}.</span>
     </div>
   {:else if form?.message}
     <div role="alert" class="alert alert-error mt-4">
@@ -285,7 +294,7 @@
   {/if}
 
   <!-- Each posts a balanced journal entry; POST only, never a link. -->
-  {#if may.issue || may.pay || may.credit || may.writeOff || may.void}
+  {#if may.issue || may.pay || may.credit || may.writeOff || may.void || may.pdf || may.email}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {#if may.issue}
         <form method="POST" action="?/issue">
@@ -328,6 +337,25 @@
           <span class="iconify lucide--file-x size-4"></span>
           Write off
         </button>
+      {/if}
+      {#if may.pdf}
+        <a
+          href="/accounting/invoices/{data.invoice.id}/pdf"
+          target="_blank"
+          rel="noopener"
+          class="btn btn-outline btn-sm"
+        >
+          <span class="iconify lucide--file-text size-4"></span>
+          Download PDF
+        </a>
+      {/if}
+      {#if may.email}
+        <form method="POST" action="?/emailInvoice" use:enhance>
+          <button class="btn btn-outline btn-sm">
+            <span class="iconify lucide--mail size-4"></span>
+            Email invoice
+          </button>
+        </form>
       {/if}
       {#if may.void}
         <button

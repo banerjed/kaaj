@@ -100,18 +100,25 @@ export type SendEmailResult =
   | { sent: true }
   | { sent: false; reason: "not_configured" | "no_body" | "send_failed" }
 
+export type EmailAttachment = {
+  filename: string
+  content: Buffer
+}
+
 export const sendTemplatedEmail = async ({
   subject,
   to_emails,
   from_email,
   template_name,
   template_properties,
+  attachments,
 }: {
   subject: string
   to_emails: string[]
   from_email: string
   template_name: string
   template_properties: Record<string, string>
+  attachments?: EmailAttachment[]
 }): Promise<SendEmailResult> => {
   if (!env.PRIVATE_RESEND_API_KEY) {
     // Email is optional; no error if unconfigured.
@@ -162,6 +169,12 @@ export const sendTemplatedEmail = async ({
     }
     if (htmlBody) {
       email.html = htmlBody
+    }
+    if (attachments && attachments.length > 0) {
+      email.attachments = attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }))
     }
     const resend = new Resend(env.PRIVATE_RESEND_API_KEY)
     const resp = await resend.emails.send(email)

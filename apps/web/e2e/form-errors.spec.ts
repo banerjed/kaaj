@@ -1051,3 +1051,18 @@ test("uploading a non-image file as a company logo is refused, not silently acce
   expect(result.status).toBe(400)
   expect(result.raw).toMatch(/PNG or JPEG/i)
 })
+
+test("emailing a draft invoice is refused, not silently sent", async ({
+  page,
+}) => {
+  // Read-only: INV-2026-003 is the fixture's one draft invoice — nothing
+  // has been issued yet, so emailInvoice's own status check refuses before
+  // ever reaching invoiceForPdf's render step or a real send attempt.
+  const response = await page.request.post(
+    "/accounting/invoices/bee0d3ca-72f7-5ba2-9a31-3bbf17daf320?/emailInvoice",
+    { form: {} },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+  expect(result.raw).toMatch(/draft/i)
+})

@@ -2,8 +2,9 @@
 
 **Version:** 2.28
 **Last Updated:** September 14, 2026
-**Status:** Draft 
+**Status:** Draft
 **Parent Documents:**
+
 - [Product Specification](./product-specification.md)
 - [Technical Architecture](./architecture-technical.md)
 
@@ -31,10 +32,13 @@
 ## Module Overview
 
 ### Purpose
+
 The Accounting module provides comprehensive financial management capabilities for small to medium-sized businesses. Based on leading cloud accounting software like Xero, it manages the complete financial lifecycle including invoicing, expense tracking, bill payment, bank reconciliation, and financial reporting with full multi-currency and internationalization support.
 
 ### Scope
+
 This module handles:
+
 - **Invoicing & Billing**: Professional branded invoices, automated reminders, online payments
 - **Expense Management**: Receipt capture, categorization, employee reimbursements
 - **Accounts Receivable (AR)**: Customer management, payment tracking, aging reports
@@ -46,6 +50,7 @@ This module handles:
 - **Tax Management**: Sales tax, VAT, GST calculations and reporting
 
 ### Module Dependencies
+
 - **Consumes**:
   - Firm Profile Module (locations, departments, currencies)
   - HR Module (employee data for expense reimbursements)
@@ -58,6 +63,7 @@ This module handles:
   - Business Intelligence/Reporting
 
 ### Key Benefits
+
 1. **Real-Time Financial Visibility**: Up-to-date financial data accessible anywhere
 2. **Automated Workflows**: Reduce manual data entry with automation
 3. **Multi-Currency Support**: Handle international transactions seamlessly
@@ -72,28 +78,31 @@ This module handles:
 ### Multi-Tenant Architecture
 
 **Tenant Scoping**:
+
 - All financial data strictly isolated per tenant
 - Complete separation of chart of accounts across tenants
 - No cross-tenant financial data visible
 - Tenant-specific currency and tax configurations
 
 **Tenant Context**:
+
 ```typescript
 interface AccountingTenantContext {
-  tenantId: string;
-  baseCurrency: string;           // Tenant's primary currency (USD, EUR, etc.)
-  enabledCurrencies: string[];    // Additional currencies enabled
-  fiscalYearStart: string;        // MM-DD format (e.g., "01-01", "04-01")
-  taxSystem: string;              // "sales_tax", "vat", "gst", "none"
-  accountingMethod: string;       // "accrual" or "cash"
-  locale: string;                 // For number/date formatting
-  timezone: string;               // For date calculations
+  tenantId: string
+  baseCurrency: string // Tenant's primary currency (USD, EUR, etc.)
+  enabledCurrencies: string[] // Additional currencies enabled
+  fiscalYearStart: string // MM-DD format (e.g., "01-01", "04-01")
+  taxSystem: string // "sales_tax", "vat", "gst", "none"
+  accountingMethod: string // "accrual" or "cash"
+  locale: string // For number/date formatting
+  timezone: string // For date calculations
 }
 ```
 
 ### Internationalization Support
 
 **Multi-Currency Operations**:
+
 - Support 5 currencies (USD, EUR, CAD, GBP, INR)
 - Automatic daily exchange rate updates
 - Base currency for reporting
@@ -102,18 +111,21 @@ interface AccountingTenantContext {
 - Realized/unrealized gains and losses tracking
 
 **Localized Financial Reporting**:
+
 - Number formatting per locale (1,234.56 vs 1.234,56)
 - Currency symbol placement
 - Date format preferences
 - Localized report templates
 
 **Tax Localization**:
+
 - US: Sales tax by state/locality
 - EU: VAT with reverse charge
 - Canada: GST/HST/PST
 - UK: VAT with Making Tax Digital (MTD) support
 
 **Multilingual Support**:
+
 ```json
 {
   "invoice_title_i18n": {
@@ -131,6 +143,7 @@ interface AccountingTenantContext {
 ```
 
 **Timezone Handling**:
+
 - Invoice dates in tenant timezone
 - Payment due dates timezone-aware
 - Report date ranges respect fiscal calendar
@@ -149,34 +162,34 @@ the same verdicts at user-story grain.
 ### Invoice Management
 
 **US-ACC-001**: As a Business Owner, I want to create professional invoices with my company branding, so that I can bill customers quickly and maintain brand consistency.
-*Status: **PARTIAL** (updated 2026-09-21). `/accounting/invoices/new` now creates a real draft invoice with line items — `createInvoice()` in `accounting.repo.ts`, tested in `receivables.writes.test.ts`. Company branding infrastructure now exists: `/settings/company`'s new "Logo" card uploads a PNG/JPEG to a private, tenant-isolated Supabase Storage bucket (`tenant-logos`, `20260921030000_add_tenant_logo_storage.sql`) — `tenants.logo_storage_key` records the object, at a fixed per-tenant key (`<tenant_id>/logo`, always upserted, so a re-upload in a different format never leaves a stale second file). Storage RLS — not just the app's own `tenant.settings.write` gate — is the real isolation boundary here, mirroring every other tenant_isolation policy in this schema (`app.current_tenant_id()`), and was verified against the real local storage-api service before being trusted: same-tenant upload/read succeed, a cross-tenant write is rejected with a genuine RLS violation, and a cross-tenant read reports not-found rather than the content. Tested end-to-end against the real Storage service in `settings/company/logo.server.test.ts` (upload, overwrite-in-place, removal, and both cross-tenant negative cases), plus a read-only e2e refusal case for a non-image upload. Still **MISSING**: the PDF/template output itself that would actually render this branding (see US-ACC-008, still MISSING) — this pass built the branding ASSET, not the document. "Quickly" is a fair description of the create form itself; the promised output document does not exist yet.*
+_Status: **DONE** (2026-09-21). `/accounting/invoices/new` creates a real draft invoice with line items — `createInvoice()` in `accounting.repo.ts` — and once issued, `/accounting/invoices/[id]/pdf` renders it as a real branded PDF on every request, live from the ledger's own current figures (never a stored file — a stored PDF would go stale the moment a payment or credit posts, the same L58 reasoning behind a recomputed counter over an incremented one). Branding is the tenant's company name/address (from `firm_locations`' headquarters row) and an optional logo uploaded via `/settings/company`'s "Logo" card to a private, tenant-isolated Supabase Storage bucket (`tenant-logos`, `20260921030000_add_tenant_logo_storage.sql`) — `tenants.logo_storage_key` records the object at a fixed per-tenant key (`<tenant_id>/logo`, always upserted, so a re-upload in a different format never leaves a stale second file). Storage RLS — not just the app's own `tenant.settings.write` gate — is the real isolation boundary, mirroring every other tenant_isolation policy in this schema (`app.current_tenant_id()`), and was verified against the real local storage-api service before being trusted: same-tenant upload/read succeed, a cross-tenant write is rejected with a genuine RLS violation, a cross-tenant read reports not-found rather than the content. `invoiceForPdf()` assembles the fuller data a document needs (customer email/address/tax number, reference, payment terms, notes, footer) that the admin screen's own `INVOICE_SELECT` never needed — refuses outright (`too_many_lines`) past `DOCUMENT_CHILD_CAP` (500) rather than rendering a silently truncated document. `invoices.notes` is now customer-facing — it renders verbatim on the PDF — not an internal comment field, the create form's hint says so, and this is the field's one meaning; nothing on this invoice carries a second, internal-only note. `issueInvoice` sets `pdf_url` to this route at issuance (a draft has nothing yet worth handing anyone); an unreadable/corrupted logo degrades to no logo rather than a failed render. Built on `pdfkit`, the first PDF-generation dependency in this codebase. Tested in `accounting.writes.test.ts` (`invoiceForPdf` data assembly and the line-cap refusal), `invoice_pdf.test.ts` (real PDF magic bytes, and rendered content asserted by decoding the hex-encoded glyph runs pdfkit actually emits — a raw-text search doesn't work against its output even uncompressed), `settings/company/logo.server.test.ts` (upload, overwrite-in-place, removal, both cross-tenant negatives, a magic-byte-vs-declared-MIME-type mismatch), plus a read-only e2e refusal for a non-image logo upload. Live-verified in a real browser (upload a logo, download a real PDF, confirm layout) — caught and fixed two real bugs this way: a layout bug (the Notes section inherited the totals table's x-position instead of the left margin) and a data bug recorded as [L89](10-lessons-learned.md) — `invoices.reference`/`notes` still carried the fixture's generic "no empty column" placeholder text, invisible until this PDF became the first real reader of either column._
 
 **US-ACC-002**: As an Accountant, I want to send invoices with online payment links (Stripe, PayPal), so that customers can pay immediately and improve cash flow.
-*Status: **MISSING**. `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` are schema columns `issueInvoice` never writes to. Stripe integration in this codebase is wired only to Kaaj's own SaaS subscription billing (`(admin)/account/billing`), not customer invoicing.*
+_Status: **MISSING**. `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` are schema columns `issueInvoice` never writes to. Stripe integration in this codebase is wired only to Kaaj's own SaaS subscription billing (`(admin)/account/billing`), not customer invoicing._
 
 **US-ACC-003**: As a Sales Manager, I want to set up automated payment reminders for overdue invoices, so that I reduce manual follow-up work.
-*Status: **PARTIAL** (2026-09-20). The story is two things — "set up" (a configured cadence) and "automated" (a schedule) — and this ships neither: `/accounting/invoices` (filtered to overdue) gets checkboxes and a "Send reminders" action, `invoicesForReminder()`/`recordRemindersSent()` in `accounting.repo.ts`. No scheduler exists in this codebase (same precedent as the Tier 7 exchange-rate refresh and the reconciliation rules' "apply now" action), so it is select-and-send on demand, not a configured reminder policy running on its own. What would make it DONE: a reminder cadence per customer/invoice-age and a schedule to run it. Best-effort per invoice rather than all-or-nothing like a batch payment — a missing customer email or an invoice already reminded today (`invoices.last_reminded_at`) is skipped and reported, not a reason to block the reminders that can go out; a genuinely unknown/ineligible invoice id still refuses the whole submission (`no_such_invoice`/`duplicate_invoice`), since that can only mean a stale or tampered selection. `last_reminded_at` is set only for invoices `sendTemplatedEmail()` confirms were actually dispatched — sent-then-recorded, so a rollback after some sends go out risks a duplicate reminder on the next run rather than a suppressed one, a deliberate tradeoff (an atomic version isn't possible once an external send is involved). `mailer.ts`'s `sendTemplatedEmail()` now returns a real `{sent, reason}` result instead of `void`, so a caller that needs to know whether an email actually went out can tell "Resend rejected it" from "no API key in this environment" — the latter is what this codebase's own dev/CI environment reports, since no `PRIVATE_RESEND_API_KEY` is configured there; verified live via that exact honest "not configured" report, and via the `already reminded today` skip. This is the first tenant-to-customer email in the accounting module (no PDF attachment — that's US-ACC-008, separately MISSING); it goes out from the platform's own shared address with the firm's name as the display name, since no per-tenant verified sending domain exists. Tested in `receivables.writes.test.ts` ("payment reminders (US-ACC-003)") against the real database, `mailer.test.ts` for the template/send-result behavior (real sends aren't exercised in tests or in this environment), plus a form-errors e2e case.*
+_Status: **PARTIAL** (2026-09-20). The story is two things — "set up" (a configured cadence) and "automated" (a schedule) — and this ships neither: `/accounting/invoices` (filtered to overdue) gets checkboxes and a "Send reminders" action, `invoicesForReminder()`/`recordRemindersSent()` in `accounting.repo.ts`. No scheduler exists in this codebase (same precedent as the Tier 7 exchange-rate refresh and the reconciliation rules' "apply now" action), so it is select-and-send on demand, not a configured reminder policy running on its own. What would make it DONE: a reminder cadence per customer/invoice-age and a schedule to run it. Best-effort per invoice rather than all-or-nothing like a batch payment — a missing customer email or an invoice already reminded today (`invoices.last_reminded_at`) is skipped and reported, not a reason to block the reminders that can go out; a genuinely unknown/ineligible invoice id still refuses the whole submission (`no_such_invoice`/`duplicate_invoice`), since that can only mean a stale or tampered selection. `last_reminded_at` is set only for invoices `sendTemplatedEmail()` confirms were actually dispatched — sent-then-recorded, so a rollback after some sends go out risks a duplicate reminder on the next run rather than a suppressed one, a deliberate tradeoff (an atomic version isn't possible once an external send is involved). `mailer.ts`'s `sendTemplatedEmail()` now returns a real `{sent, reason}` result instead of `void`, so a caller that needs to know whether an email actually went out can tell "Resend rejected it" from "no API key in this environment" — the latter is what this codebase's own dev/CI environment reports, since no `PRIVATE_RESEND_API_KEY` is configured there; verified live via that exact honest "not configured" report, and via the `already reminded today` skip. This is the first tenant-to-customer email in the accounting module (no PDF attachment — that's US-ACC-008, separately MISSING); it goes out from the platform's own shared address with the firm's name as the display name, since no per-tenant verified sending domain exists. Tested in `receivables.writes.test.ts` ("payment reminders (US-ACC-003)") against the real database, `mailer.test.ts` for the template/send-result behavior (real sends aren't exercised in tests or in this environment), plus a form-errors e2e case._
 
 **US-ACC-004**: As a Business Owner, I want to create recurring invoices for subscription customers, so that billing is automated.
-*Status: **PARTIAL** (2026-09-20). Invoices-only — the story's "recurring invoices" half, not "recurring bills": `invoices` is the only table that had `is_recurring`/`recurring_schedule_id` columns to begin with, `bills` has no recurring columns at all, and adding them is separate, still-MISSING work. A new `recurring_schedules` table (customer, frequency, `next_run_date`, `due_in_days`, a fixed `exchange_rate`, and `template_lines` — the same shape as a `NewInvoiceLine[]`, stored via `tx.json()`) drives `/accounting/recurring-invoices`: create a schedule, activate/deactivate it, and a "Generate due invoices" button that creates one **draft** invoice per schedule due today or earlier via the same `createInvoice()` the manual form uses, then advances `next_run_date` by the schedule's frequency — same manual-trigger precedent as payment reminders and the reconciliation rules' apply-now action, no scheduler exists in this codebase. Unlike reminders, generation has no external dependency forcing a best-effort design: advancing the schedule and inserting its invoice are the same transaction, all-or-nothing, matching `payBillsInBatch`'s discipline rather than reminders' — a run cannot generate the same due schedule twice within itself or a strictly sequential re-run — proven by a test that calls `generateDueInvoices` twice back to back and gets an empty second result. Two truly CONCURRENT runs are not exercised by a test; the claim there rests on documented Postgres semantics instead — a blocked `SELECT ... FOR UPDATE` under READ COMMITTED re-checks its own WHERE clause against the row's post-commit state once unblocked (see `generateDueInvoices`'s own comment), so the second transaction's read should exclude a schedule the first already advanced past today. A monthly (or quarterly/annual) schedule anchored on a 29th/30th/31st drifts permanently once it crosses a shorter month — Postgres CLAMPS `date + interval` rather than overflowing, so Jan 31 → Feb 28 → Mar 28, never back to the 31st; tested and left as a known limitation, not fixed here (an anchor-day column would be the fix). One click generates ONE invoice per due schedule, not every period a schedule has fallen behind by — a schedule six months stale still shows a past `next_run_date` and stays due after the click, requiring six clicks to catch up, each billing exactly one owed period; defensible (no surprise bulk-billing on the first click after a long gap) but worth stating since "Generate due invoices" does not by itself say so. What would make it DONE: only a cron calling this same action on each schedule's `next_run_date` — there is no cadence-modeling gap left the way US-ACC-003 had, since the schedule itself already IS the cadence. Left as a draft for review, not auto-issued: the story is billing automation, not unattended revenue recognition. Tested in `receivables.writes.test.ts` ("recurring invoice schedules (US-ACC-004)") against the real database, including a regression test for a real bug caught live (see below), and verified live end-to-end (create, generate, idempotent sequential re-run, activate/deactivate). See [19-accounting-test-plan.md §11](19-accounting-test-plan.md) for the (separate) accruals/deferred-revenue gap this section also names.*
+_Status: **PARTIAL** (2026-09-20). Invoices-only — the story's "recurring invoices" half, not "recurring bills": `invoices` is the only table that had `is_recurring`/`recurring_schedule_id` columns to begin with, `bills` has no recurring columns at all, and adding them is separate, still-MISSING work. A new `recurring_schedules` table (customer, frequency, `next_run_date`, `due_in_days`, a fixed `exchange_rate`, and `template_lines` — the same shape as a `NewInvoiceLine[]`, stored via `tx.json()`) drives `/accounting/recurring-invoices`: create a schedule, activate/deactivate it, and a "Generate due invoices" button that creates one **draft** invoice per schedule due today or earlier via the same `createInvoice()` the manual form uses, then advances `next_run_date` by the schedule's frequency — same manual-trigger precedent as payment reminders and the reconciliation rules' apply-now action, no scheduler exists in this codebase. Unlike reminders, generation has no external dependency forcing a best-effort design: advancing the schedule and inserting its invoice are the same transaction, all-or-nothing, matching `payBillsInBatch`'s discipline rather than reminders' — a run cannot generate the same due schedule twice within itself or a strictly sequential re-run — proven by a test that calls `generateDueInvoices` twice back to back and gets an empty second result. Two truly CONCURRENT runs are not exercised by a test; the claim there rests on documented Postgres semantics instead — a blocked `SELECT ... FOR UPDATE` under READ COMMITTED re-checks its own WHERE clause against the row's post-commit state once unblocked (see `generateDueInvoices`'s own comment), so the second transaction's read should exclude a schedule the first already advanced past today. A monthly (or quarterly/annual) schedule anchored on a 29th/30th/31st drifts permanently once it crosses a shorter month — Postgres CLAMPS `date + interval` rather than overflowing, so Jan 31 → Feb 28 → Mar 28, never back to the 31st; tested and left as a known limitation, not fixed here (an anchor-day column would be the fix). One click generates ONE invoice per due schedule, not every period a schedule has fallen behind by — a schedule six months stale still shows a past `next_run_date` and stays due after the click, requiring six clicks to catch up, each billing exactly one owed period; defensible (no surprise bulk-billing on the first click after a long gap) but worth stating since "Generate due invoices" does not by itself say so. What would make it DONE: only a cron calling this same action on each schedule's `next_run_date` — there is no cadence-modeling gap left the way US-ACC-003 had, since the schedule itself already IS the cadence. Left as a draft for review, not auto-issued: the story is billing automation, not unattended revenue recognition. Tested in `receivables.writes.test.ts` ("recurring invoice schedules (US-ACC-004)") against the real database, including a regression test for a real bug caught live (see below), and verified live end-to-end (create, generate, idempotent sequential re-run, activate/deactivate). See [19-accounting-test-plan.md §11](19-accounting-test-plan.md) for the (separate) accruals/deferred-revenue gap this section also names._
 
-*A bug caught only by live verification, not by any test written first: the initial `createRecurringSchedule` wrote `template_lines` as `${JSON.stringify(input.lines)}::jsonb` — syntactically fine, and every unit test that only checked "did the insert throw" passed. Read back, the column held a JSON **string** containing the array's text, not the array itself, and `jsonb_array_length()` failed the moment anything (`listRecurringSchedules`, `generateDueInvoices`) actually read it. Fixed to `tx.json(input.lines)`, the same helper `ticketing.repo.ts` already uses for a JSONB write from a JS value. The regression test now asserts `jsonb_typeof(template_lines) = 'array'` after a create, not just that create didn't throw.*
+_A bug caught only by live verification, not by any test written first: the initial `createRecurringSchedule` wrote `template_lines` as `${JSON.stringify(input.lines)}::jsonb` — syntactically fine, and every unit test that only checked "did the insert throw" passed. Read back, the column held a JSON **string** containing the array's text, not the array itself, and `jsonb_array_length()` failed the moment anything (`listRecurringSchedules`, `generateDueInvoices`) actually read it. Fixed to `tx.json(input.lines)`, the same helper `ticketing.repo.ts` already uses for a JSONB write from a JS value. The regression test now asserts `jsonb_typeof(template_lines) = 'array'` after a create, not just that create didn't throw._
 
 **US-ACC-005**: As a Freelancer, I want to invoice in multiple currencies, so that I can bill international clients in their local currency.
-*Status: **DONE**. `issueInvoice`'s base-currency tie-out for a real GBP fixture invoice is tested in `receivables.writes.test.ts:156`, and a real multi-currency invoice's presence is asserted in `accounting.test.ts:102` ("carries more than one currency, so nothing may assume USD").*
+_Status: **DONE**. `issueInvoice`'s base-currency tie-out for a real GBP fixture invoice is tested in `receivables.writes.test.ts:156`, and a real multi-currency invoice's presence is asserted in `accounting.test.ts:102` ("carries more than one currency, so nothing may assume USD")._
 
 **US-ACC-006**: As an Accountant, I want to track invoice status (draft, sent, viewed, paid, overdue), so that I know which invoices need attention.
-*Status: **PARTIAL**. draft → sent (`issueInvoice` sets `status='sent', sent_at=now()`, `accounting.repo.ts:592`) → paid/partial (`recordPayment`, tested) and overdue (computed, tested `accounting.test.ts:132,144,161`) all work. `viewed_at` exists on the schema but nothing ever sets it — there is no customer-facing view to trigger a "viewed" state, so that status never actually occurs.*
+_Status: **PARTIAL**. draft → sent (`issueInvoice` sets `status='sent', sent_at=now()`, `accounting.repo.ts:592`) → paid/partial (`recordPayment`, tested) and overdue (computed, tested `accounting.test.ts:132,144,161`) all work. `viewed_at` exists on the schema but nothing ever sets it — there is no customer-facing view to trigger a "viewed" state, so that status never actually occurs._
 
 **US-ACC-007**: As a Business Owner, I want to add tracking categories to invoices (by region, product, campaign), so that I can analyze revenue by segment.
-*Status: **MISSING**. `invoice_lines.tracking_categories` (JSONB) is never read or written anywhere in `accounting.repo.ts`.*
+_Status: **MISSING**. `invoice_lines.tracking_categories` (JSONB) is never read or written anywhere in `accounting.repo.ts`._
 
 **US-ACC-008**: As a Customer, I want to receive a professional PDF invoice by email, so that I have documentation for my records.
-*Status: **MISSING**. `invoices.pdf_url` is an unused column; no PDF-generation or email-sending code exists for invoices anywhere in the codebase.*
+_Status: **PARTIAL** (2026-09-21). The PDF itself is real (see US-ACC-001) and an "Email invoice" button on `/accounting/invoices/[id]` sends it as a real attachment — `mailer.ts`'s `sendTemplatedEmail()` gained an `attachments` parameter (Resend supports this natively; nothing used it before), a new `invoice_email` template pair, and the same honest `{sent, reason}` result US-ACC-003's reminders already return, so "Resend rejected it" is distinguishable from "no API key in this environment" (the latter is what this codebase's dev/CI environment reports — verified live via that exact report). Refuses a draft outright (nothing has been issued yet — the UI's own gate is re-checked server-side, never trusted alone) and refuses when the customer has no email on file, both before any render or send attempt. PARTIAL rather than DONE: no delivery confirmation/retry beyond Resend's own response, and the sent-then-recorded audit entry has the same rollback-after-partial-send tradeoff reminders already accepted (an atomic version isn't possible once an external send is involved). Tested in `[id]/page.server.test.ts` (draft refusal, no-email refusal, and the honest not-configured path — real sends aren't exercised in tests or in this environment, matching `mailer.test.ts`'s own posture), `mailer.test.ts` (attachment is passed through correctly, and never added when absent), plus a read-only e2e refusal for emailing a draft._
 
 ### Expense Management
 
-*Status for this entire section: **MISSING**. `expenses` has a fully-designed table — `receipt_url`, `receipt_ocr_data`, `mileage_distance`/`mileage_rate`, `reimbursement_status`, `approved_by`/`approved_at`, `journal_entry_id` — but zero application code references it anywhere (`grep -rln "FROM expenses" apps/web/src/lib/server/` returns nothing: no repo file, no route, no application-level write/read test). Row-level security on it IS tested — `expenses` is the last entry in `row-visibility.test.ts`'s parametrized `ACCOUNTING` table list (`:455-471`), so it gets the same four RLS assertions as every other accounting table (finance_admin sees rows and there ARE rows, a plain employee sees none, another function's admin sees none, an owner sees rows). So the table is schema-complete *and* RLS-tested, but has zero application layer — which is exactly why the gap doesn't show up in `./check`: RLS coverage looks green with nothing behind it to expose. This is a complete, feature-absent module at the app layer; every story below is MISSING for the same reason, not annotated individually.*
+_Status for this entire section: **MISSING**. `expenses` has a fully-designed table — `receipt_url`, `receipt_ocr_data`, `mileage_distance`/`mileage_rate`, `reimbursement_status`, `approved_by`/`approved_at`, `journal_entry_id` — but zero application code references it anywhere (`grep -rln "FROM expenses" apps/web/src/lib/server/` returns nothing: no repo file, no route, no application-level write/read test). Row-level security on it IS tested — `expenses` is the last entry in `row-visibility.test.ts`'s parametrized `ACCOUNTING` table list (`:455-471`), so it gets the same four RLS assertions as every other accounting table (finance_admin sees rows and there ARE rows, a plain employee sees none, another function's admin sees none, an owner sees rows). So the table is schema-complete *and* RLS-tested, but has zero application layer — which is exactly why the gap doesn't show up in `./check`: RLS coverage looks green with nothing behind it to expose. This is a complete, feature-absent module at the app layer; every story below is MISSING for the same reason, not annotated individually._
 
 **US-ACC-009**: As an Employee, I want to snap a photo of receipts with my mobile phone, so that I can capture expenses on the go. **[MISSING]**
 
@@ -193,92 +206,92 @@ the same verdicts at user-story grain.
 ### Accounts Receivable (AR)
 
 **US-ACC-015**: As an Accountant, I want to track all customer invoices and payments in one place, so that AR is organized.
-*Status: **DONE**. `/accounting/invoices` lists every invoice with status, and `paymentsFor()` returns the payment history per invoice — exercised throughout `accounting.test.ts` and `receivables.writes.test.ts`.*
+_Status: **DONE**. `/accounting/invoices` lists every invoice with status, and `paymentsFor()` returns the payment history per invoice — exercised throughout `accounting.test.ts` and `receivables.writes.test.ts`._
 
 **US-ACC-016**: As a Finance Manager, I want to see an aging report showing overdue invoices, so that I can follow up on collections.
-*Status: **DONE** (2026-09-13). `/accounting/ar-aging` buckets every open invoice into current/1-30/31-60/61-90/90+ by days past due, as of a chosen date. Per-customer rows in the invoice's own currency, no cross-currency total — see `accounting.repo.ts`'s `arAging()` and `accounting.test.ts`'s "AR aging" suite.*
+_Status: **DONE** (2026-09-13). `/accounting/ar-aging` buckets every open invoice into current/1-30/31-60/61-90/90+ by days past due, as of a chosen date. Per-customer rows in the invoice's own currency, no cross-currency total — see `accounting.repo.ts`'s `arAging()` and `accounting.test.ts`'s "AR aging" suite._
 
 **US-ACC-017**: As a Business Owner, I want to forecast short-term cash flow (30-day projection), so that I can plan for cash needs.
-*Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt.*
+_Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt._
 
 **US-ACC-018**: As an Accountant, I want to apply customer payments to multiple invoices, so that accounts are accurate.
-*Status: **DONE** (2026-09-13). `/accounting/receive-payment` allocates one payment across several of a customer's open invoices — `acc.recordLockboxPayment()` posts one journal entry (one Cash debit, one AR credit per invoice) and refuses when the allocations don't sum to the stated total received. See `accounting.repo.ts` and `receivables.writes.test.ts`'s "receiving a lockbox payment across multiple invoices" suite.*
+_Status: **DONE** (2026-09-13). `/accounting/receive-payment` allocates one payment across several of a customer's open invoices — `acc.recordLockboxPayment()` posts one journal entry (one Cash debit, one AR credit per invoice) and refuses when the allocations don't sum to the stated total received. See `accounting.repo.ts` and `receivables.writes.test.ts`'s "receiving a lockbox payment across multiple invoices" suite._
 
 **US-ACC-019**: As a Business Owner, I want to see which customers owe money and how much, so that I can manage credit risk.
-*Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/credited/due totals (`total_credited` added 2026-09-13 alongside credit memos, so the four figures reconcile visibly rather than leaving an unexplained gap), and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite.*
+_Status: **DONE** (2026-09-13). `/accounting/customer-balances` groups every open invoice by customer, showing invoice count, invoiced/paid/credited/due totals (`total_credited` added 2026-09-13 alongside credit memos, so the four figures reconcile visibly rather than leaving an unexplained gap), and the customer's own credit limit, with the balance flagged when it exceeds that limit. See `acc.customerBalances()` and `accounting.test.ts`'s "customer balances" suite._
 
 **US-ACC-020**: As an Accountant, I want to write off bad debts when invoices are uncollectible, so that AR reflects reality.
-*Status: **DONE** (2026-09-13). `acc.recordWriteOff()` posts Dr Bad Debt Expense (`5500`, added to the fixture chart of accounts) / Cr Accounts Receivable, sharing `invoice_credits` and its reversing-entry mechanism with the credit memo half of this story (§1.1's finding) via a `credit_type` column rather than a parallel table. Sets a new `written_off` status only when the balance reaches exactly zero, and refuses a write-off larger than the invoice's own balance (`over_writeoff`). See `accounting.repo.ts`'s `recordInvoiceCredit()` and `receivables.writes.test.ts`'s "writing off bad debt" suite.*
+_Status: **DONE** (2026-09-13). `acc.recordWriteOff()` posts Dr Bad Debt Expense (`5500`, added to the fixture chart of accounts) / Cr Accounts Receivable, sharing `invoice_credits` and its reversing-entry mechanism with the credit memo half of this story (§1.1's finding) via a `credit_type` column rather than a parallel table. Sets a new `written_off` status only when the balance reaches exactly zero, and refuses a write-off larger than the invoice's own balance (`over_writeoff`). See `accounting.repo.ts`'s `recordInvoiceCredit()` and `receivables.writes.test.ts`'s "writing off bad debt" suite._
 
 ### Accounts Payable (AP)
 
 **US-ACC-021**: As an Accountant, I want to enter vendor bills by dragging and dropping PDF files, so that bill entry is faster.
-*Status: **PARTIAL** (2026-09-12). Manual bill entry now exists — `/accounting/bills/new`, `pay.createBill()` in `payables.repo.ts` — with a real per-line expense-account picker, not just a form that types out what OCR would have filled in. `bills.file_url` remains an unused column; there is still no drag-and-drop/file-upload path, so the "faster" half of this story (skip retyping the PDF) is not addressed.*
+_Status: **PARTIAL** (2026-09-12). Manual bill entry now exists — `/accounting/bills/new`, `pay.createBill()` in `payables.repo.ts` — with a real per-line expense-account picker, not just a form that types out what OCR would have filled in. `bills.file_url` remains an unused column; there is still no drag-and-drop/file-upload path, so the "faster" half of this story (skip retyping the PDF) is not addressed._
 
 **US-ACC-022**: As an Accountant, I want the system to automatically read bill data using OCR, so that I don't have to manually type everything.
-*Status: **MISSING**. `bills.ocr_processed`/`ocr_data` are unused columns — confirmed by grep against `payables.repo.ts`.*
+_Status: **MISSING**. `bills.ocr_processed`/`ocr_data` are unused columns — confirmed by grep against `payables.repo.ts`._
 
 **US-ACC-023**: As a Finance Manager, I want to schedule bill payments based on due dates, so that I optimize cash flow and avoid late fees.
-*Status: **MISSING**. `bills.payment_scheduled_date` is an unused column; `recordVendorPayment` pays immediately, on demand, for one bill at a time.*
+_Status: **MISSING**. `bills.payment_scheduled_date` is an unused column; `recordVendorPayment` pays immediately, on demand, for one bill at a time._
 
 **US-ACC-024**: As an Accountant, I want to track which bills are due soon, so that I can prioritize payments.
-*Status: **DONE** (2026-09-13). `/accounting/ap-due-soon` lists approved, unpaid bills due within a chosen window (7/14/30/60 days) of a chosen date — forward-looking, and distinct from `is_overdue`'s present-tense flag. See `payables.repo.ts`'s `apDueSoon()` and `payables.test.ts`'s "AP due soon" suite.*
+_Status: **DONE** (2026-09-13). `/accounting/ap-due-soon` lists approved, unpaid bills due within a chosen window (7/14/30/60 days) of a chosen date — forward-looking, and distinct from `is_overdue`'s present-tense flag. See `payables.repo.ts`'s `apDueSoon()` and `payables.test.ts`'s "AP due soon" suite._
 
 **US-ACC-025**: As a Finance Manager, I want to pay multiple vendor bills in a single batch, so that I save time.
-*Status: **DONE** (2026-09-19). `/accounting/bills` — checkboxes on the list plus a "Pay selected" action, `payBillsInBatch()` in `payables.repo.ts`. Each selected bill is paid in full (a batch run is "clear this stack," not a place to enter partial amounts); one payment/journal entry per vendor, since the schema ties a payment to a single vendor, so a batch spanning vendors becomes several payments automatically. All-or-nothing — every bill validated before any write. Matches `recordLockboxPayment`'s own precedent in excluding settlement FX gain/loss (a batch can span bills at different booking rates even within one vendor). The one user-entered `reference` is copied onto every payment the batch produces, so if a later bank-reconciliation feature matches by reference, N payments sharing one string is ambiguous — reconciliation should match by amount/date/vendor too, not reference alone. Tested in `payables.writes.test.ts` ("batch vendor payment run") against the real database, plus a smoke/form-errors e2e case.*
+_Status: **DONE** (2026-09-19). `/accounting/bills` — checkboxes on the list plus a "Pay selected" action, `payBillsInBatch()` in `payables.repo.ts`. Each selected bill is paid in full (a batch run is "clear this stack," not a place to enter partial amounts); one payment/journal entry per vendor, since the schema ties a payment to a single vendor, so a batch spanning vendors becomes several payments automatically. All-or-nothing — every bill validated before any write. Matches `recordLockboxPayment`'s own precedent in excluding settlement FX gain/loss (a batch can span bills at different booking rates even within one vendor). The one user-entered `reference` is copied onto every payment the batch produces, so if a later bank-reconciliation feature matches by reference, N payments sharing one string is ambiguous — reconciliation should match by amount/date/vendor too, not reference alone. Tested in `payables.writes.test.ts` ("batch vendor payment run") against the real database, plus a smoke/form-errors e2e case._
 
 **US-ACC-026**: As an Accountant, I want to reconcile vendor statements with our records, so that accounts are accurate.
-*Status: **MISSING**. Bank-transaction-to-payment matching exists (see US-ACC-028) but that's a different reconciliation (bank feed vs. internal payments) — there's no vendor-statement-specific reconciliation feature.*
+_Status: **MISSING**. Bank-transaction-to-payment matching exists (see US-ACC-028) but that's a different reconciliation (bank feed vs. internal payments) — there's no vendor-statement-specific reconciliation feature._
 
 ### Bank Reconciliation
 
 **US-ACC-027**: As an Accountant, I want to connect my bank accounts via secure feed, so that transactions are imported automatically.
-*Status: **MISSING**. `bank_accounts.feed_provider`/`feed_enabled` are unused schema columns — no Plaid/Yodlee or any bank-feed integration exists. Bank transactions in the fixture are seed data, not imported.*
+_Status: **MISSING**. `bank_accounts.feed_provider`/`feed_enabled` are unused schema columns — no Plaid/Yodlee or any bank-feed integration exists. Bank transactions in the fixture are seed data, not imported._
 
 **US-ACC-028**: As an Accountant, I want the system to suggest matches between bank transactions and invoices/bills, so that reconciliation is faster.
-*Status: **DONE**. `candidatePaymentsForTransactions` returns same-currency, same-direction, still-unmatched payments for a set of transactions — a real suggestion mechanism, tested in `payables.writes.test.ts:463` ("offers only same-currency, same-direction, still-unmatched payments"). The human still picks the match (`matchBankTransaction`, tested at `:364`, `:380`, `:401`, `:412`, `:423`) — nothing auto-applies a suggestion, which the story doesn't actually require.*
+_Status: **DONE**. `candidatePaymentsForTransactions` returns same-currency, same-direction, still-unmatched payments for a set of transactions — a real suggestion mechanism, tested in `payables.writes.test.ts:463` ("offers only same-currency, same-direction, still-unmatched payments"). The human still picks the match (`matchBankTransaction`, tested at `:364`, `:380`, `:401`, `:412`, `:423`) — nothing auto-applies a suggestion, which the story doesn't actually require._
 
 **US-ACC-029**: As an Accountant, I want to create rules for recurring transactions, so that they're categorized automatically.
-*Status: **DONE** (2026-09-19). `/accounting/banking/rules` — a rule names an optional bank account, description contains/regex, amount range and direction, and a chart-of-accounts category; the exchange-rate-refresh precedent from Tier 7 applies here too: there is no scheduler in this codebase, so "Apply rules" is a manual-trigger action, run whenever new transactions come in, rather than automatic. `action_type` is fixed to `'categorize'` — the table's other columns (`auto_match`, `create_transaction`, `vendor_id`, `customer_id`) anticipate matching a transaction straight to a payment or vendor/customer, but `bank_transactions` has no `vendor_id`/`customer_id` column to write that onto, so categorizing to a GL account is the only action this schema can actually carry out today. `applyReconciliationRules()` in `payables.repo.ts` is one set-based UPDATE (bank_transactions is SCALE_SENSITIVE), priority-ordered with a fully deterministic tie-break; `times_applied` is recomputed from the real rows each run (L58), not incremented, so it is a current count rather than a lifetime tally and drops if a categorized transaction is later re-matched to a payment. A rule's `description_regex` is validated at creation via `app.is_valid_regex()` (new migration) rather than a JS `RegExp` check, since Postgres's ARE dialect diverges from JS regex and a pattern that passes JS validation can still raise from Postgres — which would otherwise turn every future apply-rules run into a 500. Fixed a pre-existing fixture bug in the same pass: the seeded rule's `description_regex`/`amount_*`/`transaction_type` columns had been filled by the fixture's generic "no empty column" backfill with placeholder text (e.g. `'Transaction Type 1'`) that had never been rendered or evaluated by any code before this feature — now corrected to values consistent with the rule's own story. Tested in `payables.writes.test.ts` ("bank reconciliation rules (US-ACC-029)") against the real database, plus smoke/form-errors e2e cases, and verified live end-to-end (create a rule, apply it, confirm the transaction categorized and the audit trail recorded).*
+_Status: **DONE** (2026-09-19). `/accounting/banking/rules` — a rule names an optional bank account, description contains/regex, amount range and direction, and a chart-of-accounts category; the exchange-rate-refresh precedent from Tier 7 applies here too: there is no scheduler in this codebase, so "Apply rules" is a manual-trigger action, run whenever new transactions come in, rather than automatic. `action_type` is fixed to `'categorize'` — the table's other columns (`auto_match`, `create_transaction`, `vendor_id`, `customer_id`) anticipate matching a transaction straight to a payment or vendor/customer, but `bank_transactions` has no `vendor_id`/`customer_id` column to write that onto, so categorizing to a GL account is the only action this schema can actually carry out today. `applyReconciliationRules()` in `payables.repo.ts` is one set-based UPDATE (bank_transactions is SCALE_SENSITIVE), priority-ordered with a fully deterministic tie-break; `times_applied` is recomputed from the real rows each run (L58), not incremented, so it is a current count rather than a lifetime tally and drops if a categorized transaction is later re-matched to a payment. A rule's `description_regex` is validated at creation via `app.is_valid_regex()` (new migration) rather than a JS `RegExp` check, since Postgres's ARE dialect diverges from JS regex and a pattern that passes JS validation can still raise from Postgres — which would otherwise turn every future apply-rules run into a 500. Fixed a pre-existing fixture bug in the same pass: the seeded rule's `description_regex`/`amount_*`/`transaction_type` columns had been filled by the fixture's generic "no empty column" backfill with placeholder text (e.g. `'Transaction Type 1'`) that had never been rendered or evaluated by any code before this feature — now corrected to values consistent with the rule's own story. Tested in `payables.writes.test.ts` ("bank reconciliation rules (US-ACC-029)") against the real database, plus smoke/form-errors e2e cases, and verified live end-to-end (create a rule, apply it, confirm the transaction categorized and the audit trail recorded)._
 
 **US-ACC-030**: As a Finance Manager, I want to see which transactions are unreconciled, so that I know what needs attention.
-*Status: **DONE**. `payables.test.ts:143` ("counts what still needs matching") and `:177` ("shows every reconciliation state the screen has to render") — real, tested.*
+_Status: **DONE**. `payables.test.ts:143` ("counts what still needs matching") and `:177` ("shows every reconciliation state the screen has to render") — real, tested._
 
 **US-ACC-031**: As an Accountant, I want to reconcile multiple bank accounts including foreign currency accounts, so that all cash is tracked.
-*Status: **PARTIAL**. Multiple bank accounts are supported and tested (`payables.test.ts:97`, "keeps the bank's balance and the feed's balance as separate facts", run across all accounts). Foreign-currency bank account *revaluation* at period-end still does not exist — US-ACC-053's report-only revaluation (2026-09-18, see the Tier 7 entry) deliberately covers invoices/bills only, not bank balances, since a bank account has no stored per-account booking rate to revalue against. See [19-accounting-test-plan.md §3.3](19-accounting-test-plan.md).*
+_Status: **PARTIAL**. Multiple bank accounts are supported and tested (`payables.test.ts:97`, "keeps the bank's balance and the feed's balance as separate facts", run across all accounts). Foreign-currency bank account *revaluation* at period-end still does not exist — US-ACC-053's report-only revaluation (2026-09-18, see the Tier 7 entry) deliberately covers invoices/bills only, not bank balances, since a bank account has no stored per-account booking rate to revalue against. See [19-accounting-test-plan.md §3.3](19-accounting-test-plan.md)._
 
 ### General Ledger & Chart of Accounts
 
 **US-ACC-032**: As an Accountant, I want to set up a chart of accounts based on industry templates, so that I don't start from scratch.
-*Status: **MISSING**. No setup wizard or industry-template feature exists — `chart_of_accounts` has no CRUD route at all (see US-ACC-033).*
+_Status: **MISSING**. No setup wizard or industry-template feature exists — `chart_of_accounts` has no CRUD route at all (see US-ACC-033)._
 
 **US-ACC-033**: As an Accountant, I want to customize account names and codes to match my business, so that reporting is meaningful.
-*Status: **PARTIAL**. `CREATE UNIQUE INDEX idx_chart_of_accounts_code ON chart_of_accounts (tenant_id, account_code)` enforces uniqueness at the DB level, but there is no route or repo function to create, rename, or recode an account at all — the schema supports the story; nothing lets a user act on it.*
+_Status: **PARTIAL**. `CREATE UNIQUE INDEX idx_chart_of_accounts_code ON chart_of_accounts (tenant_id, account_code)` enforces uniqueness at the DB level, but there is no route or repo function to create, rename, or recode an account at all — the schema supports the story; nothing lets a user act on it._
 
 **US-ACC-034**: As an Accountant, I want to create manual journal entries for adjustments, so that I can correct errors and make period-end entries.
-*Status: **MISSING**. No manual-JE creation path exists anywhere; `postJournal` is only ever called by `issueInvoice`, `recordPayment`, and `approveBill`.*
+_Status: **MISSING**. No manual-JE creation path exists anywhere; `postJournal` is only ever called by `issueInvoice`, `recordPayment`, and `approveBill`._
 
 **US-ACC-035**: As a Controller, I want to lock accounting periods to prevent changes, so that historical data is protected.
-*Status: **PARTIAL**. The enforcement half is real and well tested: `postJournal` refuses any new posting into a non-`'open'` period (`period_closed`, tested in `receivables.writes.test.ts:262,271` and `payables.writes.test.ts:175`). But there is no route or action that actually *locks* a period — nothing writes to `accounting_periods.status` anywhere in the app. And per the top-of-document correction in [19-accounting-test-plan.md](19-accounting-test-plan.md), a posted entry inside an already-closed period can still be UPDATEd — RLS has no predicate against it — so "historical data is protected" overstates what's actually enforced.*
+_Status: **PARTIAL**. The enforcement half is real and well tested: `postJournal` refuses any new posting into a non-`'open'` period (`period_closed`, tested in `receivables.writes.test.ts:262,271` and `payables.writes.test.ts:175`). But there is no route or action that actually *locks* a period — nothing writes to `accounting_periods.status` anywhere in the app. And per the top-of-document correction in [19-accounting-test-plan.md](19-accounting-test-plan.md), a posted entry inside an already-closed period can still be UPDATEd — RLS has no predicate against it — so "historical data is protected" overstates what's actually enforced._
 
 **US-ACC-036**: As an Accountant, I want to track multi-currency transactions with automatic exchange rate conversion, so that foreign transactions are recorded correctly.
-*Status: **PARTIAL** (2026-09-14). Conversion math at the point of invoice issuance is DONE and precisely tested (US-ACC-005). Rate *lookup/update* is now real for a fixed set of currencies (USD, CAD, GBP, EUR, INR): `/accounting/exchange-rates` pulls each one's rate against USD from Yahoo Finance's public chart endpoint and upserts `exchange_rates` (`fx_rates.ts`, `source = 'yahoo'`). Still not "automatic" in the sense the story implies — there is no scheduler; refresh is a manually-triggered button, and wiring a daily cron/trigger to hit it is an ops step, not built here. `invoices`/`bills` still don't look this table up when a document is created — the rate a document books at is still typed in, or copied, at the point of entry; this closes the "no way to get a current rate at all" gap, not the "the app finds it for you" one.*
+_Status: **PARTIAL** (2026-09-14). Conversion math at the point of invoice issuance is DONE and precisely tested (US-ACC-005). Rate *lookup/update* is now real for a fixed set of currencies (USD, CAD, GBP, EUR, INR): `/accounting/exchange-rates` pulls each one's rate against USD from Yahoo Finance's public chart endpoint and upserts `exchange_rates` (`fx_rates.ts`, `source = 'yahoo'`). Still not "automatic" in the sense the story implies — there is no scheduler; refresh is a manually-triggered button, and wiring a daily cron/trigger to hit it is an ops step, not built here. `invoices`/`bills` still don't look this table up when a document is created — the rate a document books at is still typed in, or copied, at the point of entry; this closes the "no way to get a current rate at all" gap, not the "the app finds it for you" one._
 
 **US-ACC-037**: As an Accountant, I want to see a complete audit trail of all financial transactions, so that I can trace any entry.
-*Status: **DONE**. `issue`, `recordPayment` (×2), `voidInvoice`, `approve`, `match` are all registered in `audit/register.ts:129-158`, each capturing the actor; the trail itself is append-only and tamper-proof (`audit.test.ts:134,140`).*
+_Status: **DONE**. `issue`, `recordPayment` (×2), `voidInvoice`, `approve`, `match` are all registered in `audit/register.ts:129-158`, each capturing the actor; the trail itself is append-only and tamper-proof (`audit.test.ts:134,140`)._
 
 ### Financial Reporting
 
-*Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, Balance Sheet, Cash Flow, and Statement of Changes in Equity (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here.*
+_Status for this entire section, as of the 2026-09-11 annotation pass: **MISSING**. No Balance Sheet, P&L, Cash Flow, or Trial Balance report existed anywhere in the codebase — confirmed by searching `apps/web/src` and `packages` for report-related terms and finding only one unrelated HR comment. This was base spec (FR-ACC-007 below), not a roadmap wish — 0% built. Trial balance, Profit & Loss, Balance Sheet, Cash Flow, and Statement of Changes in Equity (all 2026-09-12) have since shipped — see their own stories below and [19-accounting-test-plan.md §1.5/§5](19-accounting-test-plan.md) for the full detail. Every other story below is still MISSING for the reason originally stated here._
 
 **US-ACC-038**: As a Business Owner, I want to generate a Profit & Loss statement with one click, so that I can see profitability quickly. **[PARTIAL]** (2026-09-12)
-*`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
+_`/accounting/profit-loss` generates the statement live from `journal_entry_lines`, with a `from`/`to` period filter — one click in the sense of "no manual data entry", not literally zero clicks (the route itself is the one click, once navigated to). Missing against the fuller wish: no COGS/gross-margin subtotal, no comparison periods, no export, no department filter. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md)._
 
 **US-ACC-039**: As a CFO, I want to view a Balance Sheet showing assets, liabilities, and equity, so that I understand financial position. **[PARTIAL]** (2026-09-12)
-*`/accounting/balance-sheet` generates it live, as of any date, from `journal_entry_lines`. Missing against the fuller wish: no comparison periods, no department filter, no export. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
+_`/accounting/balance-sheet` generates it live, as of any date, from `journal_entry_lines`. Missing against the fuller wish: no comparison periods, no department filter, no export. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md)._
 
 **US-ACC-040**: As a Finance Manager, I want to run a Cash Flow statement, so that I can see how cash moved during the period. **[PARTIAL]** (2026-09-12)
-*`/accounting/cash-flow` generates it live, indirect method, for a `from`/`to` period. Investing and Financing sections are structurally present but always near-empty — this chart of accounts has no fixed-asset/investment/loan account category to draw from, a real schema gap rather than an unfinished computation. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md).*
+_`/accounting/cash-flow` generates it live, indirect method, for a `from`/`to` period. Investing and Financing sections are structurally present but always near-empty — this chart of accounts has no fixed-asset/investment/loan account category to draw from, a real schema gap rather than an unfinished computation. See [19-accounting-test-plan.md §5](19-accounting-test-plan.md)._
 
 **US-ACC-041**: As a Business Owner, I want to compare financial reports across periods (month-over-month, year-over-year), so that I can identify trends. **[MISSING]**
 
@@ -293,36 +306,36 @@ the same verdicts at user-story grain.
 ### Tax Management
 
 **US-ACC-046**: As an Accountant, I want to configure sales tax rates by jurisdiction, so that invoices calculate tax correctly.
-*Status: **PARTIAL** (2026-09-13). A real `tax_rates` table exists, and all five accounting tax FKs (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) resolve to it — `20260913223213_accounting_tax_rates.sql`. `/accounting/tax-rates` now lets finance create a rate (code, name, type, rate, country/region/jurisdiction, reverse charge, effective date) and deactivate/reactivate one — `accounting.write`-gated and audited. Still missing: editing a rate's other fields once created (a mistyped rate is deactivated and replaced, not corrected in place — the same reasoning a period's close/reopen uses), and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate.*
+_Status: **PARTIAL** (2026-09-13). A real `tax_rates` table exists, and all five accounting tax FKs (`invoice_lines.tax_rate_id`, `bill_lines.tax_rate_id`, `chart_of_accounts.tax_rate_id`, `journal_entry_lines.tax_rate_id`, `customers.tax_rate_id`) resolve to it — `20260913223213_accounting_tax_rates.sql`. `/accounting/tax-rates` now lets finance create a rate (code, name, type, rate, country/region/jurisdiction, reverse charge, effective date) and deactivate/reactivate one — `accounting.write`-gated and audited. Still missing: editing a rate's other fields once created (a mistyped rate is deactivated and replaced, not corrected in place — the same reasoning a period's close/reopen uses), and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate._
 
 **US-ACC-047**: As a UK Accountant, I want to configure VAT rates and handle reverse charge, so that I comply with UK tax law.
-*Status: **MISSING**. VAT jurisdiction configuration exists now (US-ACC-046 — `tax_rates.is_reverse_charge` is already a column, just unused by any posting logic). Reverse charge itself is unbuilt and **deliberately deferred** (2026-09-13, user decision — no UK customers yet): it needs the vendor's zero-VAT invoice to still self-assess both an output and input side, and the self-assessed amount excluded from what's actually payable to the vendor, which `recomputeBillTotals`/`approveBill` don't distinguish today.*
+_Status: **MISSING**. VAT jurisdiction configuration exists now (US-ACC-046 — `tax_rates.is_reverse_charge` is already a column, just unused by any posting logic). Reverse charge itself is unbuilt and **deliberately deferred** (2026-09-13, user decision — no UK customers yet): it needs the vendor's zero-VAT invoice to still self-assess both an output and input side, and the self-assessed amount excluded from what's actually payable to the vendor, which `recomputeBillTotals`/`approveBill` don't distinguish today._
 
 **US-ACC-048**: As an Accountant, I want to generate tax reports (sales tax summary, VAT return), so that I can file returns easily.
-*Status: **PARTIAL** (2026-09-13). `/accounting/tax-summary` (`acc.taxLiabilitySummary()`) reports output tax collected and input tax paid, grouped by jurisdiction, for an optional `from`/`to` period — read from the real posted GL (`journal_entry_lines` on accounts `"2200"`/`"1200"`), not the invoice/bill subledger. `packages/spec-tests`' `INV-ACC-006` (`summarizeTaxLines`) still tests the correct output-minus-input formula as a pure function against hand-built objects, unconnected to this report; the two aren't meant to converge, since the app version does the arithmetic in SQL over real rows. Gap: still no VAT-return-shaped export (boxes/line format a filing expects), and reverse charge (US-ACC-047) isn't handled — see US-ACC-049's note.*
+_Status: **PARTIAL** (2026-09-13). `/accounting/tax-summary` (`acc.taxLiabilitySummary()`) reports output tax collected and input tax paid, grouped by jurisdiction, for an optional `from`/`to` period — read from the real posted GL (`journal_entry_lines` on accounts `"2200"`/`"1200"`), not the invoice/bill subledger. `packages/spec-tests`' `INV-ACC-006` (`summarizeTaxLines`) still tests the correct output-minus-input formula as a pure function against hand-built objects, unconnected to this report; the two aren't meant to converge, since the app version does the arithmetic in SQL over real rows. Gap: still no VAT-return-shaped export (boxes/line format a filing expects), and reverse charge (US-ACC-047) isn't handled — see US-ACC-049's note._
 
 **US-ACC-049**: As an Accountant, I want to track tax paid on bills (input tax) and tax collected on invoices (output tax), so that I can calculate tax liability.
-*Status: **PARTIAL** (2026-09-13). `issueInvoice`/`approveBill` now post ONE GL tax line per `tax_rate_id` rather than a single lump sum — grouped by rate in SQL before posting, so an invoice or bill mixing rates attributes each rate's tax to its own jurisdiction rather than collapsing them together (break/revert-verified: reverting to the lump-sum shape makes the grouping test fail). `tax_rate_id` reaches the GL from a new, optional per-line "Tax rate" `<select>` on the invoice/bill create forms (`invoice_lines.tax_rate_id`/`bill_lines.tax_rate_id`, populated from active `tax_rates`) — a reference only; the tax amount is still typed in directly, not computed from the rate (that remains the same deferred gap 2.24 already documented). `taxLiabilitySummary()` nets output minus input per rate, with an explicit, separately-labelled row for tax posted with no rate attributed (`tax_rate_id IS NULL`) rather than silently folding it into a real jurisdiction. The committed fixture's own posted tax line (`BILL-AWS-2026-01`'s recoverable input tax) is now tagged with its rate via a targeted, amount-preserving `UPDATE` — not a blanket backfill — giving the report one genuine, non-synthetic row; asserted directly in `accounting.writes.test.ts` against the real fixture, not just rollback-posted synthetic data. Known gap, not yet designed around: `postJournal` drops any line that nets to zero, so a reverse-charge rate (output and input cancelling by design) would post no GL line at all and so surface no jurisdiction row in this report — US-ACC-047's remaining work.*
+_Status: **PARTIAL** (2026-09-13). `issueInvoice`/`approveBill` now post ONE GL tax line per `tax_rate_id` rather than a single lump sum — grouped by rate in SQL before posting, so an invoice or bill mixing rates attributes each rate's tax to its own jurisdiction rather than collapsing them together (break/revert-verified: reverting to the lump-sum shape makes the grouping test fail). `tax_rate_id` reaches the GL from a new, optional per-line "Tax rate" `<select>` on the invoice/bill create forms (`invoice_lines.tax_rate_id`/`bill_lines.tax_rate_id`, populated from active `tax_rates`) — a reference only; the tax amount is still typed in directly, not computed from the rate (that remains the same deferred gap 2.24 already documented). `taxLiabilitySummary()` nets output minus input per rate, with an explicit, separately-labelled row for tax posted with no rate attributed (`tax_rate_id IS NULL`) rather than silently folding it into a real jurisdiction. The committed fixture's own posted tax line (`BILL-AWS-2026-01`'s recoverable input tax) is now tagged with its rate via a targeted, amount-preserving `UPDATE` — not a blanket backfill — giving the report one genuine, non-synthetic row; asserted directly in `accounting.writes.test.ts` against the real fixture, not just rollback-posted synthetic data. Known gap, not yet designed around: `postJournal` drops any line that nets to zero, so a reverse-charge rate (output and input cancelling by design) would post no GL line at all and so surface no jurisdiction row in this report — US-ACC-047's remaining work._
 
 **US-ACC-050**: As a Business Owner, I want to track tax-exempt customers, so that their invoices don't include tax.
-*Status: **PARTIAL** (2026-09-13). `customers.tax_exempt_until` (nullable `DATE`, `20260913230000_customer_tax_exempt_until.sql`) lets an exemption expire; `NULL` means indefinite. Enforced in two places, deliberately: `createInvoice` refuses a taxed line for a customer exempt as of the invoice's own date (not "today"), and `issueInvoice` — the step that actually posts `tax_total` to the ledger — repeats the same check against the invoice's stored date, because a draft can be created before an exemption is set, edited, or issued after one has expired, none of which `createInvoice`'s own check would see. Both refusals go through `AccountingRefused("customer_tax_exempt")`. Gap: no UI exists to set `is_tax_exempt`/`tax_exempt_until` — same posture as `chart_of_accounts.tax_rate_id` (US-ACC-046) — today it is fixture- or direct-database-only, and the invoice form's customer picker does not surface a customer's exemption status, so a user discovers it via the refusal rather than before typing the line.*
+_Status: **PARTIAL** (2026-09-13). `customers.tax_exempt_until` (nullable `DATE`, `20260913230000_customer_tax_exempt_until.sql`) lets an exemption expire; `NULL` means indefinite. Enforced in two places, deliberately: `createInvoice` refuses a taxed line for a customer exempt as of the invoice's own date (not "today"), and `issueInvoice` — the step that actually posts `tax_total` to the ledger — repeats the same check against the invoice's stored date, because a draft can be created before an exemption is set, edited, or issued after one has expired, none of which `createInvoice`'s own check would see. Both refusals go through `AccountingRefused("customer_tax_exempt")`. Gap: no UI exists to set `is_tax_exempt`/`tax_exempt_until` — same posture as `chart_of_accounts.tax_rate_id` (US-ACC-046) — today it is fixture- or direct-database-only, and the invoice form's customer picker does not surface a customer's exemption status, so a user discovers it via the refusal rather than before typing the line._
 
 ### Multi-Currency Operations
 
 **US-ACC-051**: As a Business Owner with international operations, I want to invoice customers in their local currency, so that they can pay easily.
-*Status: **DONE**. Same evidence as US-ACC-005.*
+_Status: **DONE**. Same evidence as US-ACC-005._
 
 **US-ACC-052**: As an Accountant, I want exchange rates to update automatically, so that valuations are current.
-*Status: **PARTIAL** (2026-09-14). Same increment as US-ACC-036: `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR from Yahoo Finance, `accounting.write`-gated and audited. "Update automatically" is the remaining gap — refresh is manual-trigger only, no scheduler exists in this repo. Yahoo's endpoint is unofficial and unversioned (no API key, no SLA); a per-currency failure is isolated and surfaced rather than failing the whole refresh, which is what a shape change on Yahoo's side would trip. This table now feeds both US-ACC-053 (revaluation) and US-ACC-054 (settlement), as of 2026-09-18.*
+_Status: **PARTIAL** (2026-09-14). Same increment as US-ACC-036: `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR from Yahoo Finance, `accounting.write`-gated and audited. "Update automatically" is the remaining gap — refresh is manual-trigger only, no scheduler exists in this repo. Yahoo's endpoint is unofficial and unversioned (no API key, no SLA); a per-currency failure is isolated and surfaced rather than failing the whole refresh, which is what a shape change on Yahoo's side would trip. This table now feeds both US-ACC-053 (revaluation) and US-ACC-054 (settlement), as of 2026-09-18._
 
 **US-ACC-053**: As a CFO, I want to see unrealized gains/losses on foreign currency balances, so that I understand FX exposure.
-*Status: **PARTIAL** (2026-09-18) — the story as literally written ("I want to see") is done: `/accounting/fx-revaluation` reports unrealized gain/loss on every open foreign-currency invoice/bill as of a chosen date. Report-only by design, not a stopping point chosen for convenience — see the Tier 7 entry in this document for why posting a non-reversing adjustment would double-count against US-ACC-054's own settlement recognition. Bank account balances are excluded from the report (no per-account booking rate exists to revalue against); posting/reversal is unbuilt. §11's auto-reversing accrual infrastructure (`recordAccrual()`, 2026-09-20) COULD now carry this — a period-end unrealized FX adjustment is conventionally exactly this shape (an accrual reversed on the next period's first day, which avoids the double-count against US-ACC-054's settlement recognition the note above warns about) — but it has not been retrofitted here, a deliberate decision, not an oversight.*
+_Status: **PARTIAL** (2026-09-18) — the story as literally written ("I want to see") is done: `/accounting/fx-revaluation` reports unrealized gain/loss on every open foreign-currency invoice/bill as of a chosen date. Report-only by design, not a stopping point chosen for convenience — see the Tier 7 entry in this document for why posting a non-reversing adjustment would double-count against US-ACC-054's own settlement recognition. Bank account balances are excluded from the report (no per-account booking rate exists to revalue against); posting/reversal is unbuilt. §11's auto-reversing accrual infrastructure (`recordAccrual()`, 2026-09-20) COULD now carry this — a period-end unrealized FX adjustment is conventionally exactly this shape (an accrual reversed on the next period's first day, which avoids the double-count against US-ACC-054's settlement recognition the note above warns about) — but it has not been retrofitted here, a deliberate decision, not an oversight._
 
 **US-ACC-054**: As an Accountant, I want to record realized gains/losses when foreign invoices are paid, so that P&L reflects actual FX impact.
-*Status: **DONE** (2026-09-18). `recordPayment`/`recordVendorPayment` look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate, writing `payment_allocations.fx_gain_loss`. See the Tier 7 entry in this document for the shape and its two documented simplifications. Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` against the real database (gain, loss, and both fallbacks), and `INV-ACC-004` in `packages/spec-tests` remains the reference formula these were built to match.*
+_Status: **DONE** (2026-09-18). `recordPayment`/`recordVendorPayment` look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate, writing `payment_allocations.fx_gain_loss`. See the Tier 7 entry in this document for the shape and its two documented simplifications. Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` against the real database (gain, loss, and both fallbacks), and `INV-ACC-004` in `packages/spec-tests` remains the reference formula these were built to match._
 
 **US-ACC-055**: As a Business Owner, I want to run reports in my base currency with automatic conversion, so that I can consolidate multi-currency operations.
-*Status: **MISSING**. Every invoice/bill carries its own `base_total` (converted at its own rate, correctly — see US-ACC-005), but there is no consolidated *report* of any kind to run in base currency (see Financial Reporting section above).*
+_Status: **MISSING**. Every invoice/bill carries its own `base_total` (converted at its own rate, correctly — see US-ACC-005), but there is no consolidated *report* of any kind to run in base currency (see Financial Reporting section above)._
 
 ---
 
@@ -333,6 +346,7 @@ the same verdicts at user-story grain.
 **Description**: System shall provide comprehensive invoicing capabilities with multi-currency support and online payment integration.
 
 **Features**:
+
 1. Create, edit, delete invoices (draft, final)
 2. Professional invoice templates with company branding
 3. Line items with descriptions, quantities, unit prices, taxes
@@ -350,6 +364,7 @@ the same verdicts at user-story grain.
 15. Bulk invoice actions (send, void, apply discounts)
 
 **Acceptance Criteria**:
+
 - Invoice numbers auto-generated with customizable format (prefix, padding)
 - Invoice dates timezone-aware based on tenant settings
 - Payment terms configurable (Net 15, Net 30, Due on Receipt, custom)
@@ -364,6 +379,7 @@ the same verdicts at user-story grain.
 - Complete audit trail of invoice lifecycle
 
 **Multi-Currency Example**:
+
 ```json
 {
   "invoice_id": "INV-2025-001",
@@ -378,20 +394,20 @@ the same verdicts at user-story grain.
     {
       "description": "Professional Services - Q4 2025",
       "quantity": 80,
-      "unit_price": 150.00,
-      "amount": 12000.00,
-      "tax_rate": 0.20,
-      "tax_amount": 2400.00,
+      "unit_price": 150.0,
+      "amount": 12000.0,
+      "tax_rate": 0.2,
+      "tax_amount": 2400.0,
       "tracking_categories": {
         "region": "Europe",
         "project": "Migration"
       }
     }
   ],
-  "subtotal": 12000.00,
-  "tax_total": 2400.00,
-  "total": 14400.00,
-  "total_in_base_currency": 15696.00,
+  "subtotal": 12000.0,
+  "tax_total": 2400.0,
+  "total": 14400.0,
+  "total_in_base_currency": 15696.0,
   "status": "sent",
   "payment_url": "https://pay.platform.com/inv/uuid"
 }
@@ -402,6 +418,7 @@ the same verdicts at user-story grain.
 **Description**: System shall provide expense capture, categorization, and tracking with receipt management and reimbursement workflows.
 
 **Features**:
+
 1. Mobile receipt capture with camera
 2. OCR for automatic data extraction (vendor, date, amount, category)
 3. AI-powered expense categorization
@@ -419,6 +436,7 @@ the same verdicts at user-story grain.
 15. Expense policy compliance checking
 
 **Acceptance Criteria**:
+
 - OCR accuracy >90% for receipt data extraction
 - Support image formats: JPG, PNG, PDF
 - Maximum file size: 10MB per receipt
@@ -433,6 +451,7 @@ the same verdicts at user-story grain.
 - Audit trail of all expense modifications
 
 **Expense Flow**:
+
 ```
 Employee captures receipt → OCR extracts data →
 Employee reviews/edits → Submit for approval →
@@ -446,6 +465,7 @@ GL entries posted
 **Description**: System shall manage customer invoices, payments, and collections with aging analysis.
 
 **Features**:
+
 1. Customer master data (contact info, payment terms, credit limit)
 2. Invoice tracking by customer
 3. Payment recording (full, partial, overpayment)
@@ -463,6 +483,7 @@ GL entries posted
 15. Multi-currency customer balances
 
 **Acceptance Criteria**:
+
 - Customer records unique per tenant
 - Payment terms default from customer record
 - Payments must reference invoice(s)
@@ -477,6 +498,7 @@ GL entries posted
 - Customer portal shows real-time balance
 
 **AR Dashboard**:
+
 - Total outstanding AR (base currency)
 - Overdue amount and percentage
 - AR aging breakdown (chart)
@@ -489,6 +511,7 @@ GL entries posted
 **Description**: System shall manage vendor bills, payment scheduling, and disbursements with automated data entry.
 
 **Features**:
+
 1. Vendor master data (contact info, payment terms, tax ID)
 2. Bill entry with drag-and-drop file upload
 3. OCR for automatic bill data extraction
@@ -506,6 +529,7 @@ GL entries posted
 15. Multi-currency vendor balances
 
 **Acceptance Criteria**:
+
 - Vendor records unique per tenant
 - OCR extracts: vendor name, bill date, due date, amount, line items
 - Bill approval routes based on amount thresholds
@@ -520,6 +544,7 @@ GL entries posted
 - Cannot pay more than bill amount without authorization
 
 **Automated Bill Entry**:
+
 ```
 User drags PDF bill → OCR processes →
 System extracts data → Creates draft bill →
@@ -534,6 +559,7 @@ GL entries posted
 **Description**: System shall provide automated bank transaction import and matching with manual reconciliation capabilities.
 
 **Features**:
+
 1. Bank feed integration (Plaid, Yodlee, direct bank API)
 2. Manual bank statement upload (CSV, OFX, QBO)
 3. Automatic transaction matching with invoices/bills
@@ -551,6 +577,7 @@ GL entries posted
 15. Transaction search and filtering
 
 **Acceptance Criteria**:
+
 - Bank feeds refresh daily automatically
 - Transactions matched within ±3 days and ±5% amount variance
 - Matching confidence score displayed (high, medium, low)
@@ -565,12 +592,13 @@ GL entries posted
 - Bulk transaction categorization available
 
 **Matching Rules Example**:
+
 ```json
 {
   "rule_name": "Monthly Office Rent",
   "conditions": {
     "description_contains": "PROPERTY MGMT LLC",
-    "amount_equals": 5000.00,
+    "amount_equals": 5000.0,
     "tolerance": 0.01
   },
   "action": {
@@ -587,6 +615,7 @@ GL entries posted
 **Description**: System shall maintain a comprehensive general ledger with double-entry bookkeeping and multi-currency support.
 
 **Features**:
+
 1. Chart of accounts setup with templates (by industry)
 2. Account types: Assets, Liabilities, Equity, Revenue, Expenses
 3. Account codes and descriptions (multilingual)
@@ -606,6 +635,7 @@ GL entries posted
 17. Audit trail for all entries
 
 **Acceptance Criteria**:
+
 - Chart of accounts customizable per tenant
 - Account codes unique within tenant
 - Debit = Credit enforcement (balanced entries)
@@ -621,6 +651,7 @@ GL entries posted
 - GL reports filterable by date range, account, department
 
 **Chart of Accounts Structure**:
+
 ```
 1000-1999: Assets
   1000-1099: Current Assets
@@ -658,6 +689,7 @@ GL entries posted
 **Description**: System shall generate comprehensive financial reports with multi-currency, multi-period, and segmentation capabilities.
 
 **Features**:
+
 1. **Standard Reports**:
    - Profit & Loss (Income Statement)
    - Balance Sheet
@@ -690,6 +722,7 @@ GL entries posted
    - Report templates and favorites
 
 **Acceptance Criteria**:
+
 - All reports generated in real-time from current data
 - P&L shows revenue, expenses, net income with subtotals
 - Balance Sheet balances (Assets = Liabilities + Equity)
@@ -704,6 +737,7 @@ GL entries posted
 - Report access controlled by permissions
 
 **Profit & Loss Example**:
+
 ```
 Company ABC - Profit & Loss
 Period: January 1 - December 31, 2025
@@ -751,6 +785,7 @@ Net Margin                           26.8%
 **Description**: System shall calculate, track, and report sales taxes, VAT, and GST based on jurisdiction.
 
 **Features**:
+
 1. Tax rate configuration by jurisdiction
 2. Multiple tax types (sales tax, VAT, GST)
 3. Tax rate effective dates
@@ -768,6 +803,7 @@ Net Margin                           26.8%
 15. Tax audit trail
 
 **Acceptance Criteria**:
+
 - Tax rates configurable with start/end dates
 - Tax applied based on customer location and product taxability
 - Invoice line items show tax separately
@@ -781,6 +817,7 @@ Net Margin                           26.8%
 - Tax calculations auditable (rate used, basis amount)
 
 **US Sales Tax Configuration**:
+
 ```json
 {
   "jurisdiction": "California",
@@ -811,6 +848,7 @@ Net Margin                           26.8%
 **Description**: System shall support 160+ currencies with automatic exchange rate updates and FX gain/loss tracking.
 
 **Features**:
+
 1. Support for 160+ currencies (ISO 4217)
 2. Tenant base currency selection
 3. Enable multiple additional currencies
@@ -828,6 +866,7 @@ Net Margin                           26.8%
 15. Exchange rate variance analysis
 
 **Acceptance Criteria**:
+
 - Exchange rates update daily from reliable source (ECB, Federal Reserve)
 - Transaction amounts stored in original currency and base currency
 - Exchange rate locked at transaction date
@@ -841,38 +880,39 @@ Net Margin                           26.8%
 - Manual rate entry allowed with audit log
 
 **Multi-Currency Transaction Example**:
+
 ```json
 {
   "transaction_type": "invoice_payment",
   "transaction_date": "2025-12-03",
   "invoice_currency": "EUR",
-  "invoice_amount": 10000.00,
-  "exchange_rate_at_invoice": 1.10,
-  "invoice_base_amount": 11000.00,
+  "invoice_amount": 10000.0,
+  "exchange_rate_at_invoice": 1.1,
+  "invoice_base_amount": 11000.0,
 
   "payment_currency": "EUR",
-  "payment_amount": 10000.00,
+  "payment_amount": 10000.0,
   "exchange_rate_at_payment": 1.08,
-  "payment_base_amount": 10800.00,
+  "payment_base_amount": 10800.0,
 
   "base_currency": "USD",
-  "realized_fx_loss": -200.00,
+  "realized_fx_loss": -200.0,
   "gl_entries": [
     {
       "account": "Cash - EUR Account",
-      "debit": 10000.00,
+      "debit": 10000.0,
       "currency": "EUR"
     },
     {
       "account": "FX Loss",
-      "debit": 200.00,
+      "debit": 200.0,
       "currency": "USD"
     },
     {
       "account": "Accounts Receivable",
-      "credit": 10000.00,
+      "credit": 10000.0,
       "currency": "EUR",
-      "base_credit": 11000.00
+      "base_credit": 11000.0
     }
   ]
 }
@@ -885,6 +925,7 @@ Net Margin                           26.8%
 **Note:** Data model specifications have been moved to the centralized data models specification.
 
 See [schema.sql](../packages/database/reference/schema.sql) for complete database schemas including:
+
 - Chart of Accounts
 - Journal Entries and Journal Entry Lines
 - Customers and Invoices
@@ -903,6 +944,7 @@ See [schema.sql](../packages/database/reference/schema.sql) for complete databas
 **Note:** API specifications have been moved to the centralized API endpoints specification.
 
 See [api-endpoints.md](./api-endpoints.md#accounting-module) for complete API documentation including:
+
 - Chart of Accounts endpoints
 - Invoice management endpoints
 - Payment processing endpoints
@@ -972,34 +1014,40 @@ Accounting Module (Main Menu)
 **Layout** (Grid of widgets):
 
 **Cash Position Widget**:
+
 - Current cash balance (all accounts, base currency)
 - 7-day chart showing trend
 - Quick link to bank accounts
 
 **Outstanding AR/AP Widget**:
+
 - Total AR with aging breakdown (pie chart)
 - Total AP with aging breakdown (pie chart)
 - Quick actions: View overdue invoices, Pay bills
 
 **Short-term Cash Flow Widget**:
+
 - 30-day cash flow forecast
 - Expected collections (by invoice due date)
 - Upcoming payments (by bill due date)
 - Net cash position projection
 
 **Quick P&L Summary**:
+
 - MTD Revenue vs. target
 - MTD Expenses vs. budget
 - Net Income
 - Link to full P&L report
 
 **Recent Activity**:
+
 - Latest invoices sent
 - Recent payments received
 - Recent bills entered
 - Unreconciled bank transactions count
 
 **Actions** (Quick create buttons):
+
 - New Invoice
 - Enter Bill
 - Record Payment
@@ -1010,12 +1058,14 @@ Accounting Module (Main Menu)
 **URL**: `/accounting/invoices`
 
 **Layout**:
+
 - Search bar (invoice number, customer name)
 - Filters: Status (All, Draft, Sent, Overdue, Paid), Date range, Customer, Currency
 - Sort by: Date, Due date, Amount, Customer
 - Bulk actions: Send, Void, Export
 
 **Table Columns**:
+
 - Invoice # (clickable)
 - Customer
 - Date
@@ -1026,6 +1076,7 @@ Accounting Module (Main Menu)
 - Actions dropdown (View, Send, Record Payment, Void, Download PDF)
 
 **Summary Bar** (above table):
+
 - Total Outstanding: $X
 - Overdue: $Y (red)
 - Due this week: $Z
@@ -1037,6 +1088,7 @@ Accounting Module (Main Menu)
 **Layout** (Single page form):
 
 **Header Section**:
+
 - Invoice # (auto-generated, editable)
 - Customer (searchable dropdown with "Add new customer" option)
 - Invoice Date (date picker, defaults to today)
@@ -1045,12 +1097,14 @@ Accounting Module (Main Menu)
 - Reference (optional)
 
 **Line Items Section** (Table):
+
 - Description | Quantity | Unit Price | Tax | Amount
 - Add line button
 - Drag to reorder rows
 - Delete row icon
 
 **Totals Section** (Right sidebar):
+
 - Subtotal
 - Tax total (breakdown by tax type if multiple)
 - **Total**
@@ -1058,20 +1112,24 @@ Accounting Module (Main Menu)
 - Amount Due
 
 **Footer Section**:
+
 - Notes (to customer)
 - Terms & Conditions
 - Footer text
 
 **Tracking** (Collapsible section):
+
 - Tracking categories (Region, Project, Salesperson, etc.)
 
 **Actions**:
+
 - Save as Draft
 - Save and Send (opens email modal)
 - Save and Continue (creates invoice and stays on page for another)
 - Cancel
 
 **Email Modal** (when Send clicked):
+
 - To: (customer email, editable)
 - CC: (optional)
 - Subject: (pre-filled, editable)
@@ -1086,15 +1144,18 @@ Accounting Module (Main Menu)
 **Layout**:
 
 **Header**:
+
 - Invoice number and status badge
 - Customer name
 - Actions: Send, Record Payment, Void, Download PDF, Print
 
 **Invoice Preview**:
+
 - Professional PDF-style layout showing all invoice details
 - Company logo and branding
 
 **Activity Timeline** (Right sidebar):
+
 - Created: Date, user
 - Sent: Date, user, recipient
 - Viewed: Date(s), IP address
@@ -1102,13 +1163,16 @@ Accounting Module (Main Menu)
 - Notes: Any manual notes added
 
 **Payment History** (if applicable):
+
 - Table: Date | Amount | Payment Method | Reference
 
 **Related Transactions**:
+
 - Journal entry link
 - Payment links
 
 **Communication Log**:
+
 - Emails sent (subject, date, recipient)
 - Resend button
 
@@ -1119,15 +1183,18 @@ Accounting Module (Main Menu)
 **Layout**:
 
 **File Upload Zone** (Prominent at top):
+
 - Drag & drop PDF/image of bill
 - "Upload Bill" button
 - "Or enter manually" link
 
 **After Upload** (OCR Processing):
+
 - Loading spinner: "Reading bill data..."
 - Success: "Bill data extracted! Please review below."
 
 **Bill Form** (Pre-filled from OCR):
+
 - Vendor (searchable dropdown, highlighted if extracted)
 - Bill Date (highlighted if extracted)
 - Due Date (highlighted if extracted)
@@ -1136,25 +1203,30 @@ Accounting Module (Main Menu)
 - Reference
 
 **Line Items** (Pre-filled from OCR):
+
 - Description | Quantity | Unit Price | Tax | Account | Amount
 - Highlight fields extracted from OCR
 - Confidence score indicator (high/medium/low)
 - Edit inline
 
 **Totals**:
+
 - Subtotal
 - Tax
 - Total
 
 **Attached File**:
+
 - Thumbnail preview
 - Download link
 
 **Approval Workflow** (if required):
+
 - Approver (auto-assigned based on rules)
 - Approval status
 
 **Actions**:
+
 - Save as Draft
 - Submit for Approval
 - Approve and Pay (if user has permission)
@@ -1167,6 +1239,7 @@ Accounting Module (Main Menu)
 **Layout**:
 
 **Header**:
+
 - Bank account name and balance
 - Statement date range (from/to date pickers)
 - Statement ending balance (input)
@@ -1174,12 +1247,14 @@ Accounting Module (Main Menu)
 **Two-Panel Layout**:
 
 **Left Panel - Bank Transactions**:
+
 - List of imported bank transactions
 - Columns: Date | Description | Amount | Match Status
 - Filter: All, Unmatched, Matched, Reconciled
 - Search box
 
 **Right Panel - Suggested Matches**:
+
 - When transaction selected on left, show suggested matches
 - Confidence score (color-coded)
 - Match options:
@@ -1191,6 +1266,7 @@ Accounting Module (Main Menu)
 - "Categorize" option (for unmatched)
 
 **Transaction Detail** (when item selected):
+
 - Full description
 - Amount, date
 - Suggested category
@@ -1198,8 +1274,9 @@ Accounting Module (Main Menu)
 - Notes field
 
 **Bottom Summary**:
+
 - Opening balance: $X
-- + Transactions matched: $Y
+- - Transactions matched: $Y
 - - Transactions cleared: $Z
 - = Calculated balance: $A
 - Statement balance: $B
@@ -1213,11 +1290,13 @@ Accounting Module (Main Menu)
 **Mobile Layout** (Responsive):
 
 **Receipt Capture**:
+
 - Large "Take Photo" button (camera icon)
 - "Upload from Gallery" button
 - Preview area
 
 **After Capture**:
+
 - Receipt image preview
 - "Processing receipt..." (OCR running)
 - Auto-filled fields:
@@ -1227,14 +1306,17 @@ Accounting Module (Main Menu)
   - Category (dropdown, suggested from OCR)
 
 **Additional Fields**:
+
 - Description (optional)
 - Reimbursable (toggle, default on)
 - Department (dropdown)
 
 **Submit Button**:
+
 - "Submit for Approval"
 
 **Success Message**:
+
 - "Expense submitted! Your manager will review."
 - "Submit Another" button
 
@@ -1245,6 +1327,7 @@ Accounting Module (Main Menu)
 **Layout**:
 
 **Report Controls** (Top bar):
+
 - Date Range: Dropdown (This Month, This Quarter, This Year, Custom) + Date pickers
 - Compare to: Dropdown (None, Prior Period, Prior Year, Custom) + Date pickers
 - Currency: Dropdown (Base, USD, EUR, etc.)
@@ -1297,6 +1380,7 @@ Net Margin                       26.8%         23.9%        +2.9%
 ```
 
 **Interactive Features**:
+
 - Click account name to drill down to transaction detail
 - Hover over amount to see tooltip with more info
 - Expand/collapse sections
@@ -1309,23 +1393,27 @@ Net Margin                       26.8%         23.9%        +2.9%
 **Layout**:
 
 **Header**:
+
 - Search bar (account code, name)
 - Filter: Account Type (All, Assets, Liabilities, Equity, Revenue, Expenses)
 - Filter: Status (Active, Inactive, All)
 - "Add Account" button
 
 **Table** (Hierarchical view):
+
 - Account Code | Account Name | Type | Currency | Balance | Status | Actions
 - Indent child accounts under parents
 - Expand/collapse icons for parent accounts
 
 **Actions Dropdown**:
+
 - Edit
 - View Transactions
 - Deactivate/Activate
 - Delete (only if no transactions)
 
 **Add/Edit Account Modal**:
+
 - Account Code (input)
 - Account Name (input)
 - Multilingual Names (expandable section)
@@ -1349,6 +1437,7 @@ Debits = Credits (always)
 ```
 
 **Account Type Rules**:
+
 - **Assets**: Debit increases, Credit decreases
 - **Liabilities**: Credit increases, Debit decreases
 - **Equity**: Credit increases, Debit decreases
@@ -1402,17 +1491,20 @@ Debits = Credits (always)
 ### Bank Reconciliation Matching Rules
 
 **Automatic Matching** occurs when:
+
 1. Amount matches within tolerance (default ±$0.05)
 2. Date within range (default ±3 days)
 3. Description contains reference (invoice #, customer name)
 4. Confidence score > 90%
 
 **Manual Matching** required when:
+
 1. Multiple possible matches
 2. Confidence score < 90%
 3. Amount or date variance exceeds threshold
 
 **Matching Rule Priority**:
+
 1. Exact amount + exact date + description match
 2. Exact amount + date range + description partial match
 3. Amount range + description match
@@ -1421,16 +1513,19 @@ Debits = Credits (always)
 ### Multi-Currency Transactions
 
 **Exchange Rate Locking**:
+
 - Invoice/Bill: Rate locked at document date
 - Payment: Rate locked at payment date
 - If rates differ between invoice and payment, FX gain/loss recorded
 
 **Unrealized Gain/Loss** (Period End):
+
 - Recalculate all open foreign currency invoices/bills at current rate
 - Post adjustment to Unrealized FX Gain/Loss account
 - Reverse at start of next period
 
 **Realized Gain/Loss** (Settlement):
+
 - When foreign invoice paid:
   ```
   Original Invoice (Jan 1): €10,000 @ 1.10 = $11,000 DR AR
@@ -1446,18 +1541,21 @@ Debits = Credits (always)
 ### Tax Calculation Rules
 
 **US Sales Tax**:
+
 - Tax based on ship-to address (destination-based)
 - Nexus determination: Does seller have physical presence or economic nexus?
 - Tax-exempt customers require exemption certificate on file
 - Composite rate = State + County + City + District
 
 **EU VAT**:
+
 - **B2C**: Charge VAT of seller's country (if buyer in same country) or buyer's country (if threshold exceeded)
 - **B2B**: Reverse charge if buyer provides valid VAT number
 - **Intra-EU**: VAT not charged, buyer self-assesses
 - **Import/Export**: Zero-rated or exempt
 
 **Tax Rounding**:
+
 - Calculate tax per line item
 - Round to 2 decimals per line
 - Sum all line taxes for total tax
@@ -1465,20 +1563,24 @@ Debits = Credits (always)
 ### Accounting Period Rules
 
 **Open Period**:
+
 - All transactions can be created/edited
 - Default posting date = today
 
 **Closed Period**:
+
 - No new transactions
 - No edits to existing transactions
 - Reports are finalized
 
 **Locked Period**:
+
 - Like closed, but permanent
 - Used after external audit or tax filing
 - Requires special permission to unlock
 
 **Year-End Close**:
+
 1. Close all revenue and expense accounts to Retained Earnings
 2. Carry forward asset, liability, equity balances
 3. Lock prior year periods
@@ -1548,6 +1650,7 @@ Debits = Credits (always)
 ### Data Access Control
 
 **Role-Based Permissions**:
+
 - `accounting:full` - Full access (CFO, Controller)
 - `accounting:invoices:*` - Invoice management
 - `accounting:bills:*` - Bill management
@@ -1558,6 +1661,7 @@ Debits = Credits (always)
 - `accounting:periods:close` - Close accounting periods
 
 **Data-Level Security**:
+
 - All queries filtered by `tenant_id` automatically
 - Users can only access data for their tenant
 - Row-level security policies enforce tenant isolation
@@ -1566,17 +1670,20 @@ Debits = Credits (always)
 ### Sensitive Data Protection
 
 **Encryption**:
+
 - Vendor bank account numbers encrypted at rest (AES-256)
 - Customer payment information not stored (use payment gateway tokens)
 - Tax ID numbers encrypted
 - Audit log entries encrypted
 
 **PCI DSS Compliance** (if processing payments):
+
 - No credit card numbers stored in database
 - Use payment gateway tokens only
 - PCI DSS Level 1 compliant payment providers (Stripe, PayPal)
 
 **Access Logging**:
+
 - All financial transaction views logged
 - Report generation logged (who ran what report when)
 - Export actions logged
@@ -1585,6 +1692,7 @@ Debits = Credits (always)
 ### Audit Trail
 
 **Comprehensive Logging**:
+
 - Every financial transaction includes: created_by, created_at, updated_by, updated_at
 - Journal entries are immutable once posted (new entry required for corrections)
 - Invoice/bill modifications create version history
@@ -1593,6 +1701,7 @@ Debits = Credits (always)
 - Account balance changes tracked
 
 **Audit Reports**:
+
 - User activity report (who did what when)
 - Transaction detail report (full journal entry history)
 - Account activity report (all changes to account balances)
@@ -1605,11 +1714,13 @@ Debits = Credits (always)
 ### Payment Gateway Integration
 
 **Supported Providers**:
+
 - Stripe (Credit/Debit cards, ACH)
 - PayPal (PayPal balance, cards)
 - GoCardless (Direct Debit - UK, EU, Australia)
 
 **Integration Flow**:
+
 1. Tenant connects payment gateway account (OAuth)
 2. Invoice includes payment link with gateway-specific URL
 3. Customer clicks link, enters payment details on gateway
@@ -1619,6 +1730,7 @@ Debits = Credits (always)
 7. Email confirmation sent to customer and merchant
 
 **Webhook Handling**:
+
 - Signature verification (HMAC)
 - Idempotent payment processing
 - Retry logic for failed webhooks
@@ -1627,12 +1739,14 @@ Debits = Credits (always)
 ### Bank Feed Integration
 
 **Supported Providers**:
+
 - Plaid (US, Canada)
 - Yodlee (Global)
 - Direct bank APIs (selected banks)
 - Manual CSV/OFX upload
 
 **Integration Flow**:
+
 1. User connects bank account via OAuth/credentials
 2. Platform fetches last 90 days of transactions
 3. Daily sync imports new transactions
@@ -1641,6 +1755,7 @@ Debits = Credits (always)
 6. Reconciliation completed
 
 **Security**:
+
 - Bank credentials never stored (OAuth tokens only)
 - Encrypted token storage
 - Read-only access to bank accounts
@@ -1649,12 +1764,14 @@ Debits = Credits (always)
 ### Accounting Software Integration (Future)
 
 **Potential Integrations**:
+
 - QuickBooks Online (export invoices, bills, payments)
 - Xero (full sync)
 - NetSuite (for enterprise customers)
 - Custom CSV export for any system
 
 **Sync Direction**:
+
 - One-way export (platform → external system)
 - Two-way sync (selected fields only)
 - Conflict resolution rules
@@ -1662,6 +1779,7 @@ Debits = Credits (always)
 ### HR/Payroll Integration
 
 **Internal Integration**:
+
 - Employee data from HR module
 - Payroll journal entries posted to GL
 - Expense reimbursements create AP bills
@@ -1674,6 +1792,7 @@ Debits = Credits (always)
 ### Standard Financial Reports
 
 **1. Profit & Loss (Income Statement)**
+
 - Time period: Custom range, MTD, QTD, YTD
 - Comparison: Prior period, prior year, budget
 - Grouping: By account type (Revenue, COGS, Expenses)
@@ -1681,6 +1800,7 @@ Debits = Credits (always)
 - Export: PDF, Excel, CSV
 
 **2. Balance Sheet**
+
 - As of date: Any date
 - Comparison: Prior period, prior year
 - Grouping: Assets, Liabilities, Equity
@@ -1688,6 +1808,7 @@ Debits = Credits (always)
 - Export: PDF, Excel, CSV
 
 **3. Cash Flow Statement**
+
 - Time period: Custom range, MTD, QTD, YTD
 - Method: Direct or indirect
 - Sections: Operating, Investing, Financing activities
@@ -1695,6 +1816,7 @@ Debits = Credits (always)
 - Export: PDF, Excel
 
 **4. Trial Balance**
+
 - As of date: Any date
 - Shows: All accounts with debit/credit balances
 - Verification: Total debits = total credits
@@ -1702,6 +1824,7 @@ Debits = Credits (always)
 - Export: PDF, Excel, CSV
 
 **5. General Ledger Detail**
+
 - Time period: Custom date range
 - Filter: By account, date range
 - Shows: All journal entries with line details
@@ -1711,6 +1834,7 @@ Debits = Credits (always)
 ### AR/AP Reports
 
 **6. AR Aging Summary**
+
 - As of date: Any date
 - Aging buckets: Current, 1-30, 31-60, 61-90, 90+ days
 - Grouping: By customer
@@ -1718,26 +1842,31 @@ Debits = Credits (always)
 - Export: PDF, Excel, CSV
 
 **7. AR Aging Detail**
+
 - As of date: Any date
 - Shows: Individual invoices with aging
 - Filter: By customer, currency
 - Drill-down: To invoice detail
 
 **8. AP Aging Summary**
+
 - Similar to AR aging for vendors/bills
 
 **9. Customer Balances**
+
 - As of date: Any date
 - Shows: All customers with outstanding balance
 - Sorted: By balance (high to low)
 - Filter: Active customers only
 
 **10. Vendor Balances**
+
 - Similar to customer balances
 
 ### Tax Reports
 
 **11. Sales Tax Summary (US)**
+
 - Time period: Quarter, month, custom
 - Shows: Tax collected by jurisdiction
 - Supports: Multi-state operations
@@ -1745,12 +1874,14 @@ Debits = Credits (always)
 - Export: PDF, CSV for upload to tax authority
 
 **12. VAT Return (UK/EU)**
+
 - Time period: Quarter
 - Shows: Output tax, input tax, net tax due
 - Format: HMRC MTD compatible
 - Supports: Digital submission
 
 **13. 1099 Report (US)**
+
 - Time period: Tax year
 - Shows: Payments to 1099 vendors
 - Filter: Vendors with >$600 payments
@@ -1759,24 +1890,28 @@ Debits = Credits (always)
 ### Management Reports
 
 **14. Budget vs. Actual**
+
 - Time period: Month, quarter, year
 - Shows: Budget, actual, variance ($ and %)
 - Grouping: By department, account category
 - Visual: Color coding for variances
 
 **15. Department P&L**
+
 - Time period: Custom
 - Shows: Revenue and expenses by department
 - Comparison: Across departments
 - Useful for: Cost center analysis
 
 **16. Project Profitability**
+
 - Requires: Tracking categories enabled
 - Shows: Revenue and expenses by project
 - Calculates: Profit margin per project
 - Useful for: Service businesses
 
 **17. Cash Flow Forecast**
+
 - Time period: Next 30, 60, 90 days
 - Shows: Expected collections (from invoices)
 - Shows: Expected payments (from bills)
@@ -1786,6 +1921,7 @@ Debits = Credits (always)
 ### Custom Reports
 
 **Report Builder**:
+
 - Select data source (invoices, bills, transactions, accounts)
 - Choose columns to display
 - Apply filters (date, customer, vendor, account, etc.)
@@ -1801,6 +1937,7 @@ Debits = Credits (always)
 ### Unit Testing
 
 **Critical Functions**:
+
 - Tax calculation logic (all tax types)
 - Multi-currency conversion and FX gain/loss calculation
 - Invoice/Bill total calculations
@@ -1815,6 +1952,7 @@ Debits = Credits (always)
 ### Integration Testing
 
 **Test Scenarios**:
+
 1. **Invoice-to-Payment Flow**:
    - Create invoice → Send → Record payment → Verify GL entries
 2. **Bill-to-Payment Flow**:
@@ -1831,6 +1969,7 @@ Debits = Credits (always)
 ### End-to-End Testing
 
 **User Workflows**:
+
 1. **New Business Setup**:
    - Create tenant → Set up chart of accounts → Add customers/vendors → Create first invoice
 2. **Monthly Close**:
@@ -1843,12 +1982,14 @@ Debits = Credits (always)
 ### Performance Testing
 
 **Load Testing**:
+
 - 1,000 concurrent users generating reports
 - 10,000 invoices created per hour
 - 1M journal entry lines queried for P&L report
 - Real-time dashboard with 100 concurrent views
 
 **Target Performance**:
+
 - Invoice creation: <2 seconds
 - Report generation (P&L, YTD): <5 seconds
 - Bank transaction import: 10,000 transactions in <30 seconds
@@ -1857,6 +1998,7 @@ Debits = Credits (always)
 ### Security Testing
 
 **Penetration Testing**:
+
 - SQL injection attempts on all input fields
 - Cross-tenant data access attempts
 - Privilege escalation attempts
@@ -1864,6 +2006,7 @@ Debits = Credits (always)
 - Sensitive data exposure checks
 
 **Compliance Testing**:
+
 - GDPR: Data export, right to be forgotten
 - PCI DSS: Payment data handling (if applicable)
 - SOC 2: Access controls, audit logging
@@ -2130,7 +2273,7 @@ either way.
       a real postgres.js limitation while building this: a `tx.unsafe()`
       fragment with more than one bind parameter, embedded via `${...}`
       inside another tagged-template query, throws (`bind message
-      supplies 0 parameters, but prepared statement requires 2`) rather
+    supplies 0 parameters, but prepared statement requires 2`) rather
       than binding correctly — confirmed empirically with a throwaway
       script before it reached committed code, not shipped as a bug; the
       two functions duplicate their shared account-balances CTE inline
@@ -2143,7 +2286,7 @@ either way.
       shown as its own line rather than folded into an account's own
       changes — this codebase has no closing-entry process, so net income
       never actually reaches an equity account. `ending_equity_including_
-      current_earnings` matches `balanceSheetTotals().total_equity` for the
+    current_earnings` matches `balanceSheetTotals().total_equity` for the
       same date exactly, proven in a test. The fixture originally had
       nothing to show (Retained Earnings had zero posted activity), so as a
       2026-09-12 follow-up it gained a real opening-balance entry
@@ -2209,7 +2352,7 @@ either way.
       differently-shaped functions: `trialBalanceComparison()`/
       `trialBalanceComparisonTotals()` and `balanceSheetComparison()`/
       `balanceSheetComparisonTotals()`. Each date's own `sum(...) FILTER
-      (WHERE ...)` is computed once and read multiple times downstream,
+    (WHERE ...)` is computed once and read multiple times downstream,
       rather than repeating the CASE expression itself. Found and fixed a
       real bug while writing the row-level test: an account with rows dated
       after one of the two `asOf` cutoffs (but before the other) summed to
@@ -2242,7 +2385,7 @@ either way.
       `amount_due` is already `total - amount_paid`
       (`ck_invoices_amounts_reconcile`), so a partial payment ages by its
       remaining balance with no extra logic. Grouped by `(customer_id,
-      currency)` and reads the invoice's own currency, never
+    currency)` and reads the invoice's own currency, never
       `base_amount_due` — a customer with invoices in two currencies is two
       rows, and there is no cross-customer total, since summing across
       currencies would violate BR-FP-003 (money is never converted for
@@ -2258,7 +2401,7 @@ either way.
       approved, unpaid bills (`amount_due > 0`, not draft/void/cancelled)
       with `due_date` between a chosen `asOf` (blank defaults to
       `CURRENT_DATE`, same reasoning as `arAging()`'s) and `asOf +
-      withinDays`. `withinDays` is a fixed `select` (7/14/30/60), not free
+    withinDays`. `withinDays` is a fixed `select` (7/14/30/60), not free
       text — the same "vocabulary lives in one place" choice as the status
       filters. A bill already past `asOf` is overdue, not due soon, so the
       lower bound excludes it — the feature's whole reason to exist,
@@ -2566,25 +2709,26 @@ either way.
       that reason).
 
       A second commit adds the configuration route: `/accounting/tax-rates`
-      (`tax_rates.repo.ts`) lists every rate and lets finance create one
-      (code, name, type, rate, country/region/jurisdiction, reverse charge,
-      effective date) and deactivate/reactivate it — `accounting.write`-gated,
-      each action audited (`create`/`deactivate`/`activate`). A rate is never
-      edited in place once created; a mistyped one is deactivated and
-      replaced, the same reasoning a period's close/reopen uses rather than
-      letting history be rewritten. Tested in `tax_rates.writes.test.ts` (6
-      cases): create and read back the same figures, a duplicate code within
-      the tenant is refused, deactivate/reactivate round-trips, a nonexistent
-      id returns null rather than a silent success (break/revert-verified —
-      hardcoding a fallback row made the "nonexistent id" test fail exactly
-      as expected), and finance-only RLS (an auditor reads but cannot write;
-      a plain employee sees nothing). `form-errors.spec.ts` covers a
-      duplicate code and a missing effective date; `smoke.spec.ts` renders
-      the page. Still marked partial: no editing of a rate's other fields,
-      and invoices/bills still take a manually-typed tax amount rather than
-      computing one from a configured rate — a real rate lookup on
-      invoice/bill creation is a larger change than this route, deliberately
-      out of scope here.
+          (`tax_rates.repo.ts`) lists every rate and lets finance create one
+          (code, name, type, rate, country/region/jurisdiction, reverse charge,
+          effective date) and deactivate/reactivate it — `accounting.write`-gated,
+          each action audited (`create`/`deactivate`/`activate`). A rate is never
+          edited in place once created; a mistyped one is deactivated and
+          replaced, the same reasoning a period's close/reopen uses rather than
+          letting history be rewritten. Tested in `tax_rates.writes.test.ts` (6
+          cases): create and read back the same figures, a duplicate code within
+          the tenant is refused, deactivate/reactivate round-trips, a nonexistent
+          id returns null rather than a silent success (break/revert-verified —
+          hardcoding a fallback row made the "nonexistent id" test fail exactly
+          as expected), and finance-only RLS (an auditor reads but cannot write;
+          a plain employee sees nothing). `form-errors.spec.ts` covers a
+          duplicate code and a missing effective date; `smoke.spec.ts` renders
+          the page. Still marked partial: no editing of a rate's other fields,
+          and invoices/bills still take a manually-typed tax amount rather than
+          computing one from a configured rate — a real rate lookup on
+          invoice/bill creation is a larger change than this route, deliberately
+          out of scope here.
+
 - [x] Tax-exempt customers + exemption expiry. US-ACC-050 (2026-09-13).
       `customers.tax_exempt_until` (nullable `DATE`) added; `createInvoice`
       and `issueInvoice` both refuse a taxed line for a customer exempt as of
@@ -2692,69 +2836,70 @@ either way.
       a known gap before now.
 
       `recordAccrual()` posts BOTH the accrual and its reversal
-      immediately, from `/accounting/accruals` — unlike every other Tier 8
-      item, there is no manual-trigger gap here: accounting convention
-      posts both halves at once (the accrual dated the picked period's last
-      day, the reversal dated the very next period's first day), never on a
-      future schedule, so this genuinely completes its story. Always an
-      ACCRUED EXPENSE (debit a picked expense account, credit one blanket
-      Accrued Liabilities account, `ACCOUNTS.accruedLiabilities` = "2150")
-      — accrued REVENUE is a documented scope line, not an oversight; the
-      far more common month-end case is expense. `journal_entries` is
-      immutable once posted (20260912060000), so the reversal is always a
-      second, independent entry, never an edit of the first. Both entries
-      set the previously-dormant `is_adjusting` flag, finally lighting up
-      the ledger's own "adjusting" badge (`ledger/+page.svelte`), unused
-      since it was added.
+          immediately, from `/accounting/accruals` — unlike every other Tier 8
+          item, there is no manual-trigger gap here: accounting convention
+          posts both halves at once (the accrual dated the picked period's last
+          day, the reversal dated the very next period's first day), never on a
+          future schedule, so this genuinely completes its story. Always an
+          ACCRUED EXPENSE (debit a picked expense account, credit one blanket
+          Accrued Liabilities account, `ACCOUNTS.accruedLiabilities` = "2150")
+          — accrued REVENUE is a documented scope line, not an oversight; the
+          far more common month-end case is expense. `journal_entries` is
+          immutable once posted (20260912060000), so the reversal is always a
+          second, independent entry, never an edit of the first. Both entries
+          set the previously-dormant `is_adjusting` flag, finally lighting up
+          the ledger's own "adjusting" badge (`ledger/+page.svelte`), unused
+          since it was added.
 
-      Deferred revenue and prepaid expense amortization are ONE mechanism,
-      not two — a balance-sheet account (a liability for deferred revenue,
-      an asset for prepaid) draining into an income-statement account
-      (revenue or expense) on a schedule; direction is the only
-      difference. A new `amortization_schedules` table mirrors
-      `recurring_schedules`' own shape deliberately (a template,
-      `next_run_date`, a manual "Post due amortizations" action, advanced
-      per posting) rather than inventing a second schedule model. Each
-      period recognizes `total_amount / periods_total`, ROUNDED — except
-      the LAST period, which recognizes whatever is left, so a schedule
-      always finishes at exactly zero rather than a few cents short or
-      over (computed in SQL; CLAUDE.md § Money forbids money arithmetic in
-      JS). `periods_posted` is COUNTED from `journal_entries`
-      (`source_type = 'amortization'`, `source_id` = the schedule's id)
-      every time it's needed, never stored (L58). Each posting is dated
-      the SCHEDULE's own `next_run_date` — the period being recognized —
-      never the day the button happens to be clicked; a schedule caught
-      up over several clicks posts each entry into the period it was
-      actually due for, not all of them into whichever period the last
-      click landed in (self-caught before shipping: an earlier draft used
-      `CURRENT_DATE`, which would have misdated every catch-up posting and
-      made the closed-period guard check the wrong period entirely). That
-      guard is now genuinely reachable: `postDueAmortizations` refuses
-      `period_closed` if ANY due schedule's own date falls in a closed
-      period, and — same all-or-nothing discipline as
-      `generateDueInvoices` — none of that click's other schedules post
-      either, so one schedule due into a closed period blocks the whole
-      run until the period is reopened. PARTIAL
-      because: always monthly (not configurable), no early cancellation/write-off of a
-      schedule created in error (correct it with a manual journal entry —
-      same gap recurring invoice schedules have), and both accounts are
-      picked freely per schedule with no validation that they're actually
-      the right account TYPE (the manual journal entry form, US-ACC-034,
-      makes the same trust call). Both halves tested in
-      `accounting.writes.test.ts` ("accruals and amortization (§11)")
-      against the real database — including period adjacency, the
-      last-period rounding remainder ($100.00 over 3 periods: $33.33,
-      $33.33, $33.34), both recognition directions, the posting-date fix
-      itself (asserted on `entry_date`), and the closed-period refusal —
-      and verified live end-to-end (accrual + reversal posted and visible
-      on the ledger, both schedule kinds posted, idempotent re-run).
+          Deferred revenue and prepaid expense amortization are ONE mechanism,
+          not two — a balance-sheet account (a liability for deferred revenue,
+          an asset for prepaid) draining into an income-statement account
+          (revenue or expense) on a schedule; direction is the only
+          difference. A new `amortization_schedules` table mirrors
+          `recurring_schedules`' own shape deliberately (a template,
+          `next_run_date`, a manual "Post due amortizations" action, advanced
+          per posting) rather than inventing a second schedule model. Each
+          period recognizes `total_amount / periods_total`, ROUNDED — except
+          the LAST period, which recognizes whatever is left, so a schedule
+          always finishes at exactly zero rather than a few cents short or
+          over (computed in SQL; CLAUDE.md § Money forbids money arithmetic in
+          JS). `periods_posted` is COUNTED from `journal_entries`
+          (`source_type = 'amortization'`, `source_id` = the schedule's id)
+          every time it's needed, never stored (L58). Each posting is dated
+          the SCHEDULE's own `next_run_date` — the period being recognized —
+          never the day the button happens to be clicked; a schedule caught
+          up over several clicks posts each entry into the period it was
+          actually due for, not all of them into whichever period the last
+          click landed in (self-caught before shipping: an earlier draft used
+          `CURRENT_DATE`, which would have misdated every catch-up posting and
+          made the closed-period guard check the wrong period entirely). That
+          guard is now genuinely reachable: `postDueAmortizations` refuses
+          `period_closed` if ANY due schedule's own date falls in a closed
+          period, and — same all-or-nothing discipline as
+          `generateDueInvoices` — none of that click's other schedules post
+          either, so one schedule due into a closed period blocks the whole
+          run until the period is reopened. PARTIAL
+          because: always monthly (not configurable), no early cancellation/write-off of a
+          schedule created in error (correct it with a manual journal entry —
+          same gap recurring invoice schedules have), and both accounts are
+          picked freely per schedule with no validation that they're actually
+          the right account TYPE (the manual journal entry form, US-ACC-034,
+          makes the same trust call). Both halves tested in
+          `accounting.writes.test.ts` ("accruals and amortization (§11)")
+          against the real database — including period adjacency, the
+          last-period rounding remainder ($100.00 over 3 periods: $33.33,
+          $33.33, $33.34), both recognition directions, the posting-date fix
+          itself (asserted on `entry_date`), and the closed-period refusal —
+          and verified live end-to-end (accrual + reversal posted and visible
+          on the ledger, both schedule kinds posted, idempotent re-run).
 
-      FX revaluation (`/accounting/fx-revaluation`, Tier 7) is report-only
-      today; period-end unrealized FX gain/loss is conventionally an
-      auto-reversing accrual, so this infrastructure COULD let it post
-      instead of only reporting. Not retrofitted in this commit — a
-      separate, deliberate decision, same as recurring bills being left out
-      of recurring invoices.
+          FX revaluation (`/accounting/fx-revaluation`, Tier 7) is report-only
+          today; period-end unrealized FX gain/loss is conventionally an
+          auto-reversing accrual, so this infrastructure COULD let it post
+          instead of only reporting. Not retrofitted in this commit — a
+          separate, deliberate decision, same as recurring bills being left out
+          of recurring invoices.
+
 - [ ] Bank feed integration (Plaid/Yodlee). US-ACC-027.
 - [x] Bank reconciliation rules (auto-categorization) (2026-09-19).
       US-ACC-029. See its status block above for the shape and scope.
@@ -2793,9 +2938,9 @@ either way.
       largest of the six by scope, and the P&L already has a documented
       gap waiting on it ("no COGS/gross-margin subtotal" on
       `/accounting/profit-loss`, US-ACC-038's status block). Phased per
-      the gap analysis: *Phase 1* — product/SKU master data,
+      the gap analysis: _Phase 1_ — product/SKU master data,
       quantity-on-hand, stock adjustments, low-stock alerts, average-cost
-      COGS, valuation reports; *Phase 2* — multi-location/warehouse,
+      COGS, valuation reports; _Phase 2_ — multi-location/warehouse,
       FIFO/LIFO costing, serial/lot tracking, barcode scanning, kitting,
       landed cost, stock transfers.
 - [ ] Budgeting (GL-account-level, distinct from the existing
@@ -2828,19 +2973,21 @@ either way.
       US-ACC-021's still-open drag-and-drop file upload for bill entry
       (`bills.file_url` unused) and US-ACC-022's OCR
       (`bills.ocr_processed`/`ocr_data` unused) — those are smaller,
-      Tier-10-adjacent gaps on the *existing* bill-entry flow, not part of
+      Tier-10-adjacent gaps on the _existing_ bill-entry flow, not part of
       building POs.
 
 ### Tier 10 — Polish
 
-- [ ] PDF generation + company branding on invoices. US-ACC-001,
-      US-ACC-008. `invoices.pdf_url` is an unused column; no
-      PDF-generation or email-sending code exists for invoices anywhere.
-      The branding ASSET now has a home (2026-09-21): `/settings/company`
-      uploads a logo to a private, tenant-isolated Storage bucket
-      (`tenants.logo_storage_key`) — see US-ACC-001's status block above
-      for the shape. The document that would render it — the PDF itself,
-      and the email that would carry it (US-ACC-008) — is still unbuilt.
+- [x] PDF generation + company branding on invoices — DONE (2026-09-21).
+      US-ACC-001. `/accounting/invoices/[id]/pdf` renders a real branded
+      PDF live from the ledger on every request (never a stored file);
+      `/settings/company`'s "Logo" card uploads a PNG/JPEG to a private,
+      tenant-isolated Storage bucket. See US-ACC-001's status block above
+      for the full shape, tests, and the two live-verification bugs it
+      caught (a layout bug and [L89](10-lessons-learned.md)'s placeholder
+      data). US-ACC-008 (email delivery) — PARTIAL, see its own status
+      block: the send/attach/refuse path is built, but has no delivery
+      confirmation or retry beyond Resend's own response.
 - [ ] Online payment links (Stripe/PayPal) on customer invoices — distinct
       from Kaaj's existing Stripe integration, which is wired only to its
       own SaaS subscription billing (`(admin)/account/billing`). US-ACC-002.
@@ -2881,38 +3028,38 @@ either way.
 
 ### Document Change Log
 
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 2.0 | 2025-12-03 | Initial | Complete accounting module specification based on Xero features |
-| 2.1 | 2026-09-11 | Claude Sonnet 5 | Annotated every User Story (US-ACC-001 to 055) with a DONE/PARTIAL/MISSING status against the actual schema, code, and tests, cross-referenced to [19-accounting-test-plan.md](19-accounting-test-plan.md). This section now describes reality as of that date; the "Testing Requirements" section (unit/integration/E2E coverage targets) and the Functional Requirements below it were not re-verified in this pass and may overstate what exists — e.g. FR-ACC-002 (Expense Management) and FR-ACC-007 (Financial Reporting) both read as live requirements but are 0% built per the User Stories annotations. |
-| 2.2 | 2026-09-11 | Claude Sonnet 5 | Added the "Implementation Roadmap — Remaining Work" section: a priority-ordered, checkable punch list (10 tiers) of every MISSING/PARTIAL item from the v2.1 annotations, in the order we intend to build them. Update the checkboxes in place as items ship; note tier completion here rather than deleting the tier. This partly reconciles the v2.1 row's note about the Functional Requirements: FR-ACC-007 is now explicitly mapped (Tier 3) and FR-ACC-002's scope is covered (Tier 9) — the rest of the FRs below are still as-unverified as v2.1 left them. |
-| 2.3 | 2026-09-12 | Claude Sonnet 5 | Shipped both Tier 1 items: invoice creation and bill entry UIs, each with real test coverage (see the roadmap checkboxes for the exact citations). US-ACC-021 moved MISSING → PARTIAL. Tier 1 is now complete. |
-| 2.4 | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete. |
-| 2.5 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted. |
-| 2.6 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
-| 2.7 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted. |
-| 2.8 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3. |
-| 2.9 | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3. |
-| 2.10 | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is. |
-| 2.11 | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder. |
-| 2.12 | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification. |
-| 2.13 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
-| 2.14 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view. |
-| 2.15 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment. |
-| 2.16 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships. |
-| 2.17 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day). |
-| 2.18 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass. |
-| 2.19 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass. |
-| 2.20 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry). |
-| 2.21 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item. |
-| 2.22 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 5 with its last item: year-end close (US-ACC-051). `/accounting/year-end-close` zeroes every revenue/expense account's cumulative balance as of a chosen date into Retained Earnings (`3000`) in one journal entry, previewing exactly what would be zeroed before a separate confirm posts it. Idempotent by construction — the closing entry's own lines are posted activity too, so a second run at the same date finds nothing left. Not gated on a period being closed first (no close-checklist gate exists, §13); refused the normal way if the date falls in an already-closed period, same as any other `postJournal` caller. Advisor review caught two things. First: the preview and the post are two separate requests with nothing tying them together, so anything posted in between would close on unconfirmed figures — fixed by carrying the previewed net income as a hidden field and refusing (`allocation_mismatch`) if the recomputed figure no longer matches, checked in SQL/NUMERIC the same way a lockbox batch's own total is. Second, on a follow-up review of that fix: the mismatch refusal dead-ended the page, since `use:enhance` only re-runs `load` on success by default, leaving the confirm form stuck on the very figures just refused — fixed with an explicit `invalidateAll()` in the form's submit handler, verified on the wire (a `__data.json` request follows the refusal only with the fix present, since a DOM assertion on the stale field can't distinguish the two cases here). Every figure was verified against the real database via `psql` before being wired into code, and the debit/credit sign logic and both fixes above were break/revert-verified. Tier 5 (manual journal entries, period close/reopen, year-end close) is now fully shipped. |
-| 2.23 | 2026-09-13 | Claude Sonnet 5 | Opened Tier 6 (tax model): fixed the FK model behind US-ACC-046 — a schema-only increment, UI deferred to a follow-up per advisor's explicit recommendation. Every accounting tax FK (`invoice_lines`, `bill_lines`, `chart_of_accounts`, `journal_entry_lines`, `customers`) pointed at `payroll_tax_rates(id)`, a payroll income-tax table, not a sales-tax jurisdiction table. `20260913223213_accounting_tax_rates.sql` adds a real `tax_rates` table and repoints all five, confirmed by reading `pg_constraint.confrelid` after `db reset` before the snapshot was regenerated. Advisor's review caught that the one automated check named after this story (`verify-stories.sql`'s `US-ACC-046`) asserted a fact that was equally true before and after the fix (a sales-tax row exists somewhere) and never actually tested the FK target — added `US-ACC-046-fk`, which reads the five constraints directly and would have failed against the old target. The fixture's three sales-tax/VAT rows move out of `payroll_tax_rates` (which held them only because the FK forced them there) into `tax_rates`, same ids and codes so nothing else needed to change; `payroll_tax_rates` gets its first genuinely payroll row in return, a US federal bracket, since emptying it would have failed the tenant-isolation harness's fixture-row check. Two blanket backfills that predated this migration — every chart-of-accounts row tagged with the same sales-tax rate regardless of type, and every journal-entry line tagged with one despite no posted line ever carrying tax — did not carry forward; scoped to the one revenue account real invoicing uses, and to `EXPECTED_SPARSE` with the honest reason, respectively. `US-ACC-046`/`US-ACC-050`'s status blocks updated to PARTIAL. While correcting the specification check count for this change, found the `./check` step labels for specification, tenant isolation, tables-classified-by-scale and structure-snapshot line count were already stale independent of this work; corrected all four to their current measured values in `CLAUDE.md` and `check`. |
-| 2.24 | 2026-09-13 | Claude Sonnet 5 | Closed the remaining gap in US-ACC-046 (2.23's schema fix): `/accounting/tax-rates` lets finance create a sales tax / VAT rate and deactivate/reactivate one — `tax_rates.repo.ts`, `accounting.write`-gated, each action audited. A rate is never edited in place once created, only deactivated and replaced — the same reasoning a period's close/reopen uses. `tax_rates.writes.test.ts` (6 cases) covers create-and-read-back, a duplicate code within the tenant refused by the unique constraint, deactivate/reactivate, a nonexistent id returning null rather than a silent success (break/revert-verified), and finance-only RLS. Building this route surfaced two more `./check` registries the schema commit hadn't touched: `verify-constraint-registry.mjs`'s `FORM_WRITTEN` list didn't include `tax_rates`, so its registered UNIQUE-constraint message was invisible to the checker (reported as "registered constraint does not exist"); once added, the table's two account-link FKs and its rate CHECK also needed `CANNOT_BE_TRIPPED` entries, since the create form never sets those columns and `FormReader` already refuses a negative rate before the DB is reached. Still partial: no editing of a rate's other fields, and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate. |
-| 2.25 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 6's second item: tax-exempt customers with exemption expiry (US-ACC-050). New nullable `customers.tax_exempt_until` DATE (`20260913230000_customer_tax_exempt_until.sql`; `NULL` means indefinite). Enforced in two places on purpose, not one: `createInvoice` refuses a taxed line for a customer exempt as of the invoice's own date (never "today" — an exemption that has since expired doesn't retroactively apply, and one starting later doesn't apply early), and `issueInvoice` repeats the same check independently against the invoice's stored date and its own fresh read of the customer row. Advisor's review is the reason the second check exists at all: `createInvoice` only guards the draft, but `issueInvoice` is the step that actually posts `tax_total` to the ledger, and a draft can be created before an exemption is set, edited afterward, or issued after the exemption has since expired — none of which the first check would see. A repo-level test constructs exactly that gap (create a normal invoice, then update the customer to exempt before issuing) and the guard was break/revert-verified against it: disabling the `issueInvoice` check made the write silently succeed. Advisor also flagged that the pre-existing `verify-stories.sql` check for this story was vacuous — true before and after the fix, since it only asserted a zero-tax invoice existed for an exempt customer, never that an expiry was involved — replaced it with one asserting `tax_exempt_until IS NOT NULL` and the invoice's own date falls inside the window, which fails against the pre-migration schema. HELIOS, the fixture's one exempt customer, now carries `tax_exempt_until = 2026-12-31`, chosen to keep its existing invoice (dated 2026-01-21) validly exempt. Still partial: no UI to set either column — same posture as `chart_of_accounts.tax_rate_id` (US-ACC-046) — and the invoice form's customer picker doesn't surface a customer's exemption status before a line is typed. `./check` and the full e2e suite (110, single-worker) pass. |
-| 2.26 | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 6's third item: a sales tax liability summary by jurisdiction (US-ACC-048, US-ACC-049), read from the real posted GL rather than the invoice/bill subledger. Advisor's review shaped this one before any code was written: the naive version (report from `journal_entry_lines` accounts `"2200"`/`"1200"` as they already existed) would have rendered an empty output-tax column forever, since nothing in application code had ever written `tax_rate_id` onto a posted GL line — the column existed (retargeted to `tax_rates` in 2.23) but was permanently unwritten, the same vacuous-report shape already flagged twice this tier. Closing that required going one layer deeper than the report itself: a new optional "Tax rate" `<select>` on the invoice/bill create forms (populated from active `tax_rates`, a reference only — the tax amount is still typed in directly, not computed from the rate, which stays the same deferred gap 2.24 documented) feeds `invoice_lines.tax_rate_id`/`bill_lines.tax_rate_id`; `issueInvoice`/`approveBill` then group taxed lines by rate and post one GL tax line per group instead of a single lump sum, so an invoice or bill mixing rates attributes each rate's tax correctly rather than collapsing them — break/revert-verified by reverting the grouping to a lump sum and watching the multi-rate test fail. `taxLiabilitySummary()` nets output minus input per rate for an optional period, with tax posted under no rate as its own explicit, labelled row rather than silently merged into a real jurisdiction. Advisor caught two more things: first, that proving this needed a genuinely non-synthetic row, not just rollback-posted test data — resolved by a single targeted, amount-preserving `UPDATE` tagging the fixture's one already-real posted tax line (`BILL-AWS-2026-01`'s recoverable input tax) with the rate its own `bill_lines` row already carried, rather than retrofitting any invoice into the fragile AR/AP control-account tie-out numbers several other tests quote verbatim; asserted directly against the committed fixture, not just synthetic postings. Second, a red herring caught by re-verification rather than trust: an ad hoc `psql` check without the report's own `COALESCE` appeared to show a `NULL` where `"0"` was expected, which would have meant `money(null, ...)` rendering blank on the page — calling the actual repo function (which does have the `COALESCE`) confirmed it correctly returns `"0"`, not `NULL`, and a new test pins that exact string against the real fixture row so a future edit that drops the `COALESCE` fails loudly. `EXPECTED_SPARSE`'s `journal_entry_lines.tax_rate_id` entry — accurate as of 2.23, when nothing wrote the column — is removed now that it's genuinely populated. Two honest gaps remain, documented rather than silently absent: no VAT-return-shaped export (a filing's box/line format), and UK reverse charge (US-ACC-047, the tier's last item) will post no GL line at all under `postJournal`'s existing zero-nets-out-of-the-entry rule, since a reverse-charge rate's output and input are designed to cancel — noted, not designed around, in this increment. `./check` (24/24) and the full e2e suite (114, single-worker) pass. |
-| 2.27 | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 6, minus one deliberately deferred item. Asked to assess UK VAT reverse charge (US-ACC-047, the tier's last checklist item) before building it: it is not a follow-on to 2.26's tax-summary work but a real modeling change — the vendor's invoice carries zero VAT under reverse charge, so the buyer must self-assess both an output and input side for the same notional amount, and that amount has to be excluded from what is actually owed to the vendor, which `recomputeBillTotals` does not distinguish from ordinary vendor-charged tax today. Given no UK customers exist yet, the user chose to defer rather than build it speculatively. Documentation-only change: US-ACC-047's status block and Tier 6's checklist bullet now record the deferral and the reason, rather than leaving it as a silent open checkbox indistinguishable from "not yet gotten to." No code changed. |
-| 2.28 | 2026-09-14 | Claude Sonnet 5 | Opened Tier 7 (US-ACC-052, US-ACC-036, first item): `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR against USD from Yahoo Finance's public (unofficial, unversioned, no API key) chart endpoint and upserts `exchange_rates` — global reference data with no `tenant_id`, so the write goes through the service role rather than the tenant-scoped connection, and idempotently per calendar day via the table's own `(from_currency, to_currency, rate_date, source)` unique index. Stored inverted from Yahoo's own quote direction (Yahoo gives USD-per-unit-of-currency; `invoices.exchange_rate`/`bills.exchange_rate` multiply the other way), confirmed against the fixture's own pre-existing hand-authored GBP/EUR rows before writing any code. Deliberately scoped down from the full story per advisor's review: refresh is a manual-trigger button (`accounting.write`-gated, audited) rather than a system/cron endpoint — a shared-secret-protected scheduler would have been the least verifiable thing to add this round, and there is no way to test that a scheduler this repo doesn't control actually fires daily. Wiring a real daily trigger onto this action is an ops step, left undone on purpose; both stories stay PARTIAL, not DONE, for exactly that reason. One currency's Yahoo failure doesn't fail the others — each is fetched and written independently — and a total failure (all four down) surfaces as its own 502, now covered by a dedicated test after advisor's review flagged that path as unexercised. Along the way, found and fixed a real, unrelated, cross-cutting bug via direct PostgREST calls (not assumed): `service_role` has `BYPASSRLS` but had never once been GRANTed SELECT/INSERT/UPDATE on any table — RLS bypass and table grants are separate Postgres layers, and nothing in any prior migration touched the second one. This silently broke every existing service-role write path, not just the new one — including the production Contact Us form, which had been discarding every submission. Surfaced to the user before proceeding broadly; fixed per their explicit direction with a new migration (`20260914090000_service_role_table_grants.sql`, mirroring `app_user`'s own `GRANT`/`ALTER DEFAULT PRIVILEGES` pattern, minus DELETE) and a new, break/revert-verified `./check` step that queries `has_table_privilege('service_role', ...)` directly against the live database rather than trusting that a file being on `verify-service-role.mjs`'s import allowlist means it can actually write ([L84](10-lessons-learned.md)). `DatabaseDefinitions.ts` — stale since the original SaaS-starter template and covering only 3 of the schema's ~98 tables — was regenerated in full so `.from("exchange_rates")` would typecheck; only 5 low-risk generic-parameter call sites import it. `./check` (24/24) and the full e2e suite (115, single-worker) pass; the feature was also verified live in a real browser against the real Yahoo endpoint before the database was reset back to a clean fixture state. |
-| 2.29 | 2026-09-18 | Claude Sonnet 5 | Closed out Tier 7's remaining two items, in two commits. First, settlement FX gain/loss (US-ACC-054): `recordPayment`/`recordVendorPayment` now look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate — see the Tier 7 entry above for the shape, including why the recognizing entry posts in USD (`ck_journal_entry_lines_one_sided_positive` rules out a native-currency-zero plug line, discovered only after an initial `JournalLine` base-amount-override design failed against the live database) and its two documented simplifications. Second, period-end FX revaluation (US-ACC-053), scoped to report-only after the user chose between that and a full posting-with-reversal feature: a non-reversing adjustment would double-count against the settlement recognition just shipped, and this codebase has no reversing-entry mechanism — `/accounting/fx-revaluation` answers the user story as literally written ("I want to see") without answering the harder posting question wrongly. Bank-account balances are excluded from the report by design, not oversight (no per-account booking rate to revalue against). A cross-test race surfaced along the way: temporary `exchange_rates` rows inserted through a raw superuser connection (`app_user` has no write policy on that table) commit outside any rolled-back transaction, so two tests mutating the same currency's rate history could interfere under concurrent test execution — fixed by giving each fabricated-rate test its own currency (GBP stays read-only, relying on the fixture's real history). Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` (gain, loss, both fallbacks) and a new `fx_revaluation.test.ts` (a real gain, the no-rate-on-file case, a bill's opposite-direction loss, and that no USD document ever appears), all against the real database; a new `smoke.spec.ts` row and a live browser check confirm the report page itself. `./check` (25/25) passes. Tier 7 is now fully checked off, with two remainders carried forward explicitly rather than silently: settlement FX's two simplifications, and revaluation's bank-account exclusion and deferred posting/reversal. |
+| Version | Date       | Author          | Changes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ---------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.0     | 2025-12-03 | Initial         | Complete accounting module specification based on Xero features                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2.1     | 2026-09-11 | Claude Sonnet 5 | Annotated every User Story (US-ACC-001 to 055) with a DONE/PARTIAL/MISSING status against the actual schema, code, and tests, cross-referenced to [19-accounting-test-plan.md](19-accounting-test-plan.md). This section now describes reality as of that date; the "Testing Requirements" section (unit/integration/E2E coverage targets) and the Functional Requirements below it were not re-verified in this pass and may overstate what exists — e.g. FR-ACC-002 (Expense Management) and FR-ACC-007 (Financial Reporting) both read as live requirements but are 0% built per the User Stories annotations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2.2     | 2026-09-11 | Claude Sonnet 5 | Added the "Implementation Roadmap — Remaining Work" section: a priority-ordered, checkable punch list (10 tiers) of every MISSING/PARTIAL item from the v2.1 annotations, in the order we intend to build them. Update the checkboxes in place as items ship; note tier completion here rather than deleting the tier. This partly reconciles the v2.1 row's note about the Functional Requirements: FR-ACC-007 is now explicitly mapped (Tier 3) and FR-ACC-002's scope is covered (Tier 9) — the rest of the FRs below are still as-unverified as v2.1 left them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.3     | 2026-09-12 | Claude Sonnet 5 | Shipped both Tier 1 items: invoice creation and bill entry UIs, each with real test coverage (see the roadmap checkboxes for the exact citations). US-ACC-021 moved MISSING → PARTIAL. Tier 1 is now complete.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 2.4     | 2026-09-12 | Claude Sonnet 5 | Shipped all three Tier 2 items: posted journal entry immutability (new migration + RLS predicate + positive-control test), `postJournal`'s zero/single-line guard, and a direct `does_not_balance` test. §1.1 and §1.3's immutability bullet in [19-accounting-test-plan.md](19-accounting-test-plan.md) updated; the top-of-document correction about immutability is now marked fixed rather than live. Tier 2 is now complete.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2.5     | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's first item: trial balance report + GL-control-account-to-subledger tie-out. Found two distinct, fully-explained drifts between the GL and the AR/AP subledgers in the fixture — one orphaned journal entry each (§1.5/§6 updated) — a data gap, not an application bug, confirmed by a separate test proving the write paths themselves add zero drift. Tier 3's remaining items (P&L, Balance Sheet, Cash Flow, Statement of Changes in Equity, period comparison) are unstarted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.6     | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's second item: a Profit & Loss statement (`/accounting/profit-loss`), periodic rather than cumulative, with net income summed independently in SQL rather than reduced from the per-account rows in JS (money strings don't add in JS). US-ACC-038 moved MISSING → PARTIAL. Balance Sheet, Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2.7     | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's third item: a Balance Sheet (`/accounting/balance-sheet`), cumulative as of a date. Since this codebase has no closing-entry process, `equity` alone doesn't tie to assets — the report folds the current period's net income back in as its own line, verified against the real fixture figures rather than assumed. US-ACC-039 moved MISSING → PARTIAL. Cash Flow, Statement of Changes in Equity, and period comparison are still unstarted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2.8     | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fourth item: a Cash Flow statement (`/accounting/cash-flow`), indirect method, reconciled against the real Cash-account balance. Investing/Financing sections are real but structurally near-empty — this chart of accounts has no fixed-asset/investment/loan account category, a stated schema gap. Found and worked around a real postgres.js limitation along the way (a multi-parameter `tx.unsafe()` fragment nested in another query throws rather than binding). US-ACC-040 moved MISSING → PARTIAL. Statement of Changes in Equity and period comparison are still unstarted — the last two items in Tier 3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2.9     | 2026-09-12 | Claude Sonnet 5 | Shipped Tier 3's fifth item: a Statement of Changes in Equity (`/accounting/equity`), a per-account period roll-forward with net income shown as its own unclosed line. The fixture has almost no real equity activity to show — Retained Earnings has never been posted to — so the only real proof of correctness is a write-path positive control, not a read-only assertion over the fixture as it stands. §5.4 addressed. Only period comparison (MoM/YoY) and department/location filtering remain in Tier 3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.10    | 2026-09-12 | Claude Sonnet 5 | Closed the v2.9 gap directly: the Northwind fixture now carries a real opening-balance entry (`JE-2026-0000`, 2026-01-01, Debit Cash `20000.00` / Credit Retained Earnings `20000.00`, modeling FY2025 earnings carried into the new year), so the equity statement — and every other report whose totals include the equity term — now runs against genuine non-zero data instead of a permanently-zero subject. Rippled into every already-shipped report that sums account balances without an upper `to` bound: balance sheet (`equity` `0`→`20000.00`, `assets`/`total_liabilities_and_equity` `39061.53`→`59061.53`), cash flow (`financing_cash_flow` `0`→`20000.00`, `ending_cash` `48900.00`→`68900.00`), and trial balance's as-of-Jan-21 total. `net_income` is unchanged everywhere — the entry touches only Cash and Retained Earnings, never revenue or expense — which is the check that confirms the right pair of accounts was chosen. The existing write-path positive control in `accounting.writes.test.ts` now isolates its own $500 posting from the fixture's opening balance by querying with `from` set to the posting's own date, rather than relying on the fixture carrying zero equity activity of its own. All hardcoded figures in `accounting.test.ts`, [19-accounting-test-plan.md](19-accounting-test-plan.md), and this document's own Tier 3 roadmap checklist bullets above were recomputed from the running database, not hand-calculated — the v2.7–2.9 changelog rows above are historical and were deliberately left as-is.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.11    | 2026-09-12 | Claude Sonnet 5 | Shipped period comparison (US-ACC-041) on the Profit & Loss statement — `acc.profitAndLossComparison()` computes the prior comparison window's dates in SQL (Postgres date arithmetic, not JS), for `previous_period` (an equal-length trailing window, not a calendar month) or `previous_year`. Scoped to totals, not per-account, and to P&L only — the other four Tier 3 reports and department/location filtering (US-ACC-044) remain unstarted; the latter is blocked on fixture diversification, since every posted line in the fixture shares one department and one location today. Tier 3 is now fully addressed except for that remainder.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2.12    | 2026-09-13 | Claude Sonnet 5 | Extended period comparison to Cash Flow and the Statement of Changes in Equity, closing the "P&L only" gap v2.11 left open. `acc.cashFlowComparison()` and `acc.equityComparison()` reuse the same prior-window SQL shape as the P&L, each cross-checked in tests against `cashFlowTotals()`/`equityStatementTotals()` run independently over the identical two windows. The `compare` vocabulary and its three guards (needs both dates; an unrecognized value gets its own message; `previous_year` refused when the period is a year or longer) were factored out of the P&L page into `$lib/server/accounting/period-compare.ts` rather than copied a third time, and the P&L page itself refactored onto it. Trial balance and balance sheet remain without comparison — both are cumulative "as of" reports, so a comparison there is a differently-shaped feature (two `asOf` columns, not two windows), not an extension of this one. Department/location filtering (US-ACC-044) remains blocked on fixture diversification.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.13    | 2026-09-13 | Claude Sonnet 5 | Opened Tier 4 (Tier 3's remainder — trial balance/balance sheet comparison and department/location filtering — is still open, per v2.12): shipped an AR aging report (`/accounting/ar-aging`, `acc.arAging()`), US-ACC-016. Buckets open invoices by days past due as of a chosen date (blank defaults to `CURRENT_DATE`, deliberately unlike the balance sheet's open-ended blank `asOf`); reads each invoice's own currency rather than `base_amount_due` and shows no cross-customer total, since summing across currencies would violate BR-FP-003. Tests walk the same fixture invoices through every bucket as `asOf` moves, assert the five buckets sum to the total at each date, and the bucket boundaries are break/revert-verified. Five items remain in Tier 4: AP "due soon", credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2.14    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's second item: an AP "due soon" view (`/accounting/ap-due-soon`, `pay.apDueSoon()`), US-ACC-024 — bills due within a chosen window, forward-looking and distinct from the existing `is_overdue` flag. Mirrors `arAging()`'s `asOf` default (blank → `CURRENT_DATE`) and the invoices list's no-cross-currency-total precedent. `withinDays` is a fixed select (7/14/30/60) rather than free text. Four items remain in Tier 4: credit memos/refunds, bad-debt write-off, multi-invoice payment allocation, and a per-customer aggregate balance view.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.15    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's third item: a per-customer aggregate balance view (`/accounting/customer-balances`, `acc.customerBalances()`), US-ACC-019 — invoice count, invoiced/paid/due totals and credit limit per customer, for credit-risk review. Unlike every other report shipped this week, it takes no `asOf`: a live balance has no reference date to bucket against. The over-limit flag is a page-level `compareDecimal` comparison, not new SQL, since the fixture's uniform `100.00` credit limit only ever exercises the over-limit branch — noted rather than hidden, the same fixture-homogeneity shape already on record for department/location filtering. Three items remain in Tier 4: credit memos/refunds, bad-debt write-off, and multi-invoice payment allocation — the next two share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.16    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fourth item: multi-invoice payment allocation (`/accounting/receive-payment`, `acc.recordLockboxPayment()`), US-ACC-018 — one payment posted across several of a customer's open invoices in one journal entry, refusing when the allocations don't sum to the stated total (checked in SQL/NUMERIC, not trusted from the page). Found and fixed a real, six-file bug along the way: every `AccountingRefused` refusal handler in the accounting module returned `{ message, field }` instead of `f.problem()`'s actual `{ message, errorFields }` shape, so a refused input's red border and `aria-invalid` silently never applied — [L83](10-lessons-learned.md). Two items remain in Tier 4: credit memos/refunds and bad-debt write-off, which share a reversing-entry mechanism that doesn't exist yet and will be designed as their own increment before either ships.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2.17    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's fifth item, and the first genuine schema migration this whole roadmap effort: credit memos (US-ACC-020, first half). New `invoice_credits` table and `invoices.amount_credited`/`base_amount_credited` columns, with `ck_invoices_amounts_reconcile` widened rather than overloading `amount_paid` with a non-cash reduction — the same correct-looking-number-in-the-wrong-column failure shape this codebase's security section warns about. `acc.recordCreditMemo()` posts one journal entry (Dr Revenue / Cr AR) and introduces a `credited` invoice status, set only when a credit brings the balance to exactly zero. Scoped deliberately to credit memos alone: bad-debt write-off (US-ACC-020's second half) is deferred because `chart_of_accounts` has no Bad Debt Expense account yet, and discovering that mid-migration would have been the expensive order. One fixture credit memo rippled into `customerBalances()` gaining a `total_credited` column and several hardcoded test figures across `accounting.test.ts` and `payables.test.ts` being recomputed from the real database — the latter also exposed and fixed a pre-existing, unrelated fragility in the AP-due-soon tests (`CURRENT_DATE + 10` in the fixture meeting a hardcoded calendar date in the test, broken by nothing more than a `supabase db reset` on a different day).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2.18    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 4's sixth and final item: bad-debt write-off (US-ACC-020, second half), closing out the whole tier. Added the missing Bad Debt Expense account (`5500`) to the fixture chart of accounts, and a `credit_type` column to `invoice_credits` (plain `varchar`, no CHECK, same shape as `journal_entries.source_type`) rather than a second table — exactly what the credit-memo migration's own comment predicted. `recordCreditMemo()` and the new `acc.recordWriteOff()` both call a shared private `recordInvoiceCredit()`; only the debited account, the number prefix, and the closing status (`credited` vs. `written_off`) differ between them. New `written_off` invoice status (`critical` tone, distinct from `credited`'s `positive` — a write-off is a recognised loss, not a customer-facing adjustment), a new `over_writeoff` refusal so the write-off form's own field is the one marked, and matching UI/audit-register entries. Advisor review of the credit-memo increment (2.17) also caught two things fixed here: `is_overdue` now excludes `written_off` alongside `credited` (defense-in-depth — `amount_due > 0` already made it unreachable), and a new test confirms a second credit against an already-fully-credited invoice is refused as `over_credit`. One fixture write-off, on the same Britannia invoice as the existing credit memo (2,000.00 + 860.00 = 2,860.00 combined, due 16,000.00), rippled into the same small set of hardcoded test figures the first half already touched. `./check` and the full e2e suite pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 2.19    | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 3's remainder: period comparison on the trial balance and balance sheet (US-ACC-041). New `trialBalanceComparison()`/`trialBalanceComparisonTotals()` and `balanceSheetComparison()`/`balanceSheetComparisonTotals()` — a genuinely different shape from the periodic P&L/cash-flow/equity comparisons already shipped, since a cumulative "as of" report compares two independent dates directly rather than a computed prior window. Found and fixed a real bug writing the row-level test: an account with no activity as of one of the two dates summed to SQL NULL there, which silently made the `change` column NULL instead of the true amount — fixed by `COALESCE`ing each side to 0 before subtracting. Both pages gained a "Compare to" date field and an additive comparison card; `compare_as_of` is deliberately allowed on either side of `as_of` (a snapshot pair, not a range), and a `compare_as_of` with no `as_of` is refused with its own 400, covered in `form-errors.spec.ts`, with both new comparison views exercised end-to-end in `smoke.spec.ts`. Department/location filtering (US-ACC-044, the tier's other remaining item) stays deferred: still blocked on fixture diversification, not a code gap. `./check` and the full e2e suite pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 2.20    | 2026-09-13 | Claude Sonnet 5 | Opened Tier 5 (manual journal entries and period close): shipped manual journal entry creation (US-ACC-034), the tier's first of four items. `recordManualJournalEntry()` is a thin layer over the existing `postJournal()` — the same posting engine every invoice/bill write already shares — so the balancing and period-closed checks are exercised, not reimplemented. `/accounting/ledger` gained a "New entry" button (finance-write only) to `/accounting/journal-entries/new`. No reversal or draft path exists yet, so the page states up front that a posted entry cannot be edited — §1.3's reversing-entry gap is unchanged by this increment. Advisor review found a real edge case new to this caller: per-line rounding to base currency can make an entry balance natively but not after conversion (a manual entry is the first caller with both free-form amounts and a free-form rate); `postJournal`'s `does_not_balance` refusal now distinguishes the two, and the page surfaces the real figures instead of a bare "does not balance". Period close, period reopen (`INV-ACC-002`), and year-end close remain in Tier 5, planned as two further commits (close+reopen together, since reopen is untestable without close; year-end close separately, since it is the only one of the three that itself posts a journal entry).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2.21    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 5's second and third items together: period close and reopen (US-ACC-035, `INV-ACC-002`). New `/accounting/periods` lists every period with a Close (open→closed) and Reopen (closed→open, reason required) action, both `accounting.write`-gated and audited — before this, nothing in the application wrote `accounting_periods.status` at all; the only closed/locked periods were hand-written fixture rows. Reopen deliberately refuses a `locked` period: nothing in this codebase writes that status either (the fixture's one locked row models a hypothetical future lock step), so reopening one would mean inventing a ceremony with no real lock workflow to observe it against. No new `@kaaj/authz` permission — `accounting.write` plus a mandatory reason plus an audit entry, the same shape `voidInvoice`/`recordWriteOff` already use. Advisor review caught two things fixed here: `closePeriod`/`reopenPeriod`'s `UPDATE` now checks `RETURNING id` and refuses on an empty result, since the SELECT that precedes it only proves the row is READABLE, not writable — `accounting_update`'s RESTRICTIVE policy is a separate check an auditor (reads everything, writes nothing) passes the first and fails the second of, break/revert-verified with a dedicated test; and `closed_at` is returned as the `Date` postgres.js already gives it rather than cast to `::text`, since `instant()`'s parse of Postgres's own text form isn't guaranteed portable (L36). Year-end close remains, the tier's last item.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.22    | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 5 with its last item: year-end close (US-ACC-051). `/accounting/year-end-close` zeroes every revenue/expense account's cumulative balance as of a chosen date into Retained Earnings (`3000`) in one journal entry, previewing exactly what would be zeroed before a separate confirm posts it. Idempotent by construction — the closing entry's own lines are posted activity too, so a second run at the same date finds nothing left. Not gated on a period being closed first (no close-checklist gate exists, §13); refused the normal way if the date falls in an already-closed period, same as any other `postJournal` caller. Advisor review caught two things. First: the preview and the post are two separate requests with nothing tying them together, so anything posted in between would close on unconfirmed figures — fixed by carrying the previewed net income as a hidden field and refusing (`allocation_mismatch`) if the recomputed figure no longer matches, checked in SQL/NUMERIC the same way a lockbox batch's own total is. Second, on a follow-up review of that fix: the mismatch refusal dead-ended the page, since `use:enhance` only re-runs `load` on success by default, leaving the confirm form stuck on the very figures just refused — fixed with an explicit `invalidateAll()` in the form's submit handler, verified on the wire (a `__data.json` request follows the refusal only with the fix present, since a DOM assertion on the stale field can't distinguish the two cases here). Every figure was verified against the real database via `psql` before being wired into code, and the debit/credit sign logic and both fixes above were break/revert-verified. Tier 5 (manual journal entries, period close/reopen, year-end close) is now fully shipped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2.23    | 2026-09-13 | Claude Sonnet 5 | Opened Tier 6 (tax model): fixed the FK model behind US-ACC-046 — a schema-only increment, UI deferred to a follow-up per advisor's explicit recommendation. Every accounting tax FK (`invoice_lines`, `bill_lines`, `chart_of_accounts`, `journal_entry_lines`, `customers`) pointed at `payroll_tax_rates(id)`, a payroll income-tax table, not a sales-tax jurisdiction table. `20260913223213_accounting_tax_rates.sql` adds a real `tax_rates` table and repoints all five, confirmed by reading `pg_constraint.confrelid` after `db reset` before the snapshot was regenerated. Advisor's review caught that the one automated check named after this story (`verify-stories.sql`'s `US-ACC-046`) asserted a fact that was equally true before and after the fix (a sales-tax row exists somewhere) and never actually tested the FK target — added `US-ACC-046-fk`, which reads the five constraints directly and would have failed against the old target. The fixture's three sales-tax/VAT rows move out of `payroll_tax_rates` (which held them only because the FK forced them there) into `tax_rates`, same ids and codes so nothing else needed to change; `payroll_tax_rates` gets its first genuinely payroll row in return, a US federal bracket, since emptying it would have failed the tenant-isolation harness's fixture-row check. Two blanket backfills that predated this migration — every chart-of-accounts row tagged with the same sales-tax rate regardless of type, and every journal-entry line tagged with one despite no posted line ever carrying tax — did not carry forward; scoped to the one revenue account real invoicing uses, and to `EXPECTED_SPARSE` with the honest reason, respectively. `US-ACC-046`/`US-ACC-050`'s status blocks updated to PARTIAL. While correcting the specification check count for this change, found the `./check` step labels for specification, tenant isolation, tables-classified-by-scale and structure-snapshot line count were already stale independent of this work; corrected all four to their current measured values in `CLAUDE.md` and `check`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.24    | 2026-09-13 | Claude Sonnet 5 | Closed the remaining gap in US-ACC-046 (2.23's schema fix): `/accounting/tax-rates` lets finance create a sales tax / VAT rate and deactivate/reactivate one — `tax_rates.repo.ts`, `accounting.write`-gated, each action audited. A rate is never edited in place once created, only deactivated and replaced — the same reasoning a period's close/reopen uses. `tax_rates.writes.test.ts` (6 cases) covers create-and-read-back, a duplicate code within the tenant refused by the unique constraint, deactivate/reactivate, a nonexistent id returning null rather than a silent success (break/revert-verified), and finance-only RLS. Building this route surfaced two more `./check` registries the schema commit hadn't touched: `verify-constraint-registry.mjs`'s `FORM_WRITTEN` list didn't include `tax_rates`, so its registered UNIQUE-constraint message was invisible to the checker (reported as "registered constraint does not exist"); once added, the table's two account-link FKs and its rate CHECK also needed `CANNOT_BE_TRIPPED` entries, since the create form never sets those columns and `FormReader` already refuses a negative rate before the DB is reached. Still partial: no editing of a rate's other fields, and invoices/bills still take a manually-typed tax amount rather than computing one from a configured rate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2.25    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 6's second item: tax-exempt customers with exemption expiry (US-ACC-050). New nullable `customers.tax_exempt_until` DATE (`20260913230000_customer_tax_exempt_until.sql`; `NULL` means indefinite). Enforced in two places on purpose, not one: `createInvoice` refuses a taxed line for a customer exempt as of the invoice's own date (never "today" — an exemption that has since expired doesn't retroactively apply, and one starting later doesn't apply early), and `issueInvoice` repeats the same check independently against the invoice's stored date and its own fresh read of the customer row. Advisor's review is the reason the second check exists at all: `createInvoice` only guards the draft, but `issueInvoice` is the step that actually posts `tax_total` to the ledger, and a draft can be created before an exemption is set, edited afterward, or issued after the exemption has since expired — none of which the first check would see. A repo-level test constructs exactly that gap (create a normal invoice, then update the customer to exempt before issuing) and the guard was break/revert-verified against it: disabling the `issueInvoice` check made the write silently succeed. Advisor also flagged that the pre-existing `verify-stories.sql` check for this story was vacuous — true before and after the fix, since it only asserted a zero-tax invoice existed for an exempt customer, never that an expiry was involved — replaced it with one asserting `tax_exempt_until IS NOT NULL` and the invoice's own date falls inside the window, which fails against the pre-migration schema. HELIOS, the fixture's one exempt customer, now carries `tax_exempt_until = 2026-12-31`, chosen to keep its existing invoice (dated 2026-01-21) validly exempt. Still partial: no UI to set either column — same posture as `chart_of_accounts.tax_rate_id` (US-ACC-046) — and the invoice form's customer picker doesn't surface a customer's exemption status before a line is typed. `./check` and the full e2e suite (110, single-worker) pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 2.26    | 2026-09-13 | Claude Sonnet 5 | Shipped Tier 6's third item: a sales tax liability summary by jurisdiction (US-ACC-048, US-ACC-049), read from the real posted GL rather than the invoice/bill subledger. Advisor's review shaped this one before any code was written: the naive version (report from `journal_entry_lines` accounts `"2200"`/`"1200"` as they already existed) would have rendered an empty output-tax column forever, since nothing in application code had ever written `tax_rate_id` onto a posted GL line — the column existed (retargeted to `tax_rates` in 2.23) but was permanently unwritten, the same vacuous-report shape already flagged twice this tier. Closing that required going one layer deeper than the report itself: a new optional "Tax rate" `<select>` on the invoice/bill create forms (populated from active `tax_rates`, a reference only — the tax amount is still typed in directly, not computed from the rate, which stays the same deferred gap 2.24 documented) feeds `invoice_lines.tax_rate_id`/`bill_lines.tax_rate_id`; `issueInvoice`/`approveBill` then group taxed lines by rate and post one GL tax line per group instead of a single lump sum, so an invoice or bill mixing rates attributes each rate's tax correctly rather than collapsing them — break/revert-verified by reverting the grouping to a lump sum and watching the multi-rate test fail. `taxLiabilitySummary()` nets output minus input per rate for an optional period, with tax posted under no rate as its own explicit, labelled row rather than silently merged into a real jurisdiction. Advisor caught two more things: first, that proving this needed a genuinely non-synthetic row, not just rollback-posted test data — resolved by a single targeted, amount-preserving `UPDATE` tagging the fixture's one already-real posted tax line (`BILL-AWS-2026-01`'s recoverable input tax) with the rate its own `bill_lines` row already carried, rather than retrofitting any invoice into the fragile AR/AP control-account tie-out numbers several other tests quote verbatim; asserted directly against the committed fixture, not just synthetic postings. Second, a red herring caught by re-verification rather than trust: an ad hoc `psql` check without the report's own `COALESCE` appeared to show a `NULL` where `"0"` was expected, which would have meant `money(null, ...)` rendering blank on the page — calling the actual repo function (which does have the `COALESCE`) confirmed it correctly returns `"0"`, not `NULL`, and a new test pins that exact string against the real fixture row so a future edit that drops the `COALESCE` fails loudly. `EXPECTED_SPARSE`'s `journal_entry_lines.tax_rate_id` entry — accurate as of 2.23, when nothing wrote the column — is removed now that it's genuinely populated. Two honest gaps remain, documented rather than silently absent: no VAT-return-shaped export (a filing's box/line format), and UK reverse charge (US-ACC-047, the tier's last item) will post no GL line at all under `postJournal`'s existing zero-nets-out-of-the-entry rule, since a reverse-charge rate's output and input are designed to cancel — noted, not designed around, in this increment. `./check` (24/24) and the full e2e suite (114, single-worker) pass. |
+| 2.27    | 2026-09-13 | Claude Sonnet 5 | Closed out Tier 6, minus one deliberately deferred item. Asked to assess UK VAT reverse charge (US-ACC-047, the tier's last checklist item) before building it: it is not a follow-on to 2.26's tax-summary work but a real modeling change — the vendor's invoice carries zero VAT under reverse charge, so the buyer must self-assess both an output and input side for the same notional amount, and that amount has to be excluded from what is actually owed to the vendor, which `recomputeBillTotals` does not distinguish from ordinary vendor-charged tax today. Given no UK customers exist yet, the user chose to defer rather than build it speculatively. Documentation-only change: US-ACC-047's status block and Tier 6's checklist bullet now record the deferral and the reason, rather than leaving it as a silent open checkbox indistinguishable from "not yet gotten to." No code changed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2.28    | 2026-09-14 | Claude Sonnet 5 | Opened Tier 7 (US-ACC-052, US-ACC-036, first item): `/accounting/exchange-rates` refreshes USD/CAD/GBP/EUR/INR against USD from Yahoo Finance's public (unofficial, unversioned, no API key) chart endpoint and upserts `exchange_rates` — global reference data with no `tenant_id`, so the write goes through the service role rather than the tenant-scoped connection, and idempotently per calendar day via the table's own `(from_currency, to_currency, rate_date, source)` unique index. Stored inverted from Yahoo's own quote direction (Yahoo gives USD-per-unit-of-currency; `invoices.exchange_rate`/`bills.exchange_rate` multiply the other way), confirmed against the fixture's own pre-existing hand-authored GBP/EUR rows before writing any code. Deliberately scoped down from the full story per advisor's review: refresh is a manual-trigger button (`accounting.write`-gated, audited) rather than a system/cron endpoint — a shared-secret-protected scheduler would have been the least verifiable thing to add this round, and there is no way to test that a scheduler this repo doesn't control actually fires daily. Wiring a real daily trigger onto this action is an ops step, left undone on purpose; both stories stay PARTIAL, not DONE, for exactly that reason. One currency's Yahoo failure doesn't fail the others — each is fetched and written independently — and a total failure (all four down) surfaces as its own 502, now covered by a dedicated test after advisor's review flagged that path as unexercised. Along the way, found and fixed a real, unrelated, cross-cutting bug via direct PostgREST calls (not assumed): `service_role` has `BYPASSRLS` but had never once been GRANTed SELECT/INSERT/UPDATE on any table — RLS bypass and table grants are separate Postgres layers, and nothing in any prior migration touched the second one. This silently broke every existing service-role write path, not just the new one — including the production Contact Us form, which had been discarding every submission. Surfaced to the user before proceeding broadly; fixed per their explicit direction with a new migration (`20260914090000_service_role_table_grants.sql`, mirroring `app_user`'s own `GRANT`/`ALTER DEFAULT PRIVILEGES` pattern, minus DELETE) and a new, break/revert-verified `./check` step that queries `has_table_privilege('service_role', ...)` directly against the live database rather than trusting that a file being on `verify-service-role.mjs`'s import allowlist means it can actually write ([L84](10-lessons-learned.md)). `DatabaseDefinitions.ts` — stale since the original SaaS-starter template and covering only 3 of the schema's ~98 tables — was regenerated in full so `.from("exchange_rates")` would typecheck; only 5 low-risk generic-parameter call sites import it. `./check` (24/24) and the full e2e suite (115, single-worker) pass; the feature was also verified live in a real browser against the real Yahoo endpoint before the database was reset back to a clean fixture state.                                                                                                                                                                                                                  |
+| 2.29    | 2026-09-18 | Claude Sonnet 5 | Closed out Tier 7's remaining two items, in two commits. First, settlement FX gain/loss (US-ACC-054): `recordPayment`/`recordVendorPayment` now look up the settlement-date rate and realize the gain/loss against the invoice's/bill's booking rate — see the Tier 7 entry above for the shape, including why the recognizing entry posts in USD (`ck_journal_entry_lines_one_sided_positive` rules out a native-currency-zero plug line, discovered only after an initial `JournalLine` base-amount-override design failed against the live database) and its two documented simplifications. Second, period-end FX revaluation (US-ACC-053), scoped to report-only after the user chose between that and a full posting-with-reversal feature: a non-reversing adjustment would double-count against the settlement recognition just shipped, and this codebase has no reversing-entry mechanism — `/accounting/fx-revaluation` answers the user story as literally written ("I want to see") without answering the harder posting question wrongly. Bank-account balances are excluded from the report by design, not oversight (no per-account booking rate to revalue against). A cross-test race surfaced along the way: temporary `exchange_rates` rows inserted through a raw superuser connection (`app_user` has no write policy on that table) commit outside any rolled-back transaction, so two tests mutating the same currency's rate history could interfere under concurrent test execution — fixed by giving each fabricated-rate test its own currency (GBP stays read-only, relying on the fixture's real history). Tested in `receivables.writes.test.ts`/`payables.writes.test.ts` (gain, loss, both fallbacks) and a new `fx_revaluation.test.ts` (a real gain, the no-rate-on-file case, a bill's opposite-direction loss, and that no USD document ever appears), all against the real database; a new `smoke.spec.ts` row and a live browser check confirm the report page itself. `./check` (25/25) passes. Tier 7 is now fully checked off, with two remainders carried forward explicitly rather than silently: settlement FX's two simplifications, and revaluation's bank-account exclusion and deferred posting/reversal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ### References
 
@@ -2932,4 +3079,4 @@ this update is trying to close)
 
 ---
 
-*This comprehensive specification provides the foundation for building a world-class accounting module that competes with leading cloud accounting platforms while maintaining seamless integration with the broader business management platform.*
+_This comprehensive specification provides the foundation for building a world-class accounting module that competes with leading cloud accounting platforms while maintaining seamless integration with the broader business management platform._

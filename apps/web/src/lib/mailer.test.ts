@@ -137,6 +137,30 @@ describe("mailer", () => {
       expect(email.html).toContain("Test Company")
       expect(email.text).toContain("https://test.com")
       expect(email.text).toContain("Test Company")
+      expect(email.attachments).toBeUndefined()
+    })
+
+    it("attaches a file when attachments are given, and never adds the key otherwise", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.3 fake pdf bytes")
+      const result = await mailer.sendTemplatedEmail({
+        subject: "Invoice INV-2026-001",
+        from_email: "from@example.com",
+        to_emails: ["to@example.com"],
+        template_name: "invoice_email",
+        template_properties: {
+          invoiceNumber: "INV-2026-001",
+          firmName: "Test Company",
+          amountDue: "$100.00",
+          dueDate: "March 10, 2026",
+        },
+        attachments: [{ filename: "INV-2026-001.pdf", content: pdfBytes }],
+      })
+
+      expect(result).toEqual({ sent: true })
+      const email = mockSend.mock.calls[0][0]
+      expect(email.attachments).toEqual([
+        { filename: "INV-2026-001.pdf", content: pdfBytes },
+      ])
     })
 
     it("reports not_configured, and never calls Resend, with no API key", async () => {

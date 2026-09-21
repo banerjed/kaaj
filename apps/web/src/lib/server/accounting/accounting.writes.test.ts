@@ -23,6 +23,7 @@ import {
   createAmortizationSchedule,
   listAmortizationSchedules,
   postDueAmortizations,
+  invoiceForPdf,
 } from "./accounting.repo"
 import * as pay from "./payables.repo"
 
@@ -976,6 +977,7 @@ describe("the control-account tie-out reflects a clean write", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [
             {
               description: "Consulting",
@@ -1266,6 +1268,7 @@ describe("tax-exempt customers", () => {
               exchangeRate: "1.000000",
               paymentTerms: null,
               notes: null,
+              footerText: null,
               lines: oneLine("10.00"),
             },
             ACTOR,
@@ -1287,6 +1290,7 @@ describe("tax-exempt customers", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: oneLine("0"),
         },
         ACTOR,
@@ -1307,6 +1311,7 @@ describe("tax-exempt customers", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: oneLine("10.00"),
         },
         ACTOR,
@@ -1332,6 +1337,7 @@ describe("tax-exempt customers", () => {
               exchangeRate: "1.000000",
               paymentTerms: null,
               notes: null,
+              footerText: null,
               lines: oneLine("10.00"),
             },
             ACTOR,
@@ -1369,6 +1375,7 @@ describe("tax liability by jurisdiction", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [
             {
               description: "Consulting (NY)",
@@ -1477,6 +1484,7 @@ describe("tax liability by jurisdiction", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [
             {
               description: "Consulting",
@@ -1540,6 +1548,7 @@ describe("tax liability by jurisdiction", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [
             {
               description: "Consulting",
@@ -1935,5 +1944,61 @@ describe("accruals and amortization (§11)", () => {
       })
       expect(amounts).toEqual(["33.33", "33.33", "33.34"])
     })
+  })
+})
+
+describe("invoiceForPdf (US-ACC-001)", () => {
+  const INV_2026_001 = "c72699f8-700c-5760-a8e8-19ae6dfd53c5"
+
+  it("assembles the invoice, customer and company data a PDF template needs", async () => {
+    const data = await inRollback((tx) => invoiceForPdf(tx, INV_2026_001))
+    expect(data).toMatchObject({
+      invoice_number: "INV-2026-001",
+      customer_name: "Acme Manufacturing",
+      customer_email: "ap@acme.example",
+      customer_billing_address: {
+        city: "New York",
+        state: "NY",
+        country: "US",
+      },
+      company_name: "Northwind Consulting",
+      company_address_line1: "120 Madison Avenue",
+      company_city: "New York",
+    })
+    expect(data.lines.length).toBeGreaterThan(0)
+  })
+
+  it("refuses an invoice that does not exist", async () => {
+    await refusedBecause(
+      () =>
+        inRollback((tx) =>
+          invoiceForPdf(tx, "00000000-0000-0000-0000-000000000000"),
+        ),
+      "no_such_invoice",
+    )
+  })
+
+  it("refuses a PDF for an invoice with more lines than a document can hold", async () => {
+    await refusedBecause(
+      () =>
+        inRollback(async (tx) => {
+          // Pushes this invoice's line count past DOCUMENT_CHILD_CAP (500)
+          // without paying for 501 individual createInvoice() INSERTs.
+          await tx`
+            INSERT INTO invoice_lines (
+              tenant_id, invoice_id, line_number, description,
+              quantity, unit_price, amount, discount_percent, discount_amount, tax_amount,
+              revenue_account_id
+            )
+            SELECT ${NORTHWIND}::uuid, ${INV_2026_001}::uuid, n + 100,
+                   'Filler line ' || n, 1, 1.00, 1.00, 0, 0, 0,
+                   (SELECT revenue_account_id FROM invoice_lines
+                     WHERE invoice_id = ${INV_2026_001}::uuid LIMIT 1)
+              FROM generate_series(1, 501) AS n
+          `
+          return invoiceForPdf(tx, INV_2026_001)
+        }),
+      "too_many_lines",
+    )
   })
 })

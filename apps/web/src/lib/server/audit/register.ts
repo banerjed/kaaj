@@ -151,6 +151,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "A receivable declared uncollectible — the business is accepting a loss, not adjusting a bill. 'Who decided this would never be collected, by how much, and why' is exactly what an auditor tests write-offs for.",
   },
   {
+    route: "accounting/invoices/[id]",
+    action: "emailInvoice",
+    why: "A document sent outside the system, to a real customer inbox — 'was this invoice actually delivered, to whom, and when' is a collections question, not just a UI click.",
+  },
+  {
     route: "accounting/invoices",
     action: "sendReminders",
     why: "A message to a customer about money they owe, sent on someone's decision — the same 'who told the customer what, and when' question a dispute over a reminder (or the lack of one) would ask.",

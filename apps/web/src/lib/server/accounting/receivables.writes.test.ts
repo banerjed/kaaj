@@ -127,6 +127,7 @@ describe("creating an invoice", () => {
               exchangeRate: "1.000000",
               paymentTerms: null,
               notes: null,
+              footerText: null,
               lines: [],
             },
             ACTOR,
@@ -150,6 +151,7 @@ describe("creating an invoice", () => {
               exchangeRate: "1.000000",
               paymentTerms: null,
               notes: null,
+              footerText: null,
               lines: [oneLine()],
             },
             ACTOR,
@@ -171,6 +173,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.000000",
           paymentTerms: "Net 30",
           notes: null,
+          footerText: null,
           lines: [
             // 10 * 100.00 = 1000.00, less 10% discount (100.00) = 900.00.
             oneLine({
@@ -207,6 +210,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.270000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [oneLine()],
         },
         ACTOR,
@@ -228,6 +232,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [oneLine()],
         },
         ACTOR,
@@ -242,6 +247,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [oneLine()],
         },
         ACTOR,
@@ -265,6 +271,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           lines: [oneLine({ unitPrice: "1234567.89" })],
         },
         ACTOR,
@@ -291,6 +298,7 @@ describe("creating an invoice", () => {
           exchangeRate: "1.000000",
           paymentTerms: null,
           notes: null,
+          footerText: null,
           // 10 * 100.00 = 1000.00, less 20% = 800.00 net. No tax, so the
           // posting is exactly two lines and the revenue figure is the
           // whole story.
@@ -1439,6 +1447,7 @@ describe("recurring invoice schedules (US-ACC-004)", () => {
     exchangeRate: "1.000000",
     paymentTerms: "Net 30",
     notes: null,
+    footerText: null,
     lines: [
       {
         description: "Monthly retainer",

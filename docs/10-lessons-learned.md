@@ -2182,6 +2182,33 @@ No service-role workaround was needed for tenant-scoped Storage access.
 
 ---
 
+### L89 — `invoices.reference` and `invoices.notes` carried the fixture's generic completeness-sweep filler, and the first real reader put it on a customer-facing document
+
+Same shape as L87, a second time, on a different table. `mock-data.sql`'s
+blanket "no empty column" sweep had filled every invoice's `reference` with
+the literal string `'Reference 1'` and `notes` with `'Seeded so this column
+is never empty...'` — harmless while nothing read them, which nothing did:
+`grep` confirms no repository function selected either column before this
+session. Building the invoice PDF (US-ACC-001) was the first real reader,
+and a live-rendered PDF showed both placeholders verbatim, on what would be
+a real document handed to a customer.
+
+Caught by actually looking at the rendered PDF in a browser, not by any
+test — a snapshot/content test asserting exact page text would have caught
+it, but none existed, and a test written after the fact would have encoded
+the bug as the expected value. Fixed by replacing the blanket UPDATE for
+these two columns with per-invoice values consistent with each invoice's
+own story (a PO reference, a one-line description of what was billed),
+the same fix shape as L87 — the completeness sweep's own `WHERE ... IS
+NULL` becomes a no-op once a real value already sits there.
+
+The general rule L87 already states — check whether a long-dormant
+column's seeded value came from the sweep before trusting it — holds
+regardless of which table it recurs on; this entry exists mainly to record
+that it already has, so the next occurrence is recognized faster.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a
