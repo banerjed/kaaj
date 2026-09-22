@@ -114,7 +114,7 @@ export const actions: Actions = {
         })
       })
     } catch (e) {
-      // A duplicate code or a second headquarters — previously an "Internal Error" page.
+      // A duplicate code or a second headquarters.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

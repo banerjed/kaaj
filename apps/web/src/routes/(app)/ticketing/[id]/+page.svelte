@@ -22,9 +22,7 @@
   // modes; each renders its own read vs. write controls internally, gated on
   // `editing`. "Details" (Status/People/business-area fields) is the default
   // tab: it's the highest-signal view of a ticket, and folding it into a tab
-  // (rather than a side panel with its own, mismatched height) is what
-  // removed the dead whitespace a short main panel used to leave next to a
-  // taller one.
+  // avoids a side panel whose own height rarely matches the main panel's.
   const EDIT_FORM_ID = "ticket-edit-form"
 
   let activeTab = $state<
@@ -57,12 +55,10 @@
   }
 
   // Field names that belong ONLY to `saveTicket`, and which tab each lives
-  // on — this drives which tab a refusal auto-opens (below). The Tasklist
-  // tab's `addTask` form used to share "title" with this one, which made the
-  // effect unable to tell "the edit form was refused" from "a task failed to
-  // validate" without an action name on `form`; addTask's field is now
-  // `task_title` (+page.server.ts) specifically so every saveTicket field is
-  // unique to it.
+  // on — this drives which tab a refusal auto-opens (below). Every field
+  // name here must be unique to saveTicket: the Tasklist tab's `addTask`
+  // form uses `task_title` (+page.server.ts), not `title`, so a refusal from
+  // either form can be told apart without an action name on `form`.
   const SAVE_TICKET_FIELD_TABS: Record<
     string,
     "update" | "details" | "relationships" | "summary"

@@ -685,12 +685,10 @@ export type TicketCoreBefore = {
 
 /**
  * Every plain ticket field the unified edit form on `/ticketing/[id]` can
- * change, applied in one UPDATE — replaces what used to be three separate
- * actions (setStatus/setDueDate/setParent). `resolved_at`/`closed_at` only
- * move when status is actually CHANGING (`status IS DISTINCT FROM`) — the old
- * per-action setStatus only ran on a deliberate status edit, so a save that
+ * change, applied in one UPDATE. `resolved_at`/`closed_at` only move when
+ * status is actually CHANGING (`status IS DISTINCT FROM`) — a save that
  * merely touches the due date must not re-stamp resolved_at on an already-
- * closed ticket. The vocabulary has no separate "resolved" step anymore
+ * closed ticket. The vocabulary has no separate "resolved" step
  * (TICKET_STATUSES) — `closed` is the one completion state, so both columns
  * stamp together on the move to it; `resolved_at` is kept rather than
  * dropped so any existing reader of "time to resolution" (the fixture's SLA

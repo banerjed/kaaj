@@ -115,7 +115,7 @@ export const actions: Actions = {
         })
       })
     } catch (e) {
-      // A stale package reference; previously an "Internal Error" page.
+      // A stale package reference.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

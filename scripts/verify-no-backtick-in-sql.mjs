@@ -9,10 +9,7 @@
  * in scope. Every one of these functions takes a parameter named `tx`, so
  * `` `tx` `` inside a comment reinterprets as a SECOND, VALID tagged-template
  * call using the real `tx` — no type error, no lint warning, just one SQL
- * statement silently split into two malformed fragments at runtime. This has
- * already happened three times: twice before this repo's current history
- * starts (see the L52 reference this fixed instance used to carry), and once
- * more when an automated comment-trimming pass reintroduced it.
+ * statement silently split into two malformed fragments at runtime.
  *
  * Deliberately a narrow, lexical check rather than an AST-based one: parsing
  * correctly requires already knowing where the template literal ends, which

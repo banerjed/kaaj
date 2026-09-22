@@ -94,7 +94,7 @@ export const actions: Actions = {
         return { saved: true }
       })
     } catch (e) {
-      // A duplicate holiday reference; previously an "Internal Error" page.
+      // A duplicate holiday reference.
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

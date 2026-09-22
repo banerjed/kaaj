@@ -97,11 +97,7 @@ function refusal(e: AccountingRefused) {
       // other reason belongs to a different action and is not reachable
       // from this one — a `default` rather than an exhaustive list of them,
       // so a reason added elsewhere in the shared `AccountingRefused` type
-      // never needs an edit here to keep compiling. (This one drifted
-      // before: `wrong_customer`/`duplicate_invoice`/`allocation_mismatch`,
-      // added for the lockbox batch, and `over_credit`/`over_writeoff`,
-      // added for credit memos, were never added to the old exhaustive
-      // list — harmless only because this route never throws them.)
+      // never needs an edit here to keep compiling.
       return { message: "That could not be matched.", errorFields: ["match"] }
   }
 }

@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const ticket = await ticketing.ticketById(tx, params.id)
     if (!ticket) error(404, "No such ticket")
-    // Parent/linked-ticket candidates are no longer preloaded here: the
+    // Parent/linked-ticket candidates are not preloaded here: the
     // `Combobox` pickers search on demand via `?/searchTickets`, and the
     // ticket's OWN current parent/links already arrive on `ticket` itself
     // (ticketById), so there's no "merge the current value back into a
@@ -104,11 +104,9 @@ export const actions: Actions = {
   /**
    * The unified edit form — subject, status, due date, executive summary,
    * parent, assignees, subscribers, linked tickets, and an optional comment,
-   * all in one submit. Replaces what used to be nine separate actions
-   * (setStatus/setDueDate/setParent/addAssignee/removeAssignee/addSubscriber/
-   * removeSubscriber/addLink/removeLink/addUpdate) so a person changing three
-   * things doesn't make three round trips. An empty comment is valid — only
-   * changing the due date should not require writing something.
+   * all in one submit, so a person changing three things doesn't make three
+   * round trips. An empty comment is valid — only changing the due date
+   * should not require writing something.
    */
   saveTicket: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -352,13 +350,10 @@ export const actions: Actions = {
   // Every action below fetches the ticket (or, for toggleTask/archiveTask,
   // the task itself, whose SELECT already inherits the ticket's RLS) BEFORE
   // writing — the same ticketById-first shape saveTicket/setCustomFields
-  // already use. Visibility here was previously enforced only by RLS
-  // incidentally, through Postgres re-checking SELECT policy on a
-  // `RETURNING` clause; that surfaced as a raw 500 for `addTask`/
-  // `addReferenceLink` and, for `toggleTask`, as a write that silently
-  // touched zero rows while still answering `{ taskToggled: true }` — the
-  // exact "a write reports what it did, not that the request arrived" shape
-  // this codebase already has a rule against.
+  // already use. Relying on RETURNING's own RLS recheck instead would leave
+  // a refused write indistinguishable from a real one: a raw 500 for
+  // addTask/addReferenceLink, or for toggleTask a write that silently
+  // touches zero rows while still answering `{ taskToggled: true }`.
   addTask: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
