@@ -401,16 +401,21 @@ chart of accounts — and does not roll up through the COA.
 
 ---
 
-## 15. Import, Export & Integration Correctness — **[MISSING]**, mostly
-No bulk-import path for opening balances or historical transactions, no
-export-then-reimport round-trip test, no report export (Excel/PDF, US-ACC-045
-— Tier 10, still open), and no payment-gateway integration on the AR side.
-Stripe exists only under `(admin)/account/billing` for Kaaj's own SaaS
-subscription billing, unrelated to customer invoicing. The one exception:
-a single invoice now has a real PDF generation path (US-ACC-001,
-2026-09-21, `/accounting/invoices/[id]/pdf`) — a different feature from the
-bulk export/import this section is about, but it means a `grep` for `pdf`
-under `apps/web/src/routes/(app)/accounting/` no longer returns nothing.
+## 15. Import, Export & Integration Correctness — **[PARTIAL]**, mostly missing
+No bulk-import path for opening balances or historical transactions, and no
+export-then-reimport round-trip test. Two real exceptions now exist, both
+narrower than what this section is ultimately about:
+
+- A single invoice has a real PDF generation path (US-ACC-001, 2026-09-21,
+  `/accounting/invoices/[id]/pdf`) and an optional Stripe payment link
+  (US-ACC-002, 2026-09-21, per-tenant bring-your-own-key, manual
+  reconciliation only — no webhook, no auto-posting; see
+  `module-accounting.md`'s US-ACC-002 status block). This is one tenant's own
+  AR collection flow, not the "payment-gateway integration" bulk/EDI shape
+  this section originally meant.
+- Six report pages export to CSV (US-ACC-045, 2026-09-21) — no PDF, no
+  Excel, and no report beyond those six (tax summary, customer balances, the
+  GL, equity, FX revaluation have no export route yet).
 
 ---
 

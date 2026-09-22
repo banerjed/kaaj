@@ -79,6 +79,13 @@
     {#if data.filters.asOf || data.filters.compareAsOf}
       <a href="/accounting/balance-sheet" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/balance-sheet/export?as_of={data.filters.asOf}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0 && data.totals.net_income === "0"}

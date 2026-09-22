@@ -301,7 +301,8 @@ _`/accounting/cash-flow` generates it live, indirect method, for a `from`/`to` p
 
 **US-ACC-044**: As a Department Manager, I want to filter reports by department or location, so that I can see my area's performance. **[MISSING]**
 
-**US-ACC-045**: As a Business Owner, I want to export reports to Excel or PDF, so that I can share them with stakeholders. **[MISSING]**
+**US-ACC-045**: As a Business Owner, I want to export reports to Excel or PDF, so that I can share them with stakeholders.
+_Status: **PARTIAL** (2026-09-21). CSV export only — no PDF; browser print-to-PDF is the current path for a document-shaped copy, the same as every other report screen. A sibling `/export` GET route exists for the six reports finance actually shares with stakeholders — Trial Balance, Profit & Loss, Balance Sheet, Cash Flow, AR Aging, AP Due Soon — behind the same `accounting.read` gate as the screen, downloading `text/csv` with `Content-Disposition: attachment`. Filter parsing (`$lib/server/accounting/report_filters.ts`) is factored into one function per report shape, shared by `load()` and the export route, so a download's `as_of`/`from`/`to` can never silently drift from what's on screen. Money cells hold the raw `NUMERIC` string, never `money()`'s locale-formatted output; the currency is named in the column header instead (base currency for the four base-currency reports, per-row for AR aging/AP due soon, which never convert). `$lib/server/accounting/csv.ts`'s `toCsv()` escapes CSV formula injection (a cell starting with `=`/`+`/`-`/`@`/tab/CR gets a leading `'`) without touching a legitimate negative or positive money value — tested directly, including the "still escapes AND quotes" case where a cell needs both, and the two-sided pair (`-2+3` escaped, `-1234.56` not) that proves the `Number.isNaN` guard discriminates rather than just existing. AP due soon's export refuses outright past `REPORT_ROW_CAP` (5,000 rows) since `apDueSoon()`'s driving table, `bills`, is `SCALE_SENSITIVE`; AR aging's export carries no such cap since it groups down to (customer, currency) — bounded by the tenant's own `NOT_SCALE_SENSITIVE` customer roster, not by invoice volume. Gaps: the four reports with a `compare`/`compare_as_of` option export only the current period — the comparison table the screen renders alongside it has no columns in the CSV, and nothing on the download says so, so a comparison in use on screen is a silent subset in the file, not a mismatch of period; tax summary, customer balances, the GL, changes in equity and FX revaluation have no export route yet. Both left for a future pass._
 
 ### Tax Management
 
@@ -2999,10 +3000,12 @@ either way.
       "system" actor this codebase has no precedent for. See US-ACC-002's
       status block above for the full shape, tests, and [L90](10-lessons-learned.md)'s
       fixture-placeholder catch.
-- [ ] Report export (Excel/PDF). US-ACC-045. No export path exists on any
-      report page — confirmed by `19-accounting-test-plan.md` §15
-      (`grep -rln "csv\|CSV\|pdf\|PDF"` under
-      `apps/web/src/routes/(app)/accounting/` returns nothing).
+- [ ] Report export (Excel/PDF). US-ACC-045 (PARTIAL as of 2026-09-21 — CSV
+      only, no PDF; six report pages (Trial Balance, P&L, Balance Sheet, Cash
+      Flow, AR Aging, AP Due Soon) each have a sibling `/export` route, but a
+      comparison table on screen has no columns in the download, and five
+      other report pages have no export route at all). See US-ACC-045's
+      status block above for the full shape.
 - [ ] Central document management for financial records. Gap #11 in
       `accounting-gap-analysis.md`. Today, documents attach only to
       specific records (invoices, bills) — no central repository, no

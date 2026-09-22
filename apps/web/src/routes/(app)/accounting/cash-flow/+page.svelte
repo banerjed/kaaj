@@ -83,6 +83,14 @@
     {#if data.filters.from || data.filters.to || data.compare !== "none"}
       <a href="/accounting/cash-flow" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/cash-flow/export?from={data.filters.from}&to={data
+        .filters.to}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0 && data.totals.net_income === "0"}

@@ -42,6 +42,14 @@
     {#if data.filters.asOf || data.filters.withinDays !== 30}
       <a href="/accounting/ap-due-soon" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/ap-due-soon/export?as_of={data.filters
+        .asOf}&within_days={data.filters.withinDays}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}

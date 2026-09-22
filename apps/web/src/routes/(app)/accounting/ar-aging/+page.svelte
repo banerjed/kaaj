@@ -32,6 +32,13 @@
     {#if data.filters.asOf}
       <a href="/accounting/ar-aging" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/ar-aging/export?as_of={data.filters.asOf}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}

@@ -4,7 +4,7 @@ import * as acc from "$lib/server/accounting/accounting.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { parseAsOfOnlyFilters } from "$lib/server/accounting/report_filters"
 
 /** /accounting/ar-aging — open receivables bucketed by days past due. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -14,16 +14,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     error(403, "Only finance can see the AR aging report.")
   }
 
-  const params = new FormData()
-  params.append("as_of", url.searchParams.get("as_of") ?? "")
-  const f = new FormReader(params)
-  // Read above the gate — inside the object it'd be reported too late (L33).
-  const asOf = f.date("as_of")
-  if (!f.ok) error(400, "That date is not a real date.")
+  const { asOf } = parseAsOfOnlyFilters(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
-    rows: await acc.arAging(tx, { asOf: asOf ?? "" }),
-    filters: { asOf: asOf ?? "" },
+    rows: await acc.arAging(tx, { asOf }),
+    filters: { asOf },
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
   }))

@@ -191,6 +191,17 @@ export type InvoiceLine = {
  */
 const DOCUMENT_CHILD_CAP = 500
 
+/**
+ * Same reasoning as `DOCUMENT_CHILD_CAP`, applied to a CSV export rather
+ * than a single document's line items: a bounded file, refused outright
+ * with the true count past this cap rather than silently truncated. Used
+ * only by an export route whose driving table is `SCALE_SENSITIVE`
+ * (ap-due-soon's `bills`) — a report grouped down to a bounded dimension
+ * (ar-aging's customers) doesn't need it, the same way `arAging()` itself
+ * needs no `LIMIT`.
+ */
+export const REPORT_ROW_CAP = 5000
+
 export async function invoiceLines(
   tx: Tx,
   invoiceId: string,
@@ -633,6 +644,20 @@ export async function unbalanced(
     HAVING COALESCE(sum(l.debit_amount), 0) <> COALESCE(sum(l.credit_amount), 0)
      ORDER BY je.entry_number
   `
+}
+
+/** The tenant's own base/reporting currency — every base-currency report
+ *  (trial balance, balance sheet) needs it to label a money column, and a
+ *  CSV export route has no layout `load()` chain to inherit it from the way
+ *  a page's `data.tenant` does. */
+export async function tenantBaseCurrency(
+  tx: Tx,
+  tenantId: string,
+): Promise<string> {
+  const [tenant] = await tx<{ default_currency: string }[]>`
+    SELECT default_currency FROM tenants WHERE id = ${tenantId}::uuid
+  `
+  return tenant?.default_currency ?? "USD"
 }
 
 export type TrialBalanceRow = {

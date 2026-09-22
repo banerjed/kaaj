@@ -60,6 +60,13 @@
     {#if data.filters.asOf || data.filters.compareAsOf}
       <a href="/accounting/trial-balance" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/trial-balance/export?as_of={data.filters.asOf}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}
