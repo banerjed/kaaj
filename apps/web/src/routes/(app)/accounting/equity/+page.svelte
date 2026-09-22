@@ -53,6 +53,14 @@
     {#if data.filters.from || data.filters.to || data.compare !== "none"}
       <a href="/accounting/equity" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/equity/export?from={data.filters.from}&to={data.filters
+        .to}&compare={data.compare}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}

@@ -41,6 +41,13 @@
     {#if data.filters.asOf}
       <a href="/accounting/fx-revaluation" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/fx-revaluation/export?as_of={data.filters.asOf}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}

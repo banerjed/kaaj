@@ -35,6 +35,14 @@
     {#if data.filters.from || data.filters.to}
       <a href="/accounting/tax-summary" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/tax-summary/export?from={data.filters.from}&to={data
+        .filters.to}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.rows.length === 0}

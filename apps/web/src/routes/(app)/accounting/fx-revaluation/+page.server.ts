@@ -4,7 +4,7 @@ import { fxRevaluation } from "$lib/server/accounting/fx_revaluation.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { parseAsOfOnlyFilters } from "$lib/server/accounting/report_filters"
 
 /**
  * /accounting/fx-revaluation — unrealized FX gain/loss on open
@@ -18,12 +18,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     error(403, "Only finance can see the FX revaluation report.")
   }
 
-  const params = new FormData()
-  params.append("as_of", url.searchParams.get("as_of") ?? "")
-  const f = new FormReader(params)
-  // Read above the gate — inside the object it'd be reported too late (L33).
-  const asOf = f.date("as_of")
-  if (!f.ok) error(400, "That date is not a real date.")
+  const { asOf } = parseAsOfOnlyFilters(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
     rows: await fxRevaluation(tx, asOf ?? ""),

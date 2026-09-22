@@ -61,7 +61,8 @@
       <a href="/accounting/trial-balance" class="btn btn-ghost">Clear</a>
     {/if}
     <a
-      href="/accounting/trial-balance/export?as_of={data.filters.asOf}"
+      href="/accounting/trial-balance/export?as_of={data.filters
+        .asOf}&compare_as_of={data.filters.compareAsOf}"
       class="btn btn-outline"
     >
       <span class="iconify lucide--download size-4"></span>

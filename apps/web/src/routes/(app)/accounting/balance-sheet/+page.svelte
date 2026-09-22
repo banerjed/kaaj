@@ -80,7 +80,8 @@
       <a href="/accounting/balance-sheet" class="btn btn-ghost">Clear</a>
     {/if}
     <a
-      href="/accounting/balance-sheet/export?as_of={data.filters.asOf}"
+      href="/accounting/balance-sheet/export?as_of={data.filters
+        .asOf}&compare_as_of={data.filters.compareAsOf}"
       class="btn btn-outline"
     >
       <span class="iconify lucide--download size-4"></span>

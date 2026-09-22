@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit"
 import { FormReader } from "$lib/server/forms"
 import { AP_DUE_SOON_WINDOWS } from "$lib/server/accounting/payables.repo"
+import { LEDGER_STATUSES } from "$lib/server/accounting/accounting.repo"
 import {
   readCompare,
   checkCompareOk,
@@ -67,6 +68,42 @@ export function parseAsOfOnlyFilters(url: URL): { asOf: string } {
   const asOf = f.date("as_of")
   if (!f.ok) error(400, "That date is not a real date.")
   return { asOf: asOf ?? "" }
+}
+
+/** Tax summary: a periodic `from`/`to` range, no comparison mode. */
+export function parseFromToFilters(url: URL): { from: string; to: string } {
+  const params = new FormData()
+  params.append("from", url.searchParams.get("from") ?? "")
+  params.append("to", url.searchParams.get("to") ?? "")
+  const f = new FormReader(params)
+  const from = f.date("from")
+  const to = f.date("to")
+  if (!f.ok) error(400, "That date is not a real date.")
+  if (from && to && from > to) {
+    error(400, "The 'from' date must be on or before the 'to' date.")
+  }
+  return { from: from ?? "", to: to ?? "" }
+}
+
+/** General ledger: a periodic `from`/`to` range plus a status filter over
+ *  `LEDGER_STATUSES`. No `page`/`limit` here — those are screen-pagination
+ *  concerns the export route deliberately drops in favor of its own
+ *  row-count cap over the full filtered range. */
+export function parseLedgerFilters(url: URL): {
+  from: string
+  to: string
+  status: string
+} {
+  const params = new FormData()
+  params.append("from", url.searchParams.get("from") ?? "")
+  params.append("to", url.searchParams.get("to") ?? "")
+  params.append("status", url.searchParams.get("status") ?? "")
+  const f = new FormReader(params)
+  const from = f.date("from")
+  const to = f.date("to")
+  const status = f.choice("status", LEDGER_STATUSES) ?? ""
+  if (!f.ok) error(400, "That date is not a real date.")
+  return { from: from ?? "", to: to ?? "", status }
 }
 
 /** AP due soon: a reference date plus a fixed lookahead window. */

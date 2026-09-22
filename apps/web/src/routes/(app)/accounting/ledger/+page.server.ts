@@ -1,11 +1,10 @@
 import { error } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as acc from "$lib/server/accounting/accounting.repo"
+import { LEDGER_STATUSES } from "$lib/server/accounting/accounting.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
-
-const STATUSES = ["draft", "posted", "reversed"] as const
+import { parseLedgerFilters } from "$lib/server/accounting/report_filters"
 
 const PAGE_SIZE = 20
 
@@ -17,20 +16,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     error(403, "Only finance can see the general ledger.")
   }
 
-  const params = new FormData()
-  for (const k of ["from", "to", "status"]) {
-    params.append(k, url.searchParams.get(k) ?? "")
-  }
-  const f = new FormReader(params)
-  // Read above the gate — inside the object it'd be reported too late (L33).
-  const from = f.date("from")
-  const to = f.date("to")
-  const status = f.choice("status", STATUSES) ?? ""
-  if (!f.ok) error(400, "That date is not a real date.")
+  const filters = parseLedgerFilters(url)
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => {
-    const filters = { from: from ?? "", to: to ?? "", status }
     const [entries, total] = await Promise.all([
       acc.ledger(tx, {
         ...filters,
@@ -50,7 +39,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         tx,
         entries.map((e) => e.id),
       ),
-      statuses: STATUSES,
+      statuses: LEDGER_STATUSES,
       filters,
       mayWrite: can(ctx, "accounting.write"),
     }

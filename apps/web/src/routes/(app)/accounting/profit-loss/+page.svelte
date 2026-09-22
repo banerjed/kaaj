@@ -62,7 +62,7 @@
     {/if}
     <a
       href="/accounting/profit-loss/export?from={data.filters.from}&to={data
-        .filters.to}"
+        .filters.to}&compare={data.compare}"
       class="btn btn-outline"
     >
       <span class="iconify lucide--download size-4"></span>

@@ -27,6 +27,13 @@
     ]}
   />
 
+  <div class="mt-4">
+    <a href="/accounting/customer-balances/export" class="btn btn-outline">
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
+  </div>
+
   {#if data.rows.length === 0}
     <EmptyState
       icon="lucide--users"

@@ -131,6 +131,14 @@
     {#if data.filters.from || data.filters.to || data.filters.status}
       <a href="/accounting/ledger" class="btn btn-ghost">Clear</a>
     {/if}
+    <a
+      href="/accounting/ledger/export?from={data.filters.from}&to={data.filters
+        .to}&status={data.filters.status}"
+      class="btn btn-outline"
+    >
+      <span class="iconify lucide--download size-4"></span>
+      Export CSV
+    </a>
   </form>
 
   {#if data.entries.length === 0}

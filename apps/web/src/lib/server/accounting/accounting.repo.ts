@@ -548,6 +548,12 @@ export async function openInvoicesForCustomer(
   `
 }
 
+/** `journal_entries.status` is a plain `varchar(50)`, not a real Postgres
+ *  enum — this list IS the constraint, so it lives here once and both the
+ *  ledger page and its CSV export import it, rather than each declaring its
+ *  own copy that can drift (CLAUDE.md's plain-text-vocabulary rule). */
+export const LEDGER_STATUSES = ["draft", "posted", "reversed"] as const
+
 export type LedgerEntry = {
   id: string
   entry_number: string
@@ -623,6 +629,31 @@ export async function countLedger(
   const [{ n }] = await tx<{ n: number }[]>`
     SELECT count(*)::int AS n
       FROM journal_entries je
+     WHERE (${from}::date IS NULL OR je.entry_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+       AND (${status} = '' OR je.status = ${status})
+  `
+  return n
+}
+
+/**
+ * The total LINE count across every matching entry — what a GL export's row
+ * cap actually needs to bound, not `countLedger`'s entry count. Each entry
+ * can carry up to `DOCUMENT_CHILD_CAP` (500) lines of its own, so bounding
+ * export size by entry count alone would let a 5,000-entry cap produce a
+ * 2.5M-row file; counting lines directly bounds the artifact itself.
+ */
+export async function countLedgerLines(
+  tx: Tx,
+  filters: { from?: string; to?: string; status?: string } = {},
+): Promise<number> {
+  const from = filters.from || null
+  const to = filters.to || null
+  const status = filters.status ?? ""
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM journal_entry_lines l
+      JOIN journal_entries je ON je.id = l.entry_id
      WHERE (${from}::date IS NULL OR je.entry_date >= ${from}::date)
        AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
        AND (${status} = '' OR je.status = ${status})

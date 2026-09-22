@@ -5,19 +5,21 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { parseAsOfCompareFilters } from "$lib/server/accounting/report_filters"
 import { toCsv, csvResponse, type CsvColumn } from "$lib/server/accounting/csv"
-import type { BalanceSheetRow } from "$lib/server/accounting/accounting.repo"
 
-type Row =
-  | BalanceSheetRow
-  | {
-      account_code: string
-      account_name: string
-      account_type: string
-      amount: string
-    }
+type Row = {
+  account_code: string
+  account_name: string
+  account_type: string
+  amount: string
+  compare_amount: string
+  change: string
+}
 
 /** Same filter parsing as balance-sheet's own `load()`, and the same
- *  hand-verified `can()` gate note as trial-balance/export/+server.ts. */
+ *  hand-verified `can()` gate note as trial-balance/export/+server.ts. The
+ *  comparison columns are always present, blank when no `compare_as_of` is
+ *  given — see trial-balance/export/+server.ts for why (one stable header,
+ *  not a column count that varies by query). */
 export const GET: RequestHandler = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
@@ -25,41 +27,80 @@ export const GET: RequestHandler = async ({ locals, url }) => {
     error(403, "Only finance can see the balance sheet.")
   }
 
-  const { asOf } = parseAsOfCompareFilters(url)
+  const { asOf, compareAsOf } = parseAsOfCompareFilters(url)
 
-  const { rows, totals, currency } = await withTenant(
-    actorFrom(locals),
-    async (tx) => ({
-      rows: await acc.balanceSheet(tx, { asOf }),
-      totals: await acc.balanceSheetTotals(tx, { asOf }),
-      currency: await acc.tenantBaseCurrency(tx, locals.tenantId!),
-    }),
-  )
+  const { rows, currency } = await withTenant(actorFrom(locals), async (tx) => {
+    const currency = await acc.tenantBaseCurrency(tx, locals.tenantId!)
+    const summary = (
+      name: string,
+      amount: string,
+      compare = "",
+      change = "",
+    ): Row => ({
+      account_code: "",
+      account_name: name,
+      account_type: "",
+      amount,
+      compare_amount: compare,
+      change,
+    })
+    if (asOf && compareAsOf) {
+      const [compRows, t] = await Promise.all([
+        acc.balanceSheetComparison(tx, { asOf, compareAsOf }),
+        acc.balanceSheetComparisonTotals(tx, { asOf, compareAsOf }),
+      ])
+      const rows: Row[] = [
+        ...compRows,
+        summary("TOTAL ASSETS", t.assets, t.compare_assets),
+        summary("TOTAL LIABILITIES", t.liabilities, t.compare_liabilities),
+        summary(
+          "Equity (excl. current net income)",
+          t.equity,
+          t.compare_equity,
+        ),
+        summary(
+          "Net income (undistributed)",
+          t.net_income,
+          t.compare_net_income,
+        ),
+        summary("TOTAL EQUITY", t.total_equity, t.compare_total_equity),
+        summary(
+          "TOTAL LIABILITIES + EQUITY",
+          t.total_liabilities_and_equity,
+          t.compare_total_liabilities_and_equity,
+        ),
+      ]
+      return { rows, currency }
+    }
+    const [plainRows, t] = await Promise.all([
+      acc.balanceSheet(tx, { asOf }),
+      acc.balanceSheetTotals(tx, { asOf }),
+    ])
+    const rows: Row[] = [
+      ...plainRows.map((r) => ({ ...r, compare_amount: "", change: "" })),
+      summary("TOTAL ASSETS", t.assets),
+      summary("TOTAL LIABILITIES", t.liabilities),
+      summary("Equity (excl. current net income)", t.equity),
+      summary("Net income (undistributed)", t.net_income),
+      summary("TOTAL EQUITY", t.total_equity),
+      summary("TOTAL LIABILITIES + EQUITY", t.total_liabilities_and_equity),
+    ]
+    return { rows, currency }
+  })
 
   const columns: CsvColumn<Row>[] = [
     { header: "Account Code", value: (r) => r.account_code },
     { header: "Account Name", value: (r) => r.account_name },
     { header: "Account Type", value: (r) => r.account_type },
     { header: `Amount (${currency})`, value: (r) => r.amount },
-  ]
-  const summary = (name: string, amount: string): Row => ({
-    account_code: "",
-    account_name: name,
-    account_type: "",
-    amount,
-  })
-  const allRows: Row[] = [
-    ...rows,
-    summary("TOTAL ASSETS", totals.assets),
-    summary("TOTAL LIABILITIES", totals.liabilities),
-    summary("Equity (excl. current net income)", totals.equity),
-    summary("Net income (undistributed)", totals.net_income),
-    summary("TOTAL EQUITY", totals.total_equity),
-    summary("TOTAL LIABILITIES + EQUITY", totals.total_liabilities_and_equity),
+    { header: `Compare Amount (${currency})`, value: (r) => r.compare_amount },
+    { header: `Change (${currency})`, value: (r) => r.change },
   ]
 
-  return csvResponse(
-    `balance-sheet${asOf ? `-${asOf}` : ""}.csv`,
-    toCsv(columns, allRows),
-  )
+  const suffix = compareAsOf
+    ? `-${asOf}-vs-${compareAsOf}`
+    : asOf
+      ? `-${asOf}`
+      : ""
+  return csvResponse(`balance-sheet${suffix}.csv`, toCsv(columns, rows))
 }
