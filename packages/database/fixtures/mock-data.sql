@@ -2571,3 +2571,39 @@ UPDATE bank_accounts SET
     available_balance = current_balance - 35.00
  WHERE account_name = 'Operating Account GBP';
 
+
+-- =============================================================================
+-- Document management — docs/17-customer-portal.md §3 and
+-- docs/18-document-management.md. Six folders, five documents, two shares:
+-- deliberately shaped to exercise every RESTRICTIVE policy branch and leave
+-- no column empty (verify-fixture-coverage.mjs, verify-rls.sql phase A) —
+-- a child folder (parent_folder_id/path_ids), an entity-rooted folder
+-- (project), an archived folder AND an archived document, all three folder
+-- visibilities, all three document visibilities, both share-target shapes
+-- (employee and functional role), and a portal-uploaded, unfoldered document
+-- (uploaded_by_contact_id, customer_id) alongside staff-uploaded ones.
+-- =============================================================================
+
+INSERT INTO document_folders (id, tenant_id, parent_folder_id, path_ids, name, owner_employee_id, visibility, entity_type, entity_id, archived_at, created_at, updated_at) VALUES
+    ('a0000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, '{}', 'Company Handbook', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'company', NULL, NULL, NULL, '2026-01-05T09:00:00Z', '2026-01-05T09:00:00Z'),
+    ('a0000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, '{}', 'Marcus — Private', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'private', NULL, NULL, NULL, '2026-01-06T09:00:00Z', '2026-01-06T09:00:00Z'),
+    ('a0000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, '{}', 'Client Renewals', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'shared', NULL, NULL, NULL, '2026-01-07T09:00:00Z', '2026-01-07T09:00:00Z'),
+    ('a0000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a0000000-0000-4000-8000-000000000001', '{a0000000-0000-4000-8000-000000000001}', 'Policies', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'company', NULL, NULL, NULL, '2026-01-08T09:00:00Z', '2026-01-08T09:00:00Z'),
+    ('a0000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, '{}', 'Acme ERP Integration — Files', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'company', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, '2026-01-09T09:00:00Z', '2026-01-09T09:00:00Z'),
+    ('a0000000-0000-4000-8000-000000000006', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, '{}', 'Old Drafts', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'private', NULL, NULL, '2026-09-01T10:00:00Z', '2026-01-10T09:00:00Z', '2026-09-01T10:00:00Z');
+
+-- Both share-target shapes the num_nonnulls CHECK allows: a named employee,
+-- and a functional role. A third, revoked share proves revoked_at is what
+-- actually gates visibility, not just row presence — Priya no longer reads
+-- the folder despite the row still existing (append-only, L48 shape).
+INSERT INTO document_folder_shares (id, tenant_id, folder_id, shared_with_employee_id, shared_with_role, permission, granted_by, granted_at, revoked_at) VALUES
+    ('b0000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a0000000-0000-4000-8000-000000000003', '6d466aa9-e51a-5d52-9015-152600855932', NULL, 'view', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07T09:15:00Z', NULL),
+    ('b0000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a0000000-0000-4000-8000-000000000003', NULL, 'it_admin', 'edit', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07T09:16:00Z', NULL),
+    ('b0000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a0000000-0000-4000-8000-000000000003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', NULL, 'view', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-01-07T09:17:00Z', '2026-02-01T09:00:00Z');
+
+INSERT INTO documents (id, tenant_id, entity_type, entity_id, customer_id, file_name, storage_key, mime_type, file_size_bytes, visibility, uploaded_by_employee_id, uploaded_by_contact_id, created_at, updated_at, folder_id, archived_at) VALUES
+    ('c0000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, NULL, 'Employee Handbook.pdf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000001-Employee-Handbook.pdf', 'application/pdf', 482331, 'internal', 'db1f1f2b-b140-5948-a34e-1c998ed98757', NULL, '2026-01-05T09:30:00Z', '2026-01-05T09:30:00Z', 'a0000000-0000-4000-8000-000000000001', NULL),
+    ('c0000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Acme Signed SOW.pdf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000002-Acme-Signed-SOW.pdf', 'application/pdf', 210044, 'client_visible', NULL, 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '2026-02-03T14:00:00Z', '2026-02-03T14:00:00Z', NULL, NULL),
+    ('c0000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Acme ERP Kickoff Deck.pptx', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/project/8257009f-6a91-5fd1-9efb-518198c08e2a/c0000000-0000-4000-8000-000000000003-Kickoff-Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 3881204, 'client_visible', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, '2026-01-09T10:00:00Z', '2026-01-09T10:00:00Z', 'a0000000-0000-4000-8000-000000000005', NULL),
+    ('c0000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, NULL, 'Draft Proposal (old).docx', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000004-Draft-Proposal-old.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 55210, 'internal', 'db1f1f2b-b140-5948-a34e-1c998ed98757', NULL, '2026-01-06T11:00:00Z', '2026-09-01T10:05:00Z', 'a0000000-0000-4000-8000-000000000002', '2026-09-01T10:05:00Z'),
+    ('c0000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, NULL, 'Company Overview.pdf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000005-Company-Overview.pdf', 'application/pdf', 998112, 'public', 'db1f1f2b-b140-5948-a34e-1c998ed98757', NULL, '2026-01-05T09:45:00Z', '2026-01-05T09:45:00Z', 'a0000000-0000-4000-8000-000000000001', NULL);

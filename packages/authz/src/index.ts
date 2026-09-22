@@ -66,6 +66,12 @@ export const PERMISSIONS = [
   "ticket.read.own",
   "document.read.own",
   "document.upload.own",
+  // Staff document store — folders, upload, sharing, archiving. Coarse gate
+  // only: which rows an employee sees is folder visibility (§2) plus RLS, the
+  // same two-layer split employee.read.self already uses. See
+  // docs/18-document-management.md §2.
+  "document.read",
+  "document.write",
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -107,6 +113,10 @@ const EVERYONE: Permission[] = [
   // tickets, is self-service the same way.
   "ticketing.read.own",
   "ticketing.write.own",
+  // Self-service, same shape as ticketing above: whether an employee may use
+  // the document store at all. Folder visibility and RLS govern which rows.
+  "document.read",
+  "document.write",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {

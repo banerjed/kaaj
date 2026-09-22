@@ -48,7 +48,13 @@ INSERT INTO _index_exempt VALUES
   ('idx_projects_custom_fields',
    'GIN jsonb_path_ops; same'),
   ('idx_tasks_custom_fields',
-   'GIN jsonb_path_ops; same');
+   'GIN jsonb_path_ops; same'),
+  ('idx_document_folders_path',
+   'GIN on path_ids for ancestor-containment checks; could take (tenant_id, path_ids) via btree_gin'),
+  ('idx_documents_name_trgm',
+   'GIN trigram for fuzzy filename search; could take (tenant_id, file_name) via btree_gin'),
+  ('idx_folders_name_trgm',
+   'GIN trigram for fuzzy filename search; same');
 
 CREATE TEMP VIEW _index_violations AS
   SELECT i.relname AS idx, c.relname AS tbl

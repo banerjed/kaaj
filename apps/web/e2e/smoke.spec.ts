@@ -90,6 +90,8 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/accounting/receive-payment", heading: "Receive Payment" },
   { path: "/ticketing", heading: "Ticketing" },
   { path: "/ticketing/new", heading: "New ticket" },
+  { path: "/documents", heading: "Documents" },
+  { path: "/documents/archived", heading: "Archived" },
   { path: "/settings/company", heading: "Company" },
   { path: "/settings/departments", heading: "Departments" },
   { path: "/settings/locations", heading: "Locations" },

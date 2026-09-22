@@ -40,6 +40,12 @@ customer_contacts	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDA
 customer_contacts	supabase_auth_admin	SELECT
 customers	app_user	INSERT,SELECT,UPDATE
 customers	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+document_folder_shares	app_user	INSERT,SELECT,UPDATE
+document_folder_shares	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+document_folders	app_user	INSERT,SELECT,UPDATE
+document_folders	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+documents	app_user	INSERT,SELECT,UPDATE
+documents	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 employee_assets	app_user	INSERT,SELECT,UPDATE
 employee_assets	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 employee_bank_accounts	app_user	INSERT,SELECT,UPDATE

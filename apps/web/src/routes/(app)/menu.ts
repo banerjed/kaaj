@@ -293,7 +293,8 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "documents",
     icon: "lucide--files",
     label: "Documents",
-    ...soon,
+    url: "/documents",
+    permission: "document.read",
   },
 
   // -- Group 5: Support & Services ----------------------------------------

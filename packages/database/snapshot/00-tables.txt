@@ -19,6 +19,9 @@ cross_module_links	t	t
 custom_field_definitions	t	t
 customer_contacts	t	t
 customers	t	t
+document_folder_shares	t	t
+document_folders	t	t
+documents	t	t
 employee_assets	t	t
 employee_bank_accounts	t	t
 employee_certifications	t	t

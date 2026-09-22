@@ -355,6 +355,23 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "saveMembers",
     why: "A business area's default-visible list decides who reads every non-private ticket in it — changing it is a bulk rights change.",
   },
+
+  // -- Documents: grants that change who may READ a folder's contents --------
+  {
+    route: "documents/[folderId]",
+    action: "setVisibility",
+    why: "Flipping private/shared/company changes who staff_folder_visibility lets read every file under this folder — a rights change, recorded only when it actually moved.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "share",
+    why: "Grants a named person or role read (or edit) access to a shared folder's contents — the folder-level ACL 18§2 describes.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "unshare",
+    why: "Revokes access previously granted — the other half of `share`.",
+  },
 ]
 
 /** Writes that deliberately do NOT audit, each with a reason — not "not got round to it". */
@@ -503,5 +520,52 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "accounting/ledger",
     action: "checkBalance",
     why: "A read, not a write — the full-ledger integrity scan moved out of load() so it runs on demand instead of on every page view; it changes no row.",
+  },
+
+  // -- Documents: self-service organization, no rights or money change --------
+  {
+    route: "documents",
+    action: "createFolder",
+    why: "Self-service (document.write is in EVERYONE) — same shape as ticketing/new. A private folder starts visible only to its own creator, so creating one changes nothing about who reads anyone else's data.",
+  },
+  {
+    route: "documents",
+    action: "upload",
+    why: "Self-service — filing a document into a folder whose visibility (and therefore its readers) is unchanged by the upload itself.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "createFolder",
+    why: "Same as documents/createFolder, one level down.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "upload",
+    why: "Same as documents/upload.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "rename",
+    why: "A label, not a rights or money change — staff_folder_visibility doesn't key on name.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "archive",
+    why: "Reversible lifecycle state, same shape as a ticket status transition — visibility (and so who can still see it in the Archived view) is unchanged.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "archiveDocument",
+    why: "Same as archive, for one file rather than a folder.",
+  },
+  {
+    route: "documents/archived",
+    action: "restoreFolder",
+    why: "The reverse of archive — same reasoning.",
+  },
+  {
+    route: "documents/archived",
+    action: "restoreDocument",
+    why: "The reverse of archiveDocument — same reasoning.",
   },
 ]

@@ -37,6 +37,7 @@ const SNAPSHOT = "packages/database/snapshot/00-tables.txt"
  */
 const SCALE_SENSITIVE = new Map([
   ["audit_log", "append-only audit trail of every write; never pruned"],
+  ["documents", "one row per file uploaded, indefinitely (18§7 says so explicitly)"],
   ["bank_transactions", "one row per bank feed transaction, continuous"],
   ["bill_lines", "line items on vendor bills; grows with billing volume"],
   ["bills", "one row per vendor bill; grows with billing volume"],
@@ -82,6 +83,14 @@ const SCALE_SENSITIVE = new Map([
  */
 const NOT_SCALE_SENSITIVE = new Map([
   ["accounting_periods", "one row per fiscal period; a handful per year"],
+  [
+    "document_folders",
+    "bounded by how the org organizes its own files, not by upload volume — the UI nudges toward 2-3 levels (18§6)",
+  ],
+  [
+    "document_folder_shares",
+    "bounded by folder count times grantees per folder; a handful per shared folder",
+  ],
   ["bank_accounts", "one row per bank account on file; small, admin-authored"],
   ["bank_reconciliation_rules", "small, admin-authored config"],
   ["chart_of_accounts", "one row per GL account; small, admin-authored"],

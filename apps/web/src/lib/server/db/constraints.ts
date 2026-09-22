@@ -154,6 +154,11 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["employee_id"],
     message: "That person no longer has a record. Reload the page.",
   },
+  document_folder_shares_shared_with_employee_id_fkey: {
+    errorFields: ["target_employee_id"],
+    message:
+      "That person no longer has a record. Reload the page and pick someone from the current list.",
+  },
   fk_invoices_customer_id: {
     errorFields: ["customer_id"],
     message:

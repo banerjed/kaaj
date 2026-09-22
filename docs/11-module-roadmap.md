@@ -361,7 +361,20 @@ each inventing its own. Portal identity (§1) and ticketing (§2) are both
 done: `customer_contacts`, a `customer` base role, the third RLS pattern, a
 `/portal` shell, and one repository shared by `/ticketing` (staff) and
 `/portal/tickets` (customer contact) — RLS is what actually separates what
-each caller sees. Documents/chat (§3–4) are still spec only.
+each caller sees. Chat (§4) is still spec only. Documents (§3) — ✅ built, staff
+side. `documents` (17§3's own table, previously unbuilt) and the folder tree
+in [18-document-management.md](./18-document-management.md) — folders,
+sharing, archiving, search — landed together in one migration
+(20260922090000): both portal RLS policies from 17§3 and the staff RLS from
+18§3 are live, but only the staff `/documents` pages are built. `/portal`
+documents pages are 17§3's own remaining slice, same as chat.
+
+**One deviation from 18's own SQL:** `app.can_see_folder()` can't be called
+from `document_folders`' own policy — it re-queries that same table, which
+breaks `RETURNING` ([L92](./10-lessons-learned.md)). Its ownership/company
+checks moved inline into the policy; `can_see_folder()` itself is kept only
+for `staff_document_visibility` and the download-proxy route, which read
+`document_folders` from *outside* that table's own policy.
 
 The `(marketing)` route group is the CMSaasStarter site
 ([07-app-provenance.md](./07-app-provenance.md)), **not** the marketing module,

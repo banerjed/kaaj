@@ -413,6 +413,43 @@ customers	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 customers	25	created_by	uuid	f	
 customers	26	updated_by	uuid	f	
 customers	27	tax_exempt_until	date	f	
+document_folder_shares	1	id	uuid	t	gen_random_uuid()
+document_folder_shares	2	tenant_id	uuid	t	
+document_folder_shares	3	folder_id	uuid	t	
+document_folder_shares	4	shared_with_employee_id	uuid	f	
+document_folder_shares	5	shared_with_role	text	f	
+document_folder_shares	6	permission	text	t	
+document_folder_shares	7	granted_by	uuid	t	
+document_folder_shares	8	granted_at	timestamp with time zone	t	now()
+document_folder_shares	9	revoked_at	timestamp with time zone	f	
+document_folders	1	id	uuid	t	gen_random_uuid()
+document_folders	2	tenant_id	uuid	t	
+document_folders	3	parent_folder_id	uuid	f	
+document_folders	4	path_ids	uuid[]	t	'{}'::uuid[]
+document_folders	5	name	character varying(255)	t	
+document_folders	6	owner_employee_id	uuid	t	
+document_folders	7	visibility	text	t	'private'::text
+document_folders	8	entity_type	text	f	
+document_folders	9	entity_id	uuid	f	
+document_folders	10	archived_at	timestamp with time zone	f	
+document_folders	11	created_at	timestamp with time zone	t	now()
+document_folders	12	updated_at	timestamp with time zone	t	now()
+documents	1	id	uuid	t	gen_random_uuid()
+documents	2	tenant_id	uuid	t	
+documents	3	entity_type	text	f	
+documents	4	entity_id	uuid	f	
+documents	5	customer_id	uuid	f	
+documents	6	file_name	text	t	
+documents	7	storage_key	text	t	
+documents	8	mime_type	text	t	
+documents	9	file_size_bytes	integer	t	
+documents	10	visibility	text	t	'internal'::text
+documents	11	uploaded_by_employee_id	uuid	f	
+documents	12	uploaded_by_contact_id	uuid	f	
+documents	13	created_at	timestamp with time zone	t	now()
+documents	14	updated_at	timestamp with time zone	t	now()
+documents	15	folder_id	uuid	f	
+documents	16	archived_at	timestamp with time zone	f	
 employee_assets	1	id	uuid	t	gen_random_uuid()
 employee_assets	2	tenant_id	uuid	t	
 employee_assets	3	asset_id	text	f	

@@ -474,6 +474,16 @@ planner evaluates that arm ([L62](docs/10-lessons-learned.md)). Every such
 function returns the closed answer (`NULL`, `false`) on a bad claim;
 `./check` calls each one with `not-json` and fails if it raises.
 
+**A table's own RLS policy must never call a helper that re-queries that SAME
+table, even via `SECURITY DEFINER`.** `INSERT/UPDATE ... RETURNING` checks
+the new row against `SELECT` policies using values already in hand,
+mid-statement — a nested query can't yet see that row
+([L92](docs/10-lessons-learned.md)). Check same-table conditions (ownership,
+a status column) inline against the row's own values; only delegate to a
+helper for a check that reads a *different* table. `verify-rls.sql` only
+ever `SELECT`s, so it passing is not evidence a self-referential policy
+survives `RETURNING`.
+
 **A denormalised counter is RECOMPUTED in the same transaction, never
 incremented.** `SET n = n + 1` is correct only if every writer remembers it and
 no write ever fails partway; `SET n = (SELECT count(*) ...)` is correct whatever

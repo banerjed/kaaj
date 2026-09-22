@@ -76,6 +76,26 @@ customers	customers_pkey	p	PRIMARY KEY (id)
 customers	customers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 customers	fk_customers_ar_account_id	f	FOREIGN KEY (ar_account_id) REFERENCES chart_of_accounts(id)
 customers	fk_customers_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
+document_folder_shares	document_folder_shares_folder_id_fkey	f	FOREIGN KEY (folder_id) REFERENCES document_folders(id) ON DELETE CASCADE
+document_folder_shares	document_folder_shares_granted_by_fkey	f	FOREIGN KEY (granted_by) REFERENCES employees(id)
+document_folder_shares	document_folder_shares_permission_check	c	CHECK ((permission = ANY (ARRAY['view'::text, 'edit'::text])))
+document_folder_shares	document_folder_shares_pkey	p	PRIMARY KEY (id)
+document_folder_shares	document_folder_shares_shared_with_employee_id_fkey	f	FOREIGN KEY (shared_with_employee_id) REFERENCES employees(id)
+document_folder_shares	document_folder_shares_target_check	c	CHECK ((num_nonnulls(shared_with_employee_id, shared_with_role) = 1))
+document_folder_shares	document_folder_shares_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+document_folder_shares	document_folder_shares_unique_share	u	UNIQUE (tenant_id, folder_id, shared_with_employee_id, shared_with_role)
+document_folders	document_folders_owner_employee_id_fkey	f	FOREIGN KEY (owner_employee_id) REFERENCES employees(id)
+document_folders	document_folders_parent_folder_id_fkey	f	FOREIGN KEY (parent_folder_id) REFERENCES document_folders(id)
+document_folders	document_folders_pkey	p	PRIMARY KEY (id)
+document_folders	document_folders_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+document_folders	document_folders_visibility_check	c	CHECK ((visibility = ANY (ARRAY['private'::text, 'shared'::text, 'company'::text])))
+documents	documents_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
+documents	documents_folder_id_fkey	f	FOREIGN KEY (folder_id) REFERENCES document_folders(id)
+documents	documents_pkey	p	PRIMARY KEY (id)
+documents	documents_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+documents	documents_uploaded_by_contact_id_fkey	f	FOREIGN KEY (uploaded_by_contact_id) REFERENCES customer_contacts(id)
+documents	documents_uploader_check	c	CHECK ((num_nonnulls(uploaded_by_employee_id, uploaded_by_contact_id) = 1))
+documents	documents_visibility_check	c	CHECK ((visibility = ANY (ARRAY['internal'::text, 'client_visible'::text, 'public'::text])))
 employee_assets	employee_assets_pkey	p	PRIMARY KEY (id)
 employee_assets	employee_assets_tenant_id_asset_id_key	u	UNIQUE (tenant_id, asset_id)
 employee_assets	employee_assets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE

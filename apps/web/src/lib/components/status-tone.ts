@@ -100,3 +100,13 @@ export const ticketStatusTone = (s: string | null): Tone =>
       : s === "open" || s === "awaiting_response"
         ? "caution"
         : "neutral"
+
+/**
+ * `document_folders.visibility` — the three-state badge the Nexus file-manager
+ * reference uses (private/shared/public), mapped onto this app's five tones:
+ * private is restrictive (critical, matching the reference's red shield),
+ * shared is a live grant worth noticing (progress), company is the safe,
+ * broadly-open state (positive).
+ */
+export const folderVisibilityTone = (v: string): Tone =>
+  v === "private" ? "critical" : v === "shared" ? "progress" : "positive"

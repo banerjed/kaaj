@@ -100,7 +100,9 @@ describe("separation of duties", () => {
         // Self-service, granted by the base `employee` role regardless of
         // functional bundle — same reasoning as `timeoff.request` above.
         p !== "time_entries.write" &&
-        p !== "ticketing.write.own",
+        p !== "ticketing.write.own" &&
+        // Self-service, same reasoning — document.write is in EVERYONE too.
+        p !== "document.write",
     )
     for (const p of writes) expect(can(a, p), p).toBe(false)
     expect(can(a, "compensation.read.all")).toBe(true)

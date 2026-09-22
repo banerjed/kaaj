@@ -2282,6 +2282,25 @@ codebase this size will have written it more than once in the same sitting.
 
 ---
 
+### L92 — a policy helper that re-queries its own table breaks `RETURNING`, not `SELECT`
+
+A table's RLS policy called a function that read that same table
+(`document_folders`' policy, checking folder visibility via a helper that
+queried `document_folders`). Plain `SELECT`s worked fine — the failure only
+appears on `INSERT/UPDATE ... RETURNING`, which checks the new row against
+`SELECT` policies using values already in hand, mid-statement, before a
+nested query can see that row. `SECURITY DEFINER` doesn't fix it — it
+changes whose privileges the read runs under, not whether the row exists
+yet.
+
+Rule: a policy's own helper may read *other* tables freely, but must check
+same-table conditions (ownership, a status column) inline against the row's
+own values rather than re-querying — and test the actual `RETURNING` write
+path, not just an isolated `SELECT`, since `verify-rls.sql` only ever
+`SELECT`s and would pass either way.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

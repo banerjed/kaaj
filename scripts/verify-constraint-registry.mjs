@@ -40,6 +40,9 @@ const FORM_WRITTEN = [
   "tax_rates",
   "recurring_schedules",
   "amortization_schedules",
+  "documents",
+  "document_folders",
+  "document_folder_shares",
 ]
 
 /**
@@ -178,6 +181,66 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "fk_invoice_lines_revenue_account_id",
     "always the fixed Consulting Revenue account (ACCOUNTS.revenue), never set by the form",
+  ],
+
+  // ---- Documents (docs/18-document-management.md) ------------------------
+  ["documents_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "documents_visibility_check",
+    "the staff upload path hardcodes visibility to 'internal'; it is never read from the form",
+  ],
+  [
+    "documents_uploader_check",
+    "uploaded_by_employee_id is set from the authenticated actor, never form input, and uploaded_by_contact_id is never set by this (staff-only) slice",
+  ],
+  [
+    "documents_uploaded_by_contact_id_fkey",
+    "never set by the staff upload path — only uploaded_by_employee_id is set",
+  ],
+  [
+    "documents_customer_id_fkey",
+    "never set by the staff upload path in this slice",
+  ],
+  [
+    "documents_folder_id_fkey",
+    "upload.ts resolves and permission-checks the folder via documents.repo.folderPermission before this insert runs — DocumentsRefused fires first",
+  ],
+  ["document_folders_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "document_folders_parent_folder_id_fkey",
+    "documents.repo.createFolder already resolves the parent via folder() (RLS-gated) and throws DocumentsRefused before this insert runs",
+  ],
+  [
+    "document_folders_owner_employee_id_fkey",
+    "set from the authenticated actor, never form input",
+  ],
+  [
+    "document_folders_visibility_check",
+    "FormReader's choice(visibility, FOLDER_VISIBILITIES, { fallback: 'private' }) already refuses anything off the list",
+  ],
+  [
+    "document_folder_shares_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
+  [
+    "document_folder_shares_folder_id_fkey",
+    "the share/unshare actions already resolve the folder via requireFolderPermission before this insert runs",
+  ],
+  [
+    "document_folder_shares_target_check",
+    "documents.repo.shareFolder checks exactly-one-of-employee-or-role before this insert runs, throwing DocumentsRefused first",
+  ],
+  [
+    "document_folder_shares_permission_check",
+    "FormReader's choice(permission, SHARE_PERMISSIONS, { required: true }) already refuses anything off the list",
+  ],
+  [
+    "document_folder_shares_granted_by_fkey",
+    "set from the authenticated actor, never form input",
+  ],
+  [
+    "document_folder_shares_unique_share",
+    "documents.repo.shareFolder selects the existing grant and UPDATEs it rather than inserting a duplicate, so a normal request never reaches this constraint",
   ],
 ])
 
