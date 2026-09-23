@@ -43,6 +43,9 @@ const FORM_WRITTEN = [
   "documents",
   "document_folders",
   "document_folder_shares",
+  "team_chat_conversations",
+  "team_chat_members",
+  "team_chat_messages",
 ]
 
 /**
@@ -241,6 +244,43 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "document_folder_shares_unique_share",
     "documents.repo.shareFolder selects the existing grant and UPDATEs it rather than inserting a duplicate, so a normal request never reaches this constraint",
+  ],
+
+  // Team chat (docs/20-team-chat.md).
+  ["team_chat_conversations_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "team_chat_conversations_created_by_employee_id_fkey",
+    "set from the authenticated actor, never form input",
+  ],
+  [
+    "team_chat_conversations_kind_check",
+    "kind is hardcoded per action (createChannel/findOrCreateDm), never form input",
+  ],
+  [
+    "team_chat_conversations_visibility_check",
+    "FormReader's choice() already restricts to public/private before this is reached",
+  ],
+  [
+    "team_chat_conversations_check",
+    "name/visibility come from FormReader before this is reached, and kind is hardcoded per action — the combination this CHECK guards can't be assembled from form input",
+  ],
+  ["team_chat_members_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "team_chat_members_role_check",
+    "role is hardcoded by the action (owner at creation, member otherwise), never form input",
+  ],
+  [
+    "team_chat_members_tenant_id_conversation_id_employee_id_key",
+    "team-chat.repo's upsertMembership (joinPublicChannel/addMember) catches this in JS and falls back to an UPDATE — deliberately NOT ON CONFLICT DO UPDATE, which trips team_chat_member_visibility even with no RETURNING (L93)",
+  ],
+  [
+    "idx_team_chat_dm_key",
+    "team-chat.repo.findOrCreateDm uses ON CONFLICT ... DO NOTHING and re-selects, so a normal request never reaches this constraint",
+  ],
+  ["team_chat_messages_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "team_chat_messages_author_employee_id_fkey",
+    "set from the authenticated actor, never form input",
   ],
 ])
 

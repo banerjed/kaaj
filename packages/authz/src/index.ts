@@ -72,6 +72,12 @@ export const PERMISSIONS = [
   // docs/18-document-management.md §2.
   "document.read",
   "document.write",
+  // Internal, employee-only chat — coarse gate only, same shape as
+  // document.read/write. Which conversations/messages an employee actually
+  // sees is member_ids-based RLS. Deliberately NOT chat.* (17§4's own
+  // reserved customer-portal namespace) — see docs/20-team-chat.md §1/§4.
+  "team_chat.read",
+  "team_chat.write",
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -117,6 +123,8 @@ const EVERYONE: Permission[] = [
   // the document store at all. Folder visibility and RLS govern which rows.
   "document.read",
   "document.write",
+  "team_chat.read",
+  "team_chat.write",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {

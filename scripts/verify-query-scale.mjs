@@ -71,6 +71,7 @@ const SCALE_SENSITIVE = new Map([
   ["ticketing_ticket_tasks", "grows with tickets times checklist items"],
   ["ticketing_tickets", "one row per ticket logged, indefinitely"],
   ["ticketing_updates", "one row per update posted to a ticket"],
+  ["team_chat_messages", "one row per message sent, indefinitely (20§7 says so explicitly)"],
   ["time_tracking_billable_expenses", "grows with time entries logged"],
   ["time_tracking_entries", "one row per time entry logged, potentially daily"],
 ])
@@ -90,6 +91,14 @@ const NOT_SCALE_SENSITIVE = new Map([
   [
     "document_folder_shares",
     "bounded by folder count times grantees per folder; a handful per shared folder",
+  ],
+  [
+    "team_chat_conversations",
+    "bounded by team size times topics created, not by messages sent (20§7)",
+  ],
+  [
+    "team_chat_members",
+    "bounded by team size times conversations joined, not by messages sent (20§7)",
   ],
   ["bank_accounts", "one row per bank account on file; small, admin-authored"],
   ["bank_reconciliation_rules", "small, admin-authored config"],

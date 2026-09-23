@@ -387,6 +387,22 @@ tax_rates	tax_rates_tax_collected_account_id_fkey	f	FOREIGN KEY (tax_collected_a
 tax_rates	tax_rates_tax_paid_account_id_fkey	f	FOREIGN KEY (tax_paid_account_id) REFERENCES chart_of_accounts(id)
 tax_rates	tax_rates_tenant_id_code_key	u	UNIQUE (tenant_id, code)
 tax_rates	tax_rates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+team_chat_conversations	team_chat_conversations_check	c	CHECK ((((kind = 'channel'::text) AND (name IS NOT NULL) AND (visibility IS NOT NULL)) OR ((kind = 'dm'::text) AND (visibility IS NULL))))
+team_chat_conversations	team_chat_conversations_created_by_employee_id_fkey	f	FOREIGN KEY (created_by_employee_id) REFERENCES employees(id)
+team_chat_conversations	team_chat_conversations_kind_check	c	CHECK ((kind = ANY (ARRAY['channel'::text, 'dm'::text])))
+team_chat_conversations	team_chat_conversations_pkey	p	PRIMARY KEY (id)
+team_chat_conversations	team_chat_conversations_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+team_chat_conversations	team_chat_conversations_visibility_check	c	CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text])))
+team_chat_members	team_chat_members_conversation_id_fkey	f	FOREIGN KEY (conversation_id) REFERENCES team_chat_conversations(id) ON DELETE CASCADE
+team_chat_members	team_chat_members_employee_id_fkey	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+team_chat_members	team_chat_members_pkey	p	PRIMARY KEY (id)
+team_chat_members	team_chat_members_role_check	c	CHECK ((role = ANY (ARRAY['owner'::text, 'member'::text])))
+team_chat_members	team_chat_members_tenant_id_conversation_id_employee_id_key	u	UNIQUE (tenant_id, conversation_id, employee_id)
+team_chat_members	team_chat_members_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+team_chat_messages	team_chat_messages_author_employee_id_fkey	f	FOREIGN KEY (author_employee_id) REFERENCES employees(id)
+team_chat_messages	team_chat_messages_conversation_id_fkey	f	FOREIGN KEY (conversation_id) REFERENCES team_chat_conversations(id) ON DELETE CASCADE
+team_chat_messages	team_chat_messages_pkey	p	PRIMARY KEY (id)
+team_chat_messages	team_chat_messages_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tenant_registry	dedicated_tenant_has_a_secret_ref	c	CHECK (((tier = 'shared'::text) OR (connection_secret_ref IS NOT NULL)))
 tenant_registry	tenant_registry_pkey	p	PRIMARY KEY (tenant_id)
 tenant_registry	tenant_registry_status_check	c	CHECK ((status = ANY (ARRAY['provisioning'::text, 'active'::text, 'suspended'::text, 'migrating'::text, 'unreachable'::text])))

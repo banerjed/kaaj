@@ -257,6 +257,32 @@ tax_rates	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS w
 tax_rates	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS reads_all_accounting)	
 tax_rates	accounting_update	UPDATE	public	( SELECT app.writes_accounting() AS writes_accounting)	( SELECT app.writes_accounting() AS writes_accounting)
 tax_rates	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+team_chat_conversations	team_chat_conversation_insert	INSERT	public		((created_by_employee_id = app.current_employee_id()) AND (app.current_employee_id() = ANY (member_ids)))
+team_chat_conversations	team_chat_conversation_update	UPDATE	public	(app.current_employee_id() = ANY (member_ids))	(app.current_employee_id() = ANY (member_ids))
+team_chat_conversations	team_chat_conversation_visibility	SELECT	public	((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) AND (( SELECT app.reads_all_team_chat() AS reads_all_team_chat) OR (app.current_employee_id() = ANY (member_ids)) OR ((kind = 'channel'::text) AND (visibility = 'public'::text))))	
+team_chat_conversations	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+team_chat_members	team_chat_member_insert	INSERT	public		(((employee_id = app.current_employee_id()) AND (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_members.conversation_id) AND (c.kind = 'channel'::text) AND (c.visibility = 'public'::text))))) OR (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_members.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))
+team_chat_members	team_chat_member_update	UPDATE	public	((employee_id = app.current_employee_id()) OR (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_members.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))	((employee_id = app.current_employee_id()) OR (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_members.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))
+team_chat_members	team_chat_member_visibility	SELECT	public	(( SELECT app.reads_all_team_chat() AS reads_all_team_chat) OR (employee_id = app.current_employee_id()) OR (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_members.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))	
+team_chat_members	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+team_chat_messages	team_chat_message_insert	INSERT	public		((author_employee_id = app.current_employee_id()) AND (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_messages.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))
+team_chat_messages	team_chat_message_update	UPDATE	public	(author_employee_id = app.current_employee_id())	(author_employee_id = app.current_employee_id())
+team_chat_messages	team_chat_message_visibility	SELECT	public	(( SELECT app.reads_all_team_chat() AS reads_all_team_chat) OR (EXISTS ( SELECT 1
+   FROM team_chat_conversations c
+  WHERE ((c.id = team_chat_messages.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))	
+team_chat_messages	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_registry	tenant_registry_self	SELECT	app_user	(tenant_id = app.current_tenant_id())	
 tenant_settings	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_users	auth_admin_reads_memberships	SELECT	supabase_auth_admin	true	

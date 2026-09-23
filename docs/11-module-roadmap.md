@@ -363,10 +363,15 @@ done: `customer_contacts`, a `customer` base role, the third RLS pattern, a
 `/portal/tickets` (customer contact) — RLS is what actually separates what
 each caller sees. Chat (§4) is still spec only on the customer-portal side;
 the internal, employee-only half — DMs, channels, and `LISTEN`/`NOTIFY`
-realtime delivery — has its own spec,
-[20-team-chat.md](./20-team-chat.md), deliberately on separate
+realtime delivery — is now ✅ built, per its own spec
+[20-team-chat.md](./20-team-chat.md), on deliberately separate
 `team_chat_*` tables and a separate `team_chat.*` permission namespace so it
-is never one missing `if` away from 17§4's customer-facing one. Documents (§3) — ✅ built, staff
+is never one missing `if` away from 17§4's customer-facing one. `/chat`
+(DMs, channels, browse-public-channels) and its SSE relay
+(`/chat/stream`, shared-tier only — a dedicated tenant falls back to the
+already-required poll) are live; the RLS work surfaced three real
+self-reference/RETURNING bugs and one disclosure bug, all recorded as
+[L93](./10-lessons-learned.md)–[L96](./10-lessons-learned.md). Documents (§3) — ✅ built, staff
 side. `documents` (17§3's own table, previously unbuilt) and the folder tree
 in [18-document-management.md](./18-document-management.md) — folders,
 sharing, archiving, search — landed together in one migration

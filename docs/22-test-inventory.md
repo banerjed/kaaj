@@ -8,8 +8,8 @@ suites on 2026-09-23; re-run the commands below to refresh them rather than
 trusting this file once it drifts.
 
 ```bash
-pnpm --filter @kaaj/web run test          # unit tests (vitest) — 1,059 tests, 52 files
-pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 131 tests, 7 spec files
+pnpm --filter @kaaj/web run test          # unit tests (vitest) — 1,077 tests, 54 files
+pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 134 tests, 7 spec files
 ./check                                    # schema/RLS/invariant harnesses — 25 steps
 ```
 
@@ -20,7 +20,7 @@ pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 131 tes
 
 ## 1. Unit tests (vitest) — grouped by module
 
-1,059 tests across 52 files. Counts below are per file; the indented lines
+1,077 tests across 54 files. Counts below are per file; the indented lines
 are that file's top-level `describe` blocks, not every `it`.
 
 ### Accounting & Finance — 332 tests
@@ -109,16 +109,38 @@ No unit test file anywhere under `lib/server/documents/`. The only coverage
 at all is two e2e render checks (`smoke.spec.ts`, §2) — no write path, no
 sharing/permission logic, no refusal is exercised by any automated test.
 
-### Tenancy, RLS & Row Visibility — 192 tests
+### Team Chat — 12 tests
+
+Deliberately NOT left at documents'/ticketing's bar (0) — `team-chat.repo.ts`
+hides two genuinely non-obvious Postgres RLS/trigger interactions
+(docs/10-lessons-learned.md L93/L95), and both have a permanent regression
+test rather than only having been fixed once and trusted to stay fixed.
+
+- `lib/server/team-chat/team-chat.writes.test.ts` [9] — `findOrCreateDm`
+  idempotency and `member_ids` seeding, `joinPublicChannel`'s first-ever-join
+  and leave/rejoin cases (the L93/L95 regression guard), keyset pagination,
+  the deleted-message tombstone, refusing to edit/delete someone else's
+  message, unread-count recompute (§2's "recomputed, not maintained"),
+  `archiveChannel` and its double-archive refusal.
+- `lib/server/team-chat/realtime.test.ts` [3] — the SSE relay's in-process
+  fan-out (docs/20-team-chat.md §5), against a real `pg_notify` on the
+  shared pool rather than a mock: a subscribed conversation/tenant pair
+  receives the pointer frame, a different tenant on the same conversation
+  id never does, and `unsubscribe()` actually stops delivery.
+
+### Tenancy, RLS & Row Visibility — 198 tests
 
 Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [185] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [191] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
-  feedback visibility, accounting visibility (71 tests), customer portal
+  feedback visibility, accounting visibility (71 tests), customer portal,
+  team chat (6 — member vs. non-member, public-before-join vs. private,
+  a DM's own two participants, the owner override, a portal contact seeing
+  nothing at all per 20§1)
   identity, ticketing (8)
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
@@ -181,23 +203,23 @@ goes through these.
 
 ## 2. End-to-end tests (Playwright) — grouped by purpose
 
-131 tests across 7 spec files plus one setup project. Unlike the unit suite,
+134 tests across 7 spec files plus one setup project. Unlike the unit suite,
 these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
 
-- **`smoke.spec.ts` [57]** — every module page renders for a signed-in owner:
+- **`smoke.spec.ts` [58]** — every module page renders for a signed-in owner:
   its own heading, the nav shell, zero console errors. One entry per route
   (employees, time-off, attendance, performance, onboarding, compensation,
   projects, time-tracking, payroll, all 19 accounting pages, ticketing,
-  documents, all 9 settings pages), plus the unauthenticated-redirect check,
-  the directory-has-real-rows check, the assistant panel, and the tax-rate
-  Type select population check.
-- **`form-errors.spec.ts` [51]** — a refused form names the field, marks it,
+  documents, chat, all 9 settings pages), plus the unauthenticated-redirect
+  check, the directory-has-real-rows check, the assistant panel, and the
+  tax-rate Type select population check.
+- **`form-errors.spec.ts` [53]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),
   HR (holidays, employee IDs, ticketing), compensation, time-tracking,
-  projects, and company settings.
+  projects, company settings, and team chat (empty channel name, empty message).
 - **`theme.spec.ts` [9]** — light/dark/system application, actual paint
   (canvas-measured per CLAUDE.md's colour rule), fallback on a deleted or
   garbage stored theme, where theme selection lives in the UI.

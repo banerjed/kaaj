@@ -1,6 +1,8 @@
 # Team Chat: DMs, channels, and realtime delivery over Postgres
 
-**Status:** 📋 specification — not implemented.
+**Status:** §1–4 ✅ built; §5 ✅ built for shared-tier tenants, with a named
+gap for dedicated tenants (see §5); §6–7 ✅ built; §9 ✅ built. §10's three
+open decisions are resolved — see there for what was actually found.
 **Created:** 2026-09-22
 
 Slack-shaped internal messaging for staff: direct messages (one or more
@@ -304,10 +306,26 @@ Postgres trigger → pg_notify('team_chat_message', {tenant_id, conversation_id,
 supported natively by a SvelteKit `+server.ts`, no WebSocket library
 needed. At connect time it queries the caller's own conversation
 memberships once and registers them in an in-memory
-`Map<conversationId, Set<connectionId>>`; on membership change (join,
-leave, removed), that map is updated directly rather than re-queried per
-incoming message, which would not scale with message volume. The stream
-deregisters on `request.signal`'s abort event.
+`Map<conversationId, Set<connection>>`. The stream deregisters on
+`request.signal`'s abort event.
+
+**As built, that membership set is fixed for the life of the connection,
+not mutated on a mid-stream join/leave/archive** — simpler than the map
+this section originally sketched, and sufficient because every membership
+change already goes through a form action that redirects or calls
+`invalidateAll()`, which remounts the page and opens a fresh
+`EventSource` with a freshly-queried membership set. A join made in one
+tab is reflected the next time that tab (or any tab) loads the
+conversation, not instantaneously in a stream that was already open
+before the join happened — an acceptable gap given the poll below already
+bounds "how late" at well under a minute either way.
+
+**Shared-tier only.** `getSharedPool().listen()` is the one connection this
+relay ever holds — see `$lib/server/team-chat/realtime.ts`. A dedicated-tier
+tenant (ADR-009) has no listener registered against its own database here,
+so its NOTIFYs never reach any relay; those tabs simply never get a push
+and fall back to the poll below, which is the documented floor, not a
+regression to fix later.
 
 **Deliberately never trust the `NOTIFY` payload's `tenant_id`/membership as
 authorization.** The relay only ever decides *who might be interested*; the
@@ -427,18 +445,52 @@ ever-growing event log.
 
 ---
 
-## 10. Open decisions, flagged rather than defaulted
+## 10. Open decisions — resolved during implementation
 
-1. **The `member_ids`/`RETURNING` timing question in §3** — needs the
-   empirical local-stack verification described there before this ships;
-   this spec names the fallback if the trigger-timing assumption doesn't
-   hold, but does not assert it holds without having run it.
-2. **Whether a channel member (not just an owner) can invite others.**
-   Default assumption: only `role = 'owner'` can add members to a private
-   channel; any member can post. Worth confirming against how Slack's own
-   "anyone can invite" default reads for an SMB audience before building.
-3. **Group DM membership changes.** Slack DMs are fixed-membership once
-   created (no "add someone to this DM" — you start a new one). This spec
-   follows that default rather than letting a DM's `member_ids` grow after
-   creation, which keeps `dm_key` a stable, collision-free lookup; revisit
-   only if there's a real request to add someone mid-conversation.
+1. **The `member_ids`/`RETURNING` timing question in §3 — the fear was
+   real, and it was worse than the fallback this section named.** The
+   fallback described here (seed `member_ids` on the creator's own row at
+   creation, before any `team_chat_members` row exists) is exactly what
+   `findOrCreateDm`/`createChannel` do — confirmed necessary, not merely
+   defensive. But the trigger-timing question turned out to be one instance
+   of a broader rule, found across three separate call shapes:
+   - A `SECURITY DEFINER`-less trigger silently computed `member_ids = '{}'`
+     forever, because its own read of `team_chat_members` was blocked by
+     that table's RLS ([L93](./10-lessons-learned.md)).
+   - Even with `SECURITY DEFINER` fixed, `INSERT ... RETURNING` on a
+     self-join still failed — the trigger's write isn't visible to the
+     firing statement's own `RETURNING` check, confirming this section's
+     prediction. The fix actually shipped is stronger than "assert it holds
+     first": `team-chat.repo.ts` never `RETURNING`s on that insert, full
+     stop, self-join or not.
+   - A third, previously-unnamed variant: `INSERT ... ON CONFLICT DO UPDATE`
+     (no `RETURNING` at all) hit the *same* RLS error on a real rejoin, live
+     in the browser. `ON CONFLICT DO UPDATE` re-checks the row the same way
+     `RETURNING` does. The repository's `upsertMembership` catches the
+     unique-violation in JS instead and falls back to a plain `UPDATE`
+     ([L93](./10-lessons-learned.md)).
+   - That fallback `UPDATE` then failed too, for a fourth and unrelated
+     reason: an `UPDATE`/`DELETE` cannot locate a row its table's own
+     `SELECT` policy hides, independent of the `UPDATE` policy's own
+     `USING` clause. Leaving a conversation removes you from `member_ids`,
+     which is exactly what the rejoin's `SELECT` policy required to find
+     your own row. Fixed by adding the same self-row exemption
+     (`employee_id = current_employee_id()`) to `team_chat_member_visibility`
+     that the `UPDATE` policy already had ([L95](./10-lessons-learned.md)).
+   Net effect: never `RETURNING` and never `ON CONFLICT DO UPDATE` on
+   `team_chat_members`, and every write policy's same-row exemption is
+   mirrored on that table's `SELECT` policy. A fourth, disclosure-shaped bug
+   surfaced alongside these — the public-channel visibility arm had no
+   portal-contact guard, so a customer-portal actor could see (though not
+   read into) every public channel — fixed by wrapping the whole policy in
+   `NOT (SELECT app.is_portal_contact())` ([L94](./10-lessons-learned.md)).
+2. **Whether a channel member (not just an owner) can invite others —
+   resolved as specified.** Only `role = 'owner'` can add members to a
+   private channel (`chat/[conversationId]/+page.server.ts`'s `addMember`
+   action checks this at the app layer); any member can post. Not
+   revisited against Slack's "anyone can invite" default — no request for
+   it surfaced.
+3. **Group DM membership changes — resolved as specified.** DM membership
+   is fixed at creation; `findOrCreateDm` seeds `member_ids` once and
+   nothing grows it afterward. `dm_key` stays a stable, collision-free
+   lookup as designed.

@@ -2301,6 +2301,195 @@ path, not just an isolated `SELECT`, since `verify-rls.sql` only ever
 
 ---
 
+### L93 — a trigger that recomputes a derived array from a policy-scoped table must be `SECURITY DEFINER`, or it silently maintains nothing; and `RETURNING` still can't see it either way
+
+Team chat's `member_ids` design (docs/20-team-chat.md §3) hangs every
+`team_chat_members`/`team_chat_messages` policy off a denormalized
+`team_chat_conversations.member_ids`, kept current by an `AFTER INSERT`
+trigger on `team_chat_members` — specifically *to avoid* L92's self-reference
+trap. Verified empirically against the local stack (as the spec itself
+demands) before writing the migration, two distinct failures showed up, not
+one:
+
+1. **Without `SECURITY DEFINER`, the trigger doesn't just risk a stale read
+   — it computes the wrong answer, silently, every time.** The trigger body
+   is `SELECT array_agg(employee_id) FROM team_chat_members WHERE
+   conversation_id = ...`, run as the invoking `app_user`. `team_chat_members`
+   has `FORCE ROW LEVEL SECURITY`, and its own `SELECT` policy requires the
+   actor's `current_employee_id()` already be in `team_chat_conversations
+   .member_ids` — the exact value the trigger exists to populate. On a
+   brand-new conversation (`member_ids = '{}'`), that policy hides the row
+   *from the trigger's own query*, which happily aggregates zero rows and
+   writes `member_ids = '{}'` right back — no error, no empty result set to
+   notice, just a wrong value that looks like "nobody's joined yet." Fixed by
+   `SECURITY DEFINER SET search_path = ''` on the trigger function (with
+   schema-qualified table names inside it, since the empty search path
+   applies there too) — this is the correct use of `SECURITY DEFINER` L92
+   warns isn't a fix for a *different* problem; here the read genuinely
+   needs to bypass RLS, because computing "everyone currently in this
+   conversation" is definitionally a query no single member's row-visibility
+   should gate.
+2. **Even after that fix, `INSERT ... RETURNING` on `team_chat_members`
+   still fails for a self-service join.** A public-channel join inserts
+   `employee_id = current_employee_id()` for someone not yet in
+   `member_ids`; the trigger now correctly updates `member_ids` — visible to
+   every later statement in the same transaction — but the `RETURNING`
+   clause of that *same* `INSERT` still raises `new row violates row-level
+   security policy`, reproducing L92's finding one layer up: the trigger
+   fires before the command completes, but not before `RETURNING`'s own
+   `SELECT`-policy check runs against the row it's returning.
+3. **`INSERT ... ON CONFLICT DO UPDATE`, with no `RETURNING` at all, hit the
+   same wall — found only once real browser testing (not psql) exercised a
+   genuinely first-time self-service join.** `joinPublicChannel` used
+   `INSERT ... ON CONFLICT (...) DO UPDATE SET left_at = NULL` so a rejoin
+   after leaving would reactivate the same row. For someone joining for the
+   first time — no existing row, so no actual conflict — this still raised
+   `new row violates row-level security policy`, on the plain INSERT branch,
+   with no `RETURNING` in sight. Merely having an `ON CONFLICT DO UPDATE`
+   clause makes Postgres run `ExecWithCheckOptions` against whatever row the
+   statement produces, INSERT branch included — the same check-option
+   machinery `RETURNING` triggers, armed by the mere possibility of the
+   UPDATE branch. `ON CONFLICT DO NOTHING` does not have this problem
+   (verified: a bulk `INSERT ... SELECT ... FROM unnest(...) ON CONFLICT DO
+   NOTHING` with no `RETURNING` succeeds), because a `DO NOTHING` conflict
+   produces no row for any policy to check.
+
+Rule: a trigger recomputing a value that a table's own policy reads back
+needs `SECURITY DEFINER` to compute it correctly at all — test this by
+creating the *first* row that could ever satisfy the policy (an empty
+`member_ids`, an unset counter), not a subsequent one, since every later
+call re-reads a value the first call already got right by accident of
+already having rows to aggregate. Separately, never `RETURNING` from an
+`INSERT` whose own visibility depends on that `INSERT`'s trigger side
+effect — omit `RETURNING`, generate any needed id application-side, and
+treat "no exception" as success; a later statement in the same transaction
+(or the next request) sees the row fine. And never reach for `INSERT ...
+ON CONFLICT DO UPDATE` as a shortcut on such a table either, even without
+`RETURNING` — split it into a plain `INSERT` tried first and a plain
+`UPDATE` on the unique-violation catch (both individually confirmed safe);
+`ON CONFLICT DO NOTHING` remains fine on its own. Test the actual first-time
+path in a real request, not just in `psql` as the row's own eventual
+member — a fixture actor who already belongs to the conversation never
+exercises the branch that breaks.
+
+---
+
+### L94 — a "browsable before joining" arm on a public row admits a portal contact just as readily as an employee, unless the policy says otherwise
+
+`team_chat_conversation_visibility`'s public-channel arm — `kind = 'channel'
+AND visibility = 'public'` — checks a property of the ROW, not of the actor,
+so it was satisfied by ANY authenticated caller, including a customer-portal
+contact who has no business seeing that an internal channel exists at all
+(docs/20-team-chat.md §1: employee-only messaging, a different trust
+boundary from the portal's own, unbuilt chat). A row-visibility test
+asserting a portal-contact claim sees zero team-chat conversations caught
+this — `conversationIds({ role: "customer" })` came back with two public
+channels instead of `[]`. The messages/members tables were already correctly
+closed (their EXISTS checks against `member_ids`, which never contains a
+contact id, are actor-shaped rather than row-shaped), which is exactly why
+this slipped past a first pass: two of the three tables being obviously
+correct made the third's "browsable" arm look like the same kind of check.
+
+Rule: any policy arm written as "if the row has property X, anyone may see
+it" needs an explicit actor-side guard too, unless every possible actor
+really should qualify. Here that's `NOT (SELECT app.is_portal_contact())`
+wrapping the whole policy, the same defensive position
+`ticketing_visibility.sql`'s `(SELECT app.is_portal_contact()) OR (...)`
+takes from the other direction — each staff/portal policy pair should open
+by explicitly deferring to (or excluding) the other side, never by assuming
+a row-shaped condition already implies an actor-shaped one.
+
+---
+
+### L95 — `UPDATE`/`DELETE` cannot find a row the table's `SELECT` policy hides, even when the `UPDATE` policy's own `USING` clause would allow it
+
+Rejoining a channel after leaving it is `UPDATE team_chat_members SET
+left_at = NULL ... WHERE employee_id = :me`, and `team_chat_member_update`'s
+`USING` clause is exactly `employee_id = current_employee_id() OR
+<member_ids check>` — a same-row, self-reference-safe condition that should
+plainly admit updating your own row regardless of `member_ids`. It didn't:
+the `UPDATE` matched zero rows, silently (no error — `UPDATE 0`), and a
+minimal two-policy repro nailed the actual mechanism down (PostgreSQL's own
+semantics, not this schema specifically): **a table's own SELECT
+policy governs which rows a command can even locate to update or delete,
+independent of and in addition to that command's own policy.** A restrictive
+`FOR SELECT USING (false)` blocked a `FOR UPDATE USING (true)` from matching
+anything, in isolation, with no third policy involved. `team_chat_members`'
+`SELECT` policy (`team_chat_member_visibility`) only admitted a row via
+`reads_all_team_chat()` or current `member_ids` membership — and leaving a
+conversation is exactly what drops someone out of `member_ids`, so the very
+act the rejoin needs to reverse also revoked the visibility needed to find
+the row to reverse it.
+
+Rule: an `UPDATE`/`DELETE` policy's `USING` clause is necessary but not
+sufficient — the table's `SELECT` policy must ALSO admit the row, for every
+row shape the write policy intends to reach. When a write policy has a
+same-row exemption (`employee_id = current_employee_id()`, an owner-of-record
+check), the `SELECT` policy needs the identical exemption, or the write
+silently finds nothing. Test the actual multi-step sequence a real session
+produces (join → leave → rejoin), not each operation's policy read in
+isolation — a `SELECT`-only harness, or a single write tested with a fixture
+row that's already a "current" member, never exercises the state where the
+row has fallen out of the membership check that both policies were quietly
+depending on.
+
+### L96 — an `$effect` that calls `invalidateAll()` reruns itself, silently, forever
+
+Team chat's mark-read effect read `data.conversation.id` and, after a
+`fetch`, called `invalidateAll()`, which reruns every `load()` on the route.
+Confirmed live in a real browser: exactly 251 POSTs to that one action, in
+lockstep with 251 `EventSource` reconnects and 251 backfill fetches from two
+*other* `$effect`s on the same page that merely read
+`data.conversation.id` — no error at any point, every response a normal
+200, so nothing short of watching real network traffic for a few seconds
+would have shown it. The likely mechanism is that `invalidateAll()` hands
+the route a new `data` object by reference and an `$effect` reruns on the
+reference it read changing, independent of whether the value inside is
+the same — but that specific cause was never isolated from the
+alternative (the composer's own `use:enhance` doing the same thing on
+every send). What's proven, not inferred: the effect's own body was
+re-triggering itself, by *some* path through `invalidateAll()`.
+
+Rule: an `$effect` must never call `invalidateAll()`/`invalidate()` without
+a guard that makes every rerun after the first a no-op unless the thing the
+effect actually keys on (here, which conversation is open) has genuinely
+changed — that guard is correct regardless of which of the above is the real
+trigger. A `$state` flag set *before* the async work starts, compared
+against the value the effect keyed on, is enough — the fix here was `if
+(markedFor === id) return; markedFor = id` ahead of the fetch, which took
+the observed count to zero in a clean 5-second window. Load-test any
+`$effect` that mixes a prop read with an invalidating call by watching real
+network traffic for at least a few
+seconds, not just checking that the intended request fired once.
+
+### L97 — a GIN index on an array column doesn't help a `scalar = ANY(column)` predicate
+
+`team_chat_conversations.member_ids` (`UUID[]`) had a `USING GIN (member_ids)`
+index, added on the plausible-sounding theory that "an array column doing
+membership checks wants a GIN index." Every policy that actually reads the
+column writes the check as `app.current_employee_id() = ANY (member_ids)` —
+a `ScalarArrayOpExpr`, not one of the four operators GIN's `array_ops` class
+serves (`&&`, `@>`, `<@`, whole-array `=`). Confirmed empirically, not
+inferred: with 5,000 rows and `SET enable_seqscan = off` (so the planner
+has no fallback), `= ANY(member_ids)` still plans as a `Seq Scan` — the
+index is structurally unreachable for that predicate shape — while the
+same table filtered on `member_ids @> ARRAY[x]` correctly plans a `Bitmap
+Index Scan` against it. `./check`'s own invariants suite never caught this,
+because it verifies an index's naming and tenant-leading shape, not whether
+any real query can actually use it.
+
+Rule: before indexing an array column for a membership check, write the
+`EXPLAIN` for the predicate the application will *actually* execute — the
+scalar-in-array form (`x = ANY(col)`) and the containment form (`col @>
+ARRAY[x]`) are different expression trees to the planner and only the
+second is GIN-indexable. Either write the query as `@>` from the start, or
+— as here, on a table classified `NOT_SCALE_SENSITIVE` — skip the index
+and let it seq scan; a table that never grows past organization size has no
+query the index would have sped up anyway, so it was pure write-side
+overhead with a zero-benefit read side.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

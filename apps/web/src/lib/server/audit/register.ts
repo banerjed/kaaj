@@ -372,6 +372,18 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "unshare",
     why: "Revokes access previously granted — the other half of `share`.",
   },
+
+  // -- Team chat: rights changes someone may later ask "why" about (20§9) ----
+  {
+    route: "chat/[conversationId]",
+    action: "archive",
+    why: "Archiving a channel ends everyone's access to it — 'why did I lose access to that channel' is the same bar CLAUDE.md already applies to role grants and approvals.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "removeMember",
+    why: "Removing someone from a private channel is a rights change only an owner can make and only re-adding can undo — audited uniformly (public-channel removal is reversible self-service either way, but one action, one classification).",
+  },
 ]
 
 /** Writes that deliberately do NOT audit, each with a reason — not "not got round to it". */
@@ -567,5 +579,57 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "documents/archived",
     action: "restoreDocument",
     why: "The reverse of archiveDocument — same reasoning.",
+  },
+
+  // -- Team chat: high-volume, non-transactional, not a business record (20§9) --
+  {
+    route: "chat",
+    action: "createChannel",
+    why: "Self-service (team_chat.write is in EVERYONE) — same shape as ticketing/new. A channel starts with its creator as the only member, so creating one changes nothing about who reads anyone else's data.",
+  },
+  {
+    route: "chat",
+    action: "startDm",
+    why: "Self-service — starting a DM only ever adds the people already named as its fixed participants (20§10.3).",
+  },
+  {
+    route: "chat",
+    action: "joinChannel",
+    why: "Self-service join to a PUBLIC channel — symmetric with leave, below.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "send",
+    why: "Sending a message — 20§9's own reasoning: high-volume, non-transactional communication, not a business record requiring a justification trail.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "edit",
+    why: "Same as send — editing one's own message.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "delete",
+    why: "Same as send — the tombstone (deleted_at) already records that it happened; nobody needs a second trail for it.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "loadMore",
+    why: "A read, not a write — keyset pagination for the message history (same shape as ticketing/[id]::loadMoreUpdates).",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "markRead",
+    why: "The viewer's own read cursor (last_read_at) — private per-viewer state, not a business record.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "leave",
+    why: "Self-service — leaving a conversation removes only the leaver's own access to something they already had.",
+  },
+  {
+    route: "chat/[conversationId]",
+    action: "addMember",
+    why: "Self-service-shaped invite (symmetric with joinChannel) — the coarse permission plus RLS already gate who may call it; the row it creates is the record.",
   },
 ]

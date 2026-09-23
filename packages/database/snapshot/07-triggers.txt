@@ -71,6 +71,8 @@ pm_project_templates	trg_pm_project_templates_updated_at	CREATE TRIGGER trg_pm_p
 pm_task_comments	trg_pm_task_comments_updated_at	CREATE TRIGGER trg_pm_task_comments_updated_at BEFORE UPDATE ON public.pm_task_comments FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 projects	trg_projects_updated_at	CREATE TRIGGER trg_projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 tasks	trg_tasks_updated_at	CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+team_chat_members	team_chat_sync_member_ids	CREATE TRIGGER team_chat_sync_member_ids AFTER INSERT OR UPDATE OF left_at ON public.team_chat_members FOR EACH ROW EXECUTE FUNCTION app.team_chat_sync_member_ids()
+team_chat_messages	team_chat_notify	CREATE TRIGGER team_chat_notify AFTER INSERT ON public.team_chat_messages FOR EACH ROW EXECUTE FUNCTION app.team_chat_notify()
 tenant_settings	trg_tenant_settings_updated_at	CREATE TRIGGER trg_tenant_settings_updated_at BEFORE UPDATE ON public.tenant_settings FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 tenant_users	trg_tenant_users_updated_at	CREATE TRIGGER trg_tenant_users_updated_at BEFORE UPDATE ON public.tenant_users FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 tenants	trg_tenants_updated_at	CREATE TRIGGER trg_tenants_updated_at BEFORE UPDATE ON public.tenants FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()

@@ -198,6 +198,23 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "This vendor already has a bill with that number. Check for a duplicate, or use a different number.",
   },
+
+  // Team chat (docs/20-team-chat.md): conversation_id/employee_id are route
+  // params and picker selections, not typed free text — a stale link or a
+  // crafted request is the only realistic way to trip these.
+  team_chat_members_conversation_id_fkey: {
+    errorFields: [],
+    message: "That conversation no longer exists. Reload the page.",
+  },
+  team_chat_members_employee_id_fkey: {
+    errorFields: ["employee_id"],
+    message:
+      "That person's record could not be found. Reload the page and pick someone from the current list.",
+  },
+  team_chat_messages_conversation_id_fkey: {
+    errorFields: [],
+    message: "That conversation no longer exists. Reload the page.",
+  },
 }
 
 /** Every constraint this file answers for. `./check` compares it to the schema. */

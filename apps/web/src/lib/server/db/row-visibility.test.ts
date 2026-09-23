@@ -886,3 +886,105 @@ describe("ticketing", () => {
     expect(await ticketNumbers({ role: "customer" })).toEqual([])
   })
 })
+
+describe("team chat", () => {
+  // Fixture (packages/database/fixtures/mock-data.sql): #general (public,
+  // Sarah owner + Marcus member; Priya joined then left), #leadership
+  // (private, archived, Sarah + Marcus), a DM between Priya and Tom.
+  const GENERAL = "d0000000-0000-4000-8000-000000000001"
+  const LEADERSHIP = "d0000000-0000-4000-8000-000000000002"
+  const PRIYA_TOM_DM = "d0000000-0000-4000-8000-000000000003"
+  const TOM = "b9b84064-a67a-5048-8282-8fc048b4dbfb"
+
+  const conversationIds = (who: Who) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        SELECT id FROM team_chat_conversations ORDER BY created_at
+      `
+      return rows.map((r) => r.id)
+    })
+
+  const messageIds = (who: Who, conversationId: string) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ id: string }[]>`
+        SELECT id FROM team_chat_messages
+         WHERE conversation_id = ${conversationId}::uuid
+      `
+      return rows.map((r) => r.id)
+    })
+
+  const memberIds = (who: Who, conversationId: string) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ employee_id: string }[]>`
+        SELECT employee_id FROM team_chat_members
+         WHERE conversation_id = ${conversationId}::uuid
+      `
+      return rows.map((r) => r.employee_id)
+    })
+
+  it("shows a member every conversation, message and member row for their own conversations", async () => {
+    const who = { employeeId: MARCUS, role: "employee" }
+    expect(await conversationIds(who)).toEqual(
+      expect.arrayContaining([GENERAL, LEADERSHIP]),
+    )
+    expect(await messageIds(who, GENERAL)).not.toEqual([])
+    expect(await memberIds(who, GENERAL)).toEqual(
+      expect.arrayContaining([MARCUS, SARAH]),
+    )
+  })
+
+  // NADIA (from the top of this file) belongs to none of these
+  // conversations and is not a base owner/firm_admin — the refused actor.
+  // Both halves, per CLAUDE.md: refused AND permitted.
+  it("shows someone who belongs to nothing zero rows on all three tables — even for a public channel they haven't joined", async () => {
+    const outsider = { employeeId: NADIA, role: "employee" }
+    // The conversation ROW is browsable pre-join (public arm)...
+    expect(await conversationIds(outsider)).toContain(GENERAL)
+    // ...but its messages and members are not — membership, not mere
+    // publicness, is what team_chat_message_visibility/member_visibility check.
+    expect(await messageIds(outsider, GENERAL)).toEqual([])
+    expect(await memberIds(outsider, GENERAL)).toEqual([])
+    // A private, archived channel isn't even browsable.
+    expect(await conversationIds(outsider)).not.toContain(LEADERSHIP)
+    // Nor is a DM the outsider isn't part of.
+    expect(await conversationIds(outsider)).not.toContain(PRIYA_TOM_DM)
+  })
+
+  it("narrows a private channel below what a public one allows", async () => {
+    // Marcus IS a member of #leadership (private) in the fixture, so this
+    // is the same actor seeing a real difference by conversation, not by role.
+    const who = { employeeId: MARCUS, role: "employee" }
+    expect(await conversationIds(who)).toContain(LEADERSHIP)
+    // Nadia is a member of neither #leadership nor the Priya/Tom DM.
+    const outsider = { employeeId: NADIA, role: "employee" }
+    expect(await conversationIds(outsider)).not.toContain(LEADERSHIP)
+    expect(await conversationIds(outsider)).not.toContain(PRIYA_TOM_DM)
+  })
+
+  it("shows a DM's own two participants its messages, and nobody else", async () => {
+    expect(
+      await messageIds({ employeeId: PRIYA, role: "employee" }, PRIYA_TOM_DM),
+    ).not.toEqual([])
+    expect(
+      await messageIds({ employeeId: TOM, role: "employee" }, PRIYA_TOM_DM),
+    ).not.toEqual([])
+    expect(
+      await messageIds({ employeeId: MARCUS, role: "employee" }, PRIYA_TOM_DM),
+    ).toEqual([])
+  })
+
+  // The tenant owner reads every conversation regardless of membership —
+  // app.reads_all_team_chat(), same shape as reads_all_tickets()/
+  // reads_all_employees(). Without it, verify-rls.sql's B/owner-sees-own
+  // phase fails outright (watched fail while building this, per CLAUDE.md).
+  it("shows the tenant owner every conversation, membership aside", async () => {
+    const owner = { role: "owner" }
+    expect(await conversationIds(owner)).toEqual(
+      expect.arrayContaining([GENERAL, LEADERSHIP, PRIYA_TOM_DM]),
+    )
+  })
+
+  it("shows a portal contact no team chat rows at all — a different trust boundary entirely (20§1)", async () => {
+    expect(await conversationIds({ role: "customer" })).toEqual([])
+  })
+})

@@ -311,6 +311,13 @@ export const appMenuItems: ISidebarMenuItem[] = [
     permission: "ticketing.read.own",
   },
   {
+    id: "chat",
+    icon: "lucide--message-square",
+    label: "Chat",
+    url: "/chat",
+    permission: "team_chat.read",
+  },
+  {
     id: "assistant",
     icon: "lucide--bot-message-square",
     label: "AI Assistant",

@@ -2607,3 +2607,40 @@ INSERT INTO documents (id, tenant_id, entity_type, entity_id, customer_id, file_
     ('c0000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Acme ERP Kickoff Deck.pptx', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/project/8257009f-6a91-5fd1-9efb-518198c08e2a/c0000000-0000-4000-8000-000000000003-Kickoff-Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 3881204, 'client_visible', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, '2026-01-09T10:00:00Z', '2026-01-09T10:00:00Z', 'a0000000-0000-4000-8000-000000000005', NULL),
     ('c0000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, NULL, 'Draft Proposal (old).docx', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000004-Draft-Proposal-old.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 55210, 'internal', 'db1f1f2b-b140-5948-a34e-1c998ed98757', NULL, '2026-01-06T11:00:00Z', '2026-09-01T10:05:00Z', 'a0000000-0000-4000-8000-000000000002', '2026-09-01T10:05:00Z'),
     ('c0000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', NULL, NULL, NULL, 'Company Overview.pdf', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1/general/c0000000-0000-4000-8000-000000000005-Company-Overview.pdf', 'application/pdf', 998112, 'public', 'db1f1f2b-b140-5948-a34e-1c998ed98757', NULL, '2026-01-05T09:45:00Z', '2026-01-05T09:45:00Z', 'a0000000-0000-4000-8000-000000000001', NULL);
+
+
+-- =============================================================================
+-- Team chat — docs/20-team-chat.md. One public channel, one archived private
+-- channel, one DM: shaped to exercise every RESTRICTIVE policy branch and
+-- leave no column empty (verify-fixture-coverage.mjs, verify-rls.sql phase A)
+-- — both conversation kinds, both visibilities, an archived channel, an
+-- owner AND a member role, a member who left (left_at), an edited message
+-- and a soft-deleted one (edited_at/deleted_at), and a dm_key.
+-- =============================================================================
+
+INSERT INTO team_chat_conversations (id, tenant_id, kind, name, topic, visibility, member_ids, dm_key, created_by_employee_id, created_at, archived_at) VALUES
+    ('d0000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'channel', 'general', 'Company-wide chatter', 'public',
+     ARRAY['6d466aa9-e51a-5d52-9015-152600855932','db1f1f2b-b140-5948-a34e-1c998ed98757']::uuid[], NULL,
+     '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-01T09:00:00Z', NULL),
+    ('d0000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'channel', 'leadership', 'Retired — see #general', 'private',
+     ARRAY['6d466aa9-e51a-5d52-9015-152600855932','db1f1f2b-b140-5948-a34e-1c998ed98757']::uuid[], NULL,
+     '6d466aa9-e51a-5d52-9015-152600855932', '2026-02-02T09:00:00Z', '2026-08-01T09:00:00Z'),
+    ('d0000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'dm', NULL, NULL, NULL,
+     ARRAY['b9b84064-a67a-5048-8282-8fc048b4dbfb','bf17b1af-963b-53ef-9083-21506fb34e9c']::uuid[],
+     'b9b84064-a67a-5048-8282-8fc048b4dbfb,bf17b1af-963b-53ef-9083-21506fb34e9c',
+     'bf17b1af-963b-53ef-9083-21506fb34e9c', '2026-02-03T09:00:00Z', NULL);
+
+INSERT INTO team_chat_members (id, tenant_id, conversation_id, employee_id, role, joined_at, left_at, last_read_at) VALUES
+    ('d1000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-02-01T09:00:00Z', NULL, '2026-02-05T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'member', '2026-02-01T09:05:00Z', NULL, '2026-02-05T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'member', '2026-02-01T09:10:00Z', '2026-02-10T09:00:00Z', '2026-02-10T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000002', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-02-02T09:00:00Z', NULL, '2026-02-02T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000002', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'member', '2026-02-02T09:05:00Z', NULL, '2026-02-02T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000006', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'member', '2026-02-03T09:00:00Z', NULL, '2026-02-03T09:00:00Z'),
+    ('d1000000-0000-4000-8000-000000000007', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000003', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'member', '2026-02-03T09:00:00Z', NULL, '2026-02-03T08:00:00Z');
+
+INSERT INTO team_chat_messages (id, tenant_id, conversation_id, author_employee_id, body, created_at, edited_at, deleted_at) VALUES
+    ('d2000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', '6d466aa9-e51a-5d52-9015-152600855932', 'Welcome to #general!', '2026-02-01T09:01:00Z', NULL, NULL),
+    ('d2000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'Thanks Sarah — glad to be here', '2026-02-01T09:06:00Z', '2026-02-01T09:07:00Z', NULL),
+    ('d2000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000001', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'oops, wrong channel', '2026-02-01T09:11:00Z', NULL, '2026-02-01T09:12:00Z'),
+    ('d2000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'Hey, got a sec to look at the ERP ticket?', '2026-02-03T09:01:00Z', NULL, NULL);

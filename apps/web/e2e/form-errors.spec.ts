@@ -869,6 +869,27 @@ test("the unified ticket-edit form stays open, and marked, on a refused submissi
   )
 })
 
+test("an empty channel name is refused, not created blank", async ({
+  page,
+}) => {
+  const response = await page.request.post("/chat?/createChannel", {
+    form: { name: "", topic: "", visibility: "public" },
+  })
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+})
+
+test("an empty chat message is refused, not sent blank", async ({ page }) => {
+  // #general — the fixture's public channel, member_ids includes the
+  // signed-in owner via app.reads_all_team_chat(), so this loads either way.
+  const response = await page.request.post(
+    "/chat/d0000000-0000-4000-8000-000000000001?/send",
+    { form: { body: "" } },
+  )
+  const result = await actionStatus(response)
+  expect(result.status).toBe(400)
+})
+
 test("an inverted date range on the cash flow statement is refused, not rendered as a false ledger-imbalance alert", async ({
   page,
 }) => {

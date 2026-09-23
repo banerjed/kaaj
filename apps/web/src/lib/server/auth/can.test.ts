@@ -102,7 +102,9 @@ describe("separation of duties", () => {
         p !== "time_entries.write" &&
         p !== "ticketing.write.own" &&
         // Self-service, same reasoning — document.write is in EVERYONE too.
-        p !== "document.write",
+        p !== "document.write" &&
+        // Self-service, same reasoning — team_chat.write is in EVERYONE too.
+        p !== "team_chat.write",
     )
     for (const p of writes) expect(can(a, p), p).toBe(false)
     expect(can(a, "compensation.read.all")).toBe(true)

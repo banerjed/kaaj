@@ -1960,6 +1960,33 @@ tax_rates	16	created_at	timestamp with time zone	t	CURRENT_TIMESTAMP
 tax_rates	17	updated_at	timestamp with time zone	t	CURRENT_TIMESTAMP
 tax_rates	18	created_by	uuid	f	
 tax_rates	19	updated_by	uuid	f	
+team_chat_conversations	1	id	uuid	t	gen_random_uuid()
+team_chat_conversations	2	tenant_id	uuid	t	
+team_chat_conversations	3	kind	text	t	
+team_chat_conversations	4	name	character varying(80)	f	
+team_chat_conversations	5	topic	text	f	
+team_chat_conversations	6	visibility	text	f	
+team_chat_conversations	7	member_ids	uuid[]	t	'{}'::uuid[]
+team_chat_conversations	8	dm_key	text	f	
+team_chat_conversations	9	created_by_employee_id	uuid	t	
+team_chat_conversations	10	created_at	timestamp with time zone	t	now()
+team_chat_conversations	11	archived_at	timestamp with time zone	f	
+team_chat_members	1	id	uuid	t	gen_random_uuid()
+team_chat_members	2	tenant_id	uuid	t	
+team_chat_members	3	conversation_id	uuid	t	
+team_chat_members	4	employee_id	uuid	t	
+team_chat_members	5	role	text	t	'member'::text
+team_chat_members	6	joined_at	timestamp with time zone	t	now()
+team_chat_members	7	left_at	timestamp with time zone	f	
+team_chat_members	8	last_read_at	timestamp with time zone	t	now()
+team_chat_messages	1	id	uuid	t	gen_random_uuid()
+team_chat_messages	2	tenant_id	uuid	t	
+team_chat_messages	3	conversation_id	uuid	t	
+team_chat_messages	4	author_employee_id	uuid	t	
+team_chat_messages	5	body	text	t	
+team_chat_messages	6	created_at	timestamp with time zone	t	now()
+team_chat_messages	7	edited_at	timestamp with time zone	f	
+team_chat_messages	8	deleted_at	timestamp with time zone	f	
 tenant_registry	1	tenant_id	uuid	t	
 tenant_registry	2	subdomain	text	t	
 tenant_registry	3	tier	text	t	'shared'::text
