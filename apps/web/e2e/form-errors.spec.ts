@@ -646,8 +646,10 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
   // observable on the wire: SvelteKit issues a `__data.json` request when it
   // does, and only then.
   const dataRequests: string[] = []
+  let submitted = false
   page.on("request", (req) => {
     if (req.url().includes("__data.json")) dataRequests.push(req.url())
+    if (req.url().includes("?/close")) submitted = true
   })
 
   await page.goto("/accounting/year-end-close?as_of=2026-12-31")
@@ -656,20 +658,23 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
   dataRequests.length = 0
 
   const hiddenAmount = page.locator('input[name="expected_net_income"]')
+  await hiddenAmount.evaluate((el: HTMLInputElement) => {
+    el.value = "-1.00"
+  })
 
   // Same hydration race L76/openModal work around, on a plain submit rather
-  // than a modal open — so the tamper is redone on every attempt: a retry
-  // after a SUCCESSFUL submit would otherwise resubmit the freshly re-fetched
-  // (correct) figure and never see a refusal at all.
+  // than a modal open. Retrying on the FINAL text would risk re-submitting
+  // and cancelling an already in-flight request before its round trip (the
+  // refusal, then load()'s own re-fetch) completes — so retry the click only
+  // until the POST itself is actually seen on the wire, then wait once, with
+  // no more clicks, for what it comes back with.
   await expect(async () => {
-    await hiddenAmount.evaluate((el: HTMLInputElement) => {
-      el.value = "-1.00"
-    })
     await closeButton.click()
-    await expect(page.getByText(/no longer matches/i)).toBeVisible({
-      timeout: 1_000,
-    })
+    await expect.poll(() => submitted, { timeout: 1_000 }).toBe(true)
   }).toPass({ timeout: 15_000 })
+  await expect(page.getByText(/no longer matches/i)).toBeVisible({
+    timeout: 15_000,
+  })
 
   await expect
     .poll(() => dataRequests.length, {
