@@ -107,6 +107,21 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   name text, owner uuid);
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
+-- `storage.foldername(name)` — the real Supabase Storage extension function,
+-- reproduced here rather than stubbed away, since 20260921030000 (tenant
+-- logo) and 20260922090000 (documents) both key an RLS policy on
+-- `(storage.foldername(name))[1]` to scope an object by its leading path
+-- segment. Splits on '/' and returns every segment except the filename.
+CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[]
+  LANGUAGE plpgsql AS $fn$
+  DECLARE
+    _parts text[];
+  BEGIN
+    SELECT string_to_array(name, '/') INTO _parts;
+    RETURN _parts[1 : array_length(_parts, 1) - 1];
+  END
+  $fn$;
+
 -- The CLI's own migration ledger. `supabase db reset` writes one row per
 -- applied migration here; mock-data.sql reads MAX(version) from it to seed
 -- tenant_registry.schema_version, so without this table CI fails at fixture
