@@ -511,6 +511,17 @@ shared with the unit suites, so a spec that writes needs its own serial project
 and a reseed. Run with `pnpm --filter @kaaj/web e2e` — deliberately NOT in
 `./check`, which is 24 seconds and worth keeping that way.
 
+**A new test file, or a new top-level `describe` in an existing one, gets a
+line in [docs/22-test-inventory.md](docs/22-test-inventory.md).** Nothing
+enforces this — there is no check to fail, the same as the `testplan-*.md`
+set — so it only stays true if it's kept true on the same PR that adds the
+test, not after. The doc is grouped by module for unit tests
+(`pnpm --filter @kaaj/web run test`) and by purpose for e2e
+(`pnpm --filter @kaaj/web e2e`); add to whichever section already covers the
+area, or start a new one if nothing does — a module with no section is
+exactly the kind of gap the doc exists to surface (it already found two:
+documents and ticketing had none).
+
 **A page's `load()` checks its own read permission — a `requireCan` in that
 page's `actions`, or a guard in a parent layout, covers neither.** Eight
 `/settings/*` pages had `requireCan(ctx, "firm.settings.write")` in their
