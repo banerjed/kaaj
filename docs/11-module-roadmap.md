@@ -361,7 +361,12 @@ each inventing its own. Portal identity (§1) and ticketing (§2) are both
 done: `customer_contacts`, a `customer` base role, the third RLS pattern, a
 `/portal` shell, and one repository shared by `/ticketing` (staff) and
 `/portal/tickets` (customer contact) — RLS is what actually separates what
-each caller sees. Chat (§4) is still spec only. Documents (§3) — ✅ built, staff
+each caller sees. Chat (§4) is still spec only on the customer-portal side;
+the internal, employee-only half — DMs, channels, and `LISTEN`/`NOTIFY`
+realtime delivery — has its own spec,
+[20-team-chat.md](./20-team-chat.md), deliberately on separate
+`team_chat_*` tables and a separate `team_chat.*` permission namespace so it
+is never one missing `if` away from 17§4's customer-facing one. Documents (§3) — ✅ built, staff
 side. `documents` (17§3's own table, previously unbuilt) and the folder tree
 in [18-document-management.md](./18-document-management.md) — folders,
 sharing, archiving, search — landed together in one migration
