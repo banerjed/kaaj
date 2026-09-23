@@ -646,10 +646,14 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
   // observable on the wire: SvelteKit issues a `__data.json` request when it
   // does, and only then.
   const dataRequests: string[] = []
-  let submitted = false
+  let lastSubmittedAmount: string | null = null
   page.on("request", (req) => {
     if (req.url().includes("__data.json")) dataRequests.push(req.url())
-    if (req.url().includes("?/close")) submitted = true
+    if (req.url().includes("?/close")) {
+      lastSubmittedAmount = new URLSearchParams(req.postData() ?? "").get(
+        "expected_net_income",
+      )
+    }
   })
 
   await page.goto("/accounting/year-end-close?as_of=2026-12-31")
@@ -658,20 +662,26 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
   dataRequests.length = 0
 
   const hiddenAmount = page.locator('input[name="expected_net_income"]')
-  await hiddenAmount.evaluate((el: HTMLInputElement) => {
-    el.value = "-1.00"
-  })
 
-  // Same hydration race L76/openModal work around, on a plain submit rather
-  // than a modal open. Retrying on the FINAL text would risk re-submitting
-  // and cancelling an already in-flight request before its round trip (the
-  // refusal, then load()'s own re-fetch) completes — so retry the click only
-  // until the POST itself is actually seen on the wire, then wait once, with
-  // no more clicks, for what it comes back with.
+  // Same hydration race as the /settings/company fill above
+  // (`value={...}` is a one-way binding hydration can re-apply on its own
+  // schedule) — but unlike that save, actually closing the year isn't
+  // idempotent: a wrong value that reaches the server doesn't fail
+  // harmlessly, it closes the year for real (confirmed once via a CI trace
+  // — a 200, not a 400, carrying the untampered figure). So this doesn't
+  // retry the submit at all: it retries the TAMPER, alone, until a value
+  // written now is still there after hydration would have already
+  // overwritten it, and only then clicks, once.
   await expect(async () => {
-    await closeButton.click()
-    await expect.poll(() => submitted, { timeout: 1_000 }).toBe(true)
+    await hiddenAmount.evaluate((el: HTMLInputElement) => {
+      el.value = "-1.00"
+    })
+    await page.waitForTimeout(300)
+    await expect(hiddenAmount).toHaveValue("-1.00")
   }).toPass({ timeout: 15_000 })
+
+  await closeButton.click()
+  await expect.poll(() => lastSubmittedAmount, { timeout: 5_000 }).toBe("-1.00")
   await expect(page.getByText(/no longer matches/i)).toBeVisible({
     timeout: 15_000,
   })
