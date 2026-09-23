@@ -656,12 +656,20 @@ test("a refused year-end close re-fetches its data, rather than leaving the page
   dataRequests.length = 0
 
   const hiddenAmount = page.locator('input[name="expected_net_income"]')
-  await hiddenAmount.evaluate((el: HTMLInputElement) => {
-    el.value = "-1.00"
-  })
 
-  await closeButton.click()
-  await expect(page.getByText(/no longer matches/i)).toBeVisible()
+  // Same hydration race L76/openModal work around, on a plain submit rather
+  // than a modal open — so the tamper is redone on every attempt: a retry
+  // after a SUCCESSFUL submit would otherwise resubmit the freshly re-fetched
+  // (correct) figure and never see a refusal at all.
+  await expect(async () => {
+    await hiddenAmount.evaluate((el: HTMLInputElement) => {
+      el.value = "-1.00"
+    })
+    await closeButton.click()
+    await expect(page.getByText(/no longer matches/i)).toBeVisible({
+      timeout: 1_000,
+    })
+  }).toPass({ timeout: 15_000 })
 
   await expect
     .poll(() => dataRequests.length, {
@@ -949,9 +957,15 @@ test("a batch vendor payment with no bills selected is refused, not silently a n
   await form
     .locator('select[name="payment_method"]')
     .selectOption("wire_transfer")
-  await form.getByRole("button", { name: /pay selected/i }).click()
 
-  await expect(page.getByText(/select at least one bill/i)).toBeVisible()
+  // Same hydration race L76/openModal work around: retry the submit itself,
+  // not just the wait after it.
+  await expect(async () => {
+    await form.getByRole("button", { name: /pay selected/i }).click()
+    await expect(page.getByText(/select at least one bill/i)).toBeVisible({
+      timeout: 1_000,
+    })
+  }).toPass({ timeout: 15_000 })
 })
 
 test("a reconciliation rule with no matching criteria is refused, not silently accepted", async ({

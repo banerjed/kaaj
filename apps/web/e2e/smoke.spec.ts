@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { openModal } from "./helpers"
 
 /**
  * Every module page renders, as a real signed-in user, in a real browser.
@@ -187,8 +188,8 @@ test("the new tax rate form's Type select is actually populated", async ({
   // typo'd enum name there would render a `<select>` with zero options, a
   // form nobody could ever submit, with nothing else on the page to say so.
   await page.goto("/accounting/tax-rates")
-  await page.getByRole("button", { name: "New Tax Rate" }).click()
   const select = page.locator('select[name="tax_type"]')
+  await openModal(page, /new tax rate/i, 'select[name="tax_type"]')
   await expect(select.locator("option")).not.toHaveCount(0)
   await expect(select.locator("option").first()).toHaveText(/\S/)
 })
