@@ -1,0 +1,282 @@
+import { afterAll, describe, expect, it } from "vitest"
+import { closeConnections } from "../db/client"
+import { withTenant } from "../db/tenant"
+import * as pay from "./payables.repo"
+
+const NORTHWIND = "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1"
+const AS_OWNER = {
+  tenantId: NORTHWIND,
+  role: "owner",
+  functionalRoles: [] as string[],
+  employeeId: "6d466aa9-e51a-5d52-9015-152600855932",
+}
+/**
+ * A different real employee than AS_OWNER, with no finance-visible functional
+ * role — the actor meant to be refused. Same id `accounting.test.ts` uses,
+ * for the same reason: a distinct id proves the refusal is keyed on role.
+ */
+const AS_PLAIN_EMPLOYEE = {
+  tenantId: NORTHWIND,
+  role: "employee",
+  functionalRoles: [] as string[],
+  employeeId: "db1f1f2b-b140-5948-a34e-1c998ed98757",
+}
+
+describe("bills", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  it("stored subtotal equals the sum of its lines", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.listBills(tx))
+    expect(rows.length).toBeGreaterThan(0)
+    for (const b of rows) {
+      expect(b.line_count, `${b.bill_number} has no lines`).toBeGreaterThan(0)
+      expect(
+        Number(b.line_subtotal),
+        `${b.bill_number}: stored ${b.subtotal}, lines sum to ${b.line_subtotal}`,
+      ).toBeCloseTo(Number(b.subtotal), 2)
+    }
+  })
+
+  it("total is subtotal plus tax, and due is total less paid", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.listBills(tx))
+    for (const b of rows) {
+      expect(Number(b.total)).toBeCloseTo(
+        Number(b.subtotal) + Number(b.tax_total),
+        2,
+      )
+      expect(Number(b.amount_due)).toBeCloseTo(
+        Number(b.total) - Number(b.amount_paid),
+        2,
+      )
+    }
+  })
+
+  it("has a bill carrying tax, so the tax path is exercised", async () => {
+    // Otherwise "total = subtotal + tax" would pass on x + 0 = x every time.
+    const rows = await withTenant(AS_OWNER, (tx) => pay.listBills(tx))
+    expect(rows.some((b) => Number(b.tax_total) > 0)).toBe(true)
+  })
+
+  it("payments never exceed the bill, and agree with amount_paid", async () => {
+    const result = await withTenant(AS_OWNER, async (tx) => {
+      const rows = await pay.listBills(tx)
+      const out = []
+      for (const b of rows) {
+        const ps = await pay.paymentsForBill(tx, b.id)
+        out.push({
+          n: b.bill_number,
+          received: ps.reduce((a, p) => a + Number(p.amount ?? 0), 0),
+          paid: Number(b.amount_paid),
+          total: Number(b.total),
+        })
+      }
+      return out
+    })
+    for (const r of result) {
+      expect(r.received, `${r.n}: paid more than billed`).toBeLessThanOrEqual(
+        r.total + 0.01,
+      )
+      expect(r.received).toBeCloseTo(r.paid, 2)
+    }
+  })
+
+  it("never calls a draft or cancelled bill overdue", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.listBills(tx))
+    for (const b of rows) {
+      if (["draft", "void", "cancelled"].includes(b.status ?? "")) {
+        expect(
+          b.is_overdue,
+          `${b.bill_number} is ${b.status} but flagged`,
+        ).toBe(false)
+      }
+    }
+  })
+
+  it("lines carry an expense account", async () => {
+    const lines = await withTenant(AS_OWNER, async (tx) => {
+      const [b] = await pay.listBills(tx)
+      return pay.billLines(tx, b.id)
+    })
+    expect(lines.length).toBeGreaterThan(0)
+    expect(lines.every((l) => l.account_name !== null)).toBe(true)
+  })
+})
+
+/** Test-data construction only — never used to decide a real business date. */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+describe("AP due soon", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  // BILL-AWS-2026-01 is the fixture's only approved, unpaid bill
+  // (amount_due 1981.53), due `CURRENT_DATE + 10` at seed time — a moving
+  // target across a `supabase db reset`, so every asOf here is computed
+  // relative to its own queried due_date rather than a hardcoded calendar
+  // date. Walking `asOf`/`withinDays` around it exercises both the lower
+  // bound (not yet overdue) and the upper bound (within the window) an
+  // off-by-one would get wrong.
+  it("includes a bill due within the window, excludes it just outside", async () => {
+    const { within, justOutside, dueToday, becameOverdue, allBills } =
+      await withTenant(AS_OWNER, async (tx) => {
+        const [{ due_date: dueDate }] = await tx<{ due_date: string }[]>`
+          SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date
+            FROM bills WHERE bill_number = 'BILL-AWS-2026-01'
+        `
+        const asOfBase = shiftDate(dueDate, -9)
+        return {
+          within: await pay.apDueSoon(tx, { asOf: asOfBase, withinDays: 9 }),
+          justOutside: await pay.apDueSoon(tx, {
+            asOf: asOfBase,
+            withinDays: 8,
+          }),
+          dueToday: await pay.apDueSoon(tx, { asOf: dueDate, withinDays: 0 }),
+          becameOverdue: await pay.apDueSoon(tx, {
+            asOf: shiftDate(dueDate, 1),
+            withinDays: 30,
+          }),
+          allBills: await pay.listBills(tx),
+        }
+      })
+    const aws = (rows: pay.ApDueSoonRow[]) =>
+      rows.find((r) => r.bill_number === "BILL-AWS-2026-01")
+
+    expect(aws(within)?.amount_due).toBe("1981.53")
+    expect(aws(within)?.days_until_due).toBe(9)
+    expect(aws(justOutside)).toBeUndefined()
+
+    expect(aws(dueToday)?.days_until_due).toBe(0)
+
+    // Once the due date is behind `asOf` it's overdue, not "due soon" —
+    // distinct concepts, per the roadmap wording for this feature.
+    expect(aws(becameOverdue)).toBeUndefined()
+
+    // `is_overdue` is measured against the real CURRENT_DATE, not `asOf` —
+    // a different reference date from this report's. Since the fixture
+    // seeds this bill's due_date as CURRENT_DATE + 10, it is never actually
+    // overdue on the day the fixture is seeded.
+    const bill = allBills.find((b) => b.bill_number === "BILL-AWS-2026-01")
+    expect(bill?.is_overdue).toBe(false)
+  })
+
+  it("excludes a draft bill even when its due date falls in the window", async () => {
+    // BILL-WEWORK-2026-01 (draft, due 2026-02-09) and BILL-WEWORK-2026-03
+    // (draft, due 2026-03-20) must never appear — a draft isn't owed yet.
+    const rows = await withTenant(AS_OWNER, (tx) =>
+      pay.apDueSoon(tx, { asOf: "2026-01-01", withinDays: 365 }),
+    )
+    expect(rows.some((r) => r.bill_number.startsWith("BILL-WEWORK"))).toBe(
+      false,
+    )
+  })
+
+  it("is visible to the finance function only", async () => {
+    // Any window wide enough to include BILL-AWS-2026-01's CURRENT_DATE + 10
+    // due date, computed from the real clock rather than a fixed date.
+    const asOf = new Date().toISOString().slice(0, 10)
+    const refused = await withTenant(AS_PLAIN_EMPLOYEE, (tx) =>
+      pay.apDueSoon(tx, { asOf, withinDays: 15 }),
+    )
+    expect(refused).toEqual([])
+
+    const owner = await withTenant(AS_OWNER, (tx) =>
+      pay.apDueSoon(tx, { asOf, withinDays: 15 }),
+    )
+    expect(owner.length).toBeGreaterThan(0)
+  })
+})
+
+describe("bank accounts", () => {
+  it("keeps the bank's balance and the feed's balance as separate facts", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
+    expect(rows.length).toBeGreaterThan(0)
+
+    const agreeing = rows.filter(
+      (a) =>
+        a.feed_balance !== null &&
+        Number(a.feed_balance) === Number(a.current_balance),
+    )
+    const differing = rows.filter(
+      (a) =>
+        a.feed_balance !== null &&
+        Number(a.feed_balance) !== Number(a.current_balance),
+    )
+    const noFeed = rows.filter((a) => a.feed_balance === null)
+
+    // All three states, so every branch of the page is exercised.
+    expect(agreeing.length, "no account agrees with its feed").toBeGreaterThan(
+      0,
+    )
+    expect(
+      differing.length,
+      "no account differs from its feed",
+    ).toBeGreaterThan(0)
+    expect(
+      noFeed.length,
+      "no account without imported transactions",
+    ).toBeGreaterThan(0)
+  })
+
+  it("an account with no transactions reports no feed balance, not zero", async () => {
+    // Zero would misleadingly claim "the account is empty".
+    const rows = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
+    for (const a of rows) {
+      if (a.transaction_count === 0) expect(a.feed_balance).toBeNull()
+    }
+  })
+
+  it("never returns an account number in any form", async () => {
+    // Ciphertext columns stay out of the returned type entirely (L39).
+    const [a] = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
+    for (const k of Object.keys(a)) {
+      expect(k).not.toMatch(/account_number|iban|routing|swift/)
+    }
+  })
+
+  it("counts what still needs matching", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.bankAccounts(tx))
+    expect(rows.some((a) => a.unmatched_count > 0)).toBe(true)
+  })
+})
+
+describe("bank transactions", () => {
+  it("carries credits and debits, with debits negative", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.bankTransactions(tx))
+    expect(rows.length).toBeGreaterThan(0)
+    const credits = rows.filter((t) => t.transaction_type === "credit")
+    const debits = rows.filter((t) => t.transaction_type === "debit")
+    expect(credits.length).toBeGreaterThan(0)
+    expect(debits.length).toBeGreaterThan(0)
+    expect(credits.every((t) => Number(t.amount) > 0)).toBe(true)
+    expect(debits.every((t) => Number(t.amount) < 0)).toBe(true)
+  })
+
+  it("filters by account and by status, without passing '' to a cast", async () => {
+    const result = await withTenant(AS_OWNER, async (tx) => {
+      const [acct] = await pay.bankAccounts(tx)
+      return {
+        all: await pay.bankTransactions(tx),
+        one: await pay.bankTransactions(tx, { accountId: acct.id }),
+        unmatched: await pay.bankTransactions(tx, { status: "unmatched" }),
+        name: acct.account_name,
+      }
+    })
+    expect(result.all.length).toBeGreaterThan(result.one.length)
+    expect(result.one.every((t) => t.account_name === result.name)).toBe(true)
+    expect(result.unmatched.length).toBeGreaterThan(0)
+    expect(result.unmatched.every((t) => t.status === "unmatched")).toBe(true)
+  })
+
+  it("shows every reconciliation state the screen has to render", async () => {
+    const rows = await withTenant(AS_OWNER, (tx) => pay.bankTransactions(tx))
+    const states = new Set(rows.map((t) => t.status))
+    expect(states.size).toBeGreaterThan(2)
+  })
+})
