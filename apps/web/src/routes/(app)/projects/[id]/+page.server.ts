@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
+import * as objectives from "$lib/server/objectives/objectives.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
@@ -44,6 +45,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
          WHERE employment_status = 'active'
          ORDER BY first_name, last_name
       `,
+      objectives: await objectives.list(tx),
       // For per-market number formatting; see localeForCurrency.
       locations: await locationsRepo.list(tx),
     }
@@ -67,6 +69,38 @@ function refusal(e: ProjectWriteRefused) {
       return {
         message: "That is not a status a task can be in.",
         field: "status",
+      }
+    case "invalid_parent":
+      return {
+        message:
+          "That task can't be a parent — pick a top-level task, or none.",
+        field: "parent_task_id",
+      }
+    case "no_such_dependency":
+      return {
+        message: "One of those tasks no longer exists.",
+        field: "depends_on_task_id",
+      }
+    case "cross_project_dependency":
+      return {
+        message: "A task can only depend on another task in the same project.",
+        field: "depends_on_task_id",
+      }
+    case "self_dependency":
+      return {
+        message: "A task can't depend on itself.",
+        field: "depends_on_task_id",
+      }
+    case "dependency_cycle":
+      return {
+        message:
+          "That would make two tasks depend on each other, directly or through others. Pick a different task.",
+        field: "depends_on_task_id",
+      }
+    case "no_such_objective":
+      return {
+        message: "That objective no longer exists. Reload and try again.",
+        field: "objective_id",
       }
   }
 }
@@ -93,6 +127,7 @@ export const actions: Actions = {
     const dueDate = f.date("due_date")
     const estimatedHours = f.decimal("estimated_hours", { scale: 4 })
     const isBillable = f.bool("is_billable")
+    const parentTaskId = f.uuid("parent_task_id")
 
     if (startDate && dueDate && dueDate < startDate) f.reject("due_date")
     if (!f.ok) return fail(400, f.problem("That task is not valid."))
@@ -113,6 +148,7 @@ export const actions: Actions = {
             due_date: dueDate,
             estimated_hours: estimatedHours,
             is_billable: isBillable,
+            parent_task_id: parentTaskId,
           },
           ctx!.employeeId ?? ctx!.userId,
         )
@@ -175,6 +211,7 @@ export const actions: Actions = {
     const currency = f.currency("currency", { required: true })
     const hourlyRate = f.decimal("hourly_rate", { scale: 4 })
     const isBillable = f.bool("is_billable")
+    const objectiveId = f.uuid("objective_id")
 
     if (!f.ok) return fail(400, f.problem("That change is not valid."))
 
@@ -188,6 +225,7 @@ export const actions: Actions = {
       currency: currency!,
       is_billable: isBillable,
       hourly_rate: hourlyRate,
+      objective_id: objectiveId,
     }
 
     try {
@@ -210,6 +248,7 @@ export const actions: Actions = {
           "currency",
           "is_billable",
           "hourly_rate",
+          "objective_id",
         ])
 
         await audit.record(tx, ctx!, {
@@ -221,6 +260,63 @@ export const actions: Actions = {
         })
 
         return { saved: true }
+      })
+    } catch (e) {
+      if (e instanceof ProjectWriteRefused) return fail(400, refusal(e))
+      throw e
+    }
+  },
+
+  /**
+   * "task_id depends on depends_on_task_id" — same project only. NOT
+   * audited, same reasoning as addTask/moveTask: an ordering relationship
+   * between two tasks changes nobody's money, employment or rights.
+   */
+  addDependency: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const taskId = f.uuid("task_id", { required: true })
+    const dependsOnTaskId = f.uuid("depends_on_task_id", { required: true })
+    if (!f.ok) return fail(400, f.problem("Pick a task to depend on."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        await projects.addDependency(
+          tx,
+          taskId!,
+          dependsOnTaskId!,
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        return { dependencyAdded: true }
+      })
+    } catch (e) {
+      if (e instanceof ProjectWriteRefused) return fail(400, refusal(e))
+      throw e
+    }
+  },
+
+  removeDependency: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const taskId = f.uuid("task_id", { required: true })
+    const dependsOnTaskId = f.uuid("depends_on_task_id", { required: true })
+    if (!f.ok) return fail(400, f.problem("That dependency is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        await projects.removeDependency(
+          tx,
+          taskId!,
+          dependsOnTaskId!,
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        return { dependencyRemoved: true }
       })
     } catch (e) {
       if (e instanceof ProjectWriteRefused) return fail(400, refusal(e))

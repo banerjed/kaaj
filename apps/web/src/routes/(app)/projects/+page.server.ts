@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
+import * as objectives from "$lib/server/objectives/objectives.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
@@ -49,6 +50,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
        WHERE employment_status = 'active'
        ORDER BY first_name, last_name
     `,
+    objectives: await objectives.list(tx),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
   }))
@@ -67,6 +69,7 @@ export const actions: Actions = {
     const description = f.text("description", { max: 2000 })
     const clientId = f.uuid("client_id")
     const managerId = f.uuid("project_manager_id")
+    const objectiveId = f.uuid("objective_id")
     const status = f.choice("status", STATUSES, { required: true })
     const priority = f.choice("priority", PRIORITIES, { required: true })
     const health = f.choice("health_status", HEALTHS, { required: true })
@@ -95,6 +98,7 @@ export const actions: Actions = {
             description,
             client_id: clientId,
             project_manager_id: managerId,
+            objective_id: objectiveId,
             status: status!,
             priority: priority!,
             health_status: health!,
@@ -130,6 +134,12 @@ export const actions: Actions = {
       })
     } catch (e) {
       if (e instanceof ProjectWriteRefused) {
+        if (e.reason === "no_such_objective") {
+          return fail(400, {
+            message: "That objective no longer exists. Reload and try again.",
+            field: "objective_id",
+          })
+        }
         return fail(400, {
           message:
             "Another project was created at the same moment and took that number. Try again.",

@@ -265,6 +265,73 @@ const MATRIX: {
       ["owner", []],
     ],
   },
+  // -- Project management (docs/23-project-management-phase1.md) — a gap
+  // this suite had for `projects` even before Phase 1, closed alongside
+  // `objectives`, which is gated on the same permission.
+  {
+    module: "projects",
+    load: async () =>
+      (await import("../../../routes/(app)/projects/+page.server")).actions,
+    actions: ["create"],
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+    ],
+    allowed: [
+      ["employee", ["project_manager"]],
+      ["owner", []],
+    ],
+  },
+  {
+    module: "projects/[id]",
+    load: async () =>
+      (await import("../../../routes/(app)/projects/[id]/+page.server"))
+        .actions,
+    actions: [
+      "updateProject",
+      "addTask",
+      "moveTask",
+      "addDependency",
+      "removeDependency",
+    ],
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+    ],
+    allowed: [
+      ["employee", ["project_manager"]],
+      ["owner", []],
+    ],
+  },
+  {
+    module: "objectives",
+    load: async () =>
+      (await import("../../../routes/(app)/objectives/+page.server")).actions,
+    actions: ["create"],
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+    ],
+    allowed: [
+      ["employee", ["project_manager"]],
+      ["owner", []],
+    ],
+  },
+  {
+    module: "objectives/[id]",
+    load: async () =>
+      (await import("../../../routes/(app)/objectives/[id]/+page.server"))
+        .actions,
+    actions: ["updateObjective", "addProject"],
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+    ],
+    allowed: [
+      ["employee", ["project_manager"]],
+      ["owner", []],
+    ],
+  },
 ]
 
 const name = (role: Role, fns: string[]) =>
@@ -296,10 +363,10 @@ for (const spec of MATRIX) {
 }
 
 describe("the matrix covers every action that exists", () => {
-  it("names all 23", async () => {
+  it("names all 34", async () => {
     // Companion to authz/actions-are-guarded, which only checks a call exists.
     const named = MATRIX.reduce((n, m) => n + m.actions.length, 0)
     const timeOff = 1 // decide — covered in time_off.test.ts, needs a real request
-    expect(named + timeOff).toBe(25)
+    expect(named + timeOff).toBe(34)
   })
 })

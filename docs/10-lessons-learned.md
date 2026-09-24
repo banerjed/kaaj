@@ -2553,6 +2553,42 @@ a fixed rate, a nominal date) — not "whatever it was last time plus one
 step" — store the anchor separately from the cursor, and always advance
 from the anchor, never from the cursor's last value.
 
+### L100 — `tasks.depends_on_task_ids`/`blocks_task_ids` carried the same sweep filler, a fourth recurrence, and the constraint-registry check that would have caught it on `tasks` had a table-name typo silencing it since before this session
+
+L87/L89/L90's shape, a fourth time, plus a second, independent finding on
+the same table. Both surfaced building Phase 1 of project management
+(docs/23-project-management-phase1.md), which made `depends_on_task_ids`
+and `blocks_task_ids` load-bearing for the first time.
+
+**The sweep filler.** Both columns had carried `'["standard"]'::jsonb` since
+the fixture was written — not a valid task id, just a placeholder that
+satisfied `verify-fixture-coverage.mjs`'s "not empty" check. Nothing had
+ever read either column as an actual dependency graph, so nothing noticed.
+Building the same feature that would have exposed it (as in L90) replaced
+the filler with a real two-edge chain instead: `blocks_task_ids` in
+particular is now a genuine reverse index recomputed from
+`depends_on_task_ids`, so hand-typing anything into it would drift the
+moment either was written for real.
+
+**The typo.** `scripts/verify-constraint-registry.mjs`'s `FORM_WRITTEN`
+list — the tables it checks for an unregistered, form-reachable
+constraint — named `"projects_tasks"`. No table by that name has ever
+existed; the real table is `tasks`. The query silently matched zero rows
+for it, so every constraint on `tasks` — including two pre-existing ones,
+`tasks_tenant_id_fkey` and `tasks_tenant_id_task_id_key` — had been
+unchecked since the table was created, and `./check` had been green
+throughout. Found only because this session was about to add the first
+CHECK/FK constraints `tasks` had ever had (`no_self_dependency`,
+`tasks_depth_matches_parent`, `fk_tasks_parent_task_id`) and went looking
+for where to register them.
+
+Two rules, not one: a column's fixture value being non-empty is not evidence
+anyone verified it (L90's rule again) — and a committed list that names
+tables or columns by string is only as good as the strings in it, which
+nothing table-driven double-checks against the schema itself. Both are
+silent-pass shapes: the sweep filler because nothing read the column, the
+typo because the check's own query just matched nothing and moved on.
+
 ---
 
 ## Conventions

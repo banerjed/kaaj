@@ -25,7 +25,7 @@ const FORM_WRITTEN = [
   "payroll_pay_schedules",
   "tenants",
   "projects",
-  "projects_tasks",
+  "tasks",
   "hr_time_off_requests",
   "hr_time_off_balances",
   "hr_reviews",
@@ -71,6 +71,7 @@ const CANNOT_BE_TRIPPED = new Map([
   ["firm_payroll_policies_tenant_id_fkey", "tenant_id comes from the session"],
   ["payroll_pay_schedules_tenant_id_fkey", "tenant_id comes from the session"],
   ["projects_tenant_id_fkey", "tenant_id comes from the session"],
+  ["tasks_tenant_id_fkey", "tenant_id comes from the session"],
 
   ["hr_reviews_tenant_id_fkey", "tenant_id comes from the session"],
   ["hr_time_off_requests_tenant_id_fkey", "tenant_id comes from the session"],
@@ -229,10 +230,7 @@ const CANNOT_BE_TRIPPED = new Map([
     "document_folders_visibility_check",
     "FormReader's choice(visibility, FOLDER_VISIBILITIES, { fallback: 'private' }) already refuses anything off the list",
   ],
-  [
-    "document_folder_shares_tenant_id_fkey",
-    "tenant_id comes from the session",
-  ],
+  ["document_folder_shares_tenant_id_fkey", "tenant_id comes from the session"],
   [
     "document_folder_shares_folder_id_fkey",
     "the share/unshare actions already resolve the folder via requireFolderPermission before this insert runs",
@@ -255,7 +253,10 @@ const CANNOT_BE_TRIPPED = new Map([
   ],
 
   // Team chat (docs/20-team-chat.md).
-  ["team_chat_conversations_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "team_chat_conversations_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
   [
     "team_chat_conversations_created_by_employee_id_fkey",
     "set from the authenticated actor, never form input",

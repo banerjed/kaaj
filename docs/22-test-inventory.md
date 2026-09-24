@@ -8,8 +8,8 @@ suites on 2026-09-23; re-run the commands below to refresh them rather than
 trusting this file once it drifts.
 
 ```bash
-pnpm --filter @kaaj/web run test          # unit tests (vitest) — 1,077 tests, 54 files
-pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 134 tests, 7 spec files
+pnpm --filter @kaaj/web run test          # unit tests (vitest) — 1,166 tests, 59 files
+pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 139 tests, 7 spec files
 ./check                                    # schema/RLS/invariant harnesses — 25 steps
 ```
 
@@ -20,7 +20,7 @@ pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 134 tes
 
 ## 1. Unit tests (vitest) — grouped by module
 
-1,077 tests across 54 files. Counts below are per file; the indented lines
+1,166 tests across 59 files. Counts below are per file; the indented lines
 are that file's top-level `describe` blocks, not every `it`.
 
 ### Accounting & Finance — 332 tests
@@ -88,10 +88,27 @@ financial statements, payment processing, exports.
 - `lib/firm-profile/fixture-projection.test.ts` [3] — the fixture's own pay
   schedules
 
-### Projects & Time Tracking — 35 tests
+### Projects & Time Tracking — 65 tests
 
-- `lib/server/projects/projects.writes.test.ts` [18] — task counters, moving
-  a task, creating/editing a project
+- `lib/server/projects/projects.writes.test.ts` [33] — task counters, moving
+  a task, creating/editing a project; subtasks (depth_level, one level only,
+  same-project parent) and task dependencies (cycle detection, the
+  `blocks_task_ids` reverse index scoped to its own project, the "blocked
+  by" annotation appearing and clearing, the `no_self_dependency` CHECK
+  fired directly, bypassing the repository) — docs/23-project-management-phase1.md
+- `lib/server/objectives/objectives.test.ts` [10] — objective rollup
+  (progress_percentage, health_status, actual_revenue) recomputed from
+  linked projects, never incremented, on both the create path and the
+  edit-a-previously-unlinked-project path — docs/23-project-management-phase1.md
+- `routes/.../objectives/page.server.test.ts` [1] and
+  `routes/.../objectives/[id]/page.server.test.ts` [1] — the `create` and
+  `updateObjective` actions' audit entries, against the REAL deployed
+  action (not a simulation): exactly one entry, diffing only the intended
+  fields, nothing else leaking in
+- `routes/.../projects/[id]/kanban.test.ts` [3] — the Kanban board shares
+  the list view's `moveTask` control (one `{#snippet}` definition, more
+  than one render site, exactly one `?/moveTask` form) rather than forking
+  a second status-writing path
 - `lib/server/projects/projects.test.ts` [10] — the project list, tasks,
   client-visible slice
 - `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [7] —
@@ -144,12 +161,16 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   identity, ticketing (8)
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
-### Auth & Authorization — 136 tests
+### Auth & Authorization — 172 tests
 
-- `lib/server/auth/action-authz.test.ts` [109] — per-action authorization
+- `lib/server/auth/action-authz.test.ts` [145] — per-action authorization
   matrix across compensation, employees, settings (company, locations,
   departments, holidays, benefits, job-titles, payroll policies/schedules),
-  performance; "the matrix covers every action that exists"
+  performance, projects (create/updateProject/addTask/moveTask/
+  addDependency/removeDependency) and objectives (create/updateObjective/
+  addProject) — the last two closed a gap `projects` had even before
+  docs/23-project-management-phase1.md; "the matrix covers every action
+  that exists"
 - `lib/server/auth/can.test.ts` [27] — the floor, separation of duties,
   owner/firm_admin, derived managers, bundle composition, reading vs.
   revealing a sensitive value
@@ -160,12 +181,19 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   cannot be rewritten, reading the trail, the change record's shape, what
   must never reach the trail
 
-### PII, Secrets & Disclosure — 94 tests
+### PII, Secrets & Disclosure — 117 tests
 
 - `lib/server/security/disclosure.test.ts` [62] — the disclosure matrix
 - `lib/server/pii/pii.test.ts` [32] — the envelope, the stored fixture,
   writing an encrypted field, GDPR Art. 17 erasure, key rotation, two kinds
   of subject
+- `lib/server/db/secrets.test.ts` [23] — a dedicated tenant's sealed
+  connection string (docs/24-deployment-and-pooling.md §5.2): round trip,
+  never in the clear, same wire format as `pii/envelope.ts` in both
+  directions, refused on another tenant's row / wrong key / tampering / a
+  key version dropped from the ring, still opens after key rotation,
+  `resolveSecret` for sealed and plain env-var refs, and `resolveTarget`
+  routing through a sealed ref (control plane mocked — no shared-DB write).
 
 ### Forms, Formatting & Shared Infrastructure — 89 tests
 
@@ -203,23 +231,28 @@ goes through these.
 
 ## 2. End-to-end tests (Playwright) — grouped by purpose
 
-134 tests across 7 spec files plus one setup project. Unlike the unit suite,
+139 tests across 7 spec files plus one setup project. Unlike the unit suite,
 these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
 
-- **`smoke.spec.ts` [58]** — every module page renders for a signed-in owner:
+- **`smoke.spec.ts` [62]** — every module page renders for a signed-in owner:
   its own heading, the nav shell, zero console errors. One entry per route
   (employees, time-off, attendance, performance, onboarding, compensation,
-  projects, time-tracking, payroll, all 19 accounting pages, ticketing,
-  documents, chat, all 9 settings pages), plus the unauthenticated-redirect
-  check, the directory-has-real-rows check, the assistant panel, and the
-  tax-rate Type select population check.
-- **`form-errors.spec.ts` [53]** — a refused form names the field, marks it,
+  objectives, projects, time-tracking, payroll, all 19 accounting pages,
+  ticketing, documents, chat, all 9 settings pages), plus the
+  unauthenticated-redirect check, the directory-has-real-rows check, the
+  assistant panel, the tax-rate Type select population check, and three
+  project-management checks (the Add-task Parent select is scoped to the
+  project's own top-level tasks, the Kanban board's column/card structure,
+  and the List↔Kanban toggle firing no network request either way).
+- **`form-errors.spec.ts` [55]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),
   HR (holidays, employee IDs, ticketing), compensation, time-tracking,
-  projects, company settings, and team chat (empty channel name, empty message).
+  projects (a dependency cycle reads as a sentence, not a crash page),
+  objectives (an invalid target end date), company settings, and team chat
+  (empty channel name, empty message).
 - **`theme.spec.ts` [9]** — light/dark/system application, actual paint
   (canvas-measured per CLAUDE.md's colour rule), fallback on a deleted or
   garbage stored theme, where theme selection lives in the UI.
@@ -248,14 +281,15 @@ application code path. Full detail (what each proves, and what it
 deliberately doesn't) is in `CLAUDE.md`'s own table under "What it runs";
 summarized here rather than duplicated so it can't drift out of sync:
 
-| Suite                           | Proves                                                                                                                                                                                                                                            | Scale          |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| tenant isolation                | every RLS policy filters, per table                                                                                                                                                                                                               | 672 assertions |
-| specification                   | the schema answers the module specs                                                                                                                                                                                                               | 173            |
-| schema invariants               | ADR design rules hold, closed on a bad claim                                                                                                                                                                                                      | 157            |
-| structure snapshot              | schema is exactly what was committed                                                                                                                                                                                                              | 4,290 lines    |
-| security                        | authorization, PII, tenant isolation (both suites)                                                                                                                                                                                                | 360            |
-| + 16 more single-purpose checks | authz, actor propagation, no-backtick, no-loop-query, scale classification, unprotected fallback, sensitive-column classification, audit coverage, refusal messages, service-role quarantine, fixture completeness, dedicated-tenant reachability | —              |
+| Suite                           | Proves                                                                                                                                                                                                                                                           | Scale          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| tenant isolation                | every RLS policy filters, per table                                                                                                                                                                                                                              | 672 assertions |
+| specification                   | the schema answers the module specs                                                                                                                                                                                                                              | 173            |
+| schema invariants               | ADR design rules hold, closed on a bad claim                                                                                                                                                                                                                     | 157            |
+| structure snapshot              | schema is exactly what was committed                                                                                                                                                                                                                             | 4,290 lines    |
+| security                        | authorization, PII, tenant isolation (both suites)                                                                                                                                                                                                               | 360            |
+| provisioning script             | `node --test scripts/provision-tenant.test.mjs` — NOT in `./check`; DB cases need `PROVISION_TEST_PG`: provisions, dry-run writes nothing, duplicate refused, registration atomic, no password/DSN leak, restricted login, Management API against a fake `fetch` | 18             |
+| + 16 more single-purpose checks | authz, actor propagation, no-backtick, no-loop-query, scale classification, unprotected fallback, sensitive-column classification, audit coverage, refusal messages, service-role quarantine, fixture completeness, dedicated-tenant reachability                | —              |
 
 `packages/spec-tests` is a second, independent authorization suite — spec-
 derived rather than deployed-enforcement-derived — compared against the

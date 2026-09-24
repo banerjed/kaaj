@@ -121,6 +121,67 @@ test("a full-page form marks the refused field too", async ({ page }) => {
   await expect(companyName).toHaveAttribute("aria-invalid", "true")
 })
 
+test("creating an objective with an invalid target end date is refused, marked, and the modal stays open", async ({
+  page,
+}) => {
+  await page.goto("/objectives")
+  await openModal(page, /new objective/i, 'input[name="objective_name"]')
+
+  const name = page.locator('input[name="objective_name"]')
+  const targetEnd = page.locator('input[name="target_end_date"]')
+
+  // A name, but a target end before the (unset) start is impossible to
+  // express through the date picker's own min/max — the action's own
+  // f.reject("target_end_date") is what has to catch it.
+  await name.fill("Grow the platform business")
+  await page.fill('input[name="start_date"]', "2027-06-01")
+  await targetEnd.fill("2027-01-01")
+  await submitPastTheBrowser(page, "?/create")
+
+  await expect(page.locator(".alert").first()).toContainText("not valid")
+
+  // The modal is still open and what was typed survived — not a reload that
+  // silently closed it and discarded the draft (L68).
+  await expect(name).toBeVisible()
+  await expect(name).toHaveValue("Grow the platform business")
+
+  // The mark is on the field the action actually rejected.
+  await expect(targetEnd).toHaveClass(/input-error/)
+  await expect(targetEnd).toHaveAttribute("aria-invalid", "true")
+  await expect(name).not.toHaveClass(/input-error/)
+})
+
+test("adding a dependency that would create a cycle is refused with a sentence, not a crash page", async ({
+  page,
+}) => {
+  // T-002 "Data model mapping" already depends on T-001 "Discovery
+  // workshops" in the fixture — no setup write needed here, this refusal
+  // is reachable from a pristine database. The FIRST "Dependencies" button
+  // on the page is T-001's own row (task list order).
+  await page.goto("/projects/8257009f-6a91-5fd1-9efb-518198c08e2a")
+  await openModal(page, /dependencies/i, 'select[name="depends_on_task_id"]')
+
+  // Options are labelled by task_number, not task name — see
+  // `+page.svelte`'s dependency select (`c.task_number ?? c.task_name`).
+  await page
+    .locator('select[name="depends_on_task_id"]')
+    .selectOption({ label: "T-002" })
+  await submitPastTheBrowser(page, "?/addDependency")
+
+  await expect(page.locator(".alert").first()).toContainText(
+    /depend on each other/i,
+  )
+
+  // Still the same page, not an "Internal Error" page with the trail gone —
+  // the heading and the dependencies modal are both still there to act on.
+  await expect(
+    page.getByRole("heading", { name: "Acme ERP Integration" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: /Dependencies for/ }),
+  ).toBeVisible()
+})
+
 test("a database refusal is a sentence, not a crash page", async ({ page }) => {
   await page.goto("/settings/departments")
   await openModal(page, /new department/i, 'input[name="department_code"]')

@@ -25,6 +25,12 @@ const PRJ1 = "8257009f-6a91-5fd1-9efb-518198c08e2a"
 const T3 = "6d029a3a-8887-50a7-85b0-9e22408bdf61"
 /** T-001 'Discovery workshops', done. */
 const T1 = "48961ce2-d17a-5ebe-81db-f608b4b6b125"
+/** T-002 'Data model mapping', in_progress — depends on T1 in the fixture. */
+const T2 = "864cc09e-6b7e-58b4-a2e2-04233fbfea70"
+/** T-008 'Write up discovery findings' — a real subtask of T1 (depth_level 1). */
+const T8_SUBTASK = "a19f5b3e-2b7a-5c3e-9a0d-7e6f4c2b1a90"
+/** T-004 'Loyalty rules engine', in a different project (PRJ-002). */
+const T4_OTHER_PROJECT = "e5557981-472b-5016-a458-b1de5cce6910"
 
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
@@ -220,6 +226,7 @@ describe("creating a project", () => {
     is_billable: true,
     hourly_rate: "145.7500",
     description: null,
+    objective_id: null,
   }
 
   it("starts with both counters at zero and no tasks", async () => {
@@ -305,6 +312,7 @@ describe("editing a project", () => {
           currency: current.currency ?? "USD",
           is_billable: true,
           hourly_rate: "200.0000",
+          objective_id: current.objective_id,
         },
         ACTOR,
       )
@@ -331,6 +339,7 @@ describe("editing a project", () => {
           currency: before.currency ?? "USD",
           is_billable: true,
           hourly_rate: "10.0000",
+          objective_id: before.objective_id,
         },
         ACTOR,
       )
@@ -356,10 +365,234 @@ describe("editing a project", () => {
             currency: "USD",
             is_billable: false,
             hourly_rate: null,
+            objective_id: null,
           },
           ACTOR,
         ),
       ),
     ).rejects.toThrow(ProjectWriteRefused)
+  })
+})
+
+describe("subtasks — one level deep (docs/23-project-management-phase1.md)", () => {
+  it("computes depth_level 0 when no parent is given", async () => {
+    const created = await inRollback(async (tx) => {
+      const { id } = await projects.createTask(tx, NORTHWIND, NEW_TASK, ACTOR)
+      return (await projects.tasksFor(tx, PRJ1)).find((t) => t.id === id)!
+    })
+    expect(created.depth_level).toBe(0)
+    expect(created.parent_task_id).toBeNull()
+  })
+
+  it("computes depth_level 1 and stores the parent when one is given", async () => {
+    const created = await inRollback(async (tx) => {
+      const { id } = await projects.createTask(
+        tx,
+        NORTHWIND,
+        { ...NEW_TASK, parent_task_id: T1 },
+        ACTOR,
+      )
+      return (await projects.tasksFor(tx, PRJ1)).find((t) => t.id === id)!
+    })
+    expect(created.depth_level).toBe(1)
+    expect(created.parent_task_id).toBe(T1)
+  })
+
+  it("refuses a parent that is itself a subtask — one level only", async () => {
+    await expect(
+      inRollback((tx) =>
+        projects.createTask(
+          tx,
+          NORTHWIND,
+          { ...NEW_TASK, parent_task_id: T8_SUBTASK },
+          ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("refuses a parent from a different project", async () => {
+    await expect(
+      inRollback((tx) =>
+        projects.createTask(
+          tx,
+          NORTHWIND,
+          { ...NEW_TASK, parent_task_id: T4_OTHER_PROJECT },
+          ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("counts a subtask toward the project's task_count — a subtask is still a task", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const before = (await projects.byId(tx, PRJ1))!
+      await projects.createTask(
+        tx,
+        NORTHWIND,
+        { ...NEW_TASK, parent_task_id: T1 },
+        ACTOR,
+      )
+      return { before, after: (await projects.byId(tx, PRJ1))! }
+    })
+    expect(after.task_count).toBe(before.task_count + 1)
+    expect(after.task_count).toBe(after.actual_task_count)
+  })
+
+  it("sorts a subtask directly after its parent in tasksFor, regardless of task_number", async () => {
+    const rows = await inRollback(async (tx) => {
+      // A new top-level task normally sorts after existing ones (later
+      // due_date / task_number) — a subtask of T1 should sort right after
+      // T1 anyway, not wherever its own task_number would place it.
+      await projects.createTask(
+        tx,
+        NORTHWIND,
+        { ...NEW_TASK, parent_task_id: T1 },
+        ACTOR,
+      )
+      return projects.tasksFor(tx, PRJ1)
+    })
+    const t1Index = rows.findIndex((t) => t.id === T1)
+    const newSubtaskIndex = rows.findIndex(
+      (t) => t.task_name === NEW_TASK.task_name,
+    )
+    // Both T1's pre-existing subtask (T-008) and the new one land immediately
+    // after T1, before any other top-level task.
+    expect(newSubtaskIndex).toBeGreaterThan(t1Index)
+    const nextTopLevelIndex = rows.findIndex(
+      (t, i) => i > t1Index && t.depth_level === 0,
+    )
+    expect(newSubtaskIndex).toBeLessThan(nextTopLevelIndex)
+  })
+})
+
+describe("task dependencies — same project, no cycles (docs/23-project-management-phase1.md)", () => {
+  it("updates both sides in one call: depends_on and the reverse blocks index", async () => {
+    const rows = await inRollback(async (tx) => {
+      // T3 already depends on T1 (fixture); add a second edge T3 -> T8_SUBTASK.
+      await projects.addDependency(tx, T3, T8_SUBTASK, ACTOR)
+      return projects.tasksFor(tx, PRJ1)
+    })
+    const t3 = rows.find((t) => t.id === T3)!
+    const subtask = rows.find((t) => t.id === T8_SUBTASK)!
+    expect(t3.depends_on.map((d) => d.id)).toContain(T8_SUBTASK)
+    expect(subtask.blocks.map((b) => b.id)).toContain(T3)
+  })
+
+  it("refuses a dependency on a task in a different project", async () => {
+    await expect(
+      inRollback((tx) =>
+        projects.addDependency(tx, T3, T4_OTHER_PROJECT, ACTOR),
+      ),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("refuses a task depending on itself", async () => {
+    await expect(
+      inRollback((tx) => projects.addDependency(tx, T3, T3, ACTOR)),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("the no_self_dependency CHECK refuses a self-reference even bypassing addDependency entirely", async () => {
+    // Not projects.addDependency (already covered above) — a raw write
+    // straight past the repository, proving the database itself is the
+    // backstop the app-level guard is not the only thing standing on.
+    await expect(
+      inRollback(
+        (tx) => tx`
+          UPDATE tasks
+             SET depends_on_task_ids = jsonb_build_array(id::text)
+           WHERE id = ${T3}::uuid
+        `,
+      ),
+    ).rejects.toThrow(/no_self_dependency/)
+  })
+
+  it("refuses a direct cycle: T2 already depends on T1, so T1 depending on T2 is refused", async () => {
+    await expect(
+      inRollback((tx) => projects.addDependency(tx, T1, T2, ACTOR)),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("refuses a transitive cycle across more than one hop", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        // Build T3 -> T2 -> T1 (T3 no longer depends on T1 directly for this
+        // chain), then attempting T1 -> T3 must be refused: T3 can already
+        // reach T1 in two hops.
+        await projects.removeDependency(tx, T3, T1, ACTOR)
+        await projects.addDependency(tx, T3, T2, ACTOR)
+        await projects.addDependency(tx, T1, T3, ACTOR)
+      }),
+    ).rejects.toThrow(ProjectWriteRefused)
+  })
+
+  it("removing a dependency clears the reverse index on the far side too", async () => {
+    const rows = await inRollback(async (tx) => {
+      await projects.removeDependency(tx, T2, T1, ACTOR)
+      return projects.tasksFor(tx, PRJ1)
+    })
+    const t1 = rows.find((t) => t.id === T1)!
+    const t2 = rows.find((t) => t.id === T2)!
+    expect(t2.depends_on.map((d) => d.id)).not.toContain(T1)
+    expect(t1.blocks.map((b) => b.id)).not.toContain(T2)
+    // T3 still depends on T1 (untouched) — the recompute is project-wide,
+    // not "clear everything".
+    expect(t1.blocks.map((b) => b.id)).toContain(T3)
+  })
+
+  it("recomputing blocks_task_ids for one project never touches a task in a different project", async () => {
+    const { before, after } = await inRollback(async (tx) => {
+      const [before] = await tx<{ blocks_task_ids: string[] }[]>`
+        SELECT blocks_task_ids FROM tasks WHERE id = ${T4_OTHER_PROJECT}::uuid
+      `
+      // Several writes to PRJ1's dependency graph — none of them should ever
+      // reach a row outside PRJ1.
+      await projects.addDependency(tx, T3, T8_SUBTASK, ACTOR)
+      await projects.removeDependency(tx, T2, T1, ACTOR)
+      const [after] = await tx<{ blocks_task_ids: string[] }[]>`
+        SELECT blocks_task_ids FROM tasks WHERE id = ${T4_OTHER_PROJECT}::uuid
+      `
+      return { before, after }
+    })
+    expect(after.blocks_task_ids).toEqual(before.blocks_task_ids)
+  })
+
+  it("annotates a dependent task as blocked without touching its own status, and the annotation disappears once the dependency is resolved — still without touching status", async () => {
+    const { before, blocked, resolved } = await inRollback(async (tx) => {
+      const before = (await projects.tasksFor(tx, PRJ1)).find(
+        (t) => t.id === T2,
+      )!
+      // T2 depends on T1, which is already 'done' in the fixture — not
+      // blocked. Depend on T3 (still 'todo') to exercise the annotation.
+      await projects.addDependency(tx, T2, T3, ACTOR)
+      const blocked = (await projects.tasksFor(tx, PRJ1)).find(
+        (t) => t.id === T2,
+      )!
+
+      // Resolve the dependency — the annotation is read live off T3's own
+      // status, so finishing T3 (never T2) is what should clear it.
+      await projects.setTaskStatus(tx, T3, "done", ACTOR)
+      const resolved = (await projects.tasksFor(tx, PRJ1)).find(
+        (t) => t.id === T2,
+      )!
+
+      return { before, blocked, resolved }
+    })
+
+    const incompleteWhileBlocked = blocked.depends_on.filter(
+      (d) => d.status !== "done",
+    )
+    expect(incompleteWhileBlocked.map((d) => d.id)).toContain(T3)
+
+    const incompleteAfterResolving = resolved.depends_on.filter(
+      (d) => d.status !== "done",
+    )
+    expect(incompleteAfterResolving).toEqual([])
+
+    // T2's OWN status never moved, through either transition — the
+    // annotation is read-only, never a second status-setting path.
+    expect(before.status).toBe(blocked.status)
+    expect(blocked.status).toBe(resolved.status)
   })
 })

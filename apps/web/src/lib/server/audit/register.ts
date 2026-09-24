@@ -311,6 +311,21 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "updateProject",
     why: "The same fields, changed. A rate edited mid-project changes every invoice raised after it, and status is what a delivery report counts as done.",
   },
+  {
+    route: "objectives",
+    action: "create",
+    why: "target_revenue is a figure an executive reads as a commitment. 'Who set this target, and how much' is the same shape as a project's own budget.",
+  },
+  {
+    route: "objectives/[id]",
+    action: "updateObjective",
+    why: "The same figure, changed, plus status and ownership — an objective is the strategic layer projects roll up into; who moved the target or reassigned ownership is the executive-visible half of this module.",
+  },
+  {
+    route: "objectives/[id]",
+    action: "addProject",
+    why: "Calls the same projects.createProject a /projects create does, which is already audited there — this route's own action is a second call site of the same consequential write, so it is registered here too rather than relying on the other route's entry to cover it.",
+  },
 
   {
     route: "settings/company",
@@ -417,6 +432,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "projects/[id]",
     action: "moveTask",
     why: "Board movement, and the highest-frequency write in the product. What must not go wrong here is the project's counters, and that is guarded by staleCounters() rather than by a trail nobody would read.",
+  },
+  {
+    route: "projects/[id]",
+    action: "addDependency",
+    why: "A same-project ordering relationship between two tasks changes nobody's money, employment or rights — same reasoning as addTask. Guarded by the cycle check and refreshDependencyIndex rather than a trail.",
+  },
+  {
+    route: "projects/[id]",
+    action: "removeDependency",
+    why: "The inverse of addDependency, same reasoning.",
   },
   {
     route: "time-tracking",

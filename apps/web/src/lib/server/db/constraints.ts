@@ -46,6 +46,18 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "Another project already uses that reference. Pick a different one.",
   },
+  tasks_tenant_id_task_id_key: {
+    errorFields: ["task_name"],
+    message: "Another task already uses that reference. Try again.",
+  },
+  fk_projects_objective_id: {
+    errorFields: ["objective_id"],
+    message: "That objective no longer exists. Reload and try again.",
+  },
+  fk_tasks_parent_task_id: {
+    errorFields: ["parent_task_id"],
+    message: "That parent task no longer exists. Reload and try again.",
+  },
   tenants_subdomain_key: {
     errorFields: ["subdomain"],
     message: "That subdomain is already taken. Pick a different one.",
@@ -75,6 +87,14 @@ const REGISTRY: Record<string, Refusal> = {
   },
 
   // ---- CHECK constraints -----------------------------------------------
+  no_self_dependency: {
+    errorFields: ["depends_on_task_id"],
+    message: "A task can't depend on itself.",
+  },
+  tasks_depth_matches_parent: {
+    errorFields: ["parent_task_id"],
+    message: "That task can't be a parent — pick a top-level task, or none.",
+  },
   tenants_company_size_check: {
     errorFields: ["company_size"],
     message: "Pick a company size from the list.",

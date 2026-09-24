@@ -249,20 +249,44 @@ The pay-date projection from Phase 1 is already tested and reused here.
 
 **Projects** — ✅ **done.** `/projects` and `/projects/[id]` render the board
 and now write to it: create a project, edit it, add a task, move a task across
-statuses. `projects.repo.ts` covers `projects` and `tasks`; objectives and
-dashboards are not built.
+statuses. `projects.repo.ts` covers `projects` and `tasks`.
 
 The counters are the thing that had to be got right, and are:
 `task_count` / `completed_task_count` are **recomputed** in the same
 transaction as every task write, never incremented, so a row that has already
 drifted is repaired rather than carried forward ([L58](./10-lessons-learned.md)).
-`staleCounters()` is now the regression guard — 18 write tests, six of which
-fail if the recount is removed.
+`staleCounters()` is now the regression guard — 31 write tests, several of
+which fail if the recount is removed.
 
 Project create and edit are audited (budget, rate, billable flag — the terms
 work is billed on); task writes are in `NOT_AUDITED` with the reason, because a
 line per board movement would bury the pay changes the trail exists to make
 findable.
+
+**Objectives (Phase 1 of docs/23-project-management-phase1.md) — ✅ done.**
+`/objectives` and `/objectives/[id]` render and write: create/edit an
+objective, link a project to one (from either the project's own create/edit
+form or the objective's own "New project"). `objectives.repo.ts`'s
+`refreshRollup` recomputes `progress_percentage`, `health_status` and
+`actual_revenue` from linked, non-archived projects — recomputed, never
+incremented, same discipline as the task counters, with a corrupted-value
+self-heal test as its own `staleCounters()`-equivalent.
+
+**Subtasks and same-project task dependencies — ✅ done, same phase.** A task
+may have one subtask level (`parent_task_id`/`depth_level`, enforced by a new
+CHECK — `tasks` had never carried one before) via "Add task"'s own Parent
+select. `depends_on_task_ids` is a real, cycle-checked graph now (a recursive
+CTE, one query, no loop) instead of the placeholder every row had carried
+silently ([L100](./10-lessons-learned.md)); `blocks_task_ids` is its
+recomputed reverse index. A Kanban view (grouped by status, same `moveTask`
+control the list view already used) sits alongside the list view on
+`/projects/[id]`, client-side only.
+
+**Still not built:** the typed-column system, formula/mirror columns,
+dashboards/widgets, the automation engine, and the Gantt/Calendar/Workload/
+Chart views — each deferred with a reason in
+[23-project-management-phase1.md](./23-project-management-phase1.md) rather
+than silently dropped.
 
 **Accounting — ✅ done, for the slice this codebase builds.**
 `/accounting/{invoices,invoices/[id],bills,bills/[id],ledger,banking}` all

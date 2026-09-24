@@ -2,6 +2,8 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localeForCurrency, money, number } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
+  import { enhance } from "$app/forms"
+  import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
   import {
@@ -10,6 +12,7 @@
   } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import type { TaskRow } from "$lib/server/projects/projects.repo"
 
   let { data, form } = $props()
 
@@ -17,8 +20,21 @@
 
   let addingTask = $state(false)
   let editing = $state(false)
+  /** The Kanban board reuses `moveTask` — no second status-writing path. */
+  let view = $state<"list" | "kanban">("list")
+  /** The task id, not the row itself — so the modal reflects `data.tasks`
+      after `update()` refreshes it, rather than a stale snapshot. */
+  let managingDependenciesFor = $state<string | null>(null)
+  const managingDependenciesTask = $derived(
+    data.tasks.find((t) => t.id === managingDependenciesFor) ?? null,
+  )
 
   const label = (v: string | null) => (v ?? "").replace(/_/g, " ")
+
+  // depth_level === 0 only — a subtask cannot itself have a subtask.
+  const topLevelTasks = $derived(data.tasks.filter((t) => t.depth_level === 0))
+  const subtasksOf = (parentId: string) =>
+    data.tasks.filter((t) => t.parent_task_id === parentId)
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const locale = $derived(
@@ -84,6 +100,12 @@
           {#if data.project.client_name}· {data.project.client_name}{/if}
           {#if data.project.manager_name}· led by {data.project
               .manager_name}{/if}
+          {#if data.project.objective_name}
+            ·
+            <a class="link" href={`/objectives/${data.project.objective_id}`}>
+              {data.project.objective_name}
+            </a>
+          {/if}
         </p>
         <div class="flex gap-1">
           <StatusBadge tone={healthTone(data.project.health_status)}>
@@ -143,7 +165,7 @@
     </div>
   </div>
 
-  <h2 class="mt-6 text-base font-medium">
+  <h2 class="mt-6 flex flex-wrap items-center text-base font-medium">
     Tasks
     <span class="badge badge-sm ms-1">{data.tasksTotal}</span>
     <!-- Shown only when the denormalised count disagrees with the actual tasks (L58). -->
@@ -162,7 +184,66 @@
         Add task
       </button>
     {/if}
+    <!-- Client-side only: both views read the same data.tasks and share the
+         same moveTask control below — no second status-writing path. -->
+    <div class="join ms-auto">
+      <button
+        type="button"
+        class={`btn btn-xs join-item ${view === "list" ? "btn-active" : ""}`}
+        aria-pressed={view === "list"}
+        onclick={() => (view = "list")}
+      >
+        List
+      </button>
+      <button
+        type="button"
+        class={`btn btn-xs join-item ${view === "kanban" ? "btn-active" : ""}`}
+        aria-pressed={view === "kanban"}
+        onclick={() => (view = "kanban")}
+      >
+        Kanban
+      </button>
+    </div>
   </h2>
+
+  {#snippet statusControl(t: TaskRow)}
+    {#if data.mayWrite}
+      <!-- POST, never GET — this writes, and a crawler can follow a GET link. -->
+      <form method="POST" action="?/moveTask" use:enhance={keepValues}>
+        <input type="hidden" name="task_id" value={t.id} />
+        <select
+          name="status"
+          aria-invalid={err.aria("status")}
+          class={`select select-sm capitalize ${err.select("status")}`}
+          aria-label={`Status of ${t.task_name}`}
+          value={t.status}
+          onchange={(e) => e.currentTarget.form?.requestSubmit()}
+        >
+          {#each data.taskStatuses as s (s)}
+            <option value={s} class="capitalize">{label(s)}</option>
+          {/each}
+        </select>
+        <!-- Works with scripting off, where onchange does not. -->
+        <noscript>
+          <button class="btn btn-sm">Move</button>
+        </noscript>
+      </form>
+    {:else}
+      <StatusBadge tone={statusTone(t.status)}>{label(t.status)}</StatusBadge>
+    {/if}
+  {/snippet}
+
+  {#snippet blockedBy(t: TaskRow)}
+    {@const incomplete = t.depends_on.filter((d) => d.status !== "done")}
+    {#if incomplete.length > 0}
+      <p class="text-warning mt-0.5 text-xs">
+        <span class="iconify lucide--lock size-3 align-[-1px]"></span>
+        Blocked by {incomplete
+          .map((d) => d.task_number ?? d.task_name)
+          .join(", ")}
+      </p>
+    {/if}
+  {/snippet}
 
   {#if data.tasks.length === 0}
     <EmptyState
@@ -170,7 +251,7 @@
       class="mt-2"
       message="No tasks on this project yet."
     />
-  {:else}
+  {:else if view === "list"}
     <div class="card bg-base-100 mt-2 shadow">
       <div class="overflow-x-auto">
         <table class="table">
@@ -183,12 +264,16 @@
               <th class="text-right">Hours</th>
               <th class="w-32">Progress</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {#each data.tasks as t (t.id)}
+            {#each topLevelTasks as t (t.id)}
               <tr class="hover:bg-base-200/40">
-                <td class="font-medium">{t.task_name}</td>
+                <td class="font-medium">
+                  {t.task_name}
+                  {@render blockedBy(t)}
+                </td>
                 <td class="text-base-content/70 text-sm">
                   {t.assignee_name ?? "Unassigned"}
                 </td>
@@ -216,37 +301,68 @@
                     max="100"
                   ></progress>
                 </td>
+                <td>{@render statusControl(t)}</td>
                 <td>
                   {#if data.mayWrite}
-                    <!-- POST, never GET — this writes, and a crawler can follow a GET link. -->
-                    <form method="POST" action="?/moveTask">
-                      <input type="hidden" name="task_id" value={t.id} />
-                      <select
-                        name="status"
-                        aria-invalid={err.aria("status")}
-                        class={`select select-sm capitalize ${err.select("status")}`}
-                        aria-label={`Status of ${t.task_name}`}
-                        value={t.status}
-                        onchange={(e) => e.currentTarget.form?.requestSubmit()}
-                      >
-                        {#each data.taskStatuses as s (s)}
-                          <option value={s} class="capitalize"
-                            >{label(s)}</option
-                          >
-                        {/each}
-                      </select>
-                      <!-- Works with scripting off, where onchange does not. -->
-                      <noscript>
-                        <button class="btn btn-sm">Move</button>
-                      </noscript>
-                    </form>
-                  {:else}
-                    <StatusBadge tone={statusTone(t.status)}>
-                      {label(t.status)}
-                    </StatusBadge>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      onclick={() => (managingDependenciesFor = t.id)}
+                    >
+                      Dependencies
+                    </button>
                   {/if}
                 </td>
               </tr>
+              {#each subtasksOf(t.id) as sub (sub.id)}
+                <tr class="hover:bg-base-200/40">
+                  <td class="ps-6 text-sm">
+                    <span class="text-base-content/50"> └ </span>{sub.task_name}
+                    {@render blockedBy(sub)}
+                  </td>
+                  <td class="text-base-content/70 text-sm">
+                    {sub.assignee_name ?? "Unassigned"}
+                  </td>
+                  <td>
+                    <StatusBadge tone={priorityTone(sub.priority)}>
+                      {sub.priority}
+                    </StatusBadge>
+                  </td>
+                  <td class="text-sm tabular-nums">
+                    {sub.due_date ? calendarDate(sub.due_date, locale) : "—"}
+                    {#if sub.is_overdue}
+                      <span class="badge badge-error badge-sm ms-1"
+                        >overdue</span
+                      >
+                    {/if}
+                  </td>
+                  <td class="text-right text-sm tabular-nums">
+                    {number(sub.actual_hours ?? "0", locale)} / {number(
+                      sub.estimated_hours ?? "0",
+                      locale,
+                    )}
+                  </td>
+                  <td>
+                    <progress
+                      class="progress progress-primary w-full"
+                      value={pct(sub.progress_percentage)}
+                      max="100"
+                    ></progress>
+                  </td>
+                  <td>{@render statusControl(sub)}</td>
+                  <td>
+                    {#if data.mayWrite}
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        onclick={() => (managingDependenciesFor = sub.id)}
+                      >
+                        Dependencies
+                      </button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
             {/each}
           </tbody>
         </table>
@@ -256,6 +372,61 @@
           Showing the first {data.tasks.length} of {data.tasksTotal} tasks.
         </p>
       {/if}
+    </div>
+  {:else}
+    <!-- Kanban: one column per status, top-level tasks only — a subtask does
+         not get its own card, same as Monday.com's subitems. -->
+    <div class="mt-2 grid gap-3 lg:grid-cols-5">
+      {#each data.taskStatuses as s (s)}
+        {@const cards = topLevelTasks.filter((t) => t.status === s)}
+        <div class="bg-base-200/40 rounded-box p-2">
+          <p
+            class="text-base-content/70 mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase"
+          >
+            {label(s)}
+            <span class="badge badge-sm">{cards.length}</span>
+          </p>
+          <div class="flex flex-col gap-2">
+            {#each cards as t (t.id)}
+              {@const subtasks = subtasksOf(t.id)}
+              <div class="card bg-base-100 shadow-sm">
+                <div class="card-body gap-2 p-3">
+                  <p class="text-sm font-medium">{t.task_name}</p>
+                  {@render blockedBy(t)}
+                  <div
+                    class="text-base-content/70 flex justify-between text-xs"
+                  >
+                    <span>{t.assignee_name ?? "Unassigned"}</span>
+                    <StatusBadge tone={priorityTone(t.priority)}>
+                      {t.priority}
+                    </StatusBadge>
+                  </div>
+                  <div
+                    class="text-base-content/70 flex justify-between text-xs"
+                  >
+                    <span>
+                      {t.due_date
+                        ? calendarDate(t.due_date, locale)
+                        : "No due date"}
+                      {#if t.is_overdue}
+                        <span class="text-error">· overdue</span>
+                      {/if}
+                    </span>
+                    {#if subtasks.length > 0}
+                      <span>
+                        {subtasks.filter((s2) => s2.status === "done")
+                          .length}/{subtasks.length}
+                        subtasks
+                      </span>
+                    {/if}
+                  </div>
+                  {@render statusControl(t)}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
@@ -274,6 +445,7 @@
         method="POST"
         action="?/addTask"
         class="mt-4 grid gap-4 sm:grid-cols-2"
+        use:enhance={closeOnSuccess(() => (addingTask = false))}
       >
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Name</legend>
@@ -285,6 +457,20 @@
             required
             autocomplete="off"
           />
+        </fieldset>
+
+        <fieldset class="fieldset sm:col-span-2">
+          <legend class="fieldset-legend">Parent task (optional)</legend>
+          <select
+            name="parent_task_id"
+            aria-invalid={err.aria("parent_task_id")}
+            class={`select w-full ${err.select("parent_task_id")}`}
+          >
+            <option value="">— Top-level task —</option>
+            {#each topLevelTasks as t (t.id)}
+              <option value={t.id}>{t.task_name}</option>
+            {/each}
+          </select>
         </fieldset>
 
         <fieldset class="fieldset">
@@ -416,6 +602,7 @@
         method="POST"
         action="?/updateProject"
         class="mt-4 grid gap-4 sm:grid-cols-2"
+        use:enhance={closeOnSuccess(() => (editing = false))}
       >
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Name</legend>
@@ -427,6 +614,25 @@
             required
             value={data.project.project_name}
           />
+        </fieldset>
+
+        <fieldset class="fieldset sm:col-span-2">
+          <legend class="fieldset-legend">Objective (optional)</legend>
+          <select
+            name="objective_id"
+            aria-invalid={err.aria("objective_id")}
+            class={`select w-full ${err.select("objective_id")}`}
+          >
+            <option value="">No objective</option>
+            {#each data.objectives as o (o.id)}
+              <option
+                value={o.id}
+                selected={o.id === data.project.objective_id}
+              >
+                {o.objective_name}
+              </option>
+            {/each}
+          </select>
         </fieldset>
 
         <fieldset class="fieldset">
@@ -553,6 +759,93 @@
       class="modal-backdrop"
       aria-label="Close"
       onclick={() => (editing = false)}
+    ></button>
+  </div>
+{/if}
+
+<!-- Manage a task's dependencies ------------------------------------------ -->
+{#if managingDependenciesTask}
+  {@const t = managingDependenciesTask}
+  {@const candidates = data.tasks.filter(
+    (o) => o.id !== t.id && !t.depends_on.some((d) => d.id === o.id),
+  )}
+  <div class="modal modal-open" role="dialog" aria-label="Manage dependencies">
+    <div class="modal-box max-w-md">
+      <h3 class="text-lg font-medium">Dependencies for {t.task_name}</h3>
+      <p class="text-base-content/70 mt-1 text-sm">
+        A task this one depends on must finish first — same project only. This
+        annotates the task; it never changes its status automatically.
+      </p>
+
+      {#if t.depends_on.length === 0}
+        <p class="text-base-content/70 mt-4 text-sm">Depends on nothing yet.</p>
+      {:else}
+        <ul class="mt-4 flex flex-col gap-2">
+          {#each t.depends_on as d (d.id)}
+            <li class="flex items-center justify-between gap-2 text-sm">
+              <span>
+                {d.task_number ?? d.task_name}
+                <StatusBadge tone={statusTone(d.status)}>
+                  {label(d.status)}
+                </StatusBadge>
+              </span>
+              {#if data.mayWrite}
+                <form
+                  method="POST"
+                  action="?/removeDependency"
+                  use:enhance={keepValues}
+                >
+                  <input type="hidden" name="task_id" value={t.id} />
+                  <input type="hidden" name="depends_on_task_id" value={d.id} />
+                  <button class="btn btn-ghost btn-xs" type="submit">
+                    Remove
+                  </button>
+                </form>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if data.mayWrite && candidates.length > 0}
+        <form
+          method="POST"
+          action="?/addDependency"
+          class="mt-4 flex items-end gap-2"
+          use:enhance={keepValues}
+        >
+          <input type="hidden" name="task_id" value={t.id} />
+          <fieldset class="fieldset grow">
+            <legend class="fieldset-legend">Add dependency</legend>
+            <select
+              name="depends_on_task_id"
+              aria-invalid={err.aria("depends_on_task_id")}
+              class={`select w-full ${err.select("depends_on_task_id")}`}
+              required
+            >
+              {#each candidates as c (c.id)}
+                <option value={c.id}>{c.task_number ?? c.task_name}</option>
+              {/each}
+            </select>
+          </fieldset>
+          <button type="submit" class="btn btn-outline">Add</button>
+        </form>
+      {/if}
+
+      <div class="modal-action">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={() => (managingDependenciesFor = null)}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (managingDependenciesFor = null)}
     ></button>
   </div>
 {/if}

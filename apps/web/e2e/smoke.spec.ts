@@ -31,6 +31,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/performance", heading: "Performance" },
   { path: "/onboarding", heading: "Onboarding" },
   { path: "/compensation", heading: "Compensation" },
+  { path: "/objectives", heading: "Objectives" },
   { path: "/projects", heading: "Projects" },
   { path: "/time-tracking", heading: "Time Tracking" },
   { path: "/payroll/runs", heading: "Pay Runs" },
@@ -193,4 +194,87 @@ test("the new tax rate form's Type select is actually populated", async ({
   await openModal(page, /new tax rate/i, 'select[name="tax_type"]')
   await expect(select.locator("option")).not.toHaveCount(0)
   await expect(select.locator("option").first()).toHaveText(/\S/)
+})
+
+// PRJ-001 "Acme ERP Integration" — T-001 done, T-002/T-003 open,
+// T-008 a real subtask of T-001 (docs/23-project-management-phase1.md).
+const ACME_ERP = "/projects/8257009f-6a91-5fd1-9efb-518198c08e2a"
+
+test("the Add-task Parent select only offers this project's own top-level tasks", async ({
+  page,
+}) => {
+  // The server-side backstop (a cross-project or two-level parent is
+  // refused) is covered in projects.writes.test.ts — this is the UI-only
+  // claim that the option list itself is scoped correctly, which nothing
+  // server-side can prove.
+  await page.goto(ACME_ERP)
+  await openModal(page, /add task/i, 'select[name="parent_task_id"]')
+
+  const optionTexts = await page
+    .locator('select[name="parent_task_id"] option')
+    .allTextContents()
+
+  expect(optionTexts).toContain("Discovery workshops")
+  expect(optionTexts).toContain("Data model mapping")
+  expect(optionTexts).toContain("Integration build")
+  // Never an existing subtask (would create a second level) …
+  expect(optionTexts).not.toContain("Write up discovery findings")
+  // … and never a task from a different project.
+  expect(optionTexts).not.toContain("Loyalty rules engine")
+})
+
+test("the Kanban board groups tasks by status, in order, and never gives a subtask its own card", async ({
+  page,
+}) => {
+  await page.goto(ACME_ERP)
+
+  // Same hydration race `openModal` guards against: the toggle's handler
+  // attaches on hydration, so a click that lands before it does nothing.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Kanban", exact: true }).click()
+    await expect(page.locator("p.uppercase").first()).toBeVisible({
+      timeout: 1_000,
+    })
+  }).toPass({ timeout: 15_000 })
+
+  const columnHeaders = page.locator("p.uppercase")
+  await expect(columnHeaders).toHaveCount(5)
+  const labels = ["todo", "in progress", "review", "blocked", "done"]
+  for (const [i, label] of labels.entries()) {
+    await expect(columnHeaders.nth(i)).toContainText(label)
+  }
+
+  const cardTitles = await page
+    .locator(".card-body p.text-sm.font-medium")
+    .allTextContents()
+  expect(cardTitles).toContain("Discovery workshops")
+  expect(cardTitles).toContain("Data model mapping")
+  expect(cardTitles).toContain("Integration build")
+  // The subtask never gets its own card — only its parent does.
+  expect(cardTitles).not.toContain("Write up discovery findings")
+
+  // The parent's card carries a subtask-progress badge instead.
+  await expect(page.getByText("0/1", { exact: false })).toBeVisible()
+})
+
+test("switching List ↔ Kanban is client-side only — no request fires either way", async ({
+  page,
+}) => {
+  await page.goto(ACME_ERP)
+  await page.waitForLoadState("networkidle")
+
+  let sawRequest = false
+  page.on("request", () => {
+    sawRequest = true
+  })
+
+  await page.getByRole("button", { name: "Kanban", exact: true }).click()
+  await expect(page.locator("p.uppercase").first()).toBeVisible()
+  await page.getByRole("button", { name: "List", exact: true }).click()
+  await expect(page.locator("table")).toBeVisible()
+
+  // No single event to await the absence of — give a stray request a real
+  // chance to appear before concluding there wasn't one.
+  await page.waitForTimeout(300)
+  expect(sawRequest).toBe(false)
 })

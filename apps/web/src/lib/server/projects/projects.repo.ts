@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import * as objectives from "../objectives/objectives.repo"
 
 /**
  * projects + tasks — money is a string and sums happen in SQL. `task_count`
@@ -7,6 +8,14 @@ import type { Tx } from "../db/tenant"
  *
  * No row-visibility policy — a project is firm business, every employee may
  * see the board. `client_visible` is a different boundary; see `clientVisibleOnly`.
+ *
+ * Phase 1 additions (docs/23-project-management-phase1.md): a project may
+ * belong to one objective (`objective_id`), whose rollup is refreshed here,
+ * in the same transaction, whenever a project write could change it — same
+ * discipline as `refreshTaskCounters` below. A task may have one subtask
+ * level (`parent_task_id`/`depth_level`) and same-project dependencies
+ * (`depends_on_task_ids`, with `blocks_task_ids` its recomputed reverse
+ * index — see `refreshDependencyIndex`).
  */
 
 export type ProjectRow = {
@@ -37,6 +46,8 @@ export type ProjectRow = {
   manager_name: string | null
   is_billable: boolean | null
   overdue_task_count: number
+  objective_id: string | null
+  objective_name: string | null
 }
 
 const SELECT = `
@@ -56,6 +67,8 @@ const SELECT = `
          c.client_name,
          m.first_name || ' ' || m.last_name AS manager_name,
          p.is_billable,
+         p.objective_id::text AS objective_id,
+         o.objective_name,
          (SELECT count(*)::int FROM tasks t WHERE t.project_id = p.id)
            AS actual_task_count,
          (SELECT count(*)::int FROM tasks t
@@ -68,8 +81,9 @@ const SELECT = `
              AND t.status <> 'done')
            AS overdue_task_count
     FROM projects p
-    LEFT JOIN clients c   ON c.id = p.client_id
-    LEFT JOIN employees m ON m.id = p.project_manager_id
+    LEFT JOIN clients c        ON c.id = p.client_id
+    LEFT JOIN employees m      ON m.id = p.project_manager_id
+    LEFT JOIN pm_objectives o  ON o.id = p.objective_id
 `
 
 /**
@@ -95,10 +109,13 @@ const LIST_SELECT = `
          to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
          c.client_name,
          m.first_name || ' ' || m.last_name AS manager_name,
-         p.is_billable
+         p.is_billable,
+         p.objective_id::text AS objective_id,
+         o.objective_name
     FROM projects p
-    LEFT JOIN clients c   ON c.id = p.client_id
-    LEFT JOIN employees m ON m.id = p.project_manager_id
+    LEFT JOIN clients c        ON c.id = p.client_id
+    LEFT JOIN employees m      ON m.id = p.project_manager_id
+    LEFT JOIN pm_objectives o  ON o.id = p.objective_id
 `
 
 /** `actual_task_count`/`actual_completed_count`/`overdue_task_count` for a set of projects, in one query — see `LIST_SELECT`. */
@@ -201,6 +218,13 @@ export async function staleCounters(
   ` as never
 }
 
+export type TaskLink = {
+  id: string
+  task_number: string | null
+  task_name: string
+  status: string
+}
+
 export type TaskRow = {
   id: string
   task_number: string | null
@@ -215,6 +239,12 @@ export type TaskRow = {
   progress_percentage: string | null
   is_billable: boolean | null
   is_overdue: boolean
+  parent_task_id: string | null
+  depth_level: number
+  /** What this task depends on — an incomplete one renders as "Blocked by" (annotation only, never writes `status`). */
+  depends_on: TaskLink[]
+  /** What depends on this task — the recomputed reverse index, see `refreshDependencyIndex`. */
+  blocks: TaskLink[]
 }
 
 /**
@@ -237,13 +267,44 @@ export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
            t.progress_percentage::text AS progress_percentage,
            t.is_billable,
            -- Decided against the DATABASE's date, not the viewer's clock.
-           (t.due_date < CURRENT_DATE AND t.status <> 'done') AS is_overdue
+           (t.due_date < CURRENT_DATE AND t.status <> 'done') AS is_overdue,
+           t.parent_task_id::text AS parent_task_id,
+           t.depth_level,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object(
+                      'id', d.id, 'task_number', d.task_number,
+                      'task_name', d.task_name, 'status', d.status
+                    ) ORDER BY d.task_number)
+               FROM tasks d
+              WHERE d.id::text IN (
+                      SELECT jsonb_array_elements_text(t.depends_on_task_ids)
+                    )
+           ), '[]'::jsonb) AS depends_on,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object(
+                      'id', b.id, 'task_number', b.task_number,
+                      'task_name', b.task_name, 'status', b.status
+                    ) ORDER BY b.task_number)
+               FROM tasks b
+              WHERE b.id::text IN (
+                      SELECT jsonb_array_elements_text(t.blocks_task_ids)
+                    )
+           ), '[]'::jsonb) AS blocks
       FROM tasks t
       -- assigned_to is TEXT with no FK; cast employees.id to text (not the
       -- reverse) so a malformed value just matches nothing instead of raising.
       LEFT JOIN employees e ON e.id::text = t.assigned_to
+      -- A subtask's PRIMARY sort key is its parent's own key, so it sorts
+      -- adjacent to it without disturbing the existing top-level ordering
+      -- (for a top-level task, pt is NULL and COALESCE falls back to its
+      -- own values — unchanged from before subtasks existed).
+      LEFT JOIN tasks pt ON pt.id = t.parent_task_id
      WHERE t.project_id = ${projectId}::uuid
-     ORDER BY t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number
+     ORDER BY COALESCE(pt.board_position, t.board_position) NULLS LAST,
+              COALESCE(pt.due_date, t.due_date) NULLS LAST,
+              COALESCE(pt.task_number, t.task_number),
+              t.depth_level,
+              t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number
      LIMIT ${BOARD_TASK_CAP}
   `
 }
@@ -312,7 +373,16 @@ export const PROJECT_PRIORITIES = ["low", "medium", "high", "urgent"] as const
 export class ProjectWriteRefused extends Error {
   constructor(
     readonly reason:
-      "no_such_project" | "no_such_task" | "number_taken" | "unknown_status",
+      | "no_such_project"
+      | "no_such_task"
+      | "number_taken"
+      | "unknown_status"
+      | "invalid_parent"
+      | "no_such_dependency"
+      | "cross_project_dependency"
+      | "self_dependency"
+      | "dependency_cycle"
+      | "no_such_objective",
   ) {
     super(reason)
     this.name = "ProjectWriteRefused"
@@ -371,9 +441,16 @@ export type NewTask = {
   estimated_hours: string | null
   is_billable: boolean
   description: string | null
+  /** A subtask's parent — must be a top-level (`depth_level = 0`) task in the SAME project. */
+  parent_task_id?: string | null
 }
 
-/** Add a task to a project, and keep the project's counters true. `created_at`/`updated_at` have no DEFAULT — must be set explicitly. */
+/**
+ * Add a task to a project, and keep the project's counters true.
+ * `created_at`/`updated_at` have no DEFAULT — must be set explicitly.
+ * `depth_level` is computed here, never taken from the caller — see
+ * `tasks_depth_matches_parent` (docs/23-project-management-phase1.md).
+ */
 export async function createTask(
   tx: Tx,
   tenantId: string,
@@ -385,19 +462,37 @@ export async function createTask(
   `
   if (!project) throw new ProjectWriteRefused("no_such_project")
 
+  const parentId = input.parent_task_id || null
+  let depthLevel = 0
+  if (parentId) {
+    const [parent] = await tx<{ depth_level: number }[]>`
+      SELECT depth_level FROM tasks
+       WHERE id = ${parentId}::uuid AND project_id = ${input.project_id}::uuid
+    `
+    // Not found, in a different project, or itself already a subtask —
+    // a subtask cannot have a subtask (one level deep, enforced again by
+    // the CHECK below as the backstop for a direct POST).
+    if (!parent || parent.depth_level !== 0) {
+      throw new ProjectWriteRefused("invalid_parent")
+    }
+    depthLevel = 1
+  }
+
   const number = await nextNumber(tx, "tasks", "T")
   const done = input.status === "done"
 
   try {
     const [row] = await tx<{ id: string; task_number: string }[]>`
       INSERT INTO tasks (
-        tenant_id, task_id, task_number, project_id, task_name, description,
+        tenant_id, task_id, task_number, project_id, parent_task_id, depth_level,
+        task_name, description,
         status, priority, assigned_to, start_date, due_date,
         estimated_hours, is_billable, progress_percentage,
         completed_date, completed_at,
         created_at, updated_at, created_by
       ) VALUES (
         ${tenantId}::uuid, ${number}, ${number}, ${input.project_id}::uuid,
+        ${parentId}::uuid, ${depthLevel},
         ${input.task_name}, ${input.description},
         ${input.status}, ${input.priority}, ${input.assigned_to},
         ${input.start_date}::date, ${input.due_date}::date,
@@ -453,6 +548,109 @@ export async function setTaskStatus(
   }
 }
 
+/**
+ * `blocks_task_ids` is never written directly — it's the reverse index of
+ * every task in the project whose `depends_on_task_ids` names this one,
+ * recomputed for the WHOLE project in one statement (never a loop) whenever
+ * an edge changes anywhere in it. Same "recompute, don't increment"
+ * discipline as `refreshTaskCounters`, applied to a derived array instead of
+ * a number.
+ */
+async function refreshDependencyIndex(tx: Tx, projectId: string) {
+  await tx`
+    UPDATE tasks t SET blocks_task_ids = COALESCE(
+      (SELECT jsonb_agg(o.id::text) FROM tasks o
+        WHERE o.project_id = t.project_id
+          AND o.depends_on_task_ids @> to_jsonb(t.id::text)),
+      '[]'::jsonb
+    )
+    WHERE t.project_id = ${projectId}::uuid
+  `
+}
+
+/**
+ * Add "taskId depends on dependsOnId" — same project only (Phase 1; a
+ * cross-project dependency is Monday.com's "Connect Boards" column, part of
+ * the typed-column system this phase defers). Refused on: a missing task, a
+ * different project, depending on itself (the CHECK is the backstop), or a
+ * cycle — checked with one recursive CTE that walks the graph FORWARD from
+ * `dependsOnId` along existing edges: if it can already reach `taskId`,
+ * `dependsOnId` transitively depends on `taskId`, and adding this edge would
+ * close the loop.
+ */
+export async function addDependency(
+  tx: Tx,
+  taskId: string,
+  dependsOnId: string,
+  actorId: string,
+) {
+  if (taskId === dependsOnId) throw new ProjectWriteRefused("self_dependency")
+
+  const [[task], [dependsOn]] = await Promise.all([
+    tx<{ project_id: string; depends_on_task_ids: string[] }[]>`
+      SELECT project_id, depends_on_task_ids FROM tasks WHERE id = ${taskId}::uuid
+    `,
+    tx<{ project_id: string }[]>`
+      SELECT project_id FROM tasks WHERE id = ${dependsOnId}::uuid
+    `,
+  ])
+  if (!task || !dependsOn) throw new ProjectWriteRefused("no_such_dependency")
+  if (task.project_id !== dependsOn.project_id) {
+    throw new ProjectWriteRefused("cross_project_dependency")
+  }
+
+  const [{ cycle }] = await tx<{ cycle: boolean }[]>`
+    WITH RECURSIVE reachable(id) AS (
+      SELECT ${dependsOnId}::uuid
+      UNION
+      SELECT jsonb_array_elements_text(t.depends_on_task_ids)::uuid
+        FROM tasks t
+        JOIN reachable r ON t.id = r.id
+       WHERE t.project_id = ${task.project_id}::uuid
+    )
+    SELECT EXISTS (SELECT 1 FROM reachable WHERE id = ${taskId}::uuid) AS cycle
+  `
+  if (cycle) throw new ProjectWriteRefused("dependency_cycle")
+
+  const nextEdges = Array.from(
+    new Set([...(task.depends_on_task_ids ?? []), dependsOnId]),
+  )
+  await tx`
+    UPDATE tasks
+       SET depends_on_task_ids = ${tx.json(nextEdges as never)},
+           updated_at          = now(),
+           updated_by          = ${actorId}
+     WHERE id = ${taskId}::uuid
+  `
+  await refreshDependencyIndex(tx, task.project_id)
+}
+
+export async function removeDependency(
+  tx: Tx,
+  taskId: string,
+  dependsOnId: string,
+  actorId: string,
+) {
+  const [task] = await tx<
+    { project_id: string; depends_on_task_ids: string[] }[]
+  >`
+    SELECT project_id, depends_on_task_ids FROM tasks WHERE id = ${taskId}::uuid
+  `
+  if (!task) throw new ProjectWriteRefused("no_such_task")
+
+  const nextEdges = (task.depends_on_task_ids ?? []).filter(
+    (id) => id !== dependsOnId,
+  )
+  await tx`
+    UPDATE tasks
+       SET depends_on_task_ids = ${tx.json(nextEdges as never)},
+           updated_at          = now(),
+           updated_by          = ${actorId}
+     WHERE id = ${taskId}::uuid
+  `
+  await refreshDependencyIndex(tx, task.project_id)
+}
+
 export type NewProject = {
   project_name: string
   client_id: string | null
@@ -468,6 +666,15 @@ export type NewProject = {
   is_billable: boolean
   hourly_rate: string | null
   description: string | null
+  objective_id: string | null
+}
+
+async function assertObjectiveExists(tx: Tx, objectiveId: string | null) {
+  if (!objectiveId) return
+  const [row] = await tx<{ id: string }[]>`
+    SELECT id FROM pm_objectives WHERE id = ${objectiveId}::uuid
+  `
+  if (!row) throw new ProjectWriteRefused("no_such_objective")
 }
 
 /** Create a project. `budget`/`hourly_rate` arrive as strings, cast in SQL. Counters start at 0; only `refreshTaskCounters` writes them after. */
@@ -477,12 +684,13 @@ export async function createProject(
   input: NewProject,
   actorId: string,
 ): Promise<{ id: string; project_number: string }> {
+  await assertObjectiveExists(tx, input.objective_id)
   const number = await nextNumber(tx, "projects", "PRJ")
   try {
     const [row] = await tx<{ id: string; project_number: string }[]>`
       INSERT INTO projects (
         tenant_id, project_id, project_number, project_name, description,
-        client_id, project_manager_id,
+        client_id, project_manager_id, objective_id,
         status, priority, health_status,
         start_date, target_end_date,
         budget, currency, estimated_hours, is_billable, hourly_rate,
@@ -492,6 +700,7 @@ export async function createProject(
         ${tenantId}::uuid, ${number}, ${number}, ${input.project_name},
         ${input.description},
         ${input.client_id}::uuid, ${input.project_manager_id}::uuid,
+        ${input.objective_id}::uuid,
         ${input.status}, ${input.priority}, ${input.health_status},
         ${input.start_date}::date, ${input.target_end_date}::date,
         ${input.budget}::numeric, ${input.currency},
@@ -502,6 +711,9 @@ export async function createProject(
       )
       RETURNING id, project_number
     `
+    // The objective this project just joined may have a rollup to update
+    // even on its very first project (0 -> 1 changes progress_percentage).
+    await objectives.refreshRollup(tx, input.objective_id)
     return row
   } catch (e) {
     if (isUniqueViolation(e)) throw new ProjectWriteRefused("number_taken")
@@ -520,6 +732,7 @@ export type ProjectEdit = {
   currency: string
   is_billable: boolean
   hourly_rate: string | null
+  objective_id: string | null
 }
 
 /** Update a project, returning what the audited fields WERE — read inside this transaction, not by the caller beforehand, to avoid a race. */
@@ -529,13 +742,15 @@ export async function updateProject(
   input: ProjectEdit,
   actorId: string,
 ): Promise<ProjectEdit> {
+  await assertObjectiveExists(tx, input.objective_id)
   const [before] = await tx<ProjectEdit[]>`
     SELECT project_name, status, priority, health_status,
            to_char(target_end_date,'YYYY-MM-DD') AS target_end_date,
            budget::text      AS budget,
            currency,
            is_billable,
-           hourly_rate::text AS hourly_rate
+           hourly_rate::text AS hourly_rate,
+           objective_id::text AS objective_id
       FROM projects WHERE id = ${id}::uuid
   `
   if (!before) throw new ProjectWriteRefused("no_such_project")
@@ -551,10 +766,20 @@ export async function updateProject(
            currency        = ${input.currency},
            is_billable     = ${input.is_billable},
            hourly_rate     = ${input.hourly_rate}::numeric,
+           objective_id    = ${input.objective_id}::uuid,
            updated_at      = now(),
            updated_by      = ${actorId}
      WHERE id = ${id}::uuid
   `
+
+  // Refresh both sides of a move — the objective this project left, and the
+  // one it joined, since either rollup can change (L58: recomputed, not
+  // incremented). A no-op when they're the same objective or both null.
+  if (before.objective_id !== input.objective_id) {
+    await objectives.refreshRollup(tx, before.objective_id)
+  }
+  await objectives.refreshRollup(tx, input.objective_id)
+
   return before
 }
 

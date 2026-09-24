@@ -373,6 +373,7 @@ pm_task_comments	fk_pm_task_comments_task_id	f	FOREIGN KEY (task_id) REFERENCES 
 pm_task_comments	pm_task_comments_pkey	p	PRIMARY KEY (id)
 pm_task_comments	pm_task_comments_tenant_id_comment_id_key	u	UNIQUE (tenant_id, comment_id)
 pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+projects	fk_projects_objective_id	f	FOREIGN KEY (objective_id) REFERENCES pm_objectives(id) ON DELETE SET NULL
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
@@ -380,6 +381,9 @@ recurring_schedules	recurring_schedules_anchor_day_check	c	CHECK (((anchor_day >
 recurring_schedules	recurring_schedules_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 recurring_schedules	recurring_schedules_pkey	p	PRIMARY KEY (id)
 recurring_schedules	recurring_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+tasks	fk_tasks_parent_task_id	f	FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+tasks	no_self_dependency	c	CHECK ((NOT (depends_on_task_ids @> to_jsonb((id)::text))))
+tasks	tasks_depth_matches_parent	c	CHECK ((((parent_task_id IS NULL) AND (depth_level = 0)) OR ((parent_task_id IS NOT NULL) AND (depth_level = 1))))
 tasks	tasks_pkey	p	PRIMARY KEY (id)
 tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)

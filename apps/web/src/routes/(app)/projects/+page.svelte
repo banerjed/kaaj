@@ -106,6 +106,16 @@
                 <p class="text-base-content/70 truncate text-xs">
                   {p.project_number}{p.client_name ? ` · ${p.client_name}` : ""}
                 </p>
+                {#if p.objective_name}
+                  <a
+                    class="link link-hover text-base-content/70 text-xs"
+                    href={`/objectives/${p.objective_id}`}
+                  >
+                    <span class="iconify lucide--target size-3 align-[-1px]"
+                    ></span>
+                    {p.objective_name}
+                  </a>
+                {/if}
               </div>
               <div class="flex shrink-0 gap-1">
                 <StatusBadge tone={healthTone(p.health_status)}>
@@ -227,6 +237,20 @@
             <option value="">Unassigned</option>
             {#each data.managers as m (m.id)}
               <option value={m.id}>{m.name}</option>
+            {/each}
+          </select>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Objective (optional)</legend>
+          <select
+            name="objective_id"
+            aria-invalid={err.aria("objective_id")}
+            class={`select w-full ${err.select("objective_id")}`}
+          >
+            <option value="">No objective</option>
+            {#each data.objectives as o (o.id)}
+              <option value={o.id}>{o.objective_name}</option>
             {/each}
           </select>
         </fieldset>

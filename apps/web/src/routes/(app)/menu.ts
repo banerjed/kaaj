@@ -101,6 +101,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
     label: "Business Operations",
   },
   {
+    id: "objectives",
+    icon: "lucide--target",
+    label: "Objectives",
+    url: "/objectives",
+  },
+  {
     id: "projects",
     icon: "lucide--folder-kanban",
     label: "Projects",

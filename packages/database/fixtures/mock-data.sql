@@ -275,6 +275,14 @@ INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, task_name, s
     ('d144cb33-1f61-5317-993c-074c63e6716e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'T-006', 'T-006', 'f606af3e-f56f-5050-b663-02471b9f9dbd', 'Legacy extract', 'in_progress', 'medium', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 90, 31, 40.0, TRUE, '2026-03-02', '{"client_billable": true}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('4f6dba03-79a9-5486-8d78-dab75767d59e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'T-007', 'T-007', '1da967fa-e086-53c7-b9d1-7605759dfda3', 'CI pipeline', 'todo', 'medium', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 60, 0, 0.0, TRUE, '2026-03-02', '{"client_billable": true}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
+-- A real subtask, one level under T-001 (docs/23-project-management-phase1.md)
+-- — write up the findings from the discovery workshops T-001 already
+-- completed. `parent_task_id`/`depth_level` set directly, not via the
+-- generic self-reference sweep, so both columns carry a value that actually
+-- means something.
+INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, parent_task_id, depth_level, task_name, status, priority, assigned_to, estimated_hours, actual_hours, progress_percentage, is_billable, due_date, custom_fields, created_at, updated_at, created_by) VALUES
+    ('a19f5b3e-2b7a-5c3e-9a0d-7e6f4c2b1a90', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'T-008', 'T-008', '8257009f-6a91-5fd1-9efb-518198c08e2a', '48961ce2-d17a-5ebe-81db-f608b4b6b125', 1, 'Write up discovery findings', 'todo', 'low', '11f31511-ad53-59c7-9e90-8ee3b553489b', 8, 0, 0.0, TRUE, '2026-03-05', '{"client_billable": true}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
 -- RESTORED table: effective-dated rates. January work must bill at January rates.
 INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, client_id, cost_rate, billable_rate, currency, effective_from, effective_to, change_reason, is_active, created_by) VALUES
     ('eac68c02-7b6f-5f53-9a11-86a4cf292524', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', 95, 205, 'USD', '2025-01-01', '2025-12-31', 'initial_rate_card', FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
@@ -2273,6 +2281,27 @@ UPDATE tasks SET role_required = 'Role Required 1' WHERE role_required IS NULL O
 UPDATE tasks SET start_date = '2026-03-01' WHERE start_date IS NULL;
 UPDATE tasks SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
 UPDATE tasks SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
+
+-- Overriding the sweep above: `depends_on_task_ids`/`blocks_task_ids` need
+-- real task ids, not the placeholder '["standard"]' string, for anything
+-- that actually reads them as a dependency graph — L90's pattern a fourth
+-- time (docs/10-lessons-learned.md), caught before it shipped rather than
+-- after. A real two-edge chain: T-002 and T-003 both depend on the already-
+-- completed T-001 (discovery has to happen before mapping or integration).
+-- `blocks_task_ids` is never hand-written — it is the reverse index of
+-- `depends_on_task_ids`, recomputed exactly the way the application code
+-- recomputes it (objectives.repo.ts / projects.repo.ts's
+-- `refreshDependents`), so the fixture cannot drift from what a real write
+-- would produce.
+UPDATE tasks SET depends_on_task_ids = jsonb_build_array('48961ce2-d17a-5ebe-81db-f608b4b6b125'::text)
+ WHERE id IN ('864cc09e-6b7e-58b4-a2e2-04233fbfea70', '6d029a3a-8887-50a7-85b0-9e22408bdf61');
+UPDATE tasks SET depends_on_task_ids = '[]'::jsonb
+ WHERE id NOT IN ('864cc09e-6b7e-58b4-a2e2-04233fbfea70', '6d029a3a-8887-50a7-85b0-9e22408bdf61');
+UPDATE tasks t SET blocks_task_ids = COALESCE(
+    (SELECT jsonb_agg(o.id::text) FROM tasks o
+      WHERE o.project_id = t.project_id AND o.depends_on_task_ids @> to_jsonb(t.id::text)),
+    '[]'::jsonb
+  );
 UPDATE tenant_settings SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
 UPDATE tenant_users SET invited_at = '2026-03-01T09:00:00Z' WHERE invited_at IS NULL;
 UPDATE tenants SET address_line1 = 'Address Line1 1' WHERE address_line1 IS NULL OR address_line1 = '';
@@ -2376,9 +2405,9 @@ UPDATE projects p SET parent_project_id =
   (SELECT id FROM projects o WHERE o.id <> p.id ORDER BY o.id LIMIT 1)
  WHERE p.id = (SELECT id FROM projects ORDER BY id DESC LIMIT 1);
 
-UPDATE tasks t SET parent_task_id =
-  (SELECT id FROM tasks o WHERE o.id <> t.id ORDER BY o.id LIMIT 1)
- WHERE t.id = (SELECT id FROM tasks ORDER BY id DESC LIMIT 1);
+-- parent_task_id is no longer filled by this generic sweep — T-008's INSERT
+-- above sets it (and depth_level) explicitly, to a real subtask relationship
+-- rather than an arbitrary self-reference (docs/23-project-management-phase1.md).
 
 UPDATE tasks t SET recurrence_parent_id =
   (SELECT id FROM tasks o WHERE o.id <> t.id ORDER BY o.id LIMIT 1)
