@@ -94,6 +94,14 @@ const CANNOT_BE_TRIPPED = new Map([
     "FormReader's decimal(rate, { min: 0 }) already refuses a negative rate before this is reached",
   ],
   [
+    "recurring_schedules_anchor_day_check",
+    "anchor_day is never a form field — createRecurringSchedule derives it in SQL with extract(day FROM nextRunDate::date), which can only ever produce 1-31",
+  ],
+  [
+    "amortization_schedules_anchor_day_check",
+    "anchor_day is never a form field — createAmortizationSchedule derives it in SQL with extract(day FROM nextRunDate::date), which can only ever produce 1-31",
+  ],
+  [
     "tax_rates_tax_collected_account_id_fkey",
     "never set by the create form — both account links are configured elsewhere (fixture-seeded today), not by this action",
   ],

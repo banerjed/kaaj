@@ -1616,17 +1616,17 @@ describe("recurring invoice schedules (US-ACC-004)", () => {
       expect(generated).toEqual([])
     })
 
-    it("drifts off month-end permanently once a monthly schedule crosses February", async () => {
+    it("clamps at a short month but recovers to anchor_day once a longer month follows (L99)", async () => {
       // Postgres CLAMPS date + interval rather than overflowing: Jan 31 + 1
-      // month is Feb 28, not Mar 3 — and the schedule then advances from
-      // Feb 28, so it never returns to the 31st. A known, documented
-      // limitation (module-accounting.md's US-ACC-004 status block), not a
-      // bug to fix here — an anchor-day column would be the fix, and is
-      // scope this feature doesn't need yet.
+      // month is Feb 28, not an overflow into March. The old formula then
+      // advanced from Feb 28 itself and never returned to the 31st.
+      // anchor_day (set here to 31, independent of next_run_date) is what
+      // lets the second advance recover: it recomputes March's own target
+      // day from the anchor, not from February's already-clamped value.
       const dates = await inRollback(async (tx) => {
         await tx`
           UPDATE recurring_schedules
-             SET next_run_date = '2026-01-31'
+             SET next_run_date = '2026-01-31', anchor_day = 31
            WHERE id = ${SCHEDULE}::uuid
         `
         const first = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
@@ -1644,7 +1644,7 @@ describe("recurring invoice schedules (US-ACC-004)", () => {
       expect(dates.first).toHaveLength(1)
       expect(dates.afterFirst).toBe("2026-02-28")
       expect(dates.second).toHaveLength(1)
-      expect(dates.afterSecond).toBe("2026-03-28")
+      expect(dates.afterSecond).toBe("2026-03-31")
     })
 
     it("refuses, naming the customer, when its schedule's tax-bearing lines hit a now-exempt customer", async () => {

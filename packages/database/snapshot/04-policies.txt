@@ -176,12 +176,14 @@ invoices	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS re
 invoices	accounting_update	UPDATE	public	( SELECT app.writes_accounting() AS writes_accounting)	( SELECT app.writes_accounting() AS writes_accounting)
 invoices	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 jobs	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
-journal_entries	accounting_delete	DELETE	public	( SELECT app.writes_accounting() AS writes_accounting)	
+journal_entries	accounting_delete	DELETE	public	(( SELECT app.writes_accounting() AS writes_accounting) AND ((status)::text <> 'posted'::text))	
 journal_entries	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS writes_accounting)
 journal_entries	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS reads_all_accounting)	
 journal_entries	accounting_update	UPDATE	public	(( SELECT app.writes_accounting() AS writes_accounting) AND ((status)::text <> 'posted'::text))	(( SELECT app.writes_accounting() AS writes_accounting) AND ((status)::text <> 'posted'::text))
 journal_entries	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
-journal_entry_lines	accounting_delete	DELETE	public	( SELECT app.writes_accounting() AS writes_accounting)	
+journal_entry_lines	accounting_delete	DELETE	public	(( SELECT app.writes_accounting() AS writes_accounting) AND (EXISTS ( SELECT 1
+   FROM journal_entries e
+  WHERE ((e.id = journal_entry_lines.entry_id) AND ((e.status)::text <> 'posted'::text)))))	
 journal_entry_lines	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS writes_accounting)
 journal_entry_lines	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS reads_all_accounting)	
 journal_entry_lines	accounting_update	UPDATE	public	(( SELECT app.writes_accounting() AS writes_accounting) AND (EXISTS ( SELECT 1

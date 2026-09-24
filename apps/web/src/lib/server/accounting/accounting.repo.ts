@@ -3529,11 +3529,12 @@ export async function createRecurringSchedule(
 
   const [row] = await tx<{ id: string }[]>`
     INSERT INTO recurring_schedules (
-      tenant_id, customer_id, frequency, next_run_date, due_in_days,
+      tenant_id, customer_id, frequency, next_run_date, anchor_day, due_in_days,
       exchange_rate, payment_terms, notes, template_lines, is_active, created_by
     ) VALUES (
       ${tenantId}::uuid, ${input.customerId}::uuid, ${input.frequency},
-      ${input.nextRunDate}::date, ${input.dueInDays}, ${input.exchangeRate}::numeric,
+      ${input.nextRunDate}::date, extract(day FROM ${input.nextRunDate}::date),
+      ${input.dueInDays}, ${input.exchangeRate}::numeric,
       ${input.paymentTerms}, ${input.notes},
       ${tx.json(input.lines as never)}, true, ${actorId}::uuid
     )
@@ -3660,16 +3661,40 @@ export async function generateDueInvoices(
     // One batched advance for every schedule actually processed, not a
     // per-row UPDATE inside the loop above (SCALE_SENSITIVE-loop discipline
     // even though this table is not scale-sensitive — a habit worth keeping).
+    //
+    // Advances from anchor_day, never from next_run_date's own day (L98's
+    // sibling finding, docs/10-lessons-learned.md): `next_run_date +
+    // interval '1 month'` clamps Jan 31 to Feb 28, and compounding that
+    // formula every period never recovers to 31 even in a month that has
+    // one. `target_month_start` is always the first of the TARGET month
+    // (arithmetic on day 1 never overflows), and the final day is
+    // `LEAST(anchor_day, days in that month)` — clamped only when the
+    // target month is actually short, recomputed fresh from the real
+    // anchor every time rather than from whatever the last clamp left.
     await tx`
-      UPDATE recurring_schedules
-         SET next_run_date = (next_run_date + CASE frequency
-               WHEN 'weekly' THEN interval '1 week'
-               WHEN 'monthly' THEN interval '1 month'
-               WHEN 'quarterly' THEN interval '3 months'
-               WHEN 'annual' THEN interval '1 year'
-             END)::date,
+      WITH advanced AS (
+        SELECT id, frequency, anchor_day,
+               (date_trunc('month', next_run_date) + CASE frequency
+                  WHEN 'monthly' THEN interval '1 month'
+                  WHEN 'quarterly' THEN interval '3 months'
+                  WHEN 'annual' THEN interval '1 year'
+                  ELSE interval '0'
+                END) AS target_month_start,
+               next_run_date
+          FROM recurring_schedules
+         WHERE id = ANY(${results.map((r) => r.scheduleId)}::uuid[])
+      )
+      UPDATE recurring_schedules r
+         SET next_run_date = CASE a.frequency
+               WHEN 'weekly' THEN (a.next_run_date + interval '1 week')::date
+               ELSE (a.target_month_start + (LEAST(
+                       a.anchor_day,
+                       extract(day FROM (a.target_month_start + interval '1 month' - interval '1 day'))::int
+                     ) - 1) * interval '1 day')::date
+             END,
              updated_at = now(), updated_by = ${actorId}::uuid
-       WHERE id = ANY(${results.map((r) => r.scheduleId)}::uuid[])
+        FROM advanced a
+       WHERE r.id = a.id
     `
   }
 
@@ -4033,13 +4058,14 @@ export async function createAmortizationSchedule(
   const [row] = await tx<{ id: string }[]>`
     INSERT INTO amortization_schedules (
       tenant_id, kind, balance_sheet_account_id, income_statement_account_id,
-      total_amount, periods_total, next_run_date, description, reference,
-      created_by
+      total_amount, periods_total, next_run_date, anchor_day, description,
+      reference, created_by
     ) VALUES (
       ${tenantId}::uuid, ${input.kind},
       ${input.balanceSheetAccountId}::uuid, ${input.incomeStatementAccountId}::uuid,
       ${input.totalAmount}::numeric, ${input.periodsTotal},
-      ${input.nextRunDate}::date, ${input.description}, ${input.reference},
+      ${input.nextRunDate}::date, extract(day FROM ${input.nextRunDate}::date),
+      ${input.description}, ${input.reference},
       ${actorId}::uuid
     )
     RETURNING id
@@ -4164,9 +4190,18 @@ export async function postDueAmortizations(
   }
 
   if (results.length > 0) {
+    // Advances from anchor_day, not from next_run_date's own day — see the
+    // matching comment on recurring_schedules' advance in
+    // generateDueInvoices for why (L98, docs/10-lessons-learned.md).
     await tx`
       UPDATE amortization_schedules
-         SET next_run_date = (next_run_date + interval '1 month')::date,
+         SET next_run_date = (
+               (date_trunc('month', next_run_date) + interval '1 month')
+               + (LEAST(
+                   anchor_day,
+                   extract(day FROM (date_trunc('month', next_run_date) + interval '2 months' - interval '1 day'))::int
+                 ) - 1) * interval '1 day'
+             )::date,
              updated_at = now(), updated_by = ${actorId}::uuid
        WHERE id = ANY(${results.map((r) => r.scheduleId)}::uuid[])
     `

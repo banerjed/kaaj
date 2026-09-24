@@ -25,6 +25,7 @@ amortization_schedules	11	created_at	timestamp with time zone	f	CURRENT_TIMESTAM
 amortization_schedules	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 amortization_schedules	13	created_by	uuid	f	
 amortization_schedules	14	updated_by	uuid	f	
+amortization_schedules	15	anchor_day	smallint	t	
 audit_log	1	id	bigint	t	
 audit_log	2	tenant_id	uuid	t	
 audit_log	3	actor_user_id	uuid	f	
@@ -1889,6 +1890,7 @@ recurring_schedules	12	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 recurring_schedules	13	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 recurring_schedules	14	created_by	uuid	f	
 recurring_schedules	15	updated_by	uuid	f	
+recurring_schedules	16	anchor_day	smallint	t	
 tasks	1	id	uuid	t	gen_random_uuid()
 tasks	2	tenant_id	uuid	t	
 tasks	3	task_id	text	f	

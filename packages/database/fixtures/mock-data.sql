@@ -687,9 +687,9 @@ SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', t.id, v.label, v.url, v.ord::int,
 -- next_run_date fixed in the past (2026-09-01), same reasoning as the
 -- recurring-invoice schedule above — genuinely due, and stays due for a
 -- long time rather than going stale the day after this was written.
-INSERT INTO amortization_schedules (id, tenant_id, kind, balance_sheet_account_id, income_statement_account_id, total_amount, periods_total, next_run_date, description, reference, created_at, updated_at, created_by, updated_by) VALUES
-    ('5587c31c-0af5-491d-a7b0-90bbd85bcc4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'deferred_revenue', '83f308bc-9c29-45ad-a54a-e62965935e86', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 12000.00, 12, '2026-09-01', 'Annual support contract - Acme Manufacturing', 'DEFREV-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('eb1956cf-071a-4bf4-965a-18f706670bba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'prepaid_expense', 'ddfd486d-99db-4491-8880-7ff5ee7fd1d4', '030e294b-88ad-544e-841a-cfda187885ac', 6000.00, 12, '2026-09-01', 'Annual JetBrains license prepayment', 'PREPAID-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+INSERT INTO amortization_schedules (id, tenant_id, kind, balance_sheet_account_id, income_statement_account_id, total_amount, periods_total, next_run_date, anchor_day, description, reference, created_at, updated_at, created_by, updated_by) VALUES
+    ('5587c31c-0af5-491d-a7b0-90bbd85bcc4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'deferred_revenue', '83f308bc-9c29-45ad-a54a-e62965935e86', '6d1ef213-cb96-5ad4-beaf-1d4e07242d65', 12000.00, 12, '2026-09-01', 1, 'Annual support contract - Acme Manufacturing', 'DEFREV-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('eb1956cf-071a-4bf4-965a-18f706670bba', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'prepaid_expense', 'ddfd486d-99db-4491-8880-7ff5ee7fd1d4', '030e294b-88ad-544e-841a-cfda187885ac', 6000.00, 12, '2026-09-01', 1, 'Annual JetBrains license prepayment', 'PREPAID-2026-001', '2026-01-15T09:00:00Z', '2026-01-15T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Backs INV-2026-005 below ("Recurring support retainer") — same id an
 -- earlier fixture pass already wrote into invoices.recurring_schedule_id in
@@ -698,8 +698,8 @@ INSERT INTO amortization_schedules (id, tenant_id, kind, balance_sheet_account_i
 -- generation, on purpose: a schedule genuinely due for its next run, that
 -- stays due for a long time rather than going stale the day after it's
 -- written (same reasoning as INV-2026-002's last_reminded_at above).
-INSERT INTO recurring_schedules (id, tenant_id, customer_id, frequency, next_run_date, due_in_days, exchange_rate, payment_terms, notes, template_lines, is_active, created_at, updated_at, created_by, updated_by) VALUES
-    ('4d83e8af-2f37-52ff-8971-5e10e9e651b9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'monthly', '2026-09-01', 15, 1.0, 'net_30',
+INSERT INTO recurring_schedules (id, tenant_id, customer_id, frequency, next_run_date, anchor_day, due_in_days, exchange_rate, payment_terms, notes, template_lines, is_active, created_at, updated_at, created_by, updated_by) VALUES
+    ('4d83e8af-2f37-52ff-8971-5e10e9e651b9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'monthly', '2026-09-01', 1, 15, 1.0, 'net_30',
      'Support retainer per the Feb 2026 SOW — invoice on the 1st of each month.',
      '[{"description":"Recurring support retainer","quantity":"1.00","unitPrice":"5000.00","discountPercent":"0.00","taxAmount":"443.75","taxRateId":"a1952ec4-9252-5bbf-89aa-9f2e89d7ef53"}]'::jsonb,
      TRUE, '2026-02-01T09:00:00Z', '2026-02-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '48ccc5de-9ba7-5461-ab49-160a1146ed85');

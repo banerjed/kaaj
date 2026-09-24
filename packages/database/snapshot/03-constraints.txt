@@ -1,6 +1,7 @@
 # table	constraint	type	definition
 accounting_periods	accounting_periods_pkey	p	PRIMARY KEY (id)
 accounting_periods	accounting_periods_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+amortization_schedules	amortization_schedules_anchor_day_check	c	CHECK (((anchor_day >= 1) AND (anchor_day <= 31)))
 amortization_schedules	amortization_schedules_balance_sheet_account_id_fkey	f	FOREIGN KEY (balance_sheet_account_id) REFERENCES chart_of_accounts(id)
 amortization_schedules	amortization_schedules_income_statement_account_id_fkey	f	FOREIGN KEY (income_statement_account_id) REFERENCES chart_of_accounts(id)
 amortization_schedules	amortization_schedules_pkey	p	PRIMARY KEY (id)
@@ -375,6 +376,7 @@ pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFER
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
+recurring_schedules	recurring_schedules_anchor_day_check	c	CHECK (((anchor_day >= 1) AND (anchor_day <= 31)))
 recurring_schedules	recurring_schedules_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 recurring_schedules	recurring_schedules_pkey	p	PRIMARY KEY (id)
 recurring_schedules	recurring_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
