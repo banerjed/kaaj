@@ -193,9 +193,22 @@ function reads. A role predicate here costs something and protects nothing.
 - **Reference** — `payroll_tax_rates`, `exchange_rates`, `translations`
 *(Accounting used to be listed here. It was wrong — see below.)*
 - **Projects, CRM, marketing, ticketing** — `projects`, `tasks`, `pm_*`,
-  `clients`, `customers`, `ticketing_*`
-- **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`,
-  `_billable_expenses`
+  `customers`, `ticketing_*`
+- **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`
+
+Two of these contradict rules committed elsewhere. `./check` now lists them in
+`EXPOSED_PENDING` (`scripts/verify-matrix-complete.mjs`) rather than here, until
+someone decides which document is right:
+
+- `customers.tax_number` is a plaintext tax identifier, on `_pii_pending`.
+- The time-tracking rate tables carry the cost and billable rates the matrix
+  restricts on `employees` (`default_hourly_rate_pvt`,
+  `default_billable_rate_pvt`).
+
+Also in `EXPOSED_PENDING`: `ticketing_attachments`, whose tickets are
+row-scoped, and `payroll_runs` and `payroll_tax_deposits`, which no tier above
+names. `clients` and `time_tracking_billable_expenses` no longer exist; they
+merged into `customers` and `expenses` ([L101](./10-lessons-learned.md)).
 
 ---
 

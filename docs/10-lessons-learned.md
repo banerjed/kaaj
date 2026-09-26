@@ -2589,6 +2589,100 @@ nothing table-driven double-checks against the schema itself. Both are
 silent-pass shapes: the sweep filler because nothing read the column, the
 typo because the check's own query just matched nothing and moved on.
 
+### L101 — two tables for one concept, a protection applied to one of them, and a disclosure check that only looked where protection already was
+
+`clients` (projects, objectives, time tracking) and `customers` (accounting,
+ticketing, documents, the portal) held the same three companies. The fixture
+even labelled `customers` "mirror of clients". Nothing joined a client row
+to its customer row, so billed time could never have reached an invoice.
+`time_tracking_billable_expenses` and `expenses` were the same pair again:
+the fixture held one airfare in both.
+
+Protection had then been applied per TABLE. The PII fan-out encrypted
+`clients.tax_id` → `tax_id_ct`; `customers.tax_number` stayed plaintext, on
+a row with nothing but `tenant_isolation`. A plain employee read Britannia's
+VAT number. This is L47's "a protected value has more than one home", except
+that here the second home was an entire table.
+
+`verify-matrix-complete.mjs` was green throughout, because it built its list
+of tables to inspect FROM the matrix. A table nobody had named as sensitive
+was never examined, and those are exactly the tables the check exists for.
+Classifying every table surfaced 8 more tenant-wide tables that contradict a
+rule committed elsewhere. Among them are colleagues' cost rates (the same
+value `employees` restricts as `default_hourly_rate_pvt`) and benefit
+elections. Every customer's portal access token was readable too; that
+column had no reader at all, and was dropped. The 8 are listed in
+`EXPOSED_PENDING`, each naming the rule it contradicts.
+
+A first pass listed 16. Eight of those were tables that
+`docs/15-row-level-visibility.md` had already left tenant-wide on purpose,
+with reasons: Tier 2, plus its explicit exclusions. A table that looks
+exposed may be a decision nobody linked from the schema. Read the design
+record before calling one a leak; the classification now cites it.
+
+A third trap surfaced with the new foreign keys. **A foreign key check
+bypasses RLS.** Postgres validates an FK with its own internal query, so
+`projects.customer_id REFERENCES customers(id)` accepts another tenant's
+customer id: the row exists, the reader just could not see it. Creating a
+project therefore checks the customer with a `SELECT` under RLS first, the
+same way `assertObjectiveExists` already did.
+
+Rules:
+- A check that inspects "the sensitive tables" must start from the schema,
+  not from a list of tables someone already decided were sensitive.
+- Before adding a table, search for one that already models the concept, by
+  meaning rather than by name: `client`/`customer`,
+  `billable_expense`/`expense`.
+- An FK proves a row exists, not that the writer may reference it. Pair it
+  with an RLS-scoped existence check wherever the id arrives from a request.
+
+### L102 — a data migration's data path never runs locally, and ci-database.sh applies it without a transaction
+
+`supabase db reset` applies every migration and only THEN seeds the fixture.
+So the `UPDATE … FROM`/`INSERT … SELECT` half of a data-moving migration
+runs against empty tables, and `db reset` succeeding says nothing about it.
+The only place it runs for real is production.
+
+Separately, `ci-database.sh` applies each file with `psql -f` in autocommit.
+Three consequences:
+- `SET LOCAL` is a warning and a no-op.
+- A `CREATE TEMP TABLE … ON COMMIT DROP` vanishes at the end of its own
+  statement, so the next statement fails with "relation does not exist".
+- A failure partway through leaves a half-applied migration behind.
+
+The clients merge hit the second of these on its first CI-style build.
+
+Rules:
+- Test a data migration against a POPULATED database, inside a transaction
+  you roll back. Run `\i` of the migration file, then assertions (row counts
+  preserved, every old reference resolves to the same entity via the new
+  one), then `ROLLBACK`. Also check that each refusal fires.
+- Write a data-moving migration as ONE `DO` block. A single statement is
+  atomic under either runner, and `set_config(..., true)` and
+  `ON COMMIT DROP` then behave as intended.
+
+### L103 — a second database on the local stack is not isolated from the first
+
+To avoid `supabase db reset` on a database another session was using, this
+work built `kaaj_dedupe` beside `postgres` on the same local instance, using
+`ci-database.sh`. `DATABASE_URL` and `APP_DATABASE_URL` pointed at it.
+Anything that goes through the Supabase APIs did not follow: the
+service-role client, PostgREST, Auth and Storage all serve the stack's own
+`postgres` database. `fx_rates.test.ts` upserted stub exchange rates through
+`supabaseServiceRole` into `postgres`, then ran its cleanup over
+`DATABASE_URL` against `kaaj_dedupe`, the wrong database. It failed, and
+left four fake `yahoo` rates in the database the other session was using.
+They were removed with the test's own cleanup predicate.
+
+The same run also met L75 in the wild. `PUBLIC_SUPABASE_URL` and
+`PUBLIC_SUPABASE_ANON_KEY` were exported in the session's shell, pointing at
+a hosted project, and the dev-server guard refused to start the test runner,
+as designed. `env -u` for the run, never an edit to `.env.local`.
+
+Rule: a separate database on the same stack isolates only the direct
+`postgres.js` path. Exclude every test that writes through a Supabase
+client, or it writes to the shared database.
+
 ---
 
 ### L101 — a table scaffolded wholesale in the initial schema pass can silently duplicate a feature built for real under a different name later

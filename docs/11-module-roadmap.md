@@ -182,8 +182,19 @@ Manual time entries are, now — but timesheets and billable expenses are not.
    `period_start`/`period_end` are `TEXT`, not `DATE` — fix that before
    building a UI on top, or every date comparison is a string comparison.
 
-3. **Billable expenses** — ⬜ not started. `time_tracking_billable_expenses`
-   exists, unused.
+3. **Billable expenses** — ⬜ not started, and now part of expense tracking
+   (below). `time_tracking_billable_expenses` held the same expense as
+   `expenses` in the fixture, and was merged into it in
+   `20260926030000_merge_billable_expenses_into_expenses.sql` (L101). Billing
+   an expense to a customer is `expenses.is_billable` plus `customer_id`,
+   `project_id`, `markup_*`, `billable_amount`, `invoice_id` and
+   `invoiced_at`.
+
+**Expense tracking is NOT YET IMPLEMENTED.** `expenses` has fixture rows and
+accounting reads it (profit and loss), but no route submits, approves or
+reimburses an expense. The first slice has one decision to make: `expenses`
+is finance-only under RLS (`accounting_read`), so an employee who submits an
+expense cannot currently read it back.
 
 4. **Real-time timers** — ⬜ not started, deliberately deferred. Manual entry
    covers the billing need; a start/stop timer is a UI feature on the same
@@ -202,6 +213,10 @@ could not represent). Dropped in `20260903160000_drop_duplicate_time_entry_table
 ---
 
 ## Phase 6 — Payroll (lifecycle done; the calculation is not)
+
+**Payroll is NOT YET IMPLEMENTED as a product.** A run can move through its
+lifecycle, but the numbers on it are the fixture's: nothing computes gross,
+tax or net for anyone.
 
 `docs/module-payroll.md` · 10 tables, 2 repositories
 (`payroll_runs`, `payroll_pay_schedules`). India-specific tables
