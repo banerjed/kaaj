@@ -6,6 +6,9 @@ amortization_schedules	amortization_schedules_balance_sheet_account_id_fkey	f	FO
 amortization_schedules	amortization_schedules_income_statement_account_id_fkey	f	FOREIGN KEY (income_statement_account_id) REFERENCES chart_of_accounts(id)
 amortization_schedules	amortization_schedules_pkey	p	PRIMARY KEY (id)
 amortization_schedules	amortization_schedules_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+app_error_log	app_error_log_pkey	p	PRIMARY KEY (id)
+app_error_log	app_error_log_scope_check	c	CHECK ((scope = ANY (ARRAY['server'::text, 'client'::text])))
+app_error_log	app_error_log_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 audit_log	audit_log_pkey	p	PRIMARY KEY (id)
 audit_log	audit_log_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bank_accounts	bank_accounts_pkey	p	PRIMARY KEY (id)
@@ -150,6 +153,9 @@ expenses	fk_expenses_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employee
 expenses	fk_expenses_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
 expenses	fk_expenses_payment_id	f	FOREIGN KEY (payment_id) REFERENCES payments(id)
 expenses	fk_expenses_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+feature_flags	feature_flags_pkey	p	PRIMARY KEY (id)
+feature_flags	feature_flags_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+feature_flags	feature_flags_tenant_id_flag_key_key	u	UNIQUE NULLS NOT DISTINCT (tenant_id, flag_key)
 firm_benefit_items	firm_benefit_items_pkey	p	PRIMARY KEY (id)
 firm_benefit_items	firm_benefit_items_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 firm_benefit_items	fk_firm_benefit_items_benefits_package_id	f	FOREIGN KEY (benefits_package_id) REFERENCES firm_benefits_packages(id) ON DELETE CASCADE

@@ -105,6 +105,23 @@ writes probe rows. `packages/database/tests/verify-remote.sh` is the only harnes
 at a live database; it forces a read-only transaction and aborts if that did not
 take effect.
 
+**Three more production-only tools, same tier as `verify-remote.sh`, none wired into `./check`** (a local dev database has no production error volume to check against):
+
+- `packages/database/tests/check-error-rates.mjs` — read-only, forces the same
+  read-only connection guard, exits non-zero if `app_error_log`'s trailing-window
+  error count breaches a threshold in its committed `THRESHOLDS` registry. Point
+  a host cron at it; wiring a real paging channel is a one-function change
+  (`notifyOncall`), not done yet.
+- `packages/database/tests/error-report.mjs` — read-only, the human-facing
+  counterpart: `routes`/`tenants`/`trend` (each takes `--days`, default 7) and
+  `lookup <error_id>` for the one row behind an id a customer quoted you. For
+  a weekly look, not a threshold check.
+- `scripts/prune-error-log.mjs` — the one script here that writes to
+  production: deletes `app_error_log` rows older than `--days` (default 30).
+  Dry-run by default (prints the count only); needs `--execute` to actually
+  delete, since a delete is not reversible. Connects as the database owner —
+  `app_user` has no DELETE grant on this table.
+
 **`vite dev` refuses to start against anything but `127.0.0.1`/`localhost`, with
 no override.** A real environment variable beats a `.env` file, so a
 `PUBLIC_SUPABASE_URL` exported in a shell profile — copied out of a one-line

@@ -67,6 +67,18 @@ INSERT INTO tenant_registry (tenant_id, subdomain, tier, schema_version)
         (SELECT MAX(version) FROM supabase_migrations.schema_migrations)
     );
 
+-- Observability (docs: production debugging). One representative error row —
+-- this table is populated by the app at runtime, the fixture just needs to
+-- prove the shape and the tenant_isolation policy have somewhere to hold data.
+INSERT INTO app_error_log (tenant_id, error_id, request_id, scope, route, status, name, message, code) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a1b2c3d4-0000-4000-8000-000000000001', 'a1b2c3d4-0000-4000-8000-000000000002', 'server', '/employees', 500, 'PostgresError', 'connection terminated unexpectedly', '57P01');
+
+-- Feature flags: one platform default (tenant_id NULL) and one tenant
+-- override, so both halves of the asymmetric read policy have a row.
+INSERT INTO feature_flags (tenant_id, flag_key, enabled, note) VALUES
+    (NULL, 'new-invoice-flow', FALSE, 'platform default: off until the new flow clears its own beta'),
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'new-invoice-flow', TRUE, 'Northwind opted into the early rollout on 2026-09-20');
+
 -- Tier 3 customization: behaviour settings
 INSERT INTO tenant_settings (tenant_id, namespace, key, value) VALUES
     ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'accounting', 'fiscal_year_start', '{"month": 1, "day": 1}'::jsonb),

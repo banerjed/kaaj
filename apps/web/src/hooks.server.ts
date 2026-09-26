@@ -9,15 +9,24 @@ import type { Handle, HandleServerError } from "@sveltejs/kit"
 import { sequence } from "@sveltejs/kit/hooks"
 import { safeError } from "$lib/errors"
 import { log } from "$lib/server/log"
+import { recordError } from "$lib/server/observability/error-store"
 
-/** Total time through the rest of the handle chain — auth, `load()`, SSR — read by `scripts/measure-render-times.mjs` and by any browser's own DevTools network panel. */
+/**
+ * Total time through the rest of the handle chain — auth, `load()`, SSR — read
+ * by `scripts/measure-render-times.mjs` and by any browser's own DevTools
+ * network panel. Also mints the per-request correlation id: every `log.*`
+ * call and `app_error_log` row for this request carries it, so multiple log
+ * lines from one request can be joined without guessing from timestamps.
+ */
 const timing: Handle = async ({ event, resolve }) => {
   const start = performance.now()
+  event.locals.requestId = crypto.randomUUID()
   const response = await resolve(event)
   response.headers.set(
     "server-timing",
     `app;dur=${(performance.now() - start).toFixed(1)}`,
   )
+  response.headers.set("x-request-id", event.locals.requestId)
   return response
 }
 
@@ -213,17 +222,29 @@ export const handleError: HandleServerError = ({
   // A 404 is someone following a stale link, not a fault. Logging it as an
   // error trains people to ignore the error stream.
   if (status !== 404) {
+    const route = event.route?.id ?? event.url.pathname
     log.error({
       id,
+      requestId: event.locals?.requestId,
       msg: message,
       status,
-      route: event.route?.id ?? event.url.pathname,
+      route,
       method: event.request?.method,
       tenantId: event.locals?.tenantId ?? null,
       tenantRole: event.locals?.tenantRole ?? null,
       functionalRoles: event.locals?.functionalRoles ?? [],
       employeeId: event.locals?.employeeId ?? null,
       // Allowlisted. Never the raw error: `detail` is the row (see $lib/errors).
+      error: safeError(error),
+    })
+
+    // Fire-and-forget: never let a logging write delay or fail the response.
+    void recordError(event.locals, {
+      errorId: id,
+      requestId: event.locals?.requestId,
+      scope: "server",
+      route,
+      status,
       error: safeError(error),
     })
   }

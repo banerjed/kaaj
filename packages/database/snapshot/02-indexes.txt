@@ -5,6 +5,8 @@ accounting_periods	idx_accounting_periods_status	CREATE INDEX idx_accounting_per
 amortization_schedules	amortization_schedules_pkey	CREATE UNIQUE INDEX amortization_schedules_pkey ON public.amortization_schedules USING btree (id)
 amortization_schedules	idx_amortization_schedules_due	CREATE INDEX idx_amortization_schedules_due ON public.amortization_schedules USING btree (tenant_id, next_run_date)
 amortization_schedules	idx_amortization_schedules_tenant_id	CREATE INDEX idx_amortization_schedules_tenant_id ON public.amortization_schedules USING btree (tenant_id)
+app_error_log	app_error_log_pkey	CREATE UNIQUE INDEX app_error_log_pkey ON public.app_error_log USING btree (id)
+app_error_log	idx_app_error_log_tenant_time	CREATE INDEX idx_app_error_log_tenant_time ON public.app_error_log USING btree (tenant_id, created_at DESC)
 audit_log	audit_log_pkey	CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)
 audit_log	idx_audit_log_actor_employee_id	CREATE INDEX idx_audit_log_actor_employee_id ON public.audit_log USING btree (tenant_id, actor_employee_id)
 audit_log	idx_audit_log_actor_user_id	CREATE INDEX idx_audit_log_actor_user_id ON public.audit_log USING btree (tenant_id, actor_user_id)
@@ -181,6 +183,8 @@ expenses	idx_expenses_category_account_id	CREATE INDEX idx_expenses_category_acc
 expenses	idx_expenses_created	CREATE INDEX idx_expenses_created ON public.expenses USING btree (tenant_id, created_at DESC)
 expenses	idx_expenses_employee_id	CREATE INDEX idx_expenses_employee_id ON public.expenses USING btree (tenant_id, employee_id)
 expenses	idx_expenses_vendor_id	CREATE INDEX idx_expenses_vendor_id ON public.expenses USING btree (tenant_id, vendor_id)
+feature_flags	feature_flags_pkey	CREATE UNIQUE INDEX feature_flags_pkey ON public.feature_flags USING btree (id)
+feature_flags	feature_flags_tenant_id_flag_key_key	CREATE UNIQUE INDEX feature_flags_tenant_id_flag_key_key ON public.feature_flags USING btree (tenant_id, flag_key) NULLS NOT DISTINCT
 firm_benefit_items	firm_benefit_items_pkey	CREATE UNIQUE INDEX firm_benefit_items_pkey ON public.firm_benefit_items USING btree (id)
 firm_benefit_items	idx_firm_benefit_items_benefits_package_id	CREATE INDEX idx_firm_benefit_items_benefits_package_id ON public.firm_benefit_items USING btree (tenant_id, benefits_package_id)
 firm_benefit_items	idx_firm_benefit_items_created	CREATE INDEX idx_firm_benefit_items_created ON public.firm_benefit_items USING btree (tenant_id, created_at DESC)

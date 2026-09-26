@@ -34,6 +34,8 @@ declare global {
       customerContactId: string | null
       /** The customer customerContactId belongs to. Null for staff. */
       customerId: string | null
+      /** Minted once per request (hooks.server.ts), for correlating log lines and app_error_log rows to the same request. */
+      requestId: string
     }
     interface PageData {
       session: SafeAuthSession | null

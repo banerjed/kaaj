@@ -26,6 +26,17 @@ amortization_schedules	12	updated_at	timestamp with time zone	f	CURRENT_TIMESTAM
 amortization_schedules	13	created_by	uuid	f	
 amortization_schedules	14	updated_by	uuid	f	
 amortization_schedules	15	anchor_day	smallint	t	
+app_error_log	1	id	uuid	t	gen_random_uuid()
+app_error_log	2	tenant_id	uuid	t	
+app_error_log	3	error_id	uuid	t	
+app_error_log	4	request_id	uuid	f	
+app_error_log	5	scope	text	t	
+app_error_log	6	route	text	f	
+app_error_log	7	status	integer	f	
+app_error_log	8	name	text	f	
+app_error_log	9	message	text	f	
+app_error_log	10	code	text	f	
+app_error_log	11	created_at	timestamp with time zone	t	now()
 audit_log	1	id	bigint	t	
 audit_log	2	tenant_id	uuid	t	
 audit_log	3	actor_user_id	uuid	f	
@@ -685,6 +696,12 @@ expenses	28	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 expenses	29	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 expenses	30	created_by	uuid	f	
 expenses	31	updated_by	uuid	f	
+feature_flags	1	id	uuid	t	gen_random_uuid()
+feature_flags	2	tenant_id	uuid	f	
+feature_flags	3	flag_key	text	t	
+feature_flags	4	enabled	boolean	t	false
+feature_flags	5	note	text	f	
+feature_flags	6	created_at	timestamp with time zone	t	now()
 firm_benefit_items	1	tenant_id	uuid	t	
 firm_benefit_items	2	id	uuid	t	gen_random_uuid()
 firm_benefit_items	3	benefits_package_id	uuid	t	

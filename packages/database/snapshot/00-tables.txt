@@ -1,6 +1,7 @@
 # table	rls_enabled	rls_forced
 accounting_periods	t	t
 amortization_schedules	t	t
+app_error_log	t	t
 audit_log	t	t
 bank_accounts	t	t
 bank_reconciliation_rules	t	t
@@ -34,6 +35,7 @@ employees	t	t
 employment_terms	t	t
 exchange_rates	t	t
 expenses	t	t
+feature_flags	t	t
 firm_benefit_items	t	t
 firm_benefits_packages	t	t
 firm_benefits_plans	t	t
