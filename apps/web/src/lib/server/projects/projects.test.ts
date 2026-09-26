@@ -117,9 +117,9 @@ describe("tasks on a project", () => {
 describe("the client-visible slice", () => {
   it("filters in SQL and never returns another client's work", async () => {
     const result = await withTenant(AS_OWNER, async (tx) => {
-      const [row] = await tx<{ id: string }[]>`SELECT id FROM clients LIMIT 1`
+      const [row] = await tx<{ id: string }[]>`SELECT id FROM customers LIMIT 1`
       return {
-        clientId: row.id,
+        customerId: row.id,
         visible: await projects.clientVisibleOnly(tx, row.id),
         all: await projects.list(tx),
       }
@@ -128,7 +128,7 @@ describe("the client-visible slice", () => {
     const names = new Set(result.visible.map((p) => p.project_name))
     for (const p of result.all) {
       if (!names.has(p.project_name)) continue
-      expect(p.client_name).not.toBeNull()
+      expect(p.customer_name).not.toBeNull()
     }
   })
 })

@@ -77,7 +77,6 @@ const SCALE_SENSITIVE = new Map([
   ["ticketing_tickets", "one row per ticket logged, indefinitely"],
   ["ticketing_updates", "one row per update posted to a ticket"],
   ["team_chat_messages", "one row per message sent, indefinitely (20§7 says so explicitly)"],
-  ["time_tracking_billable_expenses", "grows with time entries logged"],
   ["time_tracking_entries", "one row per time entry logged, potentially daily"],
 ])
 
@@ -109,10 +108,6 @@ const NOT_SCALE_SENSITIVE = new Map([
   ["bank_accounts", "one row per bank account on file; small, admin-authored"],
   ["bank_reconciliation_rules", "small, admin-authored config"],
   ["chart_of_accounts", "one row per GL account; small, admin-authored"],
-  [
-    "clients",
-    "the tenant's own client roster; bounded by market size, not usage",
-  ],
   [
     "compensation_allowances",
     "bounded by employee count times active allowances",

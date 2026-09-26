@@ -42,7 +42,7 @@ export type ProjectRow = {
   actual_hours: string | null
   start_date: string | null
   target_end_date: string | null
-  client_name: string | null
+  customer_name: string | null
   manager_name: string | null
   project_manager_id: string | null
   is_billable: boolean | null
@@ -66,7 +66,7 @@ const SELECT = `
          p.actual_hours::text    AS actual_hours,
          to_char(p.start_date,'YYYY-MM-DD')      AS start_date,
          to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
-         c.client_name,
+         c.customer_name,
          m.first_name || ' ' || m.last_name AS manager_name,
          p.project_manager_id::text AS project_manager_id,
          p.is_billable,
@@ -85,7 +85,7 @@ const SELECT = `
              AND t.status <> 'done')
            AS overdue_task_count
     FROM projects p
-    LEFT JOIN clients c        ON c.id = p.client_id
+    LEFT JOIN customers c      ON c.id = p.customer_id
     LEFT JOIN employees m      ON m.id = p.project_manager_id
     LEFT JOIN pm_objectives o  ON o.id = p.objective_id
 `
@@ -111,7 +111,7 @@ const LIST_SELECT = `
          p.actual_hours::text    AS actual_hours,
          to_char(p.start_date,'YYYY-MM-DD')      AS start_date,
          to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
-         c.client_name,
+         c.customer_name,
          m.first_name || ' ' || m.last_name AS manager_name,
          p.project_manager_id::text AS project_manager_id,
          p.is_billable,
@@ -119,7 +119,7 @@ const LIST_SELECT = `
          p.objective_id::text AS objective_id,
          o.objective_name
     FROM projects p
-    LEFT JOIN clients c        ON c.id = p.client_id
+    LEFT JOIN customers c      ON c.id = p.customer_id
     LEFT JOIN employees m      ON m.id = p.project_manager_id
     LEFT JOIN pm_objectives o  ON o.id = p.objective_id
 `
@@ -170,11 +170,11 @@ async function taskCountsFor(
 
 export async function list(
   tx: Tx,
-  filters: { status?: string; health?: string; clientId?: string } = {},
+  filters: { status?: string; health?: string; customerId?: string } = {},
 ): Promise<ProjectRow[]> {
   const { status = "", health = "" } = filters
   // NULL rather than '' for the uuid cast (L37).
-  const clientId = filters.clientId || null
+  const customerId = filters.customerId || null
   const rows = await tx<
     Omit<
       ProjectRow,
@@ -185,7 +185,7 @@ export async function list(
      WHERE p.archived_at IS NULL
        AND (${status} = '' OR p.status = ${status})
        AND (${health} = '' OR p.health_status = ${health})
-       AND (${clientId}::uuid IS NULL OR p.client_id = ${clientId}::uuid)
+       AND (${customerId}::uuid IS NULL OR p.customer_id = ${customerId}::uuid)
      ORDER BY p.project_number
   `
   const counts = await taskCountsFor(
@@ -332,12 +332,12 @@ export async function countTasksFor(
  */
 export async function clientVisibleOnly(
   tx: Tx,
-  clientId: string,
+  customerId: string,
 ): Promise<ProjectRow[]> {
   return tx<ProjectRow[]>`
     ${tx.unsafe(SELECT)}
      WHERE p.archived_at IS NULL
-       AND p.client_id = ${clientId}::uuid
+       AND p.customer_id = ${customerId}::uuid
        AND p.client_visible = TRUE
      ORDER BY p.project_number
   `
@@ -388,7 +388,8 @@ export class ProjectWriteRefused extends Error {
       | "cross_project_dependency"
       | "self_dependency"
       | "dependency_cycle"
-      | "no_such_objective",
+      | "no_such_objective"
+      | "no_such_customer",
   ) {
     super(reason)
     this.name = "ProjectWriteRefused"
@@ -659,7 +660,7 @@ export async function removeDependency(
 
 export type NewProject = {
   project_name: string
-  client_id: string | null
+  customer_id: string | null
   project_manager_id: string | null
   status: string
   priority: string
@@ -683,6 +684,15 @@ async function assertObjectiveExists(tx: Tx, objectiveId: string | null) {
   if (!row) throw new ProjectWriteRefused("no_such_objective")
 }
 
+/** Under RLS, so another tenant's customer id is refused here — the FK alone would accept it. */
+async function assertCustomerExists(tx: Tx, customerId: string | null) {
+  if (!customerId) return
+  const [row] = await tx<{ id: string }[]>`
+    SELECT id FROM customers WHERE id = ${customerId}::uuid
+  `
+  if (!row) throw new ProjectWriteRefused("no_such_customer")
+}
+
 /** Create a project. `budget`/`hourly_rate` arrive as strings, cast in SQL. Counters start at 0; only `refreshTaskCounters` writes them after. */
 export async function createProject(
   tx: Tx,
@@ -691,12 +701,13 @@ export async function createProject(
   actorId: string,
 ): Promise<{ id: string; project_number: string }> {
   await assertObjectiveExists(tx, input.objective_id)
+  await assertCustomerExists(tx, input.customer_id)
   const number = await nextNumber(tx, "projects", "PRJ")
   try {
     const [row] = await tx<{ id: string; project_number: string }[]>`
       INSERT INTO projects (
         tenant_id, project_id, project_number, project_name, description,
-        client_id, project_manager_id, objective_id,
+        customer_id, project_manager_id, objective_id,
         status, priority, health_status,
         start_date, target_end_date,
         budget, currency, estimated_hours, is_billable, hourly_rate,
@@ -705,7 +716,7 @@ export async function createProject(
       ) VALUES (
         ${tenantId}::uuid, ${number}, ${number}, ${input.project_name},
         ${input.description},
-        ${input.client_id}::uuid, ${input.project_manager_id}::uuid,
+        ${input.customer_id}::uuid, ${input.project_manager_id}::uuid,
         ${input.objective_id}::uuid,
         ${input.status}, ${input.priority}, ${input.health_status},
         ${input.start_date}::date, ${input.target_end_date}::date,

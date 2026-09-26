@@ -792,47 +792,6 @@ CREATE TABLE chart_of_accounts (
     updated_by            UUID
 );
 
-CREATE TABLE clients (
-    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    client_name           TEXT NOT NULL,
-    client_code           TEXT,
-    legal_entity_name     TEXT,
-    client_type           TEXT DEFAULT 'corporate' CHECK (client_type IN ( 'individual', 'small_business', 'corporate', 'enterprise', 'government', 'nonprofit' )),
-    industry              TEXT,
-    status                TEXT DEFAULT 'active' CHECK (status IN ('prospect', 'active', 'inactive', 'churned')),
-    is_active             BOOLEAN DEFAULT TRUE,
-    primary_contact_name  TEXT,
-    primary_contact_email TEXT,
-    primary_contact_phone TEXT,
-    primary_contact_title TEXT,
-    billing_contact_name  TEXT,
-    billing_contact_email TEXT,
-    billing_contact_phone TEXT,
-    address_line1         TEXT,
-    address_line2         TEXT,
-    city                  TEXT,
-    state_province        TEXT,
-    postal_code           TEXT,
-    country               TEXT DEFAULT 'US',
-    website               TEXT,
-    company_size          TEXT,
-    currency              TEXT DEFAULT 'USD',
-    payment_terms         TEXT DEFAULT 'net_30',
-    default_hourly_rate   REAL,
-    tax_id                TEXT,
-    portal_access_enabled BOOLEAN DEFAULT FALSE,
-    account_manager_id    UUID,
-    acquisition_date      DATE,
-    acquisition_source    TEXT,
-    custom_fields         JSONB DEFAULT '{}',
-    notes                 TEXT,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_by            TEXT NOT NULL,
-    version               INTEGER DEFAULT 1
-);
-
 CREATE TABLE compensation_allowances (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id),
@@ -1005,7 +964,15 @@ CREATE TABLE customers (
     ar_account_id         UUID,
     is_active             BOOLEAN DEFAULT TRUE,
     portal_enabled        BOOLEAN DEFAULT FALSE,
-    portal_access_token   VARCHAR(255),
+    legal_entity_name     TEXT,
+    customer_type         TEXT CHECK (customer_type IN ('individual', 'small_business', 'corporate', 'enterprise', 'government', 'nonprofit')),
+    relationship_status   TEXT NOT NULL DEFAULT 'active' CHECK (relationship_status IN ('prospect', 'active', 'inactive', 'churned')),
+    industry              TEXT,
+    company_size          TEXT,
+    default_hourly_rate   NUMERIC(18, 4),
+    account_manager_id    UUID REFERENCES employees(id),
+    acquisition_date      DATE,
+    acquisition_source    TEXT,
     notes                 TEXT,
     custom_fields         JSONB,
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1179,10 +1146,20 @@ CREATE TABLE expenses (
     tracking_categories   JSONB,
     department_id         UUID,
     journal_entry_id      UUID,
+    -- Rebilling an expense to a customer (formerly time_tracking_billable_expenses).
+    project_id            UUID REFERENCES projects(id),
+    customer_id           UUID REFERENCES customers(id),
+    is_billable           BOOLEAN NOT NULL DEFAULT FALSE,
+    markup_percentage     NUMERIC(18, 4),
+    markup_amount         NUMERIC(15, 2),
+    billable_amount       NUMERIC(15, 2),
+    invoice_id            UUID REFERENCES invoices(id),
+    invoiced_at           TIMESTAMPTZ,
     created_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_by            UUID,
-    updated_by            UUID
+    updated_by            UUID,
+    CHECK (NOT is_billable OR customer_id IS NOT NULL)
 );
 
 CREATE TABLE firm_benefit_items (
@@ -2132,7 +2109,7 @@ CREATE TABLE pm_objectives (
     description           TEXT,
     vision_statement      TEXT,
     objective_type        TEXT NOT NULL DEFAULT 'general',
-    client_id             UUID,
+    customer_id           UUID REFERENCES customers(id),
     primary_contact_id    UUID,
     department_code       TEXT,
     owner_employee_id     UUID,
@@ -2218,7 +2195,7 @@ CREATE TABLE pm_task_comments (
     comment_text          TEXT,
     author_type           TEXT NOT NULL,
     author_employee_id    UUID,
-    author_client_id      UUID,
+    author_customer_id    UUID REFERENCES customers(id),
     mentioned_users       JSONB DEFAULT '[]'::jsonb,
     attachment_ids        JSONB DEFAULT '[]'::jsonb,
     parent_comment_id     UUID,
@@ -2268,7 +2245,7 @@ CREATE TABLE projects (
     parent_project_id     UUID,
     description           TEXT,
     project_type          project_type NOT NULL DEFAULT 'client_project',
-    client_id             UUID,
+    customer_id           UUID REFERENCES customers(id),
     contact_person_id     UUID,
     service_type          TEXT,
     industry              TEXT,
@@ -2488,39 +2465,6 @@ CREATE TABLE ticketing_updates (
     UNIQUE (tenant_id, update_id)
 );
 
-CREATE TABLE time_tracking_billable_expenses (
-    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    expense_id            TEXT,
-    employee_id           UUID NOT NULL,
-    project_id            UUID,
-    client_id             UUID,
-    expense_date          DATE NOT NULL,
-    description           TEXT NOT NULL,
-    expense_type          TEXT,
-    category              TEXT,
-    amount                NUMERIC(18,4) NOT NULL,
-    currency              TEXT DEFAULT 'USD',
-    markup_percentage     NUMERIC(18,4) DEFAULT 0.00,
-    markup_amount         NUMERIC(18,4) DEFAULT 0.00,
-    billable_amount       NUMERIC(18,4) NOT NULL,
-    has_receipt           BOOLEAN DEFAULT FALSE,
-    receipt_url           TEXT,
-    receipt_attachment_id UUID,
-    is_billable           BOOLEAN DEFAULT TRUE,
-    is_reimbursable       BOOLEAN DEFAULT FALSE,
-    status                TEXT DEFAULT 'draft',
-    approved_by           TEXT,
-    approved_at           TIMESTAMPTZ,
-    submitted_at          TIMESTAMPTZ,
-    invoice_id            UUID,
-    invoiced_at           TIMESTAMPTZ,
-    reimbursed_at         TIMESTAMPTZ,
-    created_at            TIMESTAMPTZ NOT NULL,
-    updated_at            TIMESTAMPTZ NOT NULL,
-    UNIQUE (tenant_id, expense_id)
-);
-
 CREATE TABLE time_tracking_entries (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -2529,7 +2473,7 @@ CREATE TABLE time_tracking_entries (
     timesheet_id          UUID,
     project_id            UUID,
     task_id               UUID,
-    client_id             UUID,
+    customer_id           UUID REFERENCES customers(id),
     entry_date            DATE NOT NULL,
     start_time            TIMESTAMPTZ,
     end_time              TIMESTAMPTZ,
@@ -2836,7 +2780,7 @@ CREATE TABLE time_tracking_hourly_rates (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     employee_id           UUID,             -- NULL = applies to a role, not a person
-    client_id             UUID,             -- NULL = default for all clients
+    customer_id           UUID REFERENCES customers(id), -- NULL = default for all customers
     project_id            UUID,             -- NULL = all projects for the client
     role_code             TEXT,             -- rate card by role
     cost_rate             NUMERIC(18,4),    -- what the employee costs us
@@ -2853,7 +2797,7 @@ CREATE TABLE time_tracking_hourly_rates (
     CHECK (effective_to IS NULL OR effective_to >= effective_from)
 );
 CREATE INDEX idx_tthr_lookup
-    ON time_tracking_hourly_rates (tenant_id, employee_id, client_id, effective_from DESC)
+    ON time_tracking_hourly_rates (tenant_id, employee_id, customer_id, effective_from DESC)
     WHERE is_active;
 
 -- =============================================================================
@@ -3185,12 +3129,6 @@ CREATE POLICY tenant_isolation ON bills
 ALTER TABLE chart_of_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chart_of_accounts FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON chart_of_accounts
-    USING (tenant_id = app.current_tenant_id())
-    WITH CHECK (tenant_id = app.current_tenant_id());
-
-ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clients FORCE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON clients
     USING (tenant_id = app.current_tenant_id())
     WITH CHECK (tenant_id = app.current_tenant_id());
 
@@ -3580,12 +3518,6 @@ CREATE POLICY tenant_isolation ON ticketing_updates
     USING (tenant_id = app.current_tenant_id())
     WITH CHECK (tenant_id = app.current_tenant_id());
 
-ALTER TABLE time_tracking_billable_expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE time_tracking_billable_expenses FORCE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON time_tracking_billable_expenses
-    USING (tenant_id = app.current_tenant_id())
-    WITH CHECK (tenant_id = app.current_tenant_id());
-
 ALTER TABLE time_tracking_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE time_tracking_entries FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON time_tracking_entries
@@ -3759,11 +3691,6 @@ CREATE INDEX idx_chart_of_accounts_parent_account_id ON chart_of_accounts (tenan
 CREATE INDEX idx_chart_of_accounts_is_active ON chart_of_accounts (tenant_id, is_active);
 CREATE INDEX idx_chart_of_accounts_tax_rate_id ON chart_of_accounts (tenant_id, tax_rate_id);
 CREATE INDEX idx_chart_of_accounts_created ON chart_of_accounts (tenant_id, created_at DESC);
-CREATE INDEX idx_clients_status ON clients (tenant_id, status);
-CREATE INDEX idx_clients_is_active ON clients (tenant_id, is_active);
-CREATE INDEX idx_clients_tax_id ON clients (tenant_id, tax_id);
-CREATE INDEX idx_clients_account_manager_id ON clients (tenant_id, account_manager_id);
-CREATE INDEX idx_clients_created ON clients (tenant_id, created_at DESC);
 CREATE INDEX idx_compensation_allowances_employee_id ON compensation_allowances (tenant_id, employee_id);
 CREATE INDEX idx_compensation_allowances_allowance_id ON compensation_allowances (tenant_id, allowance_id);
 CREATE INDEX idx_compensation_allowances_status ON compensation_allowances (tenant_id, status);
@@ -3953,7 +3880,7 @@ CREATE INDEX idx_pm_dashboards_objective_id ON pm_dashboards (tenant_id, objecti
 CREATE INDEX idx_pm_dashboards_owner_employee_id ON pm_dashboards (tenant_id, owner_employee_id);
 CREATE INDEX idx_pm_dashboards_created ON pm_dashboards (tenant_id, created_at DESC);
 CREATE INDEX idx_pm_objectives_objective_id ON pm_objectives (tenant_id, objective_id);
-CREATE INDEX idx_pm_objectives_client_id ON pm_objectives (tenant_id, client_id);
+CREATE INDEX idx_pm_objectives_customer_id ON pm_objectives (tenant_id, customer_id);
 CREATE INDEX idx_pm_objectives_primary_contact_id ON pm_objectives (tenant_id, primary_contact_id);
 CREATE INDEX idx_pm_objectives_owner_employee_id ON pm_objectives (tenant_id, owner_employee_id);
 CREATE INDEX idx_pm_objectives_created ON pm_objectives (tenant_id, created_at DESC);
@@ -3976,7 +3903,7 @@ CREATE INDEX idx_pm_task_time_entries_created ON pm_task_time_entries (tenant_id
 CREATE INDEX idx_projects_project_id ON projects (tenant_id, project_id);
 CREATE INDEX idx_projects_objective_id ON projects (tenant_id, objective_id);
 CREATE INDEX idx_projects_parent_project_id ON projects (tenant_id, parent_project_id);
-CREATE INDEX idx_projects_client_id ON projects (tenant_id, client_id);
+CREATE INDEX idx_projects_customer_id ON projects (tenant_id, customer_id);
 CREATE INDEX idx_projects_created ON projects (tenant_id, created_at DESC);
 CREATE INDEX idx_tasks_task_id ON tasks (tenant_id, task_id);
 CREATE INDEX idx_tasks_project_id ON tasks (tenant_id, project_id);
@@ -3997,11 +3924,6 @@ CREATE INDEX idx_ticketing_updates_ticket_id ON ticketing_updates (tenant_id, ti
 CREATE INDEX idx_ticketing_updates_author_employee_id ON ticketing_updates (tenant_id, author_employee_id);
 CREATE INDEX idx_ticketing_updates_author_id ON ticketing_updates (tenant_id, author_id);
 CREATE INDEX idx_ticketing_updates_created ON ticketing_updates (tenant_id, created_at DESC);
-CREATE INDEX idx_time_tracking_billable_expenses_expense_id ON time_tracking_billable_expenses (tenant_id, expense_id);
-CREATE INDEX idx_time_tracking_billable_expenses_employee_id ON time_tracking_billable_expenses (tenant_id, employee_id);
-CREATE INDEX idx_time_tracking_billable_expenses_project_id ON time_tracking_billable_expenses (tenant_id, project_id);
-CREATE INDEX idx_time_tracking_billable_expenses_client_id ON time_tracking_billable_expenses (tenant_id, client_id);
-CREATE INDEX idx_time_tracking_billable_expenses_created ON time_tracking_billable_expenses (tenant_id, created_at DESC);
 CREATE INDEX idx_time_tracking_entries_entry_id ON time_tracking_entries (tenant_id, entry_id);
 CREATE INDEX idx_time_tracking_entries_employee_id ON time_tracking_entries (tenant_id, employee_id);
 CREATE INDEX idx_time_tracking_entries_timesheet_id ON time_tracking_entries (tenant_id, timesheet_id);
@@ -4036,7 +3958,7 @@ CREATE INDEX idx_hr_goals_objective_id ON hr_goals (tenant_id, objective_id);
 CREATE INDEX idx_hr_goals_status ON hr_goals (tenant_id, status);
 CREATE INDEX idx_hr_goals_created ON hr_goals (tenant_id, created_at DESC);
 CREATE INDEX idx_time_tracking_hourly_rates_employee_id ON time_tracking_hourly_rates (tenant_id, employee_id);
-CREATE INDEX idx_time_tracking_hourly_rates_client_id ON time_tracking_hourly_rates (tenant_id, client_id);
+CREATE INDEX idx_time_tracking_hourly_rates_customer_id ON time_tracking_hourly_rates (tenant_id, customer_id);
 CREATE INDEX idx_time_tracking_hourly_rates_project_id ON time_tracking_hourly_rates (tenant_id, project_id);
 CREATE INDEX idx_time_tracking_hourly_rates_is_active ON time_tracking_hourly_rates (tenant_id, is_active);
 CREATE INDEX idx_time_tracking_hourly_rates_created ON time_tracking_hourly_rates (tenant_id, created_at DESC);

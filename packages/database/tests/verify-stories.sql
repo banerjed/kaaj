@@ -448,8 +448,8 @@ SELECT _check('PM-tasks','DATA','projects',
   'Tasks exist across multiple statuses',
   $$SELECT count(DISTINCT status)>1 FROM tasks$$);
 SELECT _check('PM-client','DATA','projects',
-  'Projects are linked to clients for billing',
-  $$SELECT count(*)>0 FROM projects WHERE client_id IS NOT NULL$$);
+  'Projects are linked to the customer they bill',
+  $$SELECT count(*)>0 FROM projects p JOIN customers c ON c.id = p.customer_id$$);
 SELECT _check('PM-custom','SCHEMA','projects',
   'Task custom fields are JSONB with definitions (EAV was rejected)',
   $$SELECT count(*)>0 FROM custom_field_definitions WHERE entity_type='task'$$);
@@ -484,15 +484,15 @@ SELECT _check('TT-rates','DATA','time-tracking',
   $$SELECT count(*)>0 FROM time_tracking_hourly_rates WHERE effective_to IS NOT NULL$$);
 SELECT _check('TT-rate-per-client','DATA','time-tracking',
   'Rates can vary per client (professional services requirement)',
-  $$SELECT count(DISTINCT client_id)>1 FROM time_tracking_hourly_rates
-     WHERE client_id IS NOT NULL$$);
+  $$SELECT count(DISTINCT customer_id)>1 FROM time_tracking_hourly_rates
+     WHERE customer_id IS NOT NULL$$);
 SELECT _check('TT-billable','DATA','time-tracking',
   'Billable and non-billable time are distinguished',
   $$SELECT count(DISTINCT is_billable)=2 FROM time_tracking_entries$$);
 SELECT _check('TT-expenses','DATA','time-tracking',
   'Billable expenses can be captured for client invoicing',
-  $$SELECT count(*)>0 FROM time_tracking_billable_expenses
-     WHERE is_billable AND receipt_url IS NOT NULL$$);
+  $$SELECT count(*)>0 FROM expenses
+     WHERE is_billable AND customer_id IS NOT NULL AND receipt_url IS NOT NULL$$);
 
 -- =============================================================================
 -- ACCOUNTING  (module-accounting.md)

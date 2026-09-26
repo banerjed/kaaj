@@ -287,7 +287,6 @@ INSERT INTO _pii_encrypted VALUES
   ('employee_certifications', 'certification_number', 'certification_number_ct'),
   -- Tenant-subject: the firm's own banking and its counterparties'. These must
   -- NOT be destroyed when an employee is erased.
-  ('clients',       'tax_id',              'tax_id_ct'),
   ('vendors',       'bank_account_number', 'bank_account_number_ct'),
   ('vendors',       'bank_routing_number', 'bank_routing_number_ct'),
   ('bank_accounts', 'account_number',      'account_number_ct'),
@@ -299,7 +298,12 @@ INSERT INTO _pii_encrypted VALUES
 -- § What is not encrypted yet). When one is encrypted, move it to the list
 -- above.
 CREATE TEMP TABLE _pii_pending (tbl TEXT, col TEXT, reason TEXT);
--- Empty — every column that held PII is now encrypted.
+INSERT INTO _pii_pending VALUES
+  -- A sole trader's tax number IS a national identifier. `clients` held the
+  -- same value encrypted until the two tables merged (L101); ciphertext cannot
+  -- move rows in SQL, so this still needs sealField on the write path.
+  ('customers', 'tax_number',
+   'counterparty tax id, read by the invoice view; encrypt via sealField like vendors banking');
 
 -- 1. An encrypted field's plaintext column must not exist, and its ciphertext
 --    column must.

@@ -269,22 +269,23 @@ INSERT INTO hr_emergency_contacts (id, tenant_id, employee_id, contact_name, rel
     ('c75f6a31-cddf-58c8-97de-b87698f53477', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'Wei Chen', 'parent', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('a5291a83-e115-5c77-8e35-41b9c64c6f23', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'Chidi Okafor', 'sibling', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
--- Three clients
-INSERT INTO clients (id, tenant_id, client_code, client_name, industry, status, is_active, country, currency, default_hourly_rate, payment_terms, account_manager_id, primary_contact_name, primary_contact_email, created_by) VALUES
-    ('0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ACME', 'Acme Manufacturing', 'manufacturing', 'active', TRUE, 'US', 'USD', 225, 'net_30', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', 'A. Contact', 'contact@acme.example', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('8594031f-d3f3-5d62-a5ab-f99b3a89c720', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'BRITCO', 'Britannia Retail Group', 'retail', 'active', TRUE, 'GB', 'GBP', 195, 'net_30', 'e05fd53c-ebdf-5049-810a-28a63369f93a', 'A. Contact', 'contact@britco.example', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('e22e6459-7c1d-5857-9908-89d775c82245', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'energy', 'active', TRUE, 'US', 'USD', 260, 'net_30', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', 'A. Contact', 'contact@helios.example', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+-- Three customers. Projects, objectives and time tracking point here, as
+-- well as accounting; ar_account_id is set once chart_of_accounts exists.
+INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_name, email, currency, payment_terms, is_active, custom_fields, legal_entity_name, customer_type, relationship_status, industry, company_size, default_hourly_rate, account_manager_id, acquisition_date, acquisition_source) VALUES
+    ('e40d0f18-1333-5cd1-a969-f5113df51e70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ACME', 'Acme Manufacturing', 'Acme Manufacturing', 'ap@acme.example', 'USD', 'net_30', TRUE, '{}'::jsonb, 'Acme Manufacturing Inc.', 'corporate', 'active', 'manufacturing', '1000-5000', 225, 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2025-03-01', 'referral'),
+    ('ac7a04b4-a28e-5a15-9993-596db32c8d4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'BRITCO', 'Britannia Retail Group', 'Britannia Retail Group', 'ap@britco.example', 'GBP', 'net_30', TRUE, '{}'::jsonb, 'Britannia Retail Group plc', 'enterprise', 'active', 'retail', '5000+', 195, 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2025-06-15', 'conference'),
+    ('df492f8b-55ce-504f-869d-52f5ffc6292d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'Helios Energy', 'ap@helios.example', 'USD', 'net_30', TRUE, '{}'::jsonb, 'Helios Energy LLC', 'small_business', 'prospect', 'energy', '50-200', 260, 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2026-02-10', 'inbound');
 
 -- Company objective (links to hr_goals)
 INSERT INTO pm_objectives (id, tenant_id, objective_id, objective_number, objective_name, objective_type, fiscal_year, quarter, department_code, owner_employee_id, status, progress_percentage, target_revenue, actual_revenue, currency, start_date, target_end_date, created_at, updated_at, created_by) VALUES
     ('960d66b2-8a52-59d0-8cf8-5c383d031244', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'OBJ-001', 'OBJ-001', 'Grow consulting revenue 30% in FY26', 'revenue', 2026, 'Q1', 'CONSULT', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'active', 42.0, 2400000, 1010000, 'USD', '2026-01-01', '2026-12-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
--- Four projects linked to clients and the company objective
-INSERT INTO projects (id, tenant_id, project_id, project_number, project_name, objective_id, client_id, project_manager_id, department_code, location_code, start_date, target_end_date, status, priority, progress_percentage, health_status, budget, currency, estimated_hours, actual_hours, billing_method, is_billable, hourly_rate, client_visible, custom_fields, task_count, completed_task_count, created_at, updated_at, created_by) VALUES
-    ('8257009f-6a91-5fd1-9efb-518198c08e2a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-001', 'PRJ-001', 'Acme ERP Integration', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 180000, 'USD', 1200, 408, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('fda698f3-bf14-5aae-bed6-330c8b5a6a70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-002', 'PRJ-002', 'Britannia Loyalty Platform', '960d66b2-8a52-59d0-8cf8-5c383d031244', '8594031f-d3f3-5d62-a5ab-f99b3a89c720', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 140000, 'GBP', 900, 306, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('f606af3e-f56f-5050-b663-02471b9f9dbd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-003', 'PRJ-003', 'Helios Data Migration', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'e22e6459-7c1d-5857-9908-89d775c82245', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 95000, 'USD', 620, 211, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('1da967fa-e086-53c7-b9d1-7605759dfda3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-004', 'PRJ-004', 'Internal Tooling', '960d66b2-8a52-59d0-8cf8-5c383d031244', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '6d466aa9-e51a-5d52-9015-152600855932', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'on_hold', 'high', 35.0, 'on_track', 0, 'USD', 300, 102, 'hourly', FALSE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+-- Four projects linked to customers and the company objective
+INSERT INTO projects (id, tenant_id, project_id, project_number, project_name, objective_id, customer_id, project_manager_id, department_code, location_code, start_date, target_end_date, status, priority, progress_percentage, health_status, budget, currency, estimated_hours, actual_hours, billing_method, is_billable, hourly_rate, client_visible, custom_fields, task_count, completed_task_count, created_at, updated_at, created_by) VALUES
+    ('8257009f-6a91-5fd1-9efb-518198c08e2a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-001', 'PRJ-001', 'Acme ERP Integration', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'e40d0f18-1333-5cd1-a969-f5113df51e70', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 180000, 'USD', 1200, 408, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('fda698f3-bf14-5aae-bed6-330c8b5a6a70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-002', 'PRJ-002', 'Britannia Loyalty Platform', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 140000, 'GBP', 900, 306, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f606af3e-f56f-5050-b663-02471b9f9dbd', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-003', 'PRJ-003', 'Helios Data Migration', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'df492f8b-55ce-504f-869d-52f5ffc6292d', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'active', 'high', 35.0, 'on_track', 95000, 'USD', 620, 211, 'hourly', TRUE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('1da967fa-e086-53c7-b9d1-7605759dfda3', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'PRJ-004', 'PRJ-004', 'Internal Tooling', '960d66b2-8a52-59d0-8cf8-5c383d031244', 'e40d0f18-1333-5cd1-a969-f5113df51e70', '6d466aa9-e51a-5d52-9015-152600855932', 'CONSULT', 'US-NYC', '2026-01-06', '2026-07-20', 'on_hold', 'high', 35.0, 'on_track', 0, 'USD', 300, 102, 'hourly', FALSE, 225, TRUE, '{}'::jsonb, 3, 1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Tasks across projects, mixed statuses
 INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, task_name, status, priority, assigned_to, estimated_hours, actual_hours, progress_percentage, is_billable, due_date, custom_fields, created_at, updated_at, created_by) VALUES
@@ -322,11 +323,11 @@ INSERT INTO custom_field_values (id, tenant_id, field_definition_id, entity_type
     ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a07', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '210b40b7-df80-5139-b843-821bfa8da2f7', 'task', '6d029a3a-8887-50a7-85b0-9e22408bdf61', NULL, NULL, NULL, NULL, TRUE, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- RESTORED table: effective-dated rates. January work must bill at January rates.
-INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, client_id, cost_rate, billable_rate, currency, effective_from, effective_to, change_reason, is_active, created_by) VALUES
-    ('eac68c02-7b6f-5f53-9a11-86a4cf292524', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', 95, 205, 'USD', '2025-01-01', '2025-12-31', 'initial_rate_card', FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('f0f6d0e9-559e-53c8-acb8-eceb3b637197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', 102, 225, 'USD', '2026-01-01', NULL, '2026_rate_increase', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('286da2b9-071e-577f-9fb4-8d816408fa4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', '8594031f-d3f3-5d62-a5ab-f99b3a89c720', 78, 195, 'GBP', '2026-01-01', NULL, '2026_rate_card', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('1cd9318f-1404-5da3-8137-b7e34a981661', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'e22e6459-7c1d-5857-9908-89d775c82245', 110, 260, 'USD', '2026-01-01', NULL, 'contractor_rate', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, customer_id, cost_rate, billable_rate, currency, effective_from, effective_to, change_reason, is_active, created_by) VALUES
+    ('eac68c02-7b6f-5f53-9a11-86a4cf292524', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 95, 205, 'USD', '2025-01-01', '2025-12-31', 'initial_rate_card', FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('f0f6d0e9-559e-53c8-acb8-eceb3b637197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 102, 225, 'USD', '2026-01-01', NULL, '2026_rate_increase', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('286da2b9-071e-577f-9fb4-8d816408fa4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 78, 195, 'GBP', '2026-01-01', NULL, '2026_rate_card', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('1cd9318f-1404-5da3-8137-b7e34a981661', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 110, 260, 'USD', '2026-01-01', NULL, 'contractor_rate', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Weekly timesheets. Hours and entry counts are DERIVED from time_tracking_entries.
 INSERT INTO time_tracking_timesheets (id, tenant_id, timesheet_number, employee_id, period_type, period_start, period_end, total_hours, billable_hours, non_billable_hours, entry_count, status, created_at, updated_at) VALUES
@@ -336,7 +337,7 @@ INSERT INTO time_tracking_timesheets (id, tenant_id, timesheet_number, employee_
     ('d634105b-83dc-55f4-944b-ea9dcb78d1f6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TS-004', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'weekly', '2026-01-06', '2026-01-12', 8.0, 8.0, 0.0, 1, 'draft', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z');
 
 -- Time entries linked to timesheets, projects and tasks
-INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, timesheet_id, project_id, task_id, client_id, entry_date, hours, duration_hours, is_billable, hourly_rate, billable_amount, currency, description, status, created_at, updated_at) VALUES
+INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, timesheet_id, project_id, task_id, customer_id, entry_date, hours, duration_hours, is_billable, hourly_rate, billable_amount, currency, description, status, created_at, updated_at) VALUES
     ('28a1b5e3-0d2e-57ba-a0db-5953f65e20f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-001', '11f31511-ad53-59c7-9e90-8ee3b553489b', '90ec22cb-b19d-52c4-b8ad-c0dffc9b8ea0', '8257009f-6a91-5fd1-9efb-518198c08e2a', '48961ce2-d17a-5ebe-81db-f608b4b6b125', NULL, '2026-01-06', 7.5, 7.5, TRUE, 225, 1687.5, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('29785891-532c-5055-b8ff-17b2bebbc8c6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-002', '11f31511-ad53-59c7-9e90-8ee3b553489b', '90ec22cb-b19d-52c4-b8ad-c0dffc9b8ea0', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, '2026-01-07', 8.0, 8.0, TRUE, 225, 1800.0, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
     ('f8cb641a-6288-5b73-b488-c01c35f73754', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-003', '11f31511-ad53-59c7-9e90-8ee3b553489b', '90ec22cb-b19d-52c4-b8ad-c0dffc9b8ea0', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, '2026-01-08', 6.5, 6.5, TRUE, 225, 1462.5, 'USD', 'Client delivery work', 'approved', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z'),
@@ -356,9 +357,6 @@ INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, project
     ('c3a6e8c1-6b60-5e4e-8c8a-2e6c9f8a0a11', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-010', 'db1f1f2b-b140-5948-a34e-1c998ed98757', '8257009f-6a91-5fd1-9efb-518198c08e2a', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '2026-01-13', 6.0, 6.0, TRUE, 150, 'USD', 'Client delivery work', 'draft', NULL, NULL, NULL, NULL, '2026-01-13T09:00:00Z', '2026-01-13T09:00:00Z'),
     ('d4b7f9d2-7c71-5f5f-9d9b-3f7da9b1b122', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-011', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'f606af3e-f56f-5050-b663-02471b9f9dbd', 'd144cb33-1f61-5317-993c-074c63e6716e', '2026-01-12', 5.0, 5.0, TRUE, 260, 'USD', 'Client delivery work', 'submitted', '2026-01-12T18:00:00Z', NULL, NULL, NULL, '2026-01-12T09:00:00Z', '2026-01-12T18:00:00Z'),
     ('e5c8a0e3-8d82-5060-ae0c-408eb0c2c233', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TE-012', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'fda698f3-bf14-5aae-bed6-330c8b5a6a70', 'e5557981-472b-5016-a458-b1de5cce6910', '2026-01-11', 3.0, 3.0, TRUE, 195, 'GBP', 'Client delivery work', 'rejected', '2026-01-11T17:00:00Z', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-12T09:00:00Z', 'Logged against the wrong task — please resubmit under Frontend build.', '2026-01-11T09:00:00Z', '2026-01-12T09:00:00Z');
-
-INSERT INTO time_tracking_billable_expenses (id, tenant_id, expense_id, employee_id, project_id, client_id, expense_date, description, expense_type, category, amount, currency, markup_percentage, markup_amount, billable_amount, has_receipt, receipt_url, is_billable, is_reimbursable, status, approved_by, approved_at, submitted_at, created_at, updated_at) VALUES
-    ('a3fb770c-9ae9-58ab-8104-29a642d613e2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TT-EXP-001', '11f31511-ad53-59c7-9e90-8ee3b553489b', '8257009f-6a91-5fd1-9efb-518198c08e2a', '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8', '2026-01-16', 'Acme onsite workshop airfare', 'travel', 'travel', 845.20, 'USD', 0.00, 0.00, 845.20, TRUE, '/storage/receipts/TT-EXP-001.pdf', TRUE, TRUE, 'approved', '6d466aa9-e51a-5d52-9015-152600855932', '2026-01-17T09:00:00Z', '2026-01-16T18:00:00Z', '2026-01-16T18:00:00Z', '2026-01-17T09:00:00Z');
 
 -- Ticketing business areas with per-area number sequences
 INSERT INTO ticketing_business_areas (id, tenant_id, prefix, name, description, current_sequence, is_active, created_at, created_by, updated_at) VALUES
@@ -573,11 +571,7 @@ INSERT INTO exchange_rates (id, from_currency, to_currency, rate_date, rate, inv
     ('4ba04769-06cb-520b-a140-c677582102b0', 'GBP', 'USD', '2026-02-07', 1.280000, 0.781250, 'ECB', FALSE, '2026-02-07T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('13639ff8-f902-5e32-b1a0-fde77b5e54aa', 'EUR', 'USD', '2026-01-24', 1.090000, 0.917431, 'ECB', FALSE, '2026-01-24T08:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
--- Billing customers (mirror of clients)
-INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_name, email, currency, payment_terms, ar_account_id, is_active, custom_fields) VALUES
-    ('e40d0f18-1333-5cd1-a969-f5113df51e70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ACME', 'Acme Manufacturing', 'Acme Manufacturing', 'ap@acme.example', 'USD', 'net_30', 'a6ecad5d-10af-5286-807b-cd31b3266d99', TRUE, '{}'::jsonb),
-    ('ac7a04b4-a28e-5a15-9993-596db32c8d4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'BRITCO', 'Britannia Retail Group', 'Britannia Retail Group', 'ap@britco.example', 'GBP', 'net_30', 'a6ecad5d-10af-5286-807b-cd31b3266d99', TRUE, '{}'::jsonb),
-    ('df492f8b-55ce-504f-869d-52f5ffc6292d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'Helios Energy', 'ap@helios.example', 'USD', 'net_30', 'a6ecad5d-10af-5286-807b-cd31b3266d99', TRUE, '{}'::jsonb);
+UPDATE customers SET ar_account_id = 'a6ecad5d-10af-5286-807b-cd31b3266d99';
 
 UPDATE customers SET
     billing_address = '{"city": "New York", "state": "NY", "country": "US"}'::jsonb,
@@ -914,7 +908,16 @@ UPDATE expenses SET
     approved_by = '6d466aa9-e51a-5d52-9015-152600855932',
     approved_at = '2026-01-17T09:00:00Z',
     department_id = 'fc0935fd-6c10-5db1-8e61-e458aeca68c0',
-    tracking_categories = '{"client": "ACME", "project": "PRJ-001"}'::jsonb
+    tracking_categories = '{"client": "ACME", "project": "PRJ-001"}'::jsonb,
+    -- Rebilled to Acme at cost, on the invoice for PRJ-001.
+    project_id = '8257009f-6a91-5fd1-9efb-518198c08e2a',
+    customer_id = 'e40d0f18-1333-5cd1-a969-f5113df51e70',
+    is_billable = TRUE,
+    markup_percentage = 0,
+    markup_amount = 0,
+    billable_amount = 845.20,
+    invoice_id = 'a3ff49bc-30c8-57c3-ae07-c0fd6813df3e',
+    invoiced_at = '2026-03-01T09:00:00Z'
 WHERE id = '0322e10e-37fd-51cc-af9c-cade3b267676';
 
 -- Timezone-aware pay schedules, one per country
@@ -1416,7 +1419,7 @@ INSERT INTO pm_dashboard_widgets (id, tenant_id, widget_id, dashboard_id, widget
     ('995f6521-221e-5753-9f05-e1f068f82b15', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-002-W1', '7d22d488-6cdc-5fd1-a947-75bff92afec0', 'metric', 'Open Tickets', 0, 0, 6, 4, 1, TRUE, '{"table": "ticketing_tickets"}'::jsonb, '{"metric": "tickets", "period": "quarter"}'::jsonb, '{"value": 4}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('a90f9201-ea3d-5374-9cae-85a028efa4ac', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'DB-002-W2', '7d22d488-6cdc-5fd1-a947-75bff92afec0', 'chart', 'Cycle Time', 0, 1, 6, 4, 2, TRUE, '{"table": "tasks"}'::jsonb, '{"metric": "cycle_time", "period": "quarter"}'::jsonb, '{"value": null}'::jsonb, TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
-INSERT INTO pm_task_comments (id, tenant_id, comment_id, task_id, project_id, comment_type, comment_text, author_type, author_employee_id, author_client_id, mentioned_users, is_internal, is_pinned, created_at, updated_at) VALUES
+INSERT INTO pm_task_comments (id, tenant_id, comment_id, task_id, project_id, comment_type, comment_text, author_type, author_employee_id, author_customer_id, mentioned_users, is_internal, is_pinned, created_at, updated_at) VALUES
     ('77470cf2-dc9b-5cc0-a71a-5e20d99b5aa1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TC-001', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'comment', 'Client confirmed source-system access for the mapping workshop.', 'employee', '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, '["db1f1f2b-b140-5948-a34e-1c998ed98757"]'::jsonb, FALSE, FALSE, '2026-01-12T10:00:00Z', '2026-01-12T10:00:00Z'),
     ('b8272a42-2627-5d55-acbb-8406d5c7d1f2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'TC-002', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', '8257009f-6a91-5fd1-9efb-518198c08e2a', 'risk', 'Internal note: confirm edge-case mappings before showing the draft to Acme.', 'employee', '6d466aa9-e51a-5d52-9015-152600855932', NULL, '[]'::jsonb, TRUE, TRUE, '2026-01-12T11:00:00Z', '2026-01-12T11:00:00Z');
 
@@ -2062,23 +2065,6 @@ UPDATE chart_of_accounts SET parent_account_id = 'eef02e95-6acb-5039-8acc-563400
 -- the "looks configured but isn't" shape US-ACC-050 calls out for customers.
 UPDATE chart_of_accounts SET tax_rate_id = 'a1952ec4-9252-5bbf-89aa-9f2e89d7ef53' WHERE account_code = '4000';
 UPDATE chart_of_accounts SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
-UPDATE clients SET acquisition_date = '2026-03-01' WHERE acquisition_date IS NULL;
-UPDATE clients SET acquisition_source = 'Acquisition Source 1' WHERE acquisition_source IS NULL OR acquisition_source = '';
-UPDATE clients SET address_line1 = 'Address Line1 1' WHERE address_line1 IS NULL OR address_line1 = '';
-UPDATE clients SET address_line2 = 'Address Line2 1' WHERE address_line2 IS NULL OR address_line2 = '';
-UPDATE clients SET billing_contact_email = 'fixture@northwind.example' WHERE billing_contact_email IS NULL OR billing_contact_email = '';
-UPDATE clients SET billing_contact_name = 'Billing Contact Name 1' WHERE billing_contact_name IS NULL OR billing_contact_name = '';
-UPDATE clients SET billing_contact_phone = '+1-212-555-0150' WHERE billing_contact_phone IS NULL OR billing_contact_phone = '';
-UPDATE clients SET city = 'City 1' WHERE city IS NULL OR city = '';
-UPDATE clients SET company_size = 'Company Size 1' WHERE company_size IS NULL OR company_size = '';
-UPDATE clients SET custom_fields = '["standard"]'::jsonb WHERE custom_fields IS NULL OR custom_fields::text IN ('{}','[]','null');
-UPDATE clients SET legal_entity_name = 'Legal Entity Name 1' WHERE legal_entity_name IS NULL OR legal_entity_name = '';
-UPDATE clients SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
-UPDATE clients SET postal_code = 'STD' WHERE postal_code IS NULL OR postal_code = '';
-UPDATE clients SET primary_contact_phone = '+1-212-555-0150' WHERE primary_contact_phone IS NULL OR primary_contact_phone = '';
-UPDATE clients SET primary_contact_title = 'Primary Contact Title 1' WHERE primary_contact_title IS NULL OR primary_contact_title = '';
-UPDATE clients SET state_province = 'State Province 1' WHERE state_province IS NULL OR state_province = '';
-UPDATE clients SET website = 'Website 1' WHERE website IS NULL OR website = '';
 UPDATE compensation_work_schedules SET break_policy = '{"note": "seeded for fixture completeness"}'::jsonb WHERE break_policy IS NULL OR break_policy::text IN ('{}','[]','null');
 UPDATE compensation_work_schedules SET core_hours = '["standard"]'::jsonb WHERE core_hours IS NULL OR core_hours::text IN ('{}','[]','null');
 UPDATE compensation_work_schedules SET effective_to = '2026-12-31' WHERE effective_to IS NULL;
@@ -2095,7 +2081,6 @@ UPDATE customers SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE c
 UPDATE customers SET credit_limit = 100.00 WHERE credit_limit IS NULL;
 UPDATE customers SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';
 UPDATE customers SET phone = '+1-212-555-0150' WHERE phone IS NULL OR phone = '';
-UPDATE customers SET portal_access_token = 'Portal Access Token 1' WHERE portal_access_token IS NULL OR portal_access_token = '';
 UPDATE customers SET shipping_address = '["standard"]'::jsonb WHERE shipping_address IS NULL OR shipping_address::text IN ('{}','[]','null');
 UPDATE customers SET updated_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE updated_by IS NULL;
 UPDATE customers SET website = 'Website 1' WHERE website IS NULL OR website = '';
@@ -2381,8 +2366,6 @@ UPDATE ticketing_tickets SET reported_by_name = 'Reported By Name 1' WHERE repor
 UPDATE ticketing_tickets SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
 UPDATE ticketing_updates SET attachments = '["standard"]'::jsonb WHERE attachments IS NULL OR attachments::text IN ('{}','[]','null');
 UPDATE ticketing_updates SET changes = '["standard"]'::jsonb WHERE changes IS NULL OR changes::text IN ('{}','[]','null');
-UPDATE time_tracking_billable_expenses SET invoiced_at = '2026-03-01T09:00:00Z' WHERE invoiced_at IS NULL;
-UPDATE time_tracking_billable_expenses SET reimbursed_at = '2026-03-01T09:00:00Z' WHERE reimbursed_at IS NULL;
 UPDATE time_tracking_entries SET activity_type = 'call'::activity_type WHERE activity_type IS NULL;
 UPDATE time_tracking_entries SET amount = 1.2500 WHERE amount IS NULL;
 UPDATE time_tracking_entries SET approved_at = '2026-03-01T09:00:00Z' WHERE approved_at IS NULL;
@@ -2440,17 +2423,15 @@ UPDATE hr_time_off_policies p SET template_id =
 
 UPDATE pm_automation_executions SET triggered_by_user_id = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE triggered_by_user_id IS NULL;
 UPDATE pm_automations       SET objective_id          = (SELECT id FROM pm_objectives LIMIT 1)  WHERE objective_id IS NULL;
-UPDATE pm_objectives        SET client_id             = (SELECT id FROM clients LIMIT 1)        WHERE client_id IS NULL;
+UPDATE pm_objectives        SET customer_id           = (SELECT id FROM customers LIMIT 1)      WHERE customer_id IS NULL;
 UPDATE pm_objectives        SET default_dashboard_id  = (SELECT id FROM pm_dashboards LIMIT 1)  WHERE default_dashboard_id IS NULL;
 UPDATE pm_objectives        SET primary_contact_id    = (SELECT id FROM employees LIMIT 1)      WHERE primary_contact_id IS NULL;
-UPDATE pm_task_comments     SET author_client_id      = (SELECT id FROM clients LIMIT 1)        WHERE author_client_id IS NULL;
+UPDATE pm_task_comments     SET author_customer_id    = (SELECT id FROM customers LIMIT 1)      WHERE author_customer_id IS NULL;
 UPDATE projects             SET contact_person_id     = (SELECT id FROM employees LIMIT 1)      WHERE contact_person_id IS NULL;
 UPDATE ticketing_attachments SET update_id            = (SELECT id FROM ticketing_updates LIMIT 1) WHERE update_id IS NULL;
-UPDATE time_tracking_entries SET client_id            = (SELECT id FROM clients LIMIT 1)        WHERE client_id IS NULL;
+UPDATE time_tracking_entries SET customer_id           = (SELECT id FROM customers LIMIT 1)      WHERE customer_id IS NULL;
 UPDATE time_tracking_entries SET invoice_id           = (SELECT id FROM invoices LIMIT 1)       WHERE invoice_id IS NULL;
 UPDATE time_tracking_entries SET invoice_line_item_id = (SELECT id FROM invoice_lines LIMIT 1)  WHERE invoice_line_item_id IS NULL;
-UPDATE time_tracking_billable_expenses SET invoice_id = (SELECT id FROM invoices LIMIT 1)       WHERE invoice_id IS NULL;
-UPDATE time_tracking_billable_expenses SET receipt_attachment_id = (SELECT id FROM pm_task_attachments LIMIT 1) WHERE receipt_attachment_id IS NULL;
 UPDATE time_tracking_hourly_rates SET project_id      = (SELECT id FROM projects LIMIT 1)       WHERE project_id IS NULL;
 
 -- `tenants.tax_id` is a uuid column with a tax-identifier name — the type and
@@ -2507,9 +2488,6 @@ UPDATE bank_accounts SET iban_ct = '{"v":1,"k":1,"iv":"wFf30MNsfFZrDdAp","ct":"c
 UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"f/perHW9b5Nl0phG","ct":"mthHcBpxfF8=","tag":"nYyKOph8xB17JeUZxQfB2A=="}' WHERE id = '6d55e7d0-f085-5951-9f28-2fcd1b75c6bc';
 UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"LhmfVqhtPHry1DOk","ct":"6POFIaPVXNw=","tag":"2NDEKn//Nm4GMGpqymYXXQ=="}' WHERE id = '7585ab47-4908-5830-a959-65711784fc61';
 UPDATE bank_accounts SET swift_code_ct = '{"v":1,"k":1,"iv":"hcvMgptyeyeEdhWh","ct":"RptJsyHWzLc=","tag":"RnjIlh6d8QI7BR6/EinrxA=="}' WHERE id = 'd189279d-45d2-5e98-85bf-e03f3dbe04e3';
-UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"vgXyS/xwUOaIe5pz","ct":"SotdrCNLyjIqAno=","tag":"54DsvimGPEK5yXJwggsPRw=="}' WHERE id = '0bacfcac-ff3a-5c72-ac5c-753d7c9aecd8';
-UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"H74W7dyphfi4ikZh","ct":"sBn2V4X/WDbfRahS","tag":"UXGvV1EUdzCDO2ny/r9kpA=="}' WHERE id = '8594031f-d3f3-5d62-a5ab-f99b3a89c720';
-UPDATE clients SET tax_id_ct = '{"v":1,"k":1,"iv":"X+044SYlHeBqSQaO","ct":"/fwcgo+2Q5tTGizEm/zxCsw=","tag":"BnQNrtWoaZT6Uzhky0CBRg=="}' WHERE id = 'e22e6459-7c1d-5857-9908-89d775c82245';
 UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"YFQoPUgLpBmsEmJc","ct":"xTnhRZGqBtc=","tag":"iUvDPMhOC8fRVEAaEDGflQ=="}' WHERE id = '8a0bb1a6-448e-50f5-bbc0-1a41850d2e92';
 UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"QvBkKInWG2m5mB0k","ct":"Wx74gD8DvV8=","tag":"7peUbxIrx8Eii24B6EnlTA=="}' WHERE id = 'e21a30e8-9dfd-5817-8479-c7d574417831';
 UPDATE vendors SET bank_account_number_ct = '{"v":1,"k":1,"iv":"JgntiiM3NxfD46KV","ct":"inPoB0RI154=","tag":"k/hVoHHOTa/h/rsx1dXrjA=="}' WHERE id = '77464d71-79dd-5490-93a3-a62c9df1d027';

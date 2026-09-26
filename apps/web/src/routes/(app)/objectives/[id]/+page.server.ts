@@ -52,6 +52,11 @@ function objectiveRefusal(e: ObjectiveWriteRefused) {
           "Another objective was created at the same moment and took that number. Try again.",
         field: "",
       }
+    case "no_such_customer":
+      return {
+        message: "That client no longer exists. Reload and pick another.",
+        field: "customer_id",
+      }
   }
 }
 
@@ -138,7 +143,7 @@ export const actions: Actions = {
 
     const f = new FormReader(await request.formData())
     const projectName = f.text("project_name", { max: 200, required: true })
-    const clientId = f.uuid("client_id")
+    const customerId = f.uuid("customer_id")
     const managerId = f.uuid("project_manager_id")
     const currency = f.currency("currency", { required: true })
 
@@ -152,7 +157,7 @@ export const actions: Actions = {
           {
             project_name: projectName!,
             description: null,
-            client_id: clientId,
+            customer_id: customerId,
             project_manager_id: managerId,
             status: "draft",
             priority: "medium",
@@ -189,6 +194,12 @@ export const actions: Actions = {
       })
     } catch (e) {
       if (e instanceof ProjectWriteRefused) {
+        if (e.reason === "no_such_customer") {
+          return fail(400, {
+            message: "That client no longer exists. Reload and pick another.",
+            field: "customer_id",
+          })
+        }
         return fail(400, {
           message:
             "Another project was created at the same moment and took that number. Try again.",

@@ -256,7 +256,7 @@
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <p class="text-base-content/70 text-sm">
           {data.project.project_number}
-          {#if data.project.client_name}· {data.project.client_name}{/if}
+          {#if data.project.customer_name}· {data.project.customer_name}{/if}
           {#if data.project.manager_name}· led by {data.project
               .manager_name}{/if}
           {#if data.project.objective_name}

@@ -251,19 +251,23 @@ async function effectiveRate(
   entryDate: string,
 ): Promise<{ rate: string | null; currency: string }> {
   const [project] = await tx<
-    { client_id: string | null; hourly_rate: string | null; currency: string }[]
-  >`SELECT client_id, hourly_rate::text AS hourly_rate, currency FROM projects WHERE id = ${projectId}::uuid`
+    {
+      customer_id: string | null
+      hourly_rate: string | null
+      currency: string
+    }[]
+  >`SELECT customer_id, hourly_rate::text AS hourly_rate, currency FROM projects WHERE id = ${projectId}::uuid`
   if (!project) throw new TimeEntryWriteRefused("no_such_project")
 
   const [card] = await tx<{ billable_rate: string }[]>`
     SELECT billable_rate::text AS billable_rate
       FROM time_tracking_hourly_rates
      WHERE employee_id = ${employeeId}::uuid
-       AND (client_id = ${project.client_id}::uuid OR client_id IS NULL)
+       AND (customer_id = ${project.customer_id}::uuid OR customer_id IS NULL)
        AND is_active
        AND effective_from <= ${entryDate}::date
        AND (effective_to IS NULL OR effective_to >= ${entryDate}::date)
-     ORDER BY (client_id IS NOT NULL) DESC, effective_from DESC
+     ORDER BY (customer_id IS NOT NULL) DESC, effective_from DESC
      LIMIT 1
   `
   return {

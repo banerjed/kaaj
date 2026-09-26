@@ -67,7 +67,7 @@ describe("editing an objective diffs only the fields that actually moved, and on
           description: "original description",
           objective_type: "general",
           status: "planning",
-          client_id: null,
+          customer_id: null,
           owner_employee_id: null,
           start_date: null,
           target_end_date: null,

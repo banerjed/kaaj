@@ -222,7 +222,7 @@ const MODULES = [
   ['Ticketing',            ['ticketing_']],
   ['Accounting',           ['=accounting_periods', 'bank_', 'bill', '=chart_of_accounts', '=invoices', '=invoice_lines',
                             '=journal_entries', '=journal_entry_lines', '=payments', '=payment_allocations',
-                            '=expenses', '=exchange_rates', '=vendors', '=customers', '=clients']],
+                            '=expenses', '=exchange_rates', '=vendors', '=customers']],
 ];
 
 function moduleOf(name) {
@@ -281,7 +281,7 @@ const RESOURCE_ALIAS = {
   'tickets': 'ticketing_tickets', 'updates': 'ticketing_updates',
   'attachments': 'ticketing_attachments', 'business-areas': 'ticketing_business_areas',
   'time-entries': 'time_tracking_entries', 'timesheets': 'time_tracking_timesheets',
-  'billable-expenses': 'time_tracking_billable_expenses', 'hourly-rates': 'time_tracking_hourly_rates',
+  'billable-expenses': 'expenses', 'hourly-rates': 'time_tracking_hourly_rates',
   'change-requests': 'hr_change_requests', 'objectives': 'pm_objectives',
   'automations': 'pm_automations', 'dashboards': 'pm_dashboards', 'widgets': 'pm_dashboard_widgets',
   'project-templates': 'pm_project_templates', 'comments': 'pm_task_comments',

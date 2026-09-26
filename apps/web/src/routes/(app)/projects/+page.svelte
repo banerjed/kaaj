@@ -104,7 +104,9 @@
                   {p.project_name}
                 </a>
                 <p class="text-base-content/70 truncate text-xs">
-                  {p.project_number}{p.client_name ? ` · ${p.client_name}` : ""}
+                  {p.project_number}{p.customer_name
+                    ? ` · ${p.customer_name}`
+                    : ""}
                 </p>
                 {#if p.objective_name}
                   <a
@@ -216,13 +218,13 @@
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client</legend>
           <select
-            name="client_id"
-            aria-invalid={err.aria("client_id")}
-            class={`select w-full ${err.select("client_id")}`}
+            name="customer_id"
+            aria-invalid={err.aria("customer_id")}
+            class={`select w-full ${err.select("customer_id")}`}
           >
             <option value="">Internal — no client</option>
-            {#each data.clients as c (c.id)}
-              <option value={c.id}>{c.client_name}</option>
+            {#each data.customers as c (c.id)}
+              <option value={c.id}>{c.customer_name}</option>
             {/each}
           </select>
         </fieldset>

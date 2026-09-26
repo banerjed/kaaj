@@ -67,7 +67,8 @@
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <p class="text-base-content/70 text-sm">
           {data.objective.objective_number}
-          {#if data.objective.client_name}· {data.objective.client_name}{/if}
+          {#if data.objective.customer_name}· {data.objective
+              .customer_name}{/if}
           · {label(data.objective.objective_type)}
           {#if data.objective.owner_name}· owned by {data.objective
               .owner_name}{/if}

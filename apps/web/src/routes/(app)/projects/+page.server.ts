@@ -43,8 +43,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     // UI convenience only — the action re-enforces this gate.
     mayCreate: can(ctx, "projects.write"),
     // Options for the create form; firm-wide reference data.
-    clients: await tx<{ id: string; client_name: string }[]>`
-      SELECT id, client_name FROM clients ORDER BY client_name
+    customers: await tx<{ id: string; customer_name: string }[]>`
+      SELECT id, customer_name FROM customers ORDER BY customer_name
     `,
     managers: await tx<{ id: string; name: string }[]>`
       SELECT id, first_name || ' ' || last_name AS name
@@ -70,7 +70,7 @@ export const actions: Actions = {
     // Every reader above the `if (!f.ok)` gate — see CLAUDE.md's FormReader ordering rule (L33).
     const projectName = f.text("project_name", { max: 200, required: true })
     const description = f.text("description", { max: 2000 })
-    const clientId = f.uuid("client_id")
+    const customerId = f.uuid("customer_id")
     const managerId = f.uuid("project_manager_id")
     const objectiveId = f.uuid("objective_id")
     const status = f.choice("status", STATUSES, { required: true })
@@ -100,7 +100,7 @@ export const actions: Actions = {
           {
             project_name: projectName!,
             description,
-            client_id: clientId,
+            customer_id: customerId,
             project_manager_id: managerId,
             objective_id: objectiveId,
             status: status!,
@@ -179,6 +179,12 @@ export const actions: Actions = {
           return fail(400, {
             message: "That objective no longer exists. Reload and try again.",
             field: "objective_id",
+          })
+        }
+        if (e.reason === "no_such_customer") {
+          return fail(400, {
+            message: "That client no longer exists. Reload and pick another.",
+            field: "customer_id",
           })
         }
         return fail(400, {

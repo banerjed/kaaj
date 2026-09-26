@@ -35,7 +35,7 @@ export type ObjectiveRow = {
   fiscal_year: string | null
   quarter: string | null
   owner_name: string | null
-  client_name: string | null
+  customer_name: string | null
   project_count: number
   archived_at: string | null
 }
@@ -51,13 +51,13 @@ const SELECT = `
          to_char(o.target_end_date,'YYYY-MM-DD') AS target_end_date,
          o.fiscal_year, o.quarter,
          e.first_name || ' ' || e.last_name AS owner_name,
-         c.client_name,
+         c.customer_name,
          to_char(o.archived_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS archived_at,
          (SELECT count(*)::int FROM projects p
            WHERE p.objective_id = o.id AND p.archived_at IS NULL) AS project_count
     FROM pm_objectives o
     LEFT JOIN employees e ON e.id = o.owner_employee_id
-    LEFT JOIN clients c   ON c.id = o.client_id
+    LEFT JOIN customers c ON c.id = o.customer_id
 `
 
 export async function list(tx: Tx): Promise<ObjectiveRow[]> {
@@ -132,7 +132,9 @@ export const OBJECTIVE_STATUSES = [
 export const OBJECTIVE_HEALTHS = ["on_track", "at_risk", "off_track"] as const
 
 export class ObjectiveWriteRefused extends Error {
-  constructor(readonly reason: "no_such_objective" | "number_taken") {
+  constructor(
+    readonly reason: "no_such_objective" | "number_taken" | "no_such_customer",
+  ) {
     super(reason)
     this.name = "ObjectiveWriteRefused"
   }
@@ -164,7 +166,7 @@ export type NewObjective = {
   description: string | null
   objective_type: string
   status: string
-  client_id: string | null
+  customer_id: string | null
   owner_employee_id: string | null
   start_date: string | null
   target_end_date: string | null
@@ -180,13 +182,20 @@ export async function createObjective(
   input: NewObjective,
   actorId: string,
 ): Promise<{ id: string; objective_number: string }> {
+  // Under RLS, so another tenant's customer id is refused — the FK alone would accept it.
+  if (input.customer_id) {
+    const [customer] = await tx<{ id: string }[]>`
+      SELECT id FROM customers WHERE id = ${input.customer_id}::uuid
+    `
+    if (!customer) throw new ObjectiveWriteRefused("no_such_customer")
+  }
   const number = await nextNumber(tx)
   try {
     const [row] = await tx<{ id: string; objective_number: string }[]>`
       INSERT INTO pm_objectives (
         tenant_id, objective_id, objective_number, objective_name, description,
         objective_type, status, health_status,
-        client_id, owner_employee_id,
+        customer_id, owner_employee_id,
         start_date, target_end_date, fiscal_year, quarter,
         target_revenue, actual_revenue, currency, progress_percentage,
         created_at, updated_at, created_by
@@ -194,7 +203,7 @@ export async function createObjective(
         ${tenantId}::uuid, ${number}, ${number}, ${input.objective_name},
         ${input.description},
         ${input.objective_type}, ${input.status}, 'on_track',
-        ${input.client_id}::uuid, ${input.owner_employee_id}::uuid,
+        ${input.customer_id}::uuid, ${input.owner_employee_id}::uuid,
         ${input.start_date}::date, ${input.target_end_date}::date,
         ${input.fiscal_year}, ${input.quarter},
         ${input.target_revenue}::numeric, 0, ${input.currency}, 0,

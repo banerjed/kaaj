@@ -101,7 +101,6 @@ const TABLES = {
   ticketing_ticket_tasks: null,
   ticketing_tickets: "ticket_number",
   ticketing_updates: null,
-  time_tracking_billable_expenses: "expense_id",
   time_tracking_entries: "entry_id",
 }
 

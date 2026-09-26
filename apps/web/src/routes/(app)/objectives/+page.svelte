@@ -79,7 +79,7 @@
                 </a>
                 <p class="text-base-content/70 truncate text-xs">
                   {o.objective_number}
-                  {o.client_name ? ` · ${o.client_name}` : ""}
+                  {o.customer_name ? ` · ${o.customer_name}` : ""}
                   · {label(o.objective_type)}
                 </p>
               </div>
@@ -196,13 +196,13 @@
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client (optional)</legend>
           <select
-            name="client_id"
-            aria-invalid={err.aria("client_id")}
-            class={`select w-full ${err.select("client_id")}`}
+            name="customer_id"
+            aria-invalid={err.aria("customer_id")}
+            class={`select w-full ${err.select("customer_id")}`}
           >
             <option value="">Not client-specific</option>
-            {#each data.clients as c (c.id)}
-              <option value={c.id}>{c.client_name}</option>
+            {#each data.customers as c (c.id)}
+              <option value={c.id}>{c.customer_name}</option>
             {/each}
           </select>
         </fieldset>

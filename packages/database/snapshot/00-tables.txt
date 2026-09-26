@@ -9,7 +9,6 @@ bank_transactions	t	t
 bill_lines	t	t
 bills	t	t
 chart_of_accounts	t	t
-clients	t	t
 compensation_allowances	t	t
 compensation_base	t	t
 compensation_equity	t	t
@@ -118,7 +117,6 @@ ticketing_ticket_subscribers	t	t
 ticketing_ticket_tasks	t	t
 ticketing_tickets	t	t
 ticketing_updates	t	t
-time_tracking_billable_expenses	t	t
 time_tracking_entries	t	t
 time_tracking_hourly_rates	t	t
 time_tracking_timesheets	t	t

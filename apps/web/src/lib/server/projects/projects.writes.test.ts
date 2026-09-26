@@ -31,6 +31,8 @@ const T2 = "864cc09e-6b7e-58b4-a2e2-04233fbfea70"
 const T8_SUBTASK = "a19f5b3e-2b7a-5c3e-9a0d-7e6f4c2b1a90"
 /** T-004 'Loyalty rules engine', in a different project (PRJ-002). */
 const T4_OTHER_PROJECT = "e5557981-472b-5016-a458-b1de5cce6910"
+/** Acme Manufacturing — the customer accounting invoices, and PRJ-001's. */
+const ACME_CUSTOMER = "e40d0f18-1333-5cd1-a969-f5113df51e70"
 
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
@@ -213,7 +215,7 @@ describe("moving a task", () => {
 describe("creating a project", () => {
   const NEW_PROJECT = {
     project_name: "Warehouse relabelling",
-    client_id: null,
+    customer_id: null,
     project_manager_id: null,
     status: "draft",
     priority: "medium",
@@ -292,6 +294,37 @@ describe("creating a project", () => {
     })
     expect(found).toBe(true)
     expect(projects.PROJECT_STATUSES).toContain("draft")
+  })
+
+  it("bills the same customer row accounting invoices", async () => {
+    const row = await inRollback(async (tx) => {
+      const { id } = await projects.createProject(
+        tx,
+        NORTHWIND,
+        { ...NEW_PROJECT, customer_id: ACME_CUSTOMER },
+        ACTOR,
+      )
+      return (await projects.byId(tx, id))!
+    })
+    expect(row.customer_name).toBe("Acme Manufacturing")
+  })
+
+  it("refuses a customer this tenant cannot see", async () => {
+    // Under RLS another tenant's customer is indistinguishable from none —
+    // and the FK alone would accept it, since a constraint check bypasses RLS.
+    await expect(
+      inRollback((tx) =>
+        projects.createProject(
+          tx,
+          NORTHWIND,
+          {
+            ...NEW_PROJECT,
+            customer_id: "00000000-0000-4000-8000-00000000dead",
+          },
+          ACTOR,
+        ),
+      ),
+    ).rejects.toMatchObject({ reason: "no_such_customer" })
   })
 })
 

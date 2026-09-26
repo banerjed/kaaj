@@ -24,8 +24,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     statuses: OBJECTIVE_STATUSES,
     // UI convenience only — the action re-enforces this gate.
     mayCreate: can(ctx, "projects.write"),
-    clients: await tx<{ id: string; client_name: string }[]>`
-      SELECT id, client_name FROM clients ORDER BY client_name
+    customers: await tx<{ id: string; customer_name: string }[]>`
+      SELECT id, customer_name FROM customers ORDER BY customer_name
     `,
     owners: await tx<{ id: string; name: string }[]>`
       SELECT id, first_name || ' ' || last_name AS name
@@ -51,7 +51,7 @@ export const actions: Actions = {
       required: true,
     })
     const status = f.choice("status", OBJECTIVE_STATUSES, { required: true })
-    const clientId = f.uuid("client_id")
+    const customerId = f.uuid("customer_id")
     const ownerId = f.uuid("owner_employee_id")
     const startDate = f.date("start_date")
     const targetEnd = f.date("target_end_date")
@@ -76,7 +76,7 @@ export const actions: Actions = {
             description,
             objective_type: type!,
             status: status!,
-            client_id: clientId,
+            customer_id: customerId,
             owner_employee_id: ownerId,
             start_date: startDate,
             target_end_date: targetEnd,
@@ -106,6 +106,12 @@ export const actions: Actions = {
       })
     } catch (e) {
       if (e instanceof ObjectiveWriteRefused) {
+        if (e.reason === "no_such_customer") {
+          return fail(400, {
+            message: "That client no longer exists. Reload and pick another.",
+            field: "customer_id",
+          })
+        }
         return fail(400, {
           message:
             "Another objective was created at the same moment and took that number. Try again.",

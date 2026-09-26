@@ -19,8 +19,6 @@ bills	app_user	INSERT,SELECT,UPDATE
 bills	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 chart_of_accounts	app_user	INSERT,SELECT,UPDATE
 chart_of_accounts	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-clients	app_user	INSERT,SELECT,UPDATE
-clients	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 compensation_allowances	app_user	INSERT,SELECT,UPDATE
 compensation_allowances	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 compensation_base	app_user	INSERT,SELECT,UPDATE
@@ -239,8 +237,6 @@ ticketing_tickets	app_user	INSERT,SELECT,UPDATE
 ticketing_tickets	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_updates	app_user	INSERT,SELECT,UPDATE
 ticketing_updates	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-time_tracking_billable_expenses	app_user	INSERT,SELECT,UPDATE
-time_tracking_billable_expenses	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 time_tracking_entries	app_user	INSERT,SELECT,UPDATE
 time_tracking_entries	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 time_tracking_hourly_rates	app_user	INSERT,SELECT,UPDATE

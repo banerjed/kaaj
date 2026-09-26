@@ -54,6 +54,10 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["objective_id"],
     message: "That objective no longer exists. Reload and try again.",
   },
+  fk_projects_customer_id: {
+    errorFields: ["customer_id"],
+    message: "That client no longer exists. Reload and pick another.",
+  },
   fk_tasks_parent_task_id: {
     errorFields: ["parent_task_id"],
     message: "That parent task no longer exists. Reload and try again.",
