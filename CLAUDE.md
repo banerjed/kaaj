@@ -455,7 +455,9 @@ from the matrix until the check was widened, which is how
 `customers.tax_number` stayed readable by every employee with this step
 green ([L101](docs/10-lessons-learned.md)). A new table needs a class, and
 every disclosure bug here so far was an *unclassified* value rather than a
-mis-classified one ([L48](docs/10-lessons-learned.md)).
+mis-classified one ([L48](docs/10-lessons-learned.md)). `TENANT_WIDE` is
+classified by table, not column: **a column added to a tenant-wide table is
+not checked** — ask of it whether its table still belongs there.
 
 **`EXPOSED_PENDING` is a list of known leaks, not an exemption.** Each of
 its 8 entries is readable by the whole tenant, although another committed
