@@ -3,6 +3,16 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
 import * as objectives from "$lib/server/objectives/objectives.repo"
+import * as comments from "$lib/server/projects/comments.repo"
+import { CommentWriteRefused } from "$lib/server/projects/comments.repo"
+import * as templates from "$lib/server/projects/templates.repo"
+import { TemplateWriteRefused } from "$lib/server/projects/templates.repo"
+import * as documents from "$lib/server/documents/documents.repo"
+import { uploadTaskFile as attachTaskFile } from "$lib/server/documents/upload"
+import { UploadRefused } from "$lib/server/documents/upload"
+import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
+import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
+import { readCustomFieldValues } from "$lib/server/custom-fields/read-values"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
@@ -29,6 +39,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       projects.tasksFor(tx, project.id),
       projects.countTasksFor(tx, project.id),
     ])
+    const taskIds = tasks.map((t) => t.id)
     return {
       project,
       tasks,
@@ -48,6 +59,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       objectives: await objectives.list(tx),
       // For per-market number formatting; see localeForCurrency.
       locations: await locationsRepo.list(tx),
+      // Batched — one query each, not one per task (verify-no-loop-queries.mjs).
+      commentsByTask: await comments.commentsForProject(tx, project.id),
+      filesByTask: await documents.forEntities(tx, "task", taskIds),
+      // Custom fields (docs/26-project-management-custom-fields.md).
+      taskFieldDefs: await customFields.definitionsFor(tx, "task"),
+      taskFieldValues: await customFields.valuesFor(tx, "task", taskIds),
+      projectFieldDefs: await customFields.definitionsFor(tx, "project"),
+      projectFieldValues: (
+        await customFields.valuesFor(tx, "project", [project.id])
+      )[project.id],
     }
   })
 }
@@ -320,6 +341,254 @@ export const actions: Actions = {
       })
     } catch (e) {
       if (e instanceof ProjectWriteRefused) return fail(400, refusal(e))
+      throw e
+    }
+  },
+
+  /**
+   * Add a comment on a task. NOT audited — a comment changes nobody's money,
+   * employment or rights, same reasoning as addTask.
+   */
+  addComment: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const taskId = f.uuid("task_id", { required: true })
+    const content = f.text("comment_text", { max: 4000, required: true })
+    if (!f.ok) return fail(400, f.problem("That comment is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        await comments.addComment(
+          tx,
+          locals.tenantId!,
+          taskId!,
+          params.id,
+          content!,
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        return { commented: true }
+      })
+    } catch (e) {
+      if (e instanceof CommentWriteRefused) {
+        return fail(400, {
+          message: "That task no longer exists.",
+          field: "task_id",
+        })
+      }
+      throw e
+    }
+  },
+
+  /** Edit a comment's own text. NOT audited, same reasoning as addComment. */
+  editComment: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const commentId = f.uuid("comment_id", { required: true })
+    const content = f.text("comment_text", { max: 4000, required: true })
+    if (!f.ok) return fail(400, f.problem("That comment is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        await comments.editComment(tx, commentId!, content!)
+        return { commented: true }
+      })
+    } catch (e) {
+      if (e instanceof CommentWriteRefused) {
+        return fail(400, {
+          message: "That comment no longer exists.",
+          field: "comment_text",
+        })
+      }
+      throw e
+    }
+  },
+
+  /** Soft-delete a comment. NOT audited, same reasoning as addComment. */
+  deleteComment: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const commentId = f.uuid("comment_id", { required: true })
+    if (!f.ok) return fail(400, f.problem("That comment is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        await comments.deleteComment(tx, commentId!)
+        return { commentDeleted: true }
+      })
+    } catch (e) {
+      if (e instanceof CommentWriteRefused) {
+        return fail(400, {
+          message: "That comment no longer exists.",
+          field: "comment_id",
+        })
+      }
+      throw e
+    }
+  },
+
+  /**
+   * Attach a file to a task — self-service (document.write is in EVERYONE),
+   * NOT audited, same shape as documents/upload. Gated on `projects.write`
+   * rather than the folder-permission model documents/[folderId] uses — see
+   * `uploadTaskFile` in $lib/server/documents/upload for why.
+   */
+  uploadTaskFile: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const data = await request.formData()
+    const f = new FormReader(data)
+    const taskId = f.uuid("task_id", { required: true })
+    const taskName = f.text("task_name", { max: 300, required: true })
+    if (!f.ok) return fail(400, f.problem("Choose a task."))
+
+    try {
+      await attachTaskFile(
+        locals,
+        locals.tenantId,
+        taskId!,
+        taskName!,
+        ctx!.employeeId!,
+        data,
+      )
+      return { fileUploaded: true }
+    } catch (e) {
+      if (e instanceof UploadRefused) {
+        return fail(400, { message: e.message, field: e.field })
+      }
+      throw e
+    }
+  },
+
+  /**
+   * Save this project's top-level tasks as a reusable template. NOT audited
+   * — a template is a reusable shape, not a financial or employment
+   * commitment; the real project's own budget/hours are what's binding, and
+   * those are already audited via updateProject.
+   */
+  saveAsTemplate: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const name = f.text("name", { max: 200, required: true })
+    const description = f.text("description", { max: 2000 })
+    const category = f.text("category", { max: 100 })
+    if (!f.ok) return fail(400, f.problem("That template is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const created = await templates.saveAsTemplate(
+          tx,
+          locals.tenantId!,
+          params.id,
+          { name: name!, description, category },
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        return { templateSaved: created.template_id }
+      })
+    } catch (e) {
+      if (e instanceof TemplateWriteRefused) {
+        return fail(400, {
+          message: "That project no longer exists.",
+          field: "name",
+        })
+      }
+      throw e
+    }
+  },
+
+  /**
+   * Set a task's custom field values. NOT audited — same reasoning as
+   * addComment: a descriptive attribute on a task changes nobody's money,
+   * employment or rights (the financial-calculation boundary is precisely
+   * what keeps a `money`-typed custom field out of anything that would).
+   *
+   * One `setValue` call per definition — a loop over a fixed, admin-defined
+   * field list (`definitionsFor`'s own result), never table growth; same
+   * shape as `invoice_lines`/`bill_lines`'s own EXEMPT entries in
+   * verify-no-loop-queries.mjs.
+   */
+  setTaskCustomFields: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const data = await request.formData()
+    const f = new FormReader(data)
+    const taskId = f.uuid("task_id", { required: true })
+    if (!f.ok) return fail(400, f.problem("That task is not valid."))
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const defs = await customFields.definitionsFor(tx, "task")
+        const values = readCustomFieldValues(f, data, defs)
+        if (!f.ok) return fail(400, f.problem("Check the highlighted field."))
+
+        for (const v of values) {
+          await customFields.setValue(
+            tx,
+            locals.tenantId!,
+            v.definitionId,
+            "task",
+            taskId!,
+            v.value,
+            ctx!.employeeId ?? ctx!.userId,
+          )
+        }
+        return { fieldsSaved: true }
+      })
+    } catch (e) {
+      if (e instanceof CustomFieldWriteRefused) {
+        return fail(400, { message: "That field could not be saved." })
+      }
+      throw e
+    }
+  },
+
+  /** Set the project's own custom field values. Same reasoning as setTaskCustomFields. */
+  setProjectCustomFields: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const data = await request.formData()
+    const f = new FormReader(data)
+
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const defs = await customFields.definitionsFor(tx, "project")
+        const values = readCustomFieldValues(f, data, defs)
+        if (!f.ok) return fail(400, f.problem("Check the highlighted field."))
+
+        for (const v of values) {
+          await customFields.setValue(
+            tx,
+            locals.tenantId!,
+            v.definitionId,
+            "project",
+            params.id,
+            v.value,
+            ctx!.employeeId ?? ctx!.userId,
+          )
+        }
+        return { fieldsSaved: true }
+      })
+    } catch (e) {
+      if (e instanceof CustomFieldWriteRefused) {
+        return fail(400, { message: "That field could not be saved." })
+      }
       throw e
     }
   },

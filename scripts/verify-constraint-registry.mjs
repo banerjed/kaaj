@@ -46,6 +46,10 @@ const FORM_WRITTEN = [
   "team_chat_conversations",
   "team_chat_members",
   "team_chat_messages",
+  "pm_task_comments",
+  "pm_project_templates",
+  "custom_field_definitions",
+  "custom_field_values",
 ]
 
 /**
@@ -290,6 +294,46 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "team_chat_messages_author_employee_id_fkey",
     "set from the authenticated actor, never form input",
+  ],
+
+  // Project management Phase 2 (docs/25-project-management-phase2.md).
+  ["pm_task_comments_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "pm_project_templates_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
+
+  // Custom fields (docs/26-project-management-custom-fields.md). Also
+  // closes a pre-existing gap: custom_field_definitions was never in
+  // FORM_WRITTEN despite ticketing already writing to it — its constraints
+  // below cover that existing path too, not just the new project/task one.
+  [
+    "custom_field_definitions_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
+  [
+    "custom_field_definitions_business_area_id_fkey",
+    "never set by the project/task create path (always NULL there); ticketing's own path always passes an id already resolved via businessAreaById in that route's load()",
+  ],
+  [
+    "custom_field_definitions_data_type_check",
+    "FormReader's choice(data_type, CUSTOM_FIELD_DATA_TYPES) already refuses anything off the list, in both ticketing.repo.ts and custom-fields.repo.ts",
+  ],
+  [
+    "custom_field_values_tenant_id_fkey",
+    "tenant_id comes from the session",
+  ],
+  [
+    "custom_field_values_field_definition_id_fkey",
+    "custom_field_definitions rows are never hard-deleted (archiveDefinition only flips is_active) — the FK can't be violated by anything this app does",
+  ],
+  [
+    "custom_field_values_one_typed_value",
+    "setValue always writes through VALUE_COLUMN, a fixed internal map keyed by the definition's own data_type read from the database — never a client-supplied column name; a crafted POST can change the VALUE, never which column it lands in",
+  ],
+  [
+    "custom_field_values_unique",
+    "setValue's INSERT ... ON CONFLICT (...) DO UPDATE targets this exact constraint — a concurrent write resolves via the upsert, never raises a unique_violation to the caller",
   ],
 ])
 

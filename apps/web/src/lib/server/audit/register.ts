@@ -444,6 +444,41 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "The inverse of addDependency, same reasoning.",
   },
   {
+    route: "projects/[id]",
+    action: "addComment",
+    why: "A note on a task changes nobody's money, employment or rights — same reasoning as addTask. Soft-deletable (deleted_at), not permanent the way audit_log is.",
+  },
+  {
+    route: "projects/[id]",
+    action: "editComment",
+    why: "Same as addComment — editing one's own note.",
+  },
+  {
+    route: "projects/[id]",
+    action: "deleteComment",
+    why: "Same as addComment — the tombstone (deleted_at) already records that it happened.",
+  },
+  {
+    route: "projects/[id]",
+    action: "uploadTaskFile",
+    why: "Self-service (document.write is in EVERYONE) — same shape as documents/upload. Filing a file against a task whose visibility (every employee, same as the task itself) is unchanged by the upload.",
+  },
+  {
+    route: "projects/[id]",
+    action: "saveAsTemplate",
+    why: "A reusable shape (task names, priorities, estimated hours), not a financial or employment commitment — the real project's own budget/hours are what's binding, and those are already audited via updateProject.",
+  },
+  {
+    route: "projects/[id]",
+    action: "setTaskCustomFields",
+    why: "Tier 2 customization (docs/06-customization-model.md) — a descriptive attribute on a task, not a rights or pay change. The financial-calculation boundary (custom fields never feed real calculations) is precisely what keeps even a money-typed custom field out of needing a trail here.",
+  },
+  {
+    route: "projects/[id]",
+    action: "setProjectCustomFields",
+    why: "Same as setTaskCustomFields, one level up.",
+  },
+  {
     route: "time-tracking",
     action: "create",
     why: "Logging a draft changes nobody's money yet — no rate is billed until decide() approves it. Guarded by staleHours() rather than a trail nobody would read.",
@@ -546,6 +581,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
   {
     route: "settings/ticketing/[businessAreaId]",
     action: "archiveCustomField",
+    why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "settings/project-management",
+    action: "addField",
+    why: "Tier 2 customization (docs/06-customization-model.md), same shape as ticketing's own addCustomField — a field definition, not a value belonging to any person.",
+  },
+  {
+    route: "settings/project-management",
+    action: "archiveField",
     why: "Same: configuration, not a rights or pay change.",
   },
   {

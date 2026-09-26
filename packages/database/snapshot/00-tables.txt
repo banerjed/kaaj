@@ -17,6 +17,7 @@ compensation_variable	t	t
 compensation_work_schedules	t	t
 cross_module_links	t	t
 custom_field_definitions	t	t
+custom_field_values	t	t
 customer_contacts	t	t
 customers	t	t
 document_folder_shares	t	t

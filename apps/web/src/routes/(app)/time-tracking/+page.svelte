@@ -16,12 +16,20 @@
   const err = $derived(fieldErrors(form))
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  let creating = $state(false)
+  // Arriving from a project's "Log time" link opens the modal pre-filled —
+  // a genuine one-time seed, not a value that should keep tracking `data`:
+  // navigating here from another route always remounts this page fresh, and
+  // once open, `creating`/`creatingProjectId` are the person's own in-modal
+  // choices (closing the modal, picking a different project), which must NOT
+  // snap back to the query param on every reactive update.
+  // svelte-ignore state_referenced_locally
+  let creating = $state(data.defaultProjectId !== "")
   let rejecting = $state<TimeEntryRow | null>(null)
 
   // Cascades the task picker to the chosen project — plain reactive state,
   // no `use:enhance` involved.
-  let creatingProjectId = $state("")
+  // svelte-ignore state_referenced_locally
+  let creatingProjectId = $state(data.defaultProjectId)
   const tasksForSelected = $derived(
     data.tasks.filter((t) => t.project_id === creatingProjectId),
   )
@@ -316,7 +324,9 @@
           >
             <option value="">No specific task</option>
             {#each tasksForSelected as t (t.id)}
-              <option value={t.id}>{t.task_name}</option>
+              <option value={t.id} selected={t.id === data.defaultTaskId}>
+                {t.task_name}
+              </option>
             {/each}
           </select>
         </fieldset>

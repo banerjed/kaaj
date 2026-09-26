@@ -381,6 +381,11 @@ export const appMenuItems: ISidebarMenuItem[] = [
         label: "Ticketing",
         url: "/settings/ticketing",
       },
+      {
+        id: "settings-project-management",
+        label: "Project Management Fields",
+        url: "/settings/project-management",
+      },
     ],
   },
 ]

@@ -35,6 +35,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const status = url.searchParams.get("status") ?? ""
   const mineOnly = url.searchParams.get("mine") === "1"
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  // Arriving from a project's "Log time" link — pre-fills the create modal,
+  // never trusted beyond that: the create action re-validates both as real
+  // uuids the same as any other submission.
+  const defaultProjectId = url.searchParams.get("project_id") ?? ""
+  const defaultTaskId = url.searchParams.get("task_id") ?? ""
 
   const myEmployeeId = await resolveEmployeeId(locals, userId)
 
@@ -61,6 +66,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       myEmployeeId,
       mayApprove: can(ctx, "time_entries.approve"),
       filters: { status, mine: mineOnly },
+      defaultProjectId,
+      defaultTaskId,
     }
   })
 }

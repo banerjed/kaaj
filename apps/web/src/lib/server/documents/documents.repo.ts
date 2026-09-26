@@ -191,6 +191,34 @@ const DOCUMENT_COLUMNS = `
 
 const PAGE_SIZE = 25
 
+/**
+ * Every document for a SET of entities of one type, in one query — grouped
+ * by entity id. The caller (a project page rendering a file list per task)
+ * would otherwise query once per task, inside a loop over the task list.
+ */
+export async function forEntities(
+  tx: Tx,
+  entityType: string,
+  entityIds: string[],
+): Promise<Record<string, DocumentRow[]>> {
+  if (entityIds.length === 0) return {}
+  const rows = await tx<(DocumentRow & { entity_id: string })[]>`
+    SELECT ${tx.unsafe(DOCUMENT_COLUMNS)}, d.entity_id
+      FROM documents d
+      LEFT JOIN employees e ON e.id = d.uploaded_by_employee_id
+      LEFT JOIN customers cu ON cu.id = d.customer_id
+     WHERE d.entity_type = ${entityType}
+       AND d.entity_id = ANY(${entityIds}::uuid[])
+       AND d.archived_at IS NULL
+     ORDER BY d.created_at DESC
+  `
+  const out: Record<string, DocumentRow[]> = {}
+  for (const { entity_id, ...doc } of rows) {
+    ;(out[entity_id] ??= []).push(doc)
+  }
+  return out
+}
+
 /** Files inside one folder — the folder-detail page's file table. */
 export async function documentsIn(
   tx: Tx,
@@ -301,6 +329,55 @@ export async function defaultFolderFor(
     RETURNING id
   `
   return created.id
+}
+
+/**
+ * The one folder for an entity (docs/25-project-management-phase2.md's task
+ * files), created lazily on first upload — same shape as `defaultFolderFor`,
+ * generalised to a polymorphic owner instead of one hardcoded "My Files" per
+ * employee. `visibility: 'company'` — the entity's own trust boundary
+ * (`projects.write` for a task) already gates who may call this, and
+ * `staff_document_visibility`'s RLS only makes a folder-less document visible
+ * to `owner`/`firm_admin`, so an entity-rooted upload MUST go through a real
+ * folder to be visible to anyone else at all.
+ */
+export async function defaultFolderForEntity(
+  tx: Tx,
+  params: {
+    tenantId: string
+    entityType: string
+    entityId: string
+    name: string
+    ownerEmployeeId: string
+  },
+): Promise<string> {
+  const existing = await folderForEntity(tx, params.entityType, params.entityId)
+  if (existing) return existing
+
+  return createFolder(tx, {
+    tenantId: params.tenantId,
+    ownerEmployeeId: params.ownerEmployeeId,
+    name: params.name,
+    visibility: "company",
+    parentFolderId: null,
+    entityType: params.entityType,
+    entityId: params.entityId,
+  })
+}
+
+/** Read-only lookup, for a load() that must not create a folder just to render an empty list. */
+export async function folderForEntity(
+  tx: Tx,
+  entityType: string,
+  entityId: string,
+): Promise<string | null> {
+  const [row] = await tx<{ id: string }[]>`
+    SELECT id FROM document_folders
+     WHERE entity_type = ${entityType} AND entity_id = ${entityId}::uuid
+       AND archived_at IS NULL
+     LIMIT 1
+  `
+  return row?.id ?? null
 }
 
 export async function createFolder(

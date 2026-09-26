@@ -62,6 +62,7 @@ const SCALE_SENSITIVE = new Map([
   ["journal_entry_lines", "grows with journal entries times lines per entry"],
   ["payment_allocations", "grows with payments applied to invoices/bills"],
   ["payments", "one row per payment recorded"],
+  ["custom_field_values", "grows with projects+tasks times custom fields defined, over time"],
   ["pm_automation_executions", "one row per automation run"],
   ["pm_task_attachments", "grows with tasks times attachments over time"],
   ["pm_task_comments", "grows with tasks times comments over time"],

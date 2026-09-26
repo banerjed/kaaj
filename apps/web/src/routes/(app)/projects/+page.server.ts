@@ -3,6 +3,8 @@ import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
 import * as objectives from "$lib/server/objectives/objectives.repo"
+import * as templates from "$lib/server/projects/templates.repo"
+import { TemplateWriteRefused } from "$lib/server/projects/templates.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
@@ -53,6 +55,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     objectives: await objectives.list(tx),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
+    templates: await templates.listTemplates(tx),
   }))
 }
 
@@ -80,6 +83,7 @@ export const actions: Actions = {
     const estimatedHours = f.decimal("estimated_hours", { scale: 4 })
     const hourlyRate = f.decimal("hourly_rate", { scale: 4 })
     const isBillable = f.bool("is_billable")
+    const templateId = f.uuid("template_id")
 
     // f.reject: a rule the reader can't express, but the field still gets marked.
     if (startDate && targetEnd && targetEnd < startDate) {
@@ -130,6 +134,43 @@ export const actions: Actions = {
           },
         })
 
+        // Seed the task list from a template, if one was picked. A `for`
+        // loop calling createTask once per template task is bounded by how
+        // many tasks are IN THE TEMPLATE (a human-curated list a person
+        // built via "Save as template"), never by table growth — same shape
+        // as accounting's invoice_lines/bill_lines loops
+        // (verify-no-loop-queries.mjs EXEMPT).
+        if (templateId) {
+          const templateTasks = await templates.tasksFromTemplate(
+            tx,
+            templateId,
+          )
+          for (const tt of templateTasks) {
+            const dueDate =
+              startDate && tt.due_offset_days !== null
+                ? addDays(startDate, tt.due_offset_days)
+                : null
+            await projects.createTask(
+              tx,
+              locals.tenantId!,
+              {
+                project_id: created.id,
+                task_name: tt.task_name,
+                description: tt.description,
+                status: "todo",
+                priority: tt.priority,
+                assigned_to: null,
+                start_date: null,
+                due_date: dueDate,
+                estimated_hours: tt.estimated_hours,
+                is_billable: true,
+              },
+              ctx!.employeeId ?? ctx!.userId,
+            )
+          }
+          await templates.recordUse(tx, templateId)
+        }
+
         return { created: created.project_number }
       })
     } catch (e) {
@@ -146,7 +187,20 @@ export const actions: Actions = {
           field: "project_name",
         })
       }
+      if (e instanceof TemplateWriteRefused) {
+        return fail(400, {
+          message: "That template no longer exists. Reload and try again.",
+          field: "template_id",
+        })
+      }
       throw e
     }
   },
+}
+
+/** `YYYY-MM-DD` + a day offset — plain date arithmetic, no timezone involved (a DATE column, not a timestamptz). */
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
 }

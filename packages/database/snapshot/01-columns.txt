@@ -375,6 +375,20 @@ custom_field_definitions	15	is_active	boolean	t	true
 custom_field_definitions	16	created_at	timestamp with time zone	t	now()
 custom_field_definitions	17	updated_at	timestamp with time zone	t	now()
 custom_field_definitions	18	business_area_id	uuid	f	
+custom_field_values	1	id	uuid	t	gen_random_uuid()
+custom_field_values	2	tenant_id	uuid	t	
+custom_field_values	3	field_definition_id	uuid	t	
+custom_field_values	4	entity_type	text	t	
+custom_field_values	5	entity_id	uuid	t	
+custom_field_values	6	value_text	text	f	
+custom_field_values	7	value_number	numeric(18,4)	f	
+custom_field_values	8	value_money	numeric(15,2)	f	
+custom_field_values	9	value_date	date	f	
+custom_field_values	10	value_boolean	boolean	f	
+custom_field_values	11	value_multi	jsonb	f	
+custom_field_values	12	created_at	timestamp with time zone	t	now()
+custom_field_values	13	updated_at	timestamp with time zone	t	now()
+custom_field_values	14	updated_by	text	t	
 customer_contacts	1	id	uuid	t	gen_random_uuid()
 customer_contacts	2	tenant_id	uuid	t	
 customer_contacts	3	customer_id	uuid	t	

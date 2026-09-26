@@ -88,7 +88,7 @@ financial statements, payment processing, exports.
 - `lib/firm-profile/fixture-projection.test.ts` [3] — the fixture's own pay
   schedules
 
-### Projects & Time Tracking — 65 tests
+### Projects & Time Tracking — 81 tests
 
 - `lib/server/projects/projects.writes.test.ts` [33] — task counters, moving
   a task, creating/editing a project; subtasks (depth_level, one level only,
@@ -113,6 +113,15 @@ financial statements, payment processing, exports.
   client-visible slice
 - `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [7] —
   logging time keeps task/project hours true
+- `lib/server/projects/comments.repo.test.ts` [8] — adding, editing and
+  soft-deleting a task comment; refuses a task from a different project or
+  no such task; the fixture's own pre-existing comment is real coverage, not
+  a placeholder — docs/25-project-management-phase2.md
+- `lib/server/projects/templates.repo.test.ts` [8] — `saveAsTemplate`
+  captures only top-level tasks (never a subtask), computes
+  `due_offset_days` relative to the earliest due date, captures no
+  assignee/dates/dependencies, refuses a missing project/template,
+  `recordUse` is a plain increment — docs/25-project-management-phase2.md
 
 ### Ticketing — 0 dedicated unit tests
 
@@ -120,11 +129,17 @@ No `lib/server/ticketing/*.test.ts` exists. Coverage is indirect: 8 RLS
 assertions inside `db/row-visibility.test.ts` (below), plus e2e (§2). No
 unit test exercises `ticketing.repo.ts` write paths directly.
 
-### Documents — 0 unit tests
+### Documents — 4 tests
 
-No unit test file anywhere under `lib/server/documents/`. The only coverage
-at all is two e2e render checks (`smoke.spec.ts`, §2) — no write path, no
-sharing/permission logic, no refusal is exercised by any automated test.
+`lib/server/documents/documents.repo.test.ts` [4] covers only the
+entity-rooted-folder addition for task files (docs/25-project-management-phase2.md):
+`defaultFolderForEntity` is lookup-or-create (idempotent on a second call),
+the folder it creates is `company`-visibility, and `forEntities` groups by
+entity id and never crosses entity types. Nothing else under
+`lib/server/documents/` has a unit test — folder sharing, archiving,
+visibility, and `upload.ts`'s own Storage-writing path are still covered
+only by two e2e render checks (`smoke.spec.ts`, §2), no write path, no
+refusal.
 
 ### Team Chat — 12 tests
 

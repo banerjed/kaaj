@@ -255,6 +255,26 @@
           </select>
         </fieldset>
 
+        {#if data.templates.length > 0}
+          <fieldset class="fieldset sm:col-span-2">
+            <legend class="fieldset-legend"
+              >Start from a template (optional)</legend
+            >
+            <select
+              name="template_id"
+              aria-invalid={err.aria("template_id")}
+              class={`select w-full ${err.select("template_id")}`}
+            >
+              <option value="">No template — start empty</option>
+              {#each data.templates as t (t.id)}
+                <option value={t.id}>
+                  {t.name} ({t.task_count} task{t.task_count === 1 ? "" : "s"})
+                </option>
+              {/each}
+            </select>
+          </fieldset>
+        {/if}
+
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Status</legend>
           <select

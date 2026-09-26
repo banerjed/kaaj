@@ -282,10 +282,24 @@ recomputed reverse index. A Kanban view (grouped by status, same `moveTask`
 control the list view already used) sits alongside the list view on
 `/projects/[id]`, client-side only.
 
+**Task comments, task files, project templates, and Gantt/Calendar/Workload
+views (Phase 2 of docs/25-project-management-phase2.md) — ✅ done.** A comment
+thread and a file attachment per task (`pm_task_comments`, and `documents`
+with `entity_type = 'task'` — not `pm_task_attachments`, which duplicates
+`documents` and stays scaffolding), a "Save as template"/"create from
+template" flow (`pm_project_templates`, top-level tasks only), and three more
+read-only views alongside List/Kanban, all client-side over the same loaded
+task data. A "Log time" link deep-links into `/time-tracking` rather than
+building a second time-entry table (`pm_task_time_entries` also stays
+scaffolding — it duplicates the already-shipped `time_tracking_entries`,
+[L101](./10-lessons-learned.md)).
+
 **Still not built:** the typed-column system, formula/mirror columns,
-dashboards/widgets, the automation engine, and the Gantt/Calendar/Workload/
-Chart views — each deferred with a reason in
-[23-project-management-phase1.md](./23-project-management-phase1.md) rather
+dashboards/widgets, the automation engine, real drag-and-drop, and
+project-visibility RLS (today's board is still firm-wide, per Phase 1's own
+design decision) — each deferred with a reason in
+[23-project-management-phase1.md](./23-project-management-phase1.md) or
+[25-project-management-phase2.md](./25-project-management-phase2.md) rather
 than silently dropped.
 
 **Accounting — ✅ done, for the slice this codebase builds.**

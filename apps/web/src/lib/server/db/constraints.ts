@@ -58,6 +58,25 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["parent_task_id"],
     message: "That parent task no longer exists. Reload and try again.",
   },
+  pm_task_comments_tenant_id_comment_id_key: {
+    errorFields: ["comment_text"],
+    message:
+      "Another comment was added at the same moment and took that reference. Try again.",
+  },
+  fk_pm_task_comments_task_id: {
+    errorFields: ["task_id"],
+    message: "That task no longer exists. Reload and try again.",
+  },
+  pm_project_templates_tenant_id_template_id_key: {
+    errorFields: ["name"],
+    message:
+      "Another template was saved at the same moment and took that reference. Try again.",
+  },
+  custom_field_definitions_tenant_id_entity_type_field_key_key: {
+    errorFields: ["label"],
+    message:
+      "Another field with that name already exists here. Pick a different name.",
+  },
   tenants_subdomain_key: {
     errorFields: ["subdomain"],
     message: "That subdomain is already taken. Pick a different one.",

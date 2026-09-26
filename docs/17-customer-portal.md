@@ -478,9 +478,11 @@ CREATE TABLE documents (
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
     -- Polymorphic owner, same shape as custom_field_definitions.entity_type —
-    -- a document can hang off a project, a customer, a ticket, or nothing
-    -- (a general firm document).
-    entity_type     TEXT,               -- 'project' | 'customer' | 'ticket' | NULL
+    -- a document can hang off a project, a customer, a ticket, a task, or
+    -- nothing (a general firm document). Unconstrained TEXT, no CHECK — a
+    -- new caller (docs/25-project-management-phase2.md's task files added
+    -- 'task') needs no migration, just a new value here.
+    entity_type     TEXT,               -- 'project' | 'customer' | 'ticket' | 'task' | NULL
     entity_id       UUID,
 
     customer_id     UUID REFERENCES customers(id),  -- denormalized for the RLS

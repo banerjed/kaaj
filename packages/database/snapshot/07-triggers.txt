@@ -12,6 +12,7 @@ compensation_premiums	trg_compensation_premiums_updated_at	CREATE TRIGGER trg_co
 compensation_variable	trg_compensation_variable_updated_at	CREATE TRIGGER trg_compensation_variable_updated_at BEFORE UPDATE ON public.compensation_variable FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 compensation_work_schedules	trg_compensation_work_schedules_updated_at	CREATE TRIGGER trg_compensation_work_schedules_updated_at BEFORE UPDATE ON public.compensation_work_schedules FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 custom_field_definitions	trg_custom_field_definitions_updated_at	CREATE TRIGGER trg_custom_field_definitions_updated_at BEFORE UPDATE ON public.custom_field_definitions FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
+custom_field_values	trg_custom_field_values_updated_at	CREATE TRIGGER trg_custom_field_values_updated_at BEFORE UPDATE ON public.custom_field_values FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 customers	trg_customers_updated_at	CREATE TRIGGER trg_customers_updated_at BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 employee_assets	trg_employee_assets_updated_at	CREATE TRIGGER trg_employee_assets_updated_at BEFORE UPDATE ON public.employee_assets FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()
 employee_bank_accounts	trg_employee_bank_accounts_updated_at	CREATE TRIGGER trg_employee_bank_accounts_updated_at BEFORE UPDATE ON public.employee_bank_accounts FOR EACH ROW EXECUTE FUNCTION app.set_updated_at()

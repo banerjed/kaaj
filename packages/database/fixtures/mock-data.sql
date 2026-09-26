@@ -79,7 +79,16 @@ INSERT INTO custom_field_definitions (id, tenant_id, entity_type, field_key, lab
     ('e4788475-9d6a-56f2-9be2-7ab543db0d44', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'shirt_size', 'Shirt Size', 'select', 1, '[{"value": "S", "label": "Small"}, {"value": "M", "label": "Medium"}, {"value": "L", "label": "Large"}]'::jsonb),
     ('3e0587fa-cdd0-510d-bce9-cec06a58ea2f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'parking_spot', 'Parking Spot', 'text', 2, NULL),
     ('2a813d6d-9104-543d-8be1-492dfa4d4482', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'employee', 'legacy_id', 'Legacy HR System ID', 'text', 3, NULL),
-    ('210b40b7-df80-5139-b843-821bfa8da2f7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'client_billable', 'Client Billable', 'boolean', 1, NULL);
+    ('210b40b7-df80-5139-b843-821bfa8da2f7', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'client_billable', 'Client Billable', 'boolean', 1, NULL),
+    -- docs/26-project-management-custom-fields.md — one definition per
+    -- data_type, entity_type = 'project'/'task', real coverage for
+    -- custom_field_values below, not a placeholder sweep.
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'region', 'Region', 'text', 2, NULL),
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'extra_hours', 'Extra Hours', 'number', 3, NULL),
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'project', 'licensing_cost', 'Estimated Licensing Cost', 'money', 1, NULL),
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'client_signoff_date', 'Client Sign-off Date', 'date', 4, NULL),
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'task', 'priority_tier', 'Priority Tier', 'select', 5, '[{"value": "gold", "label": "Gold", "tone": "warning"}, {"value": "silver", "label": "Silver", "tone": "neutral"}]'::jsonb),
+    ('a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'project', 'service_lines', 'Service Lines', 'multiselect', 2, '[{"value": "web", "label": "Web", "tone": "info"}, {"value": "data", "label": "Data", "tone": "accent"}, {"value": "mobile", "label": "Mobile", "tone": "primary"}]'::jsonb);
 
 -- Three locations: multi-currency, multi-timezone, multi-locale
 INSERT INTO firm_locations (id, tenant_id, location_code, name, name_i18n, city, state, country, timezone, locale, currency, is_headquarters, is_active, capacity) VALUES
@@ -282,6 +291,23 @@ INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, task_name, s
 -- means something.
 INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, parent_task_id, depth_level, task_name, status, priority, assigned_to, estimated_hours, actual_hours, progress_percentage, is_billable, due_date, custom_fields, created_at, updated_at, created_by) VALUES
     ('a19f5b3e-2b7a-5c3e-9a0d-7e6f4c2b1a90', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'T-008', 'T-008', '8257009f-6a91-5fd1-9efb-518198c08e2a', '48961ce2-d17a-5ebe-81db-f608b4b6b125', 1, 'Write up discovery findings', 'todo', 'low', '11f31511-ad53-59c7-9e90-8ee3b553489b', 8, 0, 0.0, TRUE, '2026-03-05', '{"client_billable": true}'::jsonb, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- docs/26-project-management-custom-fields.md — one row per typed column
+-- (text/number/money/date/boolean/multiselect), real values on real
+-- projects/tasks, not a placeholder sweep. T-001/T-002 are PRJ-001's own
+-- tasks (above); PRJ-001 is '8257009f-6a91-5fd1-9efb-518198c08e2a'.
+INSERT INTO custom_field_values (id, tenant_id, field_definition_id, entity_type, entity_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', 'task', '48961ce2-d17a-5ebe-81db-f608b4b6b125', 'APAC', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', 'task', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, 6.5000, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, 4200.00, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', 'task', '48961ce2-d17a-5ebe-81db-f608b4b6b125', NULL, NULL, NULL, '2026-02-10', NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', 'task', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', 'gold', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, NULL, NULL, NULL, '["web", "data"]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    -- boolean coverage, via the pre-existing 'client_billable' definition —
+    -- this table is new; `tasks.custom_fields` already carrying
+    -- {"client_billable": true} on every task is a DIFFERENT column and
+    -- gives this new table no coverage on its own.
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a07', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '210b40b7-df80-5139-b843-821bfa8da2f7', 'task', '6d029a3a-8887-50a7-85b0-9e22408bdf61', NULL, NULL, NULL, NULL, TRUE, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- RESTORED table: effective-dated rates. January work must bill at January rates.
 INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, client_id, cost_rate, billable_rate, currency, effective_from, effective_to, change_reason, is_active, created_by) VALUES

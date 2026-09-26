@@ -2591,6 +2591,40 @@ typo because the check's own query just matched nothing and moved on.
 
 ---
 
+### L101 — a table scaffolded wholesale in the initial schema pass can silently duplicate a feature built for real under a different name later
+
+Planning Phase 2 of project management (docs/25-project-management-phase2.md)
+started from docs/23-project-management-phase1.md's own list of four
+scaffolded, unbuilt tables ready to "wire up": `pm_task_comments`,
+`pm_task_time_entries`, `pm_task_attachments`, `pm_project_templates`. Two of
+the four turned out to already be built — under different names, by
+different sessions, with no cross-reference between them.
+
+`pm_task_time_entries` duplicates `time_tracking_entries`, which already has
+`project_id`/`task_id` columns, a real route, real RLS, and — the part that
+would have actually broken something — a `refreshHours()` that already writes
+`tasks.actual_hours`/`billable_hours`/`non_billable_hours` and
+`projects.actual_hours` in the same transaction. `/projects/[id]` already
+displays those numbers per task. Building `pm_task_time_entries` for real
+would have meant two disconnected time-entry mechanisms feeding the same
+counter column, discovered only when they disagreed.
+
+`pm_task_attachments` duplicates `documents` — a real Storage-backed
+pipeline (bucket, Storage RLS, a download proxy that re-checks permission) —
+while `pm_task_attachments` itself has no `storage_key` column at all, only a
+bare `file_url TEXT`, and would have needed its own bucket, RLS, upload
+action and download proxy built from nothing.
+
+Both were found only by grepping for the *concept* ("time entries", "file
+attachments") across the whole `apps/web/src/lib/server` tree before writing
+a line of the scaffolded table's pipeline — not by searching for the
+scaffolded table's own name, which turns up nothing but itself. A table
+scaffolded wholesale in an early pass (`docs/23-...`'s own phrase) looks
+exactly like unbuilt work from its own migration; whether it actually is
+depends on what else exists under a name nobody thought to check.
+
+---
+
 ## Conventions
 
 **Explanation lives here; code carries a pointer.** A comment that restates a

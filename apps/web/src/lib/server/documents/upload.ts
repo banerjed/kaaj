@@ -25,12 +25,7 @@ export class UploadRefused extends Error {
  */
 const MAX_BYTES = 25 * 1024 * 1024
 
-export async function uploadDocument(
-  locals: App.Locals,
-  ctx: AuthContext,
-  data: FormData,
-  requestedFolderId: string | null,
-): Promise<string> {
+function validatedFile(data: FormData): File {
   const file = data.get("file")
   if (!(file instanceof File) || file.size === 0) {
     throw new UploadRefused("file", "Choose a file to upload.")
@@ -38,6 +33,47 @@ export async function uploadDocument(
   if (file.size > MAX_BYTES) {
     throw new UploadRefused("file", "That file is larger than 25MB.")
   }
+  return file
+}
+
+/**
+ * Bytes into the `documents` bucket, keyed the same way regardless of caller
+ * — `{tenant_id}/{entityType}/{entityId}/{documentId}-{fileName}` (18§5).
+ * Does not touch the `documents` table; the caller inserts the row in its own
+ * transaction, with whatever entity/visibility/permission model fits it.
+ */
+async function putFileInStorage(
+  locals: App.Locals,
+  tenantId: string,
+  entityType: string | null,
+  entityId: string | null,
+  file: File,
+): Promise<{ documentId: string; storageKey: string }> {
+  const documentId = crypto.randomUUID()
+  const safeName = file.name.replace(/[^\w.\- ]/g, "_").slice(0, 200)
+  const storageKey = entityType
+    ? `${tenantId}/${entityType}/${entityId}/${documentId}-${safeName}`
+    : `${tenantId}/general/${documentId}-${safeName}`
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const { error: uploadError } = await locals.supabase.storage
+    .from("documents")
+    .upload(storageKey, bytes, {
+      contentType: file.type || "application/octet-stream",
+    })
+  if (uploadError) {
+    throw new UploadRefused("file", "Could not upload the file. Try again.")
+  }
+  return { documentId, storageKey }
+}
+
+export async function uploadDocument(
+  locals: App.Locals,
+  ctx: AuthContext,
+  data: FormData,
+  requestedFolderId: string | null,
+): Promise<string> {
+  const file = validatedFile(data)
 
   // Resolve the destination folder and confirm the actor may write to it
   // BEFORE anything reaches Storage — a folder that doesn't exist, or isn't
@@ -62,21 +98,13 @@ export async function uploadDocument(
     },
   )
 
-  const documentId = crypto.randomUUID()
-  const safeName = file.name.replace(/[^\w.\- ]/g, "_").slice(0, 200)
-  const storageKey = entityType
-    ? `${ctx.tenantId}/${entityType}/${entityId}/${documentId}-${safeName}`
-    : `${ctx.tenantId}/general/${documentId}-${safeName}`
-
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const { error: uploadError } = await locals.supabase.storage
-    .from("documents")
-    .upload(storageKey, bytes, {
-      contentType: file.type || "application/octet-stream",
-    })
-  if (uploadError) {
-    throw new UploadRefused("file", "Could not upload the file. Try again.")
-  }
+  const { documentId, storageKey } = await putFileInStorage(
+    locals,
+    ctx.tenantId,
+    entityType,
+    entityId,
+    file,
+  )
 
   return withTenant(actorFrom(locals), async (tx) => {
     return documents.uploadDocument(tx, {
@@ -91,6 +119,62 @@ export async function uploadDocument(
       uploadedByEmployeeId: ctx.employeeId!,
       entityType,
       entityId,
+    })
+  })
+}
+
+/**
+ * A task's own file upload (docs/25-project-management-phase2.md) — deliberately
+ * NOT routed through `folderPermission`/`atLeast` above: a task's folder is
+ * `company`-visibility (every employee may see the board, same as the task
+ * itself), and `folderPermission` only grants that visibility "view", not
+ * "edit" — company folders are read-only to everyone but their creator and
+ * admins under the generic documents model. A task's write boundary is
+ * `projects.write`, already checked by the caller (the same action that
+ * calls every other task write); this bypasses the folder-ownership gate on
+ * purpose rather than widening it for every OTHER document feature too.
+ */
+export async function uploadTaskFile(
+  locals: App.Locals,
+  tenantId: string,
+  taskId: string,
+  taskName: string,
+  employeeId: string,
+  data: FormData,
+): Promise<string> {
+  const file = validatedFile(data)
+
+  const folderId = await withTenant(actorFrom(locals), async (tx) => {
+    return documents.defaultFolderForEntity(tx, {
+      tenantId,
+      entityType: "task",
+      entityId: taskId,
+      name: taskName,
+      ownerEmployeeId: employeeId,
+    })
+  })
+
+  const { documentId, storageKey } = await putFileInStorage(
+    locals,
+    tenantId,
+    "task",
+    taskId,
+    file,
+  )
+
+  return withTenant(actorFrom(locals), async (tx) => {
+    return documents.uploadDocument(tx, {
+      id: documentId,
+      tenantId,
+      folderId,
+      fileName: file.name.slice(0, 255),
+      storageKey,
+      mimeType: file.type || "application/octet-stream",
+      fileSizeBytes: file.size,
+      visibility: "internal",
+      uploadedByEmployeeId: employeeId,
+      entityType: "task",
+      entityId: taskId,
     })
   })
 }

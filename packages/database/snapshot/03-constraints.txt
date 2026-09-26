@@ -65,10 +65,15 @@ compensation_work_schedules	fk_compensation_work_schedules_employee_id	f	FOREIGN
 cross_module_links	cross_module_links_pkey	p	PRIMARY KEY (id)
 cross_module_links	cross_module_links_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 custom_field_definitions	custom_field_definitions_business_area_id_fkey	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
-custom_field_definitions	custom_field_definitions_data_type_check	c	CHECK ((data_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'boolean'::text, 'select'::text, 'multiselect'::text])))
+custom_field_definitions	custom_field_definitions_data_type_check	c	CHECK ((data_type = ANY (ARRAY['text'::text, 'number'::text, 'money'::text, 'date'::text, 'boolean'::text, 'select'::text, 'multiselect'::text])))
 custom_field_definitions	custom_field_definitions_pkey	p	PRIMARY KEY (id)
 custom_field_definitions	custom_field_definitions_tenant_id_entity_type_field_key_key	u	UNIQUE (tenant_id, entity_type, business_area_id, field_key)
 custom_field_definitions	custom_field_definitions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+custom_field_values	custom_field_values_field_definition_id_fkey	f	FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+custom_field_values	custom_field_values_one_typed_value	c	CHECK ((num_nonnulls(value_text, value_number, value_money, value_date, value_boolean, value_multi) <= 1))
+custom_field_values	custom_field_values_pkey	p	PRIMARY KEY (id)
+custom_field_values	custom_field_values_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+custom_field_values	custom_field_values_unique	u	UNIQUE (tenant_id, field_definition_id, entity_type, entity_id)
 customer_contacts	customer_contacts_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 customer_contacts	customer_contacts_pkey	p	PRIMARY KEY (id)
 customer_contacts	customer_contacts_tenant_id_email_key	u	UNIQUE (tenant_id, email)
