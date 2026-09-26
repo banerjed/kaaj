@@ -189,44 +189,6 @@ chart_of_accounts	18	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 chart_of_accounts	19	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 chart_of_accounts	20	created_by	uuid	f	
 chart_of_accounts	21	updated_by	uuid	f	
-clients	1	id	uuid	t	gen_random_uuid()
-clients	2	tenant_id	uuid	t	
-clients	3	client_name	text	t	
-clients	4	client_code	text	f	
-clients	5	legal_entity_name	text	f	
-clients	6	client_type	text	f	'corporate'::text
-clients	7	industry	text	f	
-clients	8	status	text	f	'active'::text
-clients	9	is_active	boolean	f	true
-clients	10	primary_contact_name	text	f	
-clients	11	primary_contact_email	text	f	
-clients	12	primary_contact_phone	text	f	
-clients	13	primary_contact_title	text	f	
-clients	14	billing_contact_name	text	f	
-clients	15	billing_contact_email	text	f	
-clients	16	billing_contact_phone	text	f	
-clients	17	address_line1	text	f	
-clients	18	address_line2	text	f	
-clients	19	city	text	f	
-clients	20	state_province	text	f	
-clients	21	postal_code	text	f	
-clients	22	country	text	f	'US'::text
-clients	23	website	text	f	
-clients	24	company_size	text	f	
-clients	25	currency	text	f	'USD'::text
-clients	26	payment_terms	text	f	'net_30'::text
-clients	27	default_hourly_rate	numeric(18,4)	f	
-clients	29	portal_access_enabled	boolean	f	false
-clients	30	account_manager_id	uuid	f	
-clients	31	acquisition_date	date	f	
-clients	32	acquisition_source	text	f	
-clients	33	custom_fields	jsonb	f	'{}'::jsonb
-clients	34	notes	text	f	
-clients	35	created_at	timestamp with time zone	t	now()
-clients	36	updated_at	timestamp with time zone	t	now()
-clients	37	created_by	text	t	
-clients	38	version	integer	f	1
-clients	39	tax_id_ct	text	f	
 compensation_allowances	1	id	uuid	t	gen_random_uuid()
 compensation_allowances	2	tenant_id	uuid	t	
 compensation_allowances	3	employee_id	uuid	t	
@@ -431,7 +393,6 @@ customers	16	tax_rate_id	uuid	f
 customers	17	ar_account_id	uuid	f	
 customers	18	is_active	boolean	f	true
 customers	19	portal_enabled	boolean	f	false
-customers	20	portal_access_token	character varying(255)	f	
 customers	21	notes	text	f	
 customers	22	custom_fields	jsonb	f	
 customers	23	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
@@ -439,6 +400,15 @@ customers	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 customers	25	created_by	uuid	f	
 customers	26	updated_by	uuid	f	
 customers	27	tax_exempt_until	date	f	
+customers	28	legal_entity_name	text	f	
+customers	29	customer_type	text	f	
+customers	30	relationship_status	text	t	'active'::text
+customers	31	industry	text	f	
+customers	32	company_size	text	f	
+customers	33	default_hourly_rate	numeric(18,4)	f	
+customers	34	account_manager_id	uuid	f	
+customers	35	acquisition_date	date	f	
+customers	36	acquisition_source	text	f	
 document_folder_shares	1	id	uuid	t	gen_random_uuid()
 document_folder_shares	2	tenant_id	uuid	t	
 document_folder_shares	3	folder_id	uuid	t	
@@ -696,6 +666,14 @@ expenses	28	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 expenses	29	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 expenses	30	created_by	uuid	f	
 expenses	31	updated_by	uuid	f	
+expenses	32	project_id	uuid	f	
+expenses	33	customer_id	uuid	f	
+expenses	34	is_billable	boolean	t	false
+expenses	35	markup_percentage	numeric(18,4)	f	
+expenses	36	markup_amount	numeric(15,2)	f	
+expenses	37	billable_amount	numeric(15,2)	f	
+expenses	38	invoice_id	uuid	f	
+expenses	39	invoiced_at	timestamp with time zone	f	
 feature_flags	1	id	uuid	t	gen_random_uuid()
 feature_flags	2	tenant_id	uuid	f	
 feature_flags	3	flag_key	text	t	
@@ -1761,7 +1739,7 @@ pm_objectives	5	objective_name	text	t
 pm_objectives	6	description	text	f	
 pm_objectives	7	vision_statement	text	f	
 pm_objectives	8	objective_type	text	t	'general'::text
-pm_objectives	9	client_id	uuid	f	
+pm_objectives	9	customer_id	uuid	f	
 pm_objectives	10	primary_contact_id	uuid	f	
 pm_objectives	11	department_code	text	f	
 pm_objectives	12	owner_employee_id	uuid	f	
@@ -1835,7 +1813,7 @@ pm_task_comments	6	comment_type	text	f	'comment'::text
 pm_task_comments	7	comment_text	text	f	
 pm_task_comments	8	author_type	text	t	
 pm_task_comments	9	author_employee_id	uuid	f	
-pm_task_comments	10	author_client_id	uuid	f	
+pm_task_comments	10	author_customer_id	uuid	f	
 pm_task_comments	11	mentioned_users	jsonb	f	'[]'::jsonb
 pm_task_comments	12	attachment_ids	jsonb	f	'[]'::jsonb
 pm_task_comments	13	parent_comment_id	uuid	f	
@@ -1861,7 +1839,7 @@ projects	6	objective_id	uuid	f
 projects	7	parent_project_id	uuid	f	
 projects	8	description	text	f	
 projects	9	project_type	project_type	t	'client_project'::project_type
-projects	10	client_id	uuid	f	
+projects	10	customer_id	uuid	f	
 projects	11	contact_person_id	uuid	f	
 projects	12	service_type	text	f	
 projects	13	industry	text	f	
@@ -2252,35 +2230,6 @@ ticketing_updates	17	changes	jsonb	f	'{}'::jsonb
 ticketing_updates	18	attachments	jsonb	f	
 ticketing_updates	20	search_vector	tsvector	f	
 ticketing_updates	21	author_contact_id	uuid	f	
-time_tracking_billable_expenses	1	id	uuid	t	gen_random_uuid()
-time_tracking_billable_expenses	2	tenant_id	uuid	t	
-time_tracking_billable_expenses	3	expense_id	text	f	
-time_tracking_billable_expenses	4	employee_id	uuid	t	
-time_tracking_billable_expenses	5	project_id	uuid	f	
-time_tracking_billable_expenses	6	client_id	uuid	f	
-time_tracking_billable_expenses	7	expense_date	date	t	
-time_tracking_billable_expenses	8	description	text	t	
-time_tracking_billable_expenses	9	expense_type	text	f	
-time_tracking_billable_expenses	10	category	text	f	
-time_tracking_billable_expenses	11	amount	numeric(18,4)	t	
-time_tracking_billable_expenses	12	currency	text	f	'USD'::text
-time_tracking_billable_expenses	13	markup_percentage	numeric(18,4)	f	0.00
-time_tracking_billable_expenses	14	markup_amount	numeric(18,4)	f	0.00
-time_tracking_billable_expenses	15	billable_amount	numeric(18,4)	t	
-time_tracking_billable_expenses	16	has_receipt	boolean	f	false
-time_tracking_billable_expenses	17	receipt_url	text	f	
-time_tracking_billable_expenses	18	receipt_attachment_id	uuid	f	
-time_tracking_billable_expenses	19	is_billable	boolean	f	true
-time_tracking_billable_expenses	20	is_reimbursable	boolean	f	false
-time_tracking_billable_expenses	21	status	text	f	'draft'::text
-time_tracking_billable_expenses	22	approved_by	text	f	
-time_tracking_billable_expenses	23	approved_at	timestamp with time zone	f	
-time_tracking_billable_expenses	24	submitted_at	timestamp with time zone	f	
-time_tracking_billable_expenses	25	invoice_id	uuid	f	
-time_tracking_billable_expenses	26	invoiced_at	timestamp with time zone	f	
-time_tracking_billable_expenses	27	reimbursed_at	timestamp with time zone	f	
-time_tracking_billable_expenses	28	created_at	timestamp with time zone	t	now()
-time_tracking_billable_expenses	29	updated_at	timestamp with time zone	t	now()
 time_tracking_entries	1	id	uuid	t	gen_random_uuid()
 time_tracking_entries	2	tenant_id	uuid	t	
 time_tracking_entries	3	entry_id	text	f	
@@ -2288,7 +2237,7 @@ time_tracking_entries	4	employee_id	uuid	t
 time_tracking_entries	5	timesheet_id	uuid	f	
 time_tracking_entries	6	project_id	uuid	f	
 time_tracking_entries	7	task_id	uuid	f	
-time_tracking_entries	8	client_id	uuid	f	
+time_tracking_entries	8	customer_id	uuid	f	
 time_tracking_entries	9	entry_date	date	t	
 time_tracking_entries	10	start_time	timestamp with time zone	f	
 time_tracking_entries	11	end_time	timestamp with time zone	f	
@@ -2326,7 +2275,7 @@ time_tracking_entries	42	updated_by	text	f
 time_tracking_hourly_rates	1	id	uuid	t	gen_random_uuid()
 time_tracking_hourly_rates	2	tenant_id	uuid	t	
 time_tracking_hourly_rates	3	employee_id	uuid	f	
-time_tracking_hourly_rates	4	client_id	uuid	f	
+time_tracking_hourly_rates	4	customer_id	uuid	f	
 time_tracking_hourly_rates	5	project_id	uuid	f	
 time_tracking_hourly_rates	6	role_code	text	f	
 time_tracking_hourly_rates	7	cost_rate	numeric(18,4)	f	

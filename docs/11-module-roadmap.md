@@ -185,7 +185,7 @@ Manual time entries are, now — but timesheets and billable expenses are not.
 3. **Billable expenses** — ⬜ not started, and now part of expense tracking
    (below). `time_tracking_billable_expenses` held the same expense as
    `expenses` in the fixture, and was merged into it in
-   `20260926030000_merge_billable_expenses_into_expenses.sql` (L101). Billing
+   `20260926182000_merge_billable_expenses_into_expenses.sql` (L103). Billing
    an expense to a customer is `expenses.is_billable` plus `customer_id`,
    `project_id`, `markup_*`, `billable_amount`, `invoice_id` and
    `invoiced_at`.

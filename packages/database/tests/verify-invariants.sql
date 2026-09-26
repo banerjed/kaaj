@@ -300,7 +300,7 @@ INSERT INTO _pii_encrypted VALUES
 CREATE TEMP TABLE _pii_pending (tbl TEXT, col TEXT, reason TEXT);
 INSERT INTO _pii_pending VALUES
   -- A sole trader's tax number IS a national identifier. `clients` held the
-  -- same value encrypted until the two tables merged (L101); ciphertext cannot
+  -- same value encrypted until the two tables merged (L103); ciphertext cannot
   -- move rows in SQL, so this still needs sealField on the write path.
   ('customers', 'tax_number',
    'counterparty tax id, read by the invoice view; encrypt via sealField like vendors banking');

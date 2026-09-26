@@ -205,10 +205,13 @@ someone decides which document is right:
   restricts on `employees` (`default_hourly_rate_pvt`,
   `default_billable_rate_pvt`).
 
-Also in `EXPOSED_PENDING`: `ticketing_attachments`, whose tickets are
-row-scoped, and `payroll_runs` and `payroll_tax_deposits`, which no tier above
-names. `clients` and `time_tracking_billable_expenses` no longer exist; they
-merged into `customers` and `expenses` ([L101](./10-lessons-learned.md)).
+Also in `EXPOSED_PENDING`:
+- `ticketing_attachments`, whose tickets are row-scoped.
+- `custom_field_values`, whose restricted projects are row-scoped. Checked as
+  a plain employee: the project was hidden, its custom field value was not.
+- `app_error_log`, whose `message` echoes submitted values (L69).
+- `payroll_runs` and `payroll_tax_deposits`, which no tier above names. `clients` and `time_tracking_billable_expenses` no longer exist; they
+merged into `customers` and `expenses` ([L103](./10-lessons-learned.md)).
 
 ---
 

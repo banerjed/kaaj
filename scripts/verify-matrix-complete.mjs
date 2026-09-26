@@ -3,7 +3,7 @@
  * Every table in the schema is classified — row-scoped (verified against
  * pg_policies), per column in the matrix, TENANT_WIDE, or EXPOSED_PENDING —
  * and every column on a per-column table is in SENSITIVE_FIELDS or
- * NOT_SENSITIVE, with a reason (L47, L101). Enumerates the schema rather than
+ * NOT_SENSITIVE, with a reason (L47, L103). Enumerates the schema rather than
  * regexing column names, which would miss a rename, a JSONB interior (L41),
  * or innocuously-named PII.
  */
@@ -116,7 +116,7 @@ if (!url) {
 }
 
 // ---------------------------------------------------------------------------
-// Every table, not only the ones the matrix already names (L101). A table
+// Every table, not only the ones the matrix already names (L103). A table
 // nobody thought to protect is exactly the one this step exists for, and
 // starting from the matrix made it unreachable.
 // ---------------------------------------------------------------------------
@@ -146,10 +146,12 @@ const ROW_SCOPED = new Map([
   ["payroll_run_employees", "the subject and payroll (payroll_visibility)"],
   ["payroll_tax_withholding_certificates", "the subject and payroll (payroll_visibility)"],
   ["profiles", "each user reads their own profile only"],
+  ["projects", "restricted projects: their manager, granted groups, and reads_all_projects"],
   ["stripe_customers", "no read policy: subscription billing, service role only"],
   ["tax_rates", "finance function only (accounting_read)"],
   ["team_chat_conversations", "members of the conversation only"],
   ["team_chat_members", "members of the conversation only"],
+  ["tasks", "follows its project (task_visibility)"],
   ["team_chat_messages", "members of the conversation only"],
   ["ticketing_ticket_reference_links", "follows the ticket's staff visibility"],
   ["ticketing_ticket_tasks", "follows the ticket's staff visibility"],
@@ -186,6 +188,7 @@ const TENANT_WIDE = new Map([
   ["employee_training_records", "training completion, a compliance register colleagues and managers share"],
   ["employee_user_groups", "group definitions, configuration"],
   ["exchange_rates", "global reference data, the same for every tenant"],
+  ["feature_flags", "on/off switches, tenant or global; no data"],
   ["firm_benefit_items", "the benefits the firm offers, not who elected them"],
   ["firm_benefits_packages", "the benefits the firm offers, not who elected them"],
   ["firm_benefits_plans", "plan-level costs the firm publishes at enrolment"],
@@ -211,15 +214,15 @@ const TENANT_WIDE = new Map([
   ["pm_dashboards", "project dashboards"],
   ["pm_objectives", "revenue targets are the firm's own plan, shared with delivery staff"],
   ["pm_project_templates", "templates, configuration"],
+  ["project_group_grants", "ids only: which group may see which restricted project"],
   ["pm_task_attachments", "project delivery files"],
   ["pm_task_comments", "project discussion"],
-  ["projects", "delivery data; rates here are what the customer is charged per project, not what a person costs"],
-  ["tasks", "delivery data"],
   ["tenant_registry", "the tenant's own routing row; connection_secret_ref names a secret, never holds it"],
   ["tenant_settings", "workflow switches (thresholds, SLA hours); no credentials"],
   ["tenant_users", "who holds which role, a directory fact"],
   ["tenants", "the tenant's own company profile"],
   ["ticketing_business_area_members", "who staffs which service desk"],
+  ["ticketing_business_area_group_grants", "ids only: which group staffs which service desk"],
   ["ticketing_business_areas", "service desk configuration"],
   ["ticketing_categories", "service desk configuration"],
   ["ticketing_subcategories", "service desk configuration"],
@@ -238,6 +241,8 @@ const TENANT_WIDE = new Map([
  * TENANT_WIDE with that decision cited, not here.
  */
 const EXPOSED_PENDING = new Map([
+  ["app_error_log", "message echoes submitted values (L69: they stay in infrastructure we control), readable by every employee"],
+  ["custom_field_values", "values for tasks in restricted projects, which project_visibility hides"],
   ["customers", "tax_number is a plaintext tax id, pending sealField in _pii_pending; docs/15 Tier 3 predates that"],
   ["hr_benefits_enrollments", "the matrix restricts benefit elections to self+hr (GDPR Art. 9); docs/15 Tier 2 calls it the likeliest to move up"],
   ["payroll_runs", "on a small run, total_gross_pay divides out to salaries; in no docs/15 tier"],
@@ -258,6 +263,7 @@ const EXPOSED_PENDING = new Map([
 const TENANT_WIDE_CONDITIONS = new Set([
   "(tenant_id = app.current_tenant_id())",
   "((tenant_id IS NULL) OR (tenant_id = app.current_tenant_id()))",
+  "((app.current_tenant_id() IS NOT NULL) AND ((tenant_id IS NULL) OR (tenant_id = app.current_tenant_id())))",
   "(id = app.current_tenant_id())",
   "true",
 ])
@@ -395,7 +401,7 @@ if (tableProblems.length) {
     "\n  Every table is row-scoped (a policy narrows it — verified here), per" +
       "\n  column in the matrix, TENANT_WIDE with a reason, or EXPOSED_PENDING" +
       "\n  with what it discloses. Decide, do not default: a table no list" +
-      "\n  named is how customers.tax_number sat readable by every employee (L101).\n",
+      "\n  named is how customers.tax_number sat readable by every employee (L103).\n",
   )
   process.exit(1)
 }

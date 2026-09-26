@@ -38,10 +38,6 @@ chart_of_accounts	chart_of_accounts_pkey	p	PRIMARY KEY (id)
 chart_of_accounts	chart_of_accounts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 chart_of_accounts	fk_chart_of_accounts_parent_account_id	f	FOREIGN KEY (parent_account_id) REFERENCES chart_of_accounts(id)
 chart_of_accounts	fk_chart_of_accounts_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
-clients	clients_client_type_check	c	CHECK ((client_type = ANY (ARRAY['individual'::text, 'small_business'::text, 'corporate'::text, 'enterprise'::text, 'government'::text, 'nonprofit'::text])))
-clients	clients_pkey	p	PRIMARY KEY (id)
-clients	clients_status_check	c	CHECK ((status = ANY (ARRAY['prospect'::text, 'active'::text, 'inactive'::text, 'churned'::text])))
-clients	clients_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 compensation_allowances	compensation_allowances_pkey	p	PRIMARY KEY (id)
 compensation_allowances	compensation_allowances_tenant_id_allowance_id_key	u	UNIQUE (tenant_id, allowance_id)
 compensation_allowances	compensation_allowances_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
@@ -81,8 +77,11 @@ customer_contacts	customer_contacts_customer_id_fkey	f	FOREIGN KEY (customer_id)
 customer_contacts	customer_contacts_pkey	p	PRIMARY KEY (id)
 customer_contacts	customer_contacts_tenant_id_email_key	u	UNIQUE (tenant_id, email)
 customer_contacts	customer_contacts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customers	customers_customer_type_check	c	CHECK ((customer_type = ANY (ARRAY['individual'::text, 'small_business'::text, 'corporate'::text, 'enterprise'::text, 'government'::text, 'nonprofit'::text])))
 customers	customers_pkey	p	PRIMARY KEY (id)
+customers	customers_relationship_status_check	c	CHECK ((relationship_status = ANY (ARRAY['prospect'::text, 'active'::text, 'inactive'::text, 'churned'::text])))
 customers	customers_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customers	fk_customers_account_manager_id	f	FOREIGN KEY (account_manager_id) REFERENCES employees(id)
 customers	fk_customers_ar_account_id	f	FOREIGN KEY (ar_account_id) REFERENCES chart_of_accounts(id)
 customers	fk_customers_tax_rate_id	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 document_folder_shares	document_folder_shares_folder_id_fkey	f	FOREIGN KEY (folder_id) REFERENCES document_folders(id) ON DELETE CASCADE
@@ -144,14 +143,18 @@ employment_terms	employment_terms_pkey	p	PRIMARY KEY (id)
 employment_terms	employment_terms_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 employment_terms	fk_employment_terms_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 exchange_rates	exchange_rates_pkey	p	PRIMARY KEY (id)
+expenses	expenses_billable_has_customer	c	CHECK (((NOT is_billable) OR (customer_id IS NOT NULL)))
 expenses	expenses_pkey	p	PRIMARY KEY (id)
 expenses	expenses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 expenses	fk_expenses_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id)
 expenses	fk_expenses_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
+expenses	fk_expenses_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 expenses	fk_expenses_department_id	f	FOREIGN KEY (department_id) REFERENCES firm_departments(id)
 expenses	fk_expenses_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+expenses	fk_expenses_invoice_id	f	FOREIGN KEY (invoice_id) REFERENCES invoices(id)
 expenses	fk_expenses_journal_entry_id	f	FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
 expenses	fk_expenses_payment_id	f	FOREIGN KEY (payment_id) REFERENCES payments(id)
+expenses	fk_expenses_project_id	f	FOREIGN KEY (project_id) REFERENCES projects(id)
 expenses	fk_expenses_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
 feature_flags	feature_flags_pkey	p	PRIMARY KEY (id)
 feature_flags	feature_flags_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -372,6 +375,7 @@ pm_dashboard_widgets	pm_dashboard_widgets_tenant_id_widget_id_key	u	UNIQUE (tena
 pm_dashboards	pm_dashboards_pkey	p	PRIMARY KEY (id)
 pm_dashboards	pm_dashboards_tenant_id_dashboard_id_key	u	UNIQUE (tenant_id, dashboard_id)
 pm_dashboards	pm_dashboards_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_objectives	fk_pm_objectives_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 pm_objectives	pm_objectives_pkey	p	PRIMARY KEY (id)
 pm_objectives	pm_objectives_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 pm_objectives	pm_objectives_tenant_id_objective_id_key	u	UNIQUE (tenant_id, objective_id)
@@ -382,6 +386,7 @@ pm_task_attachments	fk_pm_task_attachments_task_id	f	FOREIGN KEY (task_id) REFER
 pm_task_attachments	pm_task_attachments_pkey	p	PRIMARY KEY (id)
 pm_task_attachments	pm_task_attachments_tenant_id_attachment_id_key	u	UNIQUE (tenant_id, attachment_id)
 pm_task_attachments	pm_task_attachments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+pm_task_comments	fk_pm_task_comments_author_customer_id	f	FOREIGN KEY (author_customer_id) REFERENCES customers(id)
 pm_task_comments	fk_pm_task_comments_task_id	f	FOREIGN KEY (task_id) REFERENCES tasks(id)
 pm_task_comments	pm_task_comments_pkey	p	PRIMARY KEY (id)
 pm_task_comments	pm_task_comments_tenant_id_comment_id_key	u	UNIQUE (tenant_id, comment_id)
@@ -391,6 +396,7 @@ project_group_grants	project_group_grants_pkey	p	PRIMARY KEY (id)
 project_group_grants	project_group_grants_project_id_fkey	f	FOREIGN KEY (project_id) REFERENCES projects(id)
 project_group_grants	project_group_grants_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 project_group_grants	project_group_grants_tenant_id_project_id_group_id_key	u	UNIQUE (tenant_id, project_id, group_id)
+projects	fk_projects_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 projects	fk_projects_objective_id	f	FOREIGN KEY (objective_id) REFERENCES pm_objectives(id) ON DELETE SET NULL
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -509,12 +515,11 @@ ticketing_updates	fk_ticketing_updates_ticket_id	f	FOREIGN KEY (ticket_id) REFER
 ticketing_updates	ticketing_updates_author_contact_id_fkey	f	FOREIGN KEY (author_contact_id) REFERENCES customer_contacts(id)
 ticketing_updates	ticketing_updates_pkey	p	PRIMARY KEY (id)
 ticketing_updates	ticketing_updates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-time_tracking_billable_expenses	time_tracking_billable_expenses_pkey	p	PRIMARY KEY (id)
-time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_expense_id_key	u	UNIQUE (tenant_id, expense_id)
-time_tracking_billable_expenses	time_tracking_billable_expenses_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_entries	fk_time_tracking_entries_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 time_tracking_entries	time_tracking_entries_pkey	p	PRIMARY KEY (id)
 time_tracking_entries	time_tracking_entries_tenant_id_entry_id_key	u	UNIQUE (tenant_id, entry_id)
 time_tracking_entries	time_tracking_entries_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+time_tracking_hourly_rates	fk_time_tracking_hourly_rates_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 time_tracking_hourly_rates	time_tracking_hourly_rates_check	c	CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))
 time_tracking_hourly_rates	time_tracking_hourly_rates_pkey	p	PRIMARY KEY (id)
 time_tracking_hourly_rates	time_tracking_hourly_rates_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE

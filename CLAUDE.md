@@ -65,7 +65,7 @@ directory in the repo.
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 5 exempt |
 | tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 80 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
-| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 121 tables, 8 exposed |
+| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 126 tables, 10 exposed |
 | writes are audited | every action is in the audit register, either list | 59 + 29 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 34 |
 | service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
@@ -453,14 +453,14 @@ matrix's whole-row tables or `ROW_SCOPED`, each checked against
 `pg_policies`), per column, `TENANT_WIDE`, or `EXPOSED_PENDING`. It started
 from the matrix until the check was widened, which is how
 `customers.tax_number` stayed readable by every employee with this step
-green ([L101](docs/10-lessons-learned.md)). A new table needs a class, and
+green ([L103](docs/10-lessons-learned.md)). A new table needs a class, and
 every disclosure bug here so far was an *unclassified* value rather than a
 mis-classified one ([L48](docs/10-lessons-learned.md)). `TENANT_WIDE` is
 classified by table, not column: **a column added to a tenant-wide table is
 not checked** — ask of it whether its table still belongs there.
 
 **`EXPOSED_PENDING` is a list of known leaks, not an exemption.** Each of
-its 8 entries is readable by the whole tenant, although another committed
+its 10 entries is readable by the whole tenant, although another committed
 rule says it should not be, and each reason names that rule. Fixing one
 means adding a RESTRICTIVE policy and moving the table to `ROW_SCOPED`; the
 check fails while a narrowed table is still listed as exposed. A table
@@ -473,20 +473,20 @@ to get a new feature green.
 its own internal query, which bypasses RLS, so another tenant's id passes.
 Where the id comes from a request, `SELECT` it under RLS first, as
 `assertCustomerExists` in `projects.repo.ts` does
-([L101](docs/10-lessons-learned.md)).
+([L103](docs/10-lessons-learned.md)).
 
 **Before adding a table, look for one that already models the concept** — by
 meaning, not name. `clients`/`customers` and
 `time_tracking_billable_expenses`/`expenses` each held the same rows twice
 and were merged; protection applied to one copy never reached the other
-([L101](docs/10-lessons-learned.md)).
+([L103](docs/10-lessons-learned.md)).
 
 **Test a data migration against a populated database, in a rolled-back
 transaction, and write it as one `DO` block.** `supabase db reset` seeds the
 fixture AFTER migrations, so the data-moving half runs on empty tables and
 proves nothing. `ci-database.sh` applies files in autocommit, where
 `SET LOCAL` does nothing and `ON COMMIT DROP` temp tables vanish at once
-([L102](docs/10-lessons-learned.md)).
+([L104](docs/10-lessons-learned.md)).
 
 Two rules for using it: **`defense` is the spine, not audience** — on a
 broadly-visible row RLS cannot hide a column, so a NULL in the fixture is not

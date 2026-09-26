@@ -2,7 +2,7 @@
 -- time tracking pointed at one, accounting, ticketing, documents and the
 -- portal at the other, with nothing joining a client row to its customer row.
 -- Billed time could never have reached an invoice, and the same tax identifier
--- was encrypted in one table and plaintext in the other (L101).
+-- was encrypted in one table and plaintext in the other (L103).
 --
 -- `customers` survives: it is the one with real foreign keys into it. Every
 -- `clients` column with no `customers` equivalent is added rather than

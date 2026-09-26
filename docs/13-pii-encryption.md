@@ -162,7 +162,7 @@ failed write rather than a key nothing can ever find again.
 `_pii_pending` holds one column: `customers.tax_number`. `clients.tax_id` was
 encrypted, but `clients` merged into `customers`, where the same identifier
 had always been plaintext. Ciphertext is bound to its table and row, so SQL
-could not carry it across ([L101](./10-lessons-learned.md)). It needs
+could not carry it across ([L103](./10-lessons-learned.md)). It needs
 `sealField` on the write path and `openField` where `accounting.repo.ts`
 reads it for the invoice view.
 

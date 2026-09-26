@@ -299,6 +299,10 @@ const CANNOT_BE_TRIPPED = new Map([
   // Project management Phase 2 (docs/25-project-management-phase2.md).
   ["pm_task_comments_tenant_id_fkey", "tenant_id comes from the session"],
   [
+    "fk_pm_task_comments_author_customer_id",
+    "comments.repo writes author_type 'employee' only; no form sets author_customer_id",
+  ],
+  [
     "pm_project_templates_tenant_id_fkey",
     "tenant_id comes from the session",
   ],
