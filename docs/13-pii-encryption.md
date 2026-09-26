@@ -151,7 +151,7 @@ Not everything belongs to a person:
 | Subject | Columns | Erasure |
 |---|---|---|
 | `employee` | `employees.ssn_tax_id`, `employee_bank_accounts.*` (6), `hr_emergency_contacts.*` (4), `employee_certifications.certification_number` | destroyed when that person is erased |
-| `tenant` | `vendors.*` (2), `bank_accounts.*` (4) | **not** touched by an employee's erasure |
+| `tenant` | `customers.tax_number`, `vendors.*` (2), `bank_accounts.*` (4) | **not** touched by an employee's erasure |
 
 The split is load-bearing. Keying the firm's own banking to a person would mean
 one leaver's Article 17 request destroyed the company's account details and
@@ -159,12 +159,11 @@ every client's tax identifier — silently, unrecoverably, and reaching backups.
 A `CHECK` constraint restricts `subject_type` to those two, so a typo is a
 failed write rather than a key nothing can ever find again.
 
-`_pii_pending` holds one column: `customers.tax_number`. `clients.tax_id` was
-encrypted, but `clients` merged into `customers`, where the same identifier
-had always been plaintext. Ciphertext is bound to its table and row, so SQL
-could not carry it across ([L103](./10-lessons-learned.md)). It needs
-`sealField` on the write path and `openField` where `accounting.repo.ts`
-reads it for the invoice view.
+`_pii_pending` is empty. Its last entry was `customers.tax_number`, left
+plaintext when `clients`, where the same identifier was encrypted, merged into
+`customers` ([L103](./10-lessons-learned.md)). It is now `tax_number_ct`,
+opened only by `invoiceForPdf` in `accounting.repo.ts`. Nothing in the
+application writes it yet; a customer form must seal it through `sealField`.
 
 ---
 

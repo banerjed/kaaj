@@ -958,7 +958,7 @@ CREATE TABLE customers (
     currency              VARCHAR(3) NOT NULL,
     payment_terms         VARCHAR(50) DEFAULT 'Net 30',
     credit_limit          DECIMAL(15, 2),
-    tax_number            VARCHAR(100),
+    tax_number_ct         TEXT,             -- sealed to the tenant subject
     is_tax_exempt         BOOLEAN DEFAULT FALSE,
     tax_rate_id           UUID,
     ar_account_id         UUID,

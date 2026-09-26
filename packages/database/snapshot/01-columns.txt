@@ -387,7 +387,6 @@ customers	10	shipping_address	jsonb	f
 customers	11	currency	character varying(3)	t	
 customers	12	payment_terms	character varying(50)	f	'Net 30'::character varying
 customers	13	credit_limit	numeric(15,2)	f	
-customers	14	tax_number	character varying(100)	f	
 customers	15	is_tax_exempt	boolean	f	false
 customers	16	tax_rate_id	uuid	f	
 customers	17	ar_account_id	uuid	f	
@@ -409,6 +408,7 @@ customers	33	default_hourly_rate	numeric(18,4)	f
 customers	34	account_manager_id	uuid	f	
 customers	35	acquisition_date	date	f	
 customers	36	acquisition_source	text	f	
+customers	37	tax_number_ct	text	f	
 document_folder_shares	1	id	uuid	t	gen_random_uuid()
 document_folder_shares	2	tenant_id	uuid	t	
 document_folder_shares	3	folder_id	uuid	t	

@@ -20,6 +20,7 @@ import type { AuthContext } from "../auth/can"
 const NEVER_LOGGED = new Set([
   // Cleartext names, kept for callers that predate encryption.
   "ssn_tax_id",
+  "tax_number",
   "password",
   "wrapped_dek",
 
@@ -41,7 +42,7 @@ const NEVER_LOGGED = new Set([
   "sort_code_ct",
   "ssn_tax_id_ct",
   "swift_code_ct",
-  "tax_id_ct",
+  "tax_number_ct",
 
   // Withheld from its own subject until submitted (L39); not a diff either.
   "self_assessment",

@@ -2,6 +2,7 @@ import type { Tx } from "../db/tenant"
 import { compareDecimal } from "$lib/decimal"
 import { rateAsOf } from "./exchange_rates.repo"
 import { log } from "$lib/server/log"
+import { openField } from "../pii/pii.repo"
 
 /**
  * Invoices and the general ledger. Money stays a string and sums happen in SQL.
@@ -281,8 +282,14 @@ export async function invoiceForPdf(
   tx: Tx,
   invoiceId: string,
 ): Promise<InvoiceForPdf> {
-  const [row] = await tx<Omit<InvoiceForPdf, "lines">[]>`
-    SELECT i.id, i.invoice_number, i.reference,
+  const [row] = await tx<
+    (Omit<InvoiceForPdf, "lines" | "customer_tax_number"> & {
+      tenant_id: string
+      customer_id: string
+      customer_tax_number_ct: string | null
+    })[]
+  >`
+    SELECT i.id, i.tenant_id, i.invoice_number, i.reference,
            to_char(i.invoice_date,'YYYY-MM-DD') AS invoice_date,
            to_char(i.due_date,'YYYY-MM-DD')     AS due_date,
            i.currency,
@@ -297,7 +304,8 @@ export async function invoiceForPdf(
            c.customer_name,
            c.email AS customer_email,
            c.billing_address AS customer_billing_address,
-           c.tax_number AS customer_tax_number,
+           c.id AS customer_id,
+           c.tax_number_ct AS customer_tax_number_ct,
            t.company_name,
            t.logo_storage_key AS company_logo_storage_key,
            hq.address_line1 AS company_address_line1,
@@ -323,7 +331,14 @@ export async function invoiceForPdf(
   }
 
   const lines = await invoiceLines(tx, invoiceId)
-  return { ...row, lines }
+  const { tenant_id, customer_id, customer_tax_number_ct, ...rest } = row
+  const { value: customer_tax_number } = await openField(
+    tx,
+    { tenantId: tenant_id, subjectType: "tenant", subjectId: tenant_id },
+    { table: "customers", column: "tax_number_ct", rowId: customer_id },
+    customer_tax_number_ct,
+  )
+  return { ...rest, customer_tax_number, lines }
 }
 
 /**

@@ -569,6 +569,7 @@ describe("the fixture's own ciphertext", () => {
       ["bank_accounts", "account_number_ct", "tenant_id", "tenant"],
       ["bank_accounts", "iban_ct", "tenant_id", "tenant"],
       ["bank_accounts", "swift_code_ct", "tenant_id", "tenant"],
+      ["customers", "tax_number_ct", "tenant_id", "tenant"],
       ["vendors", "bank_account_number_ct", "tenant_id", "tenant"],
       ["vendors", "bank_routing_number_ct", "tenant_id", "tenant"],
     ]

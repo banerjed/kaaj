@@ -196,22 +196,21 @@ function reads. A role predicate here costs something and protects nothing.
   `customers`, `ticketing_*`
 - **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`
 
-Two of these contradict rules committed elsewhere. `./check` now lists them in
-`EXPOSED_PENDING` (`scripts/verify-matrix-complete.mjs`) rather than here, until
-someone decides which document is right:
-
-- `customers.tax_number` is a plaintext tax identifier, on `_pii_pending`.
-- The time-tracking rate tables carry the cost and billable rates the matrix
-  restricts on `employees` (`default_hourly_rate_pvt`,
-  `default_billable_rate_pvt`).
+The time-tracking rate tables contradict a rule committed elsewhere: they
+carry the cost and billable rates the matrix restricts on `employees`
+(`default_hourly_rate_pvt`, `default_billable_rate_pvt`). `./check` lists
+them in `EXPOSED_PENDING` (`scripts/verify-matrix-complete.mjs`) until someone
+decides which document is right. `customers` did too, until its tax number
+was encrypted (`tax_number_ct`); it is tenant-wide by this tier again.
 
 Also in `EXPOSED_PENDING`:
 - `ticketing_attachments`, whose tickets are row-scoped.
 - `custom_field_values`, whose restricted projects are row-scoped. Checked as
   a plain employee: the project was hidden, its custom field value was not.
 - `app_error_log`, whose `message` echoes submitted values (L69).
-- `payroll_runs` and `payroll_tax_deposits`, which no tier above names. `clients` and `time_tracking_billable_expenses` no longer exist; they
-merged into `customers` and `expenses` ([L103](./10-lessons-learned.md)).
+- `payroll_runs` and `payroll_tax_deposits`, which no tier above names.
+
+`clients` and `time_tracking_billable_expenses` no longer exist; they merged into `customers` and `expenses` ([L103](./10-lessons-learned.md)).
 
 ---
 

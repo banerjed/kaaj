@@ -580,7 +580,8 @@ WHERE customer_number = 'ACME';
 
 UPDATE customers SET
     billing_address = '{"city": "London", "country": "GB"}'::jsonb,
-    tax_number = 'GB123456789',
+    -- 'GB123456789', sealed to the tenant subject through `sealField`.
+    tax_number_ct = '{"v":1,"k":1,"iv":"hp4YuOhUPJ+4VIbC","ct":"DOtVbQQFbYRyfVU=","tag":"jFsWz/pnQ+3haNnhrz6/QA=="}',
     tax_rate_id = 'f740baac-f88d-557d-b54d-ea24fe1a0b91'
 WHERE customer_number = 'BRITCO';
 

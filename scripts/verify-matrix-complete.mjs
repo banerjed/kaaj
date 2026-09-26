@@ -180,6 +180,7 @@ const TENANT_WIDE = new Map([
   ["compensation_work_schedules", "working pattern, published so colleagues know availability"],
   ["cross_module_links", "ids linking records; each side keeps its own visibility"],
   ["custom_field_definitions", "tenant configuration"],
+  ["customers", "docs/15 Tier 3: the customer roster staff work with; the tax id is encrypted (tax_number_ct)"],
   ["document_folder_shares", "who a folder is shared with; the documents stay row-scoped"],
   ["employee_assets", "which equipment is issued to whom; an operational register"],
   ["employee_certifications", "professional certifications; the number is encrypted (_ct)"],
@@ -243,7 +244,6 @@ const TENANT_WIDE = new Map([
 const EXPOSED_PENDING = new Map([
   ["app_error_log", "message echoes submitted values (L69: they stay in infrastructure we control), readable by every employee"],
   ["custom_field_values", "values for tasks in restricted projects, which project_visibility hides"],
-  ["customers", "tax_number is a plaintext tax id, pending sealField in _pii_pending; docs/15 Tier 3 predates that"],
   ["hr_benefits_enrollments", "the matrix restricts benefit elections to self+hr (GDPR Art. 9); docs/15 Tier 2 calls it the likeliest to move up"],
   ["payroll_runs", "on a small run, total_gross_pay divides out to salaries; in no docs/15 tier"],
   ["payroll_tax_deposits", "the firm's tax payments; accounting left docs/15 Tier 3 for exactly this"],

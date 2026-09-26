@@ -1968,6 +1968,23 @@ describe("invoiceForPdf (US-ACC-001)", () => {
     expect(data.lines.length).toBeGreaterThan(0)
   })
 
+  it("prints the customer's tax number, opened from its ciphertext", async () => {
+    const INV_2026_002_BRITCO = "a31732ea-dadb-575f-bd99-cbcfeaba29da"
+    const { data, stored } = await inRollback(async (tx) => ({
+      data: await invoiceForPdf(tx, INV_2026_002_BRITCO),
+      stored: await tx<{ tax_number_ct: string }[]>`
+        SELECT tax_number_ct FROM customers WHERE customer_number = 'BRITCO'
+      `,
+    }))
+    expect(data.customer_tax_number).toBe("GB123456789")
+    expect(stored[0].tax_number_ct).not.toContain("GB123456789")
+  })
+
+  it("prints no tax number for a customer without one", async () => {
+    const data = await inRollback((tx) => invoiceForPdf(tx, INV_2026_001))
+    expect(data.customer_tax_number).toBeNull()
+  })
+
   it("refuses an invoice that does not exist", async () => {
     await refusedBecause(
       () =>
