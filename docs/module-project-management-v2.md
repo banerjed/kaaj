@@ -14,7 +14,7 @@ Comprehensive project and task management system designed for service providers,
 
 ### Key Features
 
-✅ **Strategic Hierarchy** - Objectives → Projects → Tasks → Subtasks (4-level hierarchy)
+✅ **Strategic Hierarchy** - Tenant -> Objectives → Projects → Tasks → Subtasks (4-level hierarchy)
 ✅ **Typed Column System** - 30+ column types with validation and formulas
 ✅ **Multiple Views** - Kanban, List, Gantt, Calendar, Workload, Chart views
 ✅ **Cross-Project Dashboards** - Executive visibility with customizable widgets

@@ -1,8 +1,8 @@
 # Product Specification: Business Management SaaS Platform
 
-**Version:** 1.3
-**Last Updated:** December 21, 2025
-**Status:** Draft
+**Version:** 1.4
+**Last Updated:** September 23, 2026
+**Status:** Draft — implementation in progress (see [Implementation Status](#implementation-status))
 
 ---
 
@@ -14,6 +14,7 @@
 4. [Core Objectives](#core-objectives)
 5. [System Architecture Overview](#system-architecture-overview)
 6. [Module Overview](#module-overview)
+   - [Implementation Status](#implementation-status)
 7. [User Roles & Permissions](#user-roles--permissions)
 8. [Cross-Cutting Concerns](#cross-cutting-concerns)
 9. [Technical Requirements](#technical-requirements)
@@ -257,7 +258,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 - Search: PostgreSQL full-text search (`tsvector` + GIN)
 - Queues and cache: PostgreSQL
 - Schema: [`data-models/schema.sql`](../packages/database/reference/schema.sql) — authoritative
-- Not used: PostgREST as the primary API, Edge Functions, Realtime
+- Not used: PostgREST as the primary API, Edge Functions, Supabase Realtime (team chat uses Postgres `LISTEN`/`NOTIFY` relayed over SSE instead)
 
 **Infrastructure**
 - Containerization: Docker, deployed to managed hosting **in the same region as
@@ -270,9 +271,81 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 ## Module Overview
 
+## Implementation Status
+
+*Verified 2026-09-23 against `apps/web/src` (routes, `lib/server` repositories, `export const actions`) and `supabase/migrations`. The finer-grained, per-phase account is [11-module-roadmap.md](./11-module-roadmap.md); when they disagree, the code wins.*
+
+| Marker | Meaning |
+|---|---|
+| ✅ Built | Read and write paths exist, writes classified in the audit register |
+| 🟡 Partial | Some pages or writes exist; gaps listed |
+| 📖 Read-only | Pages render real rows; nothing can be changed |
+| ⬜ Not started | No repository, no route |
+
+### Platform foundations — ✅ built
+
+- **Tenancy and isolation**: shared schema, `tenant_id` on every table, FORCE RLS with a non-owner role, RESTRICTIVE row-visibility policies (HR, payroll, accounting, audit log), a third RLS pattern for customer contacts. `./check` runs tenant-isolation, specification and invariant suites.
+- **Authorization**: `@kaaj/authz` permission strings, `requireCan` on every action and `load()`; separation-of-duties enforced by CHECK constraints and repositories.
+- **Audit**: same-transaction audit entries, a committed register classifying every write, row-level visibility on `audit_log` itself.
+- **PII**: application-side envelope encryption (`sealField`/`openField`), per-employee keys, erasure by key destruction.
+- **Forms, money, time, i18n**: `FormReader` validation, `NUMERIC` money as strings, office-timezone rendering, locale-aware formatting via `$lib/format.ts`, 33 country validators (`@kaaj/validation`).
+- **Customer portal identity**: `customer_contacts`, `customer` base role, `/portal` shell and login.
+- **Realtime**: `LISTEN`/`NOTIFY` over SSE for chat (shared-tier tenants only; dedicated tenants fall back to polling).
+
+### Modules
+
+| Module | Status | What exists | What is missing |
+|---|---|---|---|
+| Firm Profile | ✅ Built | `/settings/{company,locations,departments,job-titles,holidays,benefits,payroll/policies,payroll/schedules}`, all with write actions | Job-level management page (repository exists); org-chart diagram |
+| Employee Profile | ✅ Built | `/employees` list, detail, create, edit; encrypted PII fields | Subject-access export; custom-field management UI |
+| HR — Time off | ✅ Built | `/time-off` requests, ledger-derived balances, approve/refuse | — |
+| HR — Performance & feedback | ✅ Built | `/performance` reviews (draft → submitted → acknowledged), goals, anonymous feedback | — |
+| HR — Attendance | 📖 Read-only | `/attendance` timesheet in office timezone | Clock in/out, corrections, overtime computation, holiday tie-in |
+| HR — Onboarding | 📖 Read-only | `/onboarding` task list, deterministic template selection | Generating a plan for a hire |
+| HR — Surveys, benefits enrollment, offboarding | ⬜ Not started | — | Everything |
+| Compensation | ✅ Built | `/compensation`, `/compensation/[employeeId]`: audited raises, allowances, variable, equity, work schedules; effective dating | Premiums (shift differentials, on-call) |
+| Payroll | 🟡 Partial | `/payroll/runs`, `/payroll/runs/[id]`, `/payroll/payslips`; run lifecycle (draft → calculate → approve → finalize → cancel), audited, totals recomputed | **Per-person gross/tax/net calculation** (no tax tables), US/India tax engines, deduction and garnishment handling, tax forms, off-cycle runs, payment file generation |
+| Ticketing | ✅ Built (core) | `/ticketing` list/detail/new, `/settings/ticketing` business-area configuration, customer-facing `/portal/tickets` | SLA management and escalation, subscriber notifications |
+| Change Requests | ⬜ Not started | — | Everything |
+| User Groups | ⬜ Not started | Roles and permissions exist; no group management | Group model and UI |
+| AI Assistant | ⬜ Not started | — | Everything |
+| Project & Task Management | 🟡 Partial | `/projects`, `/projects/[id]`: create/edit projects, tasks, status moves, counters; objectives with rollup (`/objectives`); subtasks and same-project task dependencies with cycle detection; List/Kanban/Gantt/Calendar/Workload views; task comments; task files (via Document Management, not a separate attachments table); project templates (task list only — no columns or automations, since neither exists); typed custom fields on projects and tasks (`/settings/project-management`, [26-project-management-custom-fields.md](./26-project-management-custom-fields.md)) | Dashboards, automation engine, formula/mirror columns, cross-entity relations ("Connect Boards"), row-level (PM/team-member) visibility — still firm-wide by design, real drag-and-drop, resource allocation beyond single-project Workload, client-visible updates. Full gap inventory: [27-project-management-gap-tracking.md](./27-project-management-gap-tracking.md) |
+| Time Tracking | 🟡 Partial | `/time-tracking`: manual entries, submit/approve/reject, effective-dated rates, rounding at approval | Timesheets, billable expenses, real-time timers, prepaid hour banks, timesheet-to-invoice billing |
+| Document Management | 🟡 Partial | `/documents` (folders, sharing, archive, search, upload) — staff side | Client-facing document pages in `/portal`; version control |
+| Client Portal | 🟡 Partial | Identity, `/portal` shell, tickets | Documents, chat, project views, invoices |
+| Team Chat (internal) | ✅ Built | `/chat` DMs, channels, browse public channels, SSE relay | — |
+| Prospect / customer chat | ⬜ Not started | Specified in [21-prospect-chat.md](./21-prospect-chat.md) | Everything |
+| Accounting (GL, AR, AP) | ✅ Built for the slice implemented | Invoices, receive payment, recurring invoices, bills and vendor payments, journal entries, ledger, trial balance, balance sheet, P&L, cash flow, AR aging, tax rates/summary, exchange rates, FX revaluation, accruals, periods and year-end close, equity, banking with manual match and rules, payment gateway (Stripe) | Bank-feed integration and statement reconciliation, budgets, multi-entity consolidation ([accounting-gap-analysis.md](./accounting-gap-analysis.md)) |
+| Proposals, Estimates & Contracts | ⬜ Not started | — | Everything |
+| CRM (Sales Pipeline) | ⬜ Not started | — | Everything |
+| Retainer / Recurring Projects | ⬜ Not started | — | Everything |
+| Marketing platform (Phase 1C) | ⬜ Not started | Only the CMSaasStarter marketing *website* under `(marketing)`, which is not this module | Everything |
+| Recruiting, Expense Management | ⬜ Not started | — | Everything |
+| Accounts Payable (vendor bills, payments) | ✅ Built | Delivered inside the Accounting module above | OCR capture, three-way matching, 1099 |
+
+### Cross-cutting concerns
+
+| Concern | Status |
+|---|---|
+| Authentication (Supabase Auth, email/password, sessions) | ✅ Built |
+| SSO (SAML 2.0, OAuth/OIDC), MFA enforcement | ⬜ Not started |
+| Audit logging | ✅ Built |
+| Notifications (email, in-app, SMS, Slack/Teams) | ⬜ Not started (mail is captured locally in dev only; topbar bell is template chrome) |
+| Search | 🟡 Partial — document search only; no global search or command palette |
+| Data import/export | 🟡 Partial — trial-balance CSV export, invoice PDF; no bulk import |
+| Per-user locale | ⬜ Deferred (office/market locale is used) |
+| Required third-party integrations (Gusto/Paychex, Twilio, Plaid, Stripe, Claude gateway, email) | ⬜ Pending — see [Required Integrations](#required-integrations-pending); only Stripe is partly wired |
+| Public API / OpenAPI / webhooks | ⬜ Not started (app is server-rendered; no public API) |
+| Background worker (jobs queue) | ⬜ Not started |
+| Disclosure verification (taint check, [16](./16-disclosure-verification.md)) | 📋 Specified, not implemented |
+| Dedicated-tenant tiers B/C (ADR-009) | ⬜ Deliberately deferred until a customer pays |
+| Mobile apps | ⬜ Not started (responsive web only) |
+
+---
+
 ### Phase 1 Modules (Current Specification)
 
-#### 1. Firm Profile Module
+#### 1. Firm Profile Module — ✅ Built
 **Purpose**: Centralized company information and organizational structure
 
 **Key Features**:
@@ -286,7 +359,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Firm Profile Module Specification](./module-firm-profile.md)
 
-#### 2. Human Resources Module
+#### 2. Human Resources Module — 🟡 Partial
 **Purpose**: Complete employee lifecycle management
 
 **Key Features**:
@@ -302,7 +375,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [HR Module Specification](./module-hr.md)
 
-#### 3. Employee Profile Module
+#### 3. Employee Profile Module — ✅ Built
 **Purpose**: Extendable employee profile system with encrypted PII protection
 
 **Key Features**:
@@ -319,7 +392,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Employee Profile Specification](./module-employee-profile.md)
 
-#### 4. Ticketing Module
+#### 4. Ticketing Module — ✅ Built (core; SLA and notifications pending)
 **Purpose**: Comprehensive internal support and request management system
 
 **Key Features**:
@@ -340,7 +413,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Ticketing Module Specification](./module-ticketing.md)
 
-#### 5. AI Assistant Module
+#### 5. AI Assistant Module — ⬜ Not started
 **Purpose**: Always-available intelligent chatbot to help users navigate, learn, and execute tasks through natural language
 
 **Key Features**:
@@ -358,7 +431,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [AI Assistant Module Specification](./module-ai-assistant.md)
 
-#### 6. Compensation Module
+#### 6. Compensation Module — ✅ Built (premiums pending)
 **Purpose**: Comprehensive employee compensation structure supporting diverse employment types and pay models
 
 **Key Features**:
@@ -377,7 +450,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Compensation Framework](./module-compensation.md)
 
-#### 7. Payroll Module
+#### 7. Payroll Module — 🟡 Partial (lifecycle only; no pay calculation)
 **Purpose**: Process employee compensation, calculate taxes and deductions, generate pay stubs, and ensure compliance with US and India regulations
 
 **Key Features**:
@@ -406,7 +479,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Payroll Module Specification](./module-payroll.md)
 
-#### 8. Change Requests Module
+#### 8. Change Requests Module — ⬜ Not started
 **Purpose**: Employee self-service system for requesting changes to personal information, benefits, and employment records with approval workflows
 
 **Key Features**:
@@ -434,7 +507,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 ### Phase 1B Modules (Service Provider Suite)
 
-#### 6. Project & Task Management Module
+#### 6. Project & Task Management Module — 🟡 Partial
 **Purpose**: Comprehensive project delivery and task tracking for service providers
 
 **Key Features**:
@@ -451,7 +524,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Project Management Module Specification](./module-project-management-v2.md)
 
-#### 7. Time Tracking & Timesheet Billing Module
+#### 7. Time Tracking & Timesheet Billing Module — 🟡 Partial
 **Purpose**: Track billable and non-billable time with automated invoicing
 
 **Key Features**:
@@ -468,7 +541,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Time Tracking Module Specification](./module-time-tracking.md)
 
-#### 8. Proposals, Estimates & Contract Management Module
+#### 8. Proposals, Estimates & Contract Management Module — ⬜ Not started
 **Purpose**: Create professional proposals and manage client contracts
 
 **Key Features**:
@@ -485,7 +558,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Service Provider Modules Overview](./service-provider-modules-overview.md)
 
-#### 9. CRM (Sales Pipeline) Module
+#### 9. CRM (Sales Pipeline) Module — ⬜ Not started
 **Purpose**: Manage leads, opportunities, and sales pipeline
 
 **Key Features**:
@@ -502,7 +575,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Service Provider Modules Overview](./service-provider-modules-overview.md)
 
-#### 10. Client Portal Module
+#### 10. Client Portal Module — 🟡 Partial (tickets only)
 **Purpose**: Secure self-service portal for clients
 
 **Key Features**:
@@ -519,7 +592,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Service Provider Modules Overview](./service-provider-modules-overview.md)
 
-#### 11. Document Management Module
+#### 11. Document Management Module — 🟡 Partial (staff side)
 **Purpose**: Centralized file storage with version control
 
 **Key Features**:
@@ -536,7 +609,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 **See**: [Service Provider Modules Overview](./service-provider-modules-overview.md)
 
-#### 12. Retainer / Recurring Project Management Module
+#### 12. Retainer / Recurring Project Management Module — ⬜ Not started
 **Purpose**: Manage recurring revenue and retainer agreements
 
 **Key Features**:
@@ -555,7 +628,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 
 ### Phase 2 Modules (Future Development)
 
-#### 13. Recruiting Module
+#### 13. Recruiting Module — ⬜ Not started
 **Purpose**: Streamline hiring process from job posting to offer acceptance
 
 **Planned Features**:
@@ -567,7 +640,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 - Offer letter generation
 - Integration with HR module for new hire onboarding
 
-#### 14. Accounting Module
+#### 14. Accounting Module — ✅ Built (GL, AR, AP, reporting; bank feeds and budgets pending)
 **Purpose**: Financial management and reporting
 
 **Planned Features**:
@@ -579,7 +652,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 - Budget creation and tracking
 - Tax preparation support
 
-#### 15. Expense Management Module
+#### 15. Expense Management Module — ⬜ Not started
 **Purpose**: Employee expense submission, approval, and reimbursement
 
 **Planned Features**:
@@ -591,7 +664,7 @@ Worker process (same image, --worker): payroll runs, exports, scheduled jobs.
 - Corporate card reconciliation
 - Mileage tracking
 
-#### 16. Accounts Payable Module
+#### 16. Accounts Payable Module — ✅ Built within Accounting (OCR, 3-way match pending)
 **Purpose**: Vendor invoice management and payment processing
 
 **Planned Features**:
@@ -1073,7 +1146,29 @@ All user actions must be logged for compliance and security:
 
 ## Integration Requirements
 
-### Third-Party Integrations
+### Required Integrations (Pending)
+
+The product is not viable for its target customer without these six. They are ordered by how directly each one blocks a core promise (pay people, get paid, reach people). None is complete today. Each integration is a per-tenant connection whose credentials are sealed through `$lib/server/pii` and never returned to a page, follows the service-role quarantine rule, and records every outbound write in the audit register.
+
+| # | Integration | Purpose | Modules unblocked | Current state |
+|---|---|---|---|---|
+| 1 | **Gusto or Paychex** (payroll processing) | Compute and file payroll, taxes and forms; disburse pay | Payroll, Compensation, HR | ⬜ Not started. The run lifecycle exists but per-person gross, tax and net do not. Decision needed: **integrate a provider** (sync employees, compensation and time in; pull calculated runs, payslips and tax forms back) **or** build the tax engine in-house. Integrating is the recommended default, since inventing tax tables risks a correct-looking wrong payslip. |
+| 2 | **Twilio** (SMS, optionally voice) | Send and receive text messages; voice calls later | Ticketing, Client Portal, Prospect Chat, HR notifications, MFA | ⬜ Not started. Needs inbound webhooks with signature verification, per-tenant sender numbers, opt-out/STOP handling and consent records (TCPA), and message logging as a disclosure-classified table. |
+| 3 | **Plaid** (bank connection) | Import bank accounts and transactions for reconciliation | Accounting (banking, matching rules) | ⬜ Not started. `/accounting/banking` matches imported lines manually; the import feed itself, incremental sync, and statement reconciliation against a running balance are missing. Plaid access tokens are secrets and must be sealed. |
+| 4 | **Stripe** (payments gateway) | Let customers pay invoices online and get paid | Accounting (receivables), Client Portal, SaaS subscription billing | 🟡 Partial. A tenant can store and validate its own Stripe key (`/accounting/payment-gateway`), and invoice issuance can attach a payment link. Missing: an inbound webhook that records the payment and posts the journal, refunds and disputes, payouts reconciled to the bank, and Kaaj's own subscription billing (the `(admin)/account` template flow) tested end to end. |
+| 5 | **Claude gateway** (GenAI) | Natural-language assistant, drafting, summarisation, search over permitted content | AI Assistant, Ticketing, Project Management, Documents | ⬜ Not started. A single server-side gateway module is required, not per-feature API calls: it must run every request as the asking actor so the model can only see what that actor's RLS allows, redact fields classified in the disclosure matrix before prompting, enforce per-tenant usage limits and cost attribution, and log prompts and responses without storing protected values. Custom fields and payroll calculations must never be delegated to the model. |
+| 6 | **Transactional email** (Vercel or Cloudflare hosting; provider to be chosen) | Invitations, password resets, invoices, approvals, notifications | Every module; notifications | ⬜ Not started. Local dev captures mail at :54324 only. Requires a provider decision (Cloudflare Email Service or a provider reachable from Vercel or Cloudflare such as Resend, Postmark or SES, since neither host is itself an SMTP relay), SPF/DKIM/DMARC per sending domain, a Postgres-backed outbound queue (ADR-002), bounce and complaint webhooks, and per-tenant sender identity. |
+
+**Cross-integration requirements**
+- **Notification service first.** Email (#6) and SMS (#2) should sit behind one internal notification abstraction with per-user channel preferences, so modules emit an event rather than calling a provider.
+- **Webhook ingress.** #1, #2, #3, #4 and #6 all need signed inbound webhooks. Build one verified, idempotent ingress route pattern (signature check, replay window, dedupe key, tenant resolution, audited) instead of five.
+- **Secrets.** All provider credentials are per tenant, sealed, and readable only through the quarantined service-role path.
+- **Background worker.** Syncs (Plaid, payroll provider), retries and the email queue need the `--worker` process, which is also not yet built.
+- **Hosting.** Proposed: long-running `adapter-node` containers in the same US East region as Supabase, with Cloudflare as the edge only (not compute), because chat's `LISTEN`/`NOTIFY`, the worker and the 20–50 ms target favour a colocated, pooled container. Premium tenants get a dedicated Supabase project; smaller tenants share one database with RLS. See [24-deployment-and-pooling.md](./24-deployment-and-pooling.md); to be recorded as an ADR once measured.
+
+### Other Planned Integrations
+
+The lists below are longer-horizon and unprioritised; where they overlap the six above, the section above governs.
 
 **Phase 1 Integrations**:
 1. **Email Services**: SendGrid, AWS SES, Mailgun
@@ -1389,6 +1484,9 @@ the same region. The application is a standard Node container.
 | 1.0 | 2025-12-01 | Initial | Initial draft covering Firm Profile and HR modules |
 | 1.1 | 2025-12-03 | Update | Added Employee Profile and Ticketing modules to Phase 1; updated architecture diagram; renumbered Phase 2 modules |
 | 1.2 | 2025-12-03 | Update | Added AI Assistant module to Phase 1; updated Phase 2 module numbering |
+| 1.4 | 2026-09-23 | Update | Added Implementation Status section and per-module status markers, verified against `apps/web/src`; recorded team chat and document management modules |
+| 1.5 | 2026-09-23 | Update | Added Required Integrations (Pending): payroll provider, Twilio, Plaid, Stripe, Claude gateway, transactional email |
+| 1.6 | 2026-09-26 | Update | Corrected Project & Task Management Implementation Status row — Phase 2 (comments, files, templates, Gantt/Calendar/Workload) and typed custom fields were built since 1.4 and the row still described only Phase 1 |
 
 ### References
 

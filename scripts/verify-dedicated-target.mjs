@@ -16,6 +16,11 @@
  */
 import { execFileSync } from "node:child_process"
 import { readdirSync, readFileSync } from "node:fs"
+import {
+  isSealedRef,
+  openConnectionUrl,
+  parseKeyRing,
+} from "../apps/web/src/lib/server/db/sealed-secret.js"
 
 const ROOT = new URL("..", import.meta.url).pathname
 const SHARED_URL =
@@ -69,22 +74,34 @@ if (rows === "") {
 const currentMigrations = readdirSync(`${ROOT}supabase/migrations`)
   .filter((f) => f.startsWith("2026") && f.endsWith(".sql"))
   .sort()
-const latestVersion = currentMigrations
-  .at(-1)
-  .split("_")[0]
+const latestVersion = currentMigrations.at(-1).split("_")[0]
 
 const problems = []
 
 for (const line of rows.split("\n")) {
   const [tenantId, subdomain, secretRef, schemaVersion] = line.split("|")
 
-  const url = process.env[secretRef]
-  if (!url) {
-    problems.push(
-      `${subdomain}: tenant_registry names secret "${secretRef}", but it is ` +
-        "not set in the environment — check apps/web/.env.local",
-    )
-    continue
+  let url
+  if (isSealedRef(secretRef)) {
+    try {
+      const ring = parseKeyRing(process.env.PRIVATE_PII_KEK)
+      url = openConnectionUrl(secretRef, tenantId, (v) => ring.get(v))
+    } catch (e) {
+      problems.push(
+        `${subdomain}: its sealed connection secret cannot be opened ` +
+          `(${e.reason ?? e.message}) — check PRIVATE_PII_KEK holds the key it was sealed with`,
+      )
+      continue
+    }
+  } else {
+    url = process.env[secretRef]
+    if (!url) {
+      problems.push(
+        `${subdomain}: tenant_registry names secret "${secretRef}", but it is ` +
+          "not set in the environment — check apps/web/.env.local",
+      )
+      continue
+    }
   }
 
   let reachable

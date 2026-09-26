@@ -54,7 +54,7 @@ export async function resolveTarget(tenantId: string): Promise<Target> {
       : {
           tier: "dedicated",
           connectionSecretRef: row.connection_secret_ref!,
-          connectionUrl: resolveSecret(row.connection_secret_ref!),
+          connectionUrl: resolveSecret(row.connection_secret_ref!, tenantId),
         }
 
   cache.set(tenantId, { target, expiresAt: Date.now() + CACHE_TTL_MS })
