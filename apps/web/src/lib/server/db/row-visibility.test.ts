@@ -885,6 +885,97 @@ describe("ticketing", () => {
   it("shows a portal contact no tickets with no customer claim at all", async () => {
     expect(await ticketNumbers({ role: "customer" })).toEqual([])
   })
+
+  // 20260926163000_user_groups.sql — additive to individual business-area
+  // membership above. Lena (Consulting group member) touches no other
+  // ticketing fixture row: this is what proves the GROUP grant confers
+  // visibility, not individual membership, logger, assignee or subscriber
+  // status (docs/28-user-groups.md).
+  it("a group granted access to a business area is visible to its members, not just individually-added ones — and only that area, proving both halves in one query", async () => {
+    // Lena is a Consulting group member with no individual BA membership, no
+    // logger/assignee/subscriber role anywhere — the exact set below (only
+    // Client Support, nothing from IT/FAC) is possible only via the group
+    // grant, and only for the one area it was granted to.
+    const LENA = "18503470-ba5c-5450-bc3e-b0a2454d757f"
+    expect(await ticketNumbers({ employeeId: LENA, role: "employee" })).toEqual(
+      ["CS-0001", "CS-0002", "CS-0003"],
+    )
+  })
+})
+
+describe("projects — opt-in restricted visibility (docs/28-user-groups.md)", () => {
+  // PRJ-004 'Internal Tooling' is the fixture's one is_restricted project.
+  // Sarah is its project_manager_id; Diego is a Consulting-group member
+  // granted access; Marcus is Engineering-only, with no role on PRJ-004 at
+  // all — the negative control.
+  const DIEGO = "e05fd53c-ebdf-5049-810a-28a63369f93a"
+
+  const projectNumbers = (who: Who) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ project_number: string }[]>`
+        SELECT project_number FROM projects ORDER BY project_number
+      `
+      return rows.map((r) => r.project_number)
+    })
+
+  it("an unrestricted project stays visible to every employee, unchanged", async () => {
+    const marcusSees = await projectNumbers({
+      employeeId: MARCUS,
+      role: "employee",
+    })
+    expect(marcusSees).toEqual(["PRJ-001", "PRJ-002", "PRJ-003"])
+  })
+
+  it("narrows a restricted project to its PM, group grants, and admins — asserting both halves", async () => {
+    // Marcus: Engineering only, no PM/group role on PRJ-004 — refused.
+    expect(
+      await projectNumbers({ employeeId: MARCUS, role: "employee" }),
+    ).not.toContain("PRJ-004")
+
+    // Sarah: PRJ-004's own project_manager_id.
+    expect(
+      await projectNumbers({ employeeId: SARAH, role: "employee" }),
+    ).toContain("PRJ-004")
+
+    // Diego: sees it only via the Consulting group's project_group_grants
+    // row — not PM, not a task assignee, not an admin.
+    expect(
+      await projectNumbers({ employeeId: DIEGO, role: "employee" }),
+    ).toContain("PRJ-004")
+  })
+
+  it("reads_all_projects (owner/firm_admin/project_manager) sees every project regardless of restriction", async () => {
+    expect(await projectNumbers({ employeeId: NADIA, role: "owner" })).toEqual([
+      "PRJ-001",
+      "PRJ-002",
+      "PRJ-003",
+      "PRJ-004",
+    ])
+    expect(
+      await projectNumbers({
+        employeeId: NADIA,
+        role: "employee",
+        functionalRoles: ["project_manager"],
+      }),
+    ).toEqual(["PRJ-001", "PRJ-002", "PRJ-003", "PRJ-004"])
+  })
+
+  it("a task's visibility follows its project's — restricted PRJ-004's own task is hidden the same way", async () => {
+    const tasksVisible = (who: Who) =>
+      asRole(who, async (tx) => {
+        const rows = await tx<{ task_number: string }[]>`
+          SELECT task_number FROM tasks
+           WHERE project_id = '1da967fa-e086-53c7-b9d1-7605759dfda3'::uuid
+        `
+        return rows.map((r) => r.task_number)
+      })
+    expect(
+      await tasksVisible({ employeeId: MARCUS, role: "employee" }),
+    ).toEqual([])
+    expect(await tasksVisible({ employeeId: DIEGO, role: "employee" })).toEqual(
+      ["T-007"],
+    )
+  })
 })
 
 describe("team chat", () => {

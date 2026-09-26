@@ -1073,16 +1073,37 @@ INSERT INTO employee_user_groups (id, tenant_id, group_name, display_name, descr
     ('b1767520-bcaf-5a97-812e-7fe119d6b791', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', 'Payroll Approvers', 'Can approve payroll runs', 'functional', '6d466aa9-e51a-5d52-9015-152600855932', 'a87e0200-0849-53b6-a491-e882feace3f5', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('46c7bd0b-08e5-541d-9942-f8ffee9f772f', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'all-staff@northwind.example', 'All Staff', 'Everyone', 'custom', 'a87e0200-0849-53b6-a491-e882feace3f5', '6d466aa9-e51a-5d52-9015-152600855932', TRUE, '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
--- Group membership — RBAC resolution queries depend on this
-INSERT INTO employee_group_members (id, tenant_id, group_name, employee_id, role, joined_at, joined_by) VALUES
-    ('bf729913-ed3b-5bc5-9875-186102de7bb2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('4cc13d94-8b1b-5a2b-8b58-cbae900e6e6a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('60f45c25-5829-5e5c-ac74-dd30aa09ca40', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'engineering@northwind.example', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('4c5a56c1-89ce-56c9-a9f5-7e26ffa59721', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'consulting@northwind.example', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('6807dba6-48a6-5935-98cd-441ec0056c4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'consulting@northwind.example', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('17009da4-bdc6-5aca-b916-3b5a178aefd1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('37be0809-41ec-5de0-a662-06718ad05db4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'payroll-approvers@northwind.example', 'a87e0200-0849-53b6-a491-e882feace3f5', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('4a0507b1-3a84-5f42-ab61-ec0678d62769', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'all-staff@northwind.example', 'a87e0200-0849-53b6-a491-e882feace3f5', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+-- Group membership, keyed on the real group_id FK (docs/28-user-groups.md —
+-- 20260926163000 replaced the group_name naming-convention link).
+INSERT INTO employee_group_members (id, tenant_id, group_id, employee_id, role, joined_at, joined_by, is_active) VALUES
+    ('bf729913-ed3b-5bc5-9875-186102de7bb2', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '0158d8de-be1c-565f-a3c4-78624d177e7f', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('4cc13d94-8b1b-5a2b-8b58-cbae900e6e6a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '0158d8de-be1c-565f-a3c4-78624d177e7f', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('60f45c25-5829-5e5c-ac74-dd30aa09ca40', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '0158d8de-be1c-565f-a3c4-78624d177e7f', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('4c5a56c1-89ce-56c9-a9f5-7e26ffa59721', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7fbde845-a1ae-5000-b476-907b24b26788', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('6807dba6-48a6-5935-98cd-441ec0056c4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7fbde845-a1ae-5000-b476-907b24b26788', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    -- Lena and Diego touch no other ticketing/project fixture row, so their
+    -- Consulting membership is what proves the GROUP grants below (not
+    -- individual membership, not PM, not logger/assignee) confer visibility.
+    ('a5b6c7d8-1234-5000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7fbde845-a1ae-5000-b476-907b24b26788', '18503470-ba5c-5450-bc3e-b0a2454d757f', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('a5b6c7d8-1234-5000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7fbde845-a1ae-5000-b476-907b24b26788', 'e05fd53c-ebdf-5049-810a-28a63369f93a', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('17009da4-bdc6-5aca-b916-3b5a178aefd1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b1767520-bcaf-5a97-812e-7fe119d6b791', '6d466aa9-e51a-5d52-9015-152600855932', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('37be0809-41ec-5de0-a662-06718ad05db4', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b1767520-bcaf-5a97-812e-7fe119d6b791', 'a87e0200-0849-53b6-a491-e882feace3f5', 'member', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE),
+    ('4a0507b1-3a84-5f42-ab61-ec0678d62769', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '46c7bd0b-08e5-541d-9942-f8ffee9f772f', 'a87e0200-0849-53b6-a491-e882feace3f5', 'owner', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', TRUE);
+
+-- Group-based access grants (docs/28-user-groups.md) — Consulting's group
+-- membership above (Lena, Diego) is what proves these, not individual
+-- membership or project-manager/logger status.
+INSERT INTO ticketing_business_area_group_grants (id, tenant_id, business_area_id, group_id, added_at, added_by) VALUES
+    ('a5b6c7d8-1234-5000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', '7fbde845-a1ae-5000-b476-907b24b26788', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO project_group_grants (id, tenant_id, project_id, group_id, added_at, added_by) VALUES
+    ('a5b6c7d8-1234-5000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '1da967fa-e086-53c7-b9d1-7605759dfda3', '7fbde845-a1ae-5000-b476-907b24b26788', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- PRJ-004 (Internal Tooling) is the one fixture project opted into
+-- restricted visibility — its PM (Sarah) and Consulting group members
+-- (Diego, via the grant above) see it; an Engineering-only employee with no
+-- role on it does not.
+UPDATE projects SET is_restricted = TRUE WHERE project_number = 'PRJ-004';
 
 INSERT INTO employee_group_roles (id, tenant_id, group_role_id, group_name, role_name, department_code, location_code, granted_at, granted_by) VALUES
     ('2e0328b4-9324-5786-8538-51952e3a319e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'GR-001', 'engineering@northwind.example', 'project_member', 'ENG', NULL, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
@@ -2283,7 +2304,6 @@ UPDATE projects SET last_activity_at = '2026-03-01T09:00:00Z' WHERE last_activit
 UPDATE projects SET recurrence_rule = '{"note": "seeded for fixture completeness"}'::jsonb WHERE recurrence_rule IS NULL OR recurrence_rule::text IN ('{}','[]','null');
 UPDATE projects SET service_type = 'Service Type 1' WHERE service_type IS NULL OR service_type = '';
 UPDATE projects SET tags = '["standard"]'::jsonb WHERE tags IS NULL OR tags::text IN ('{}','[]','null');
-UPDATE projects SET team_members = '["standard"]'::jsonb WHERE team_members IS NULL OR team_members::text IN ('{}','[]','null');
 UPDATE projects SET updated_by = 'Updated By 1' WHERE updated_by IS NULL OR updated_by = '';
 UPDATE tasks SET actual_cost = 1.2500 WHERE actual_cost IS NULL;
 UPDATE tasks SET blocks_task_ids = '["standard"]'::jsonb WHERE blocks_task_ids IS NULL OR blocks_task_ids::text IN ('{}','[]','null');

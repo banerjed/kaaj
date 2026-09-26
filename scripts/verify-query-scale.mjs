@@ -189,6 +189,10 @@ const NOT_SCALE_SENSITIVE = new Map([
   ["pm_objectives", "bounded by teams/cycles; small relative to tasks"],
   ["pm_project_templates", "small, admin-authored config"],
   [
+    "project_group_grants",
+    "bounded by project count times group count, same shape as ticketing_business_area_members",
+  ],
+  [
     "projects",
     "bounded by how many projects exist, not by activity within them",
   ],
@@ -210,6 +214,10 @@ const NOT_SCALE_SENSITIVE = new Map([
   ["tenant_users", "bounded by headcount"],
   ["tenants", "one row per tenant, in the control plane"],
   ["ticketing_business_area_members", "bounded by employee count times areas"],
+  [
+    "ticketing_business_area_group_grants",
+    "bounded by business-area count times group count",
+  ],
   ["ticketing_business_areas", "small, admin-authored config"],
   ["ticketing_categories", "small, admin-authored config"],
   ["ticketing_subcategories", "small, admin-authored config"],

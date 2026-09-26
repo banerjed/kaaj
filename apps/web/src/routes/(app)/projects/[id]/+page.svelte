@@ -30,6 +30,10 @@
   let editing = $state(false)
   let savingTemplate = $state(false)
   let viewingProjectFields = $state(false)
+  let managingTeam = $state(false)
+  const grantedGroupIds = $derived(
+    new Set(data.projectGroups.map((g) => g.group_id)),
+  )
   /** The Kanban/Gantt/Calendar/Workload boards all read the same data.tasks
       and (where they write at all) reuse moveTask — no second status-writing
       path. */
@@ -230,6 +234,16 @@
       <span class="iconify lucide--check size-5"></span>
       <span>Fields saved.</span>
     </div>
+  {:else if form?.restrictedSaved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Visibility saved.</span>
+    </div>
+  {:else if form?.groupsSaved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Team saved.</span>
+    </div>
   {:else if form?.message}
     <div role="alert" class="alert alert-error mt-4">
       <span class="iconify lucide--circle-alert size-5"></span>
@@ -259,6 +273,12 @@
           <StatusBadge tone={projectStatusTone(data.project.status)}>
             {data.project.status?.replace(/_/g, " ")}
           </StatusBadge>
+          {#if data.project.is_restricted}
+            <span class="badge badge-ghost badge-sm gap-1">
+              <span class="iconify lucide--lock size-3"></span>
+              Restricted
+            </span>
+          {/if}
           {#if data.mayWrite}
             <button
               type="button"
@@ -286,6 +306,14 @@
                 Fields
               </button>
             {/if}
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs"
+              onclick={() => (managingTeam = true)}
+            >
+              <span class="iconify lucide--users size-3.5"></span>
+              Team
+            </button>
           {/if}
         </div>
       </div>
@@ -1561,6 +1589,85 @@
       class="modal-backdrop"
       aria-label="Close"
       onclick={() => (viewingProjectFields = false)}
+    ></button>
+  </div>
+{/if}
+
+<!-- Team — opt-in visibility, docs/28-user-groups.md ------------------------ -->
+{#if managingTeam}
+  <div class="modal modal-open" role="dialog" aria-label="Team">
+    <div class="modal-box max-w-lg">
+      <h3 class="text-lg font-medium">Team</h3>
+
+      <form
+        method="POST"
+        action="?/setRestricted"
+        use:enhance
+        class="mt-4 flex items-start justify-between gap-3 rounded-box border border-base-300 p-3"
+      >
+        <div>
+          <p class="text-sm font-medium">Restricted</p>
+          <p class="text-base-content/70 text-xs">
+            Unrestricted (default): every employee sees this project.
+            Restricted: only the project manager, anyone assigned a task in it,
+            admins, and members of the groups below.
+          </p>
+        </div>
+        <input
+          type="hidden"
+          name="is_restricted"
+          value={data.project.is_restricted ? "" : "on"}
+        />
+        <button type="submit" class="btn btn-sm shrink-0">
+          {data.project.is_restricted ? "Unrestrict" : "Restrict"}
+        </button>
+      </form>
+
+      <div class="mt-4">
+        <p class="text-sm font-medium">Groups with access</p>
+        {#if data.allGroups.length === 0}
+          <p class="text-base-content/70 mt-1 text-sm">
+            No groups yet — <a href="/settings/groups" class="link"
+              >create one</a
+            > first.
+          </p>
+        {:else}
+          <form method="POST" action="?/saveGroups" use:enhance class="mt-2">
+            <div
+              class="max-h-60 overflow-y-auto rounded-box border border-base-300 p-2"
+            >
+              {#each data.allGroups as g (g.id)}
+                <label class="flex cursor-pointer items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    name="group_ids"
+                    value={g.id}
+                    class="checkbox checkbox-sm"
+                    checked={grantedGroupIds.has(g.id)}
+                  />
+                  <span class="text-sm">{g.display_name}</span>
+                </label>
+              {/each}
+            </div>
+            <button class="btn btn-primary btn-sm mt-3">Save groups</button>
+          </form>
+        {/if}
+      </div>
+
+      <div class="modal-action">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={() => (managingTeam = false)}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    <button
+      class="modal-backdrop"
+      aria-label="Close"
+      onclick={() => (managingTeam = false)}
     ></button>
   </div>
 {/if}

@@ -14,6 +14,9 @@
     data.subcategories.filter((s) => s.category_id === categoryId)
 
   const memberIds = $derived(new Set(data.members.map((m) => m.employee_id)))
+  const grantedGroupIds = $derived(
+    new Set(data.groupGrants.map((g) => g.group_id)),
+  )
 
   let newFieldDataType = $state("text")
 </script>
@@ -39,6 +42,11 @@
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Default viewers saved.</span>
+    </div>
+  {:else if form?.groupsSaved}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Groups with access saved.</span>
     </div>
   {:else if form?.customFieldAdded}
     <div role="status" class="alert alert-success mt-4">
@@ -174,6 +182,48 @@
             >Save default viewers</button
           >
         </form>
+      </div>
+    </div>
+
+    <!-- Groups with access — docs/28-user-groups.md, additive to Default viewers above -->
+    <div class="card bg-base-100 mt-4 shadow">
+      <div class="card-body gap-3">
+        <h2 class="font-medium">Groups with access</h2>
+        <p class="text-base-content/70 text-sm">
+          Every current and future member of a group checked here sees every
+          non-private ticket in this business area, same as an individual
+          default viewer. Manage a group's own membership at <a
+            href="/settings/groups"
+            class="link">Settings → Groups</a
+          >.
+        </p>
+        {#if data.allGroups.length === 0}
+          <p class="text-base-content/70 text-sm">
+            No groups yet — <a href="/settings/groups" class="link"
+              >create one</a
+            > first.
+          </p>
+        {:else}
+          <form method="POST" action="?/saveGroups" use:enhance class="mt-2">
+            <div
+              class="max-h-72 overflow-y-auto rounded-box border border-base-300 p-2"
+            >
+              {#each data.allGroups as g (g.id)}
+                <label class="flex cursor-pointer items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    name="group_ids"
+                    value={g.id}
+                    class="checkbox checkbox-sm"
+                    checked={grantedGroupIds.has(g.id)}
+                  />
+                  <span class="text-sm">{g.display_name}</span>
+                </label>
+              {/each}
+            </div>
+            <button class="btn btn-primary btn-sm mt-3">Save groups</button>
+          </form>
+        {/if}
       </div>
     </div>
 

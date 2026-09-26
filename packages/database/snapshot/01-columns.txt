@@ -524,12 +524,13 @@ employee_certifications	14	updated_at	timestamp with time zone	t	now()
 employee_certifications	15	certification_number_ct	text	f	
 employee_group_members	1	id	uuid	t	gen_random_uuid()
 employee_group_members	2	tenant_id	uuid	t	
-employee_group_members	3	group_name	text	t	
 employee_group_members	4	employee_id	uuid	t	
 employee_group_members	5	role	text	t	'member'::text
 employee_group_members	6	joined_at	timestamp with time zone	t	
 employee_group_members	7	joined_by	text	t	
 employee_group_members	8	expires_at	timestamp with time zone	f	
+employee_group_members	9	group_id	uuid	t	
+employee_group_members	10	is_active	boolean	t	true
 employee_group_roles	1	id	uuid	t	gen_random_uuid()
 employee_group_roles	2	tenant_id	uuid	t	
 employee_group_roles	3	group_role_id	text	f	
@@ -566,8 +567,8 @@ employee_user_groups	6	group_type	group_type	t	'custom'::group_type
 employee_user_groups	7	parent_group_name	text	f	
 employee_user_groups	8	department_code	text	f	
 employee_user_groups	9	location_code	text	f	
-employee_user_groups	10	approver_id	uuid	t	
-employee_user_groups	11	backup_approver_id	uuid	t	
+employee_user_groups	10	approver_id	uuid	f	
+employee_user_groups	11	backup_approver_id	uuid	f	
 employee_user_groups	12	is_active	boolean	f	true
 employee_user_groups	13	is_system_group	boolean	f	false
 employee_user_groups	14	created_at	timestamp with time zone	t	now()
@@ -1827,6 +1828,13 @@ pm_task_comments	16	created_at	timestamp with time zone	t	now()
 pm_task_comments	17	updated_at	timestamp with time zone	t	now()
 pm_task_comments	18	edited_at	timestamp with time zone	f	
 pm_task_comments	19	deleted_at	timestamp with time zone	f	
+project_group_grants	1	id	uuid	t	gen_random_uuid()
+project_group_grants	2	tenant_id	uuid	t	
+project_group_grants	3	project_id	uuid	t	
+project_group_grants	4	group_id	uuid	t	
+project_group_grants	5	is_active	boolean	t	true
+project_group_grants	6	added_at	timestamp with time zone	t	now()
+project_group_grants	7	added_by	text	t	
 projects	1	id	uuid	t	gen_random_uuid()
 projects	2	tenant_id	uuid	t	
 projects	3	project_id	text	f	
@@ -1842,7 +1850,6 @@ projects	12	service_type	text	f
 projects	13	industry	text	f	
 projects	14	tags	jsonb	f	'[]'::jsonb
 projects	15	project_manager_id	uuid	f	
-projects	16	team_members	jsonb	f	'[]'::jsonb
 projects	17	department_code	text	f	
 projects	18	location_code	text	f	
 projects	19	start_date	date	f	
@@ -1889,6 +1896,7 @@ projects	59	updated_at	timestamp with time zone	t	now()
 projects	60	created_by	text	t	
 projects	61	updated_by	text	f	
 projects	62	archived_at	timestamp with time zone	f	
+projects	63	is_restricted	boolean	t	false
 recurring_schedules	1	id	uuid	t	gen_random_uuid()
 recurring_schedules	2	tenant_id	uuid	t	
 recurring_schedules	3	customer_id	uuid	t	
@@ -2096,6 +2104,13 @@ ticketing_attachments	14	uploaded_by	text	t
 ticketing_attachments	15	uploaded_by_name	text	f	
 ticketing_attachments	16	uploaded_at	timestamp with time zone	t	
 ticketing_attachments	17	description	text	f	
+ticketing_business_area_group_grants	1	id	uuid	t	gen_random_uuid()
+ticketing_business_area_group_grants	2	tenant_id	uuid	t	
+ticketing_business_area_group_grants	3	business_area_id	uuid	t	
+ticketing_business_area_group_grants	4	group_id	uuid	t	
+ticketing_business_area_group_grants	5	is_active	boolean	t	true
+ticketing_business_area_group_grants	6	added_at	timestamp with time zone	t	now()
+ticketing_business_area_group_grants	7	added_by	text	t	
 ticketing_business_area_members	1	id	uuid	t	gen_random_uuid()
 ticketing_business_area_members	2	tenant_id	uuid	t	
 ticketing_business_area_members	3	business_area_id	uuid	t	

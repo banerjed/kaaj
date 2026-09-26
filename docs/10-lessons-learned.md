@@ -2623,6 +2623,25 @@ scaffolded wholesale in an early pass (`docs/23-...`'s own phrase) looks
 exactly like unbuilt work from its own migration; whether it actually is
 depends on what else exists under a name nobody thought to check.
 
+### L102 — a family of scaffolded tables can have more members than the one being wired up
+
+Building real user groups (`docs/28-user-groups.md`) wired up
+`employee_user_groups`/`employee_group_members` — but the initial schema
+pass had scaffolded a *third* table alongside them, `employee_group_roles`
+(department/location-scoped role grants per group), with its own two
+fixture rows and zero consumers, same as the other two. It was found only
+because every column on both tables being touched was read end to end
+before writing the migration — not because anything pointed at it.
+
+Left alone, on purpose: wiring it up would mean building a second,
+parallel permissioning mechanism (role grants by department/location)
+alongside the one just shipped (group membership + resource grants),
+without the request ever having asked for it. `docs/28`'s own "Still out of
+scope" section says so explicitly, so the next session finds the reasoning
+rather than re-deciding it. The general form, beyond this one case: when a
+scaffolded table turns out to need wiring up, check whether it has scaffolded
+*siblings* sharing its naming prefix before assuming there's exactly one.
+
 ---
 
 ## Conventions

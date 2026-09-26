@@ -14,9 +14,10 @@ import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
 import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
 import { readCustomFieldValues } from "$lib/server/custom-fields/read-values"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
+import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
-import { FormReader } from "$lib/server/forms"
+import { FormReader, formList } from "$lib/server/forms"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 const {
@@ -69,6 +70,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       projectFieldValues: (
         await customFields.valuesFor(tx, "project", [project.id])
       )[project.id],
+      // Group-based visibility (docs/28-user-groups.md) — meaningful once
+      // is_restricted is true, readable regardless so the picker shows
+      // what's set before restricting.
+      projectGroups: await projects.projectGroups(tx, project.id),
+      allGroups: await groups.listGroups(tx),
     }
   })
 }
@@ -286,6 +292,78 @@ export const actions: Actions = {
       if (e instanceof ProjectWriteRefused) return fail(400, refusal(e))
       throw e
     }
+  },
+
+  // Opt-in visibility (docs/28-user-groups.md) — flips whether the project
+  // narrows to its PM, task assignees and group grants, or stays firm-wide.
+  // Audited: the same class of change as ticketing's saveGroups/saveMembers.
+  setRestricted: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+
+    const f = new FormReader(await request.formData())
+    const isRestricted = f.bool("is_restricted")
+    if (!f.ok) return fail(400, f.problem("That change is not valid."))
+
+    await withTenant(actorFrom(locals), async (tx) => {
+      const before = await projects.byId(tx, params.id)
+      await projects.setRestricted(
+        tx,
+        params.id,
+        isRestricted,
+        ctx!.employeeId ?? ctx!.userId,
+      )
+      await audit.record(tx, ctx!, {
+        action: "update",
+        entityType: "projects",
+        entityId: params.id,
+        module: "projects",
+        changes: audit.diff(before, { is_restricted: isRestricted }, [
+          "is_restricted",
+        ]),
+      })
+    })
+    return { restrictedSaved: true }
+  },
+
+  // Which groups see this project once restricted — meaningless until
+  // is_restricted is true, but a rights change when it is.
+  saveGroups: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "projects.write")
+    const tenantId = locals.tenantId
+
+    const data = await request.formData()
+    const groupIds = formList(data, "group_ids")
+
+    await withTenant(actorFrom(locals), async (tx) => {
+      const before = await projects.projectGroups(tx, params.id)
+      await projects.setProjectGroups(
+        tx,
+        tenantId,
+        params.id,
+        groupIds,
+        ctx!.employeeId ?? ctx!.userId,
+      )
+      await audit.record(tx, ctx!, {
+        action: "update",
+        entityType: "project_group_grants",
+        entityId: params.id,
+        module: "projects",
+        changes: {
+          group_ids: {
+            from: before
+              .map((g) => g.group_id)
+              .sort()
+              .join(","),
+            to: [...groupIds].sort().join(","),
+          },
+        },
+      })
+    })
+    return { groupsSaved: true }
   },
 
   /**

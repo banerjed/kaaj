@@ -120,7 +120,9 @@ employee_certifications	employee_certifications_tenant_id_fkey	f	FOREIGN KEY (te
 employee_certifications	fk_employee_certifications_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 employee_group_members	employee_group_members_pkey	p	PRIMARY KEY (id)
 employee_group_members	employee_group_members_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+employee_group_members	employee_group_members_tenant_id_group_id_employee_id_key	u	UNIQUE (tenant_id, group_id, employee_id)
 employee_group_members	fk_employee_group_members_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
+employee_group_members	fk_employee_group_members_group_id	f	FOREIGN KEY (group_id) REFERENCES employee_user_groups(id) ON DELETE CASCADE
 employee_group_roles	employee_group_roles_pkey	p	PRIMARY KEY (id)
 employee_group_roles	employee_group_roles_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 employee_group_roles	employee_group_roles_tenant_id_group_role_id_key	u	UNIQUE (tenant_id, group_role_id)
@@ -378,6 +380,11 @@ pm_task_comments	fk_pm_task_comments_task_id	f	FOREIGN KEY (task_id) REFERENCES 
 pm_task_comments	pm_task_comments_pkey	p	PRIMARY KEY (id)
 pm_task_comments	pm_task_comments_tenant_id_comment_id_key	u	UNIQUE (tenant_id, comment_id)
 pm_task_comments	pm_task_comments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+project_group_grants	project_group_grants_group_id_fkey	f	FOREIGN KEY (group_id) REFERENCES employee_user_groups(id)
+project_group_grants	project_group_grants_pkey	p	PRIMARY KEY (id)
+project_group_grants	project_group_grants_project_id_fkey	f	FOREIGN KEY (project_id) REFERENCES projects(id)
+project_group_grants	project_group_grants_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+project_group_grants	project_group_grants_tenant_id_project_id_group_id_key	u	UNIQUE (tenant_id, project_id, group_id)
 projects	fk_projects_objective_id	f	FOREIGN KEY (objective_id) REFERENCES pm_objectives(id) ON DELETE SET NULL
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -439,6 +446,11 @@ ticketing_attachments	fk_ticketing_attachments_ticket_id	f	FOREIGN KEY (ticket_i
 ticketing_attachments	ticketing_attachments_pkey	p	PRIMARY KEY (id)
 ticketing_attachments	ticketing_attachments_tenant_id_attachment_id_key	u	UNIQUE (tenant_id, attachment_id)
 ticketing_attachments	ticketing_attachments_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_business_area_group_grants	ticketing_business_area_group_grants_business_area_id_fkey	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
+ticketing_business_area_group_grants	ticketing_business_area_group_grants_group_id_fkey	f	FOREIGN KEY (group_id) REFERENCES employee_user_groups(id)
+ticketing_business_area_group_grants	ticketing_business_area_group_grants_pkey	p	PRIMARY KEY (id)
+ticketing_business_area_group_grants	ticketing_business_area_group_grants_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_business_area_group_grants	ticketing_business_area_group_tenant_id_business_area_id_gr_key	u	UNIQUE (tenant_id, business_area_id, group_id)
 ticketing_business_area_members	ticketing_business_area_membe_tenant_id_business_area_id_em_key	u	UNIQUE (tenant_id, business_area_id, employee_id)
 ticketing_business_area_members	ticketing_business_area_members_business_area_id_fkey	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
 ticketing_business_area_members	ticketing_business_area_members_employee_id_fkey	f	FOREIGN KEY (employee_id) REFERENCES employees(id)

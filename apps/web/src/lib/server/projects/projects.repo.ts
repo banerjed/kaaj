@@ -44,7 +44,9 @@ export type ProjectRow = {
   target_end_date: string | null
   client_name: string | null
   manager_name: string | null
+  project_manager_id: string | null
   is_billable: boolean | null
+  is_restricted: boolean
   overdue_task_count: number
   objective_id: string | null
   objective_name: string | null
@@ -66,7 +68,9 @@ const SELECT = `
          to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
          c.client_name,
          m.first_name || ' ' || m.last_name AS manager_name,
+         p.project_manager_id::text AS project_manager_id,
          p.is_billable,
+         p.is_restricted,
          p.objective_id::text AS objective_id,
          o.objective_name,
          (SELECT count(*)::int FROM tasks t WHERE t.project_id = p.id)
@@ -109,7 +113,9 @@ const LIST_SELECT = `
          to_char(p.target_end_date,'YYYY-MM-DD') AS target_end_date,
          c.client_name,
          m.first_name || ' ' || m.last_name AS manager_name,
+         p.project_manager_id::text AS project_manager_id,
          p.is_billable,
+         p.is_restricted,
          p.objective_id::text AS objective_id,
          o.objective_name
     FROM projects p
@@ -781,6 +787,59 @@ export async function updateProject(
   await objectives.refreshRollup(tx, input.objective_id)
 
   return before
+}
+
+/** Opt-in restriction (docs/28-user-groups.md) — same shape as ticketing_tickets.private: an unrestricted project stays visible to everyone, restricting one narrows it to the PM, its task assignees, and group grants. */
+export async function setRestricted(
+  tx: Tx,
+  id: string,
+  isRestricted: boolean,
+  actorId: string,
+): Promise<void> {
+  await tx`
+    UPDATE projects SET is_restricted = ${isRestricted}, updated_at = now(), updated_by = ${actorId}
+     WHERE id = ${id}::uuid
+  `
+}
+
+export type GroupGrantRow = { group_id: string; display_name: string }
+
+/** Groups granted access to this project — meaningful only once is_restricted is true, but readable regardless so the picker can show what's set before restricting. */
+export async function projectGroups(
+  tx: Tx,
+  projectId: string,
+): Promise<GroupGrantRow[]> {
+  return tx<GroupGrantRow[]>`
+    SELECT g.group_id, u.display_name
+      FROM project_group_grants g
+      JOIN employee_user_groups u ON u.id = g.group_id
+     WHERE g.project_id = ${projectId}::uuid AND g.is_active
+     ORDER BY u.display_name
+  `
+}
+
+/** Replace-whole-list, same shape as ticketing.repo.ts's setBusinessAreaMembers. */
+export async function setProjectGroups(
+  tx: Tx,
+  tenantId: string,
+  projectId: string,
+  groupIds: string[],
+  actorId: string,
+): Promise<void> {
+  await tx`
+    UPDATE project_group_grants
+       SET is_active = FALSE
+     WHERE project_id = ${projectId}::uuid
+       AND is_active
+       AND NOT (group_id = ANY(${groupIds}::uuid[]))
+  `
+  if (groupIds.length === 0) return
+  await tx`
+    INSERT INTO project_group_grants (tenant_id, project_id, group_id, added_by)
+    SELECT ${tenantId}::uuid, ${projectId}::uuid, unnest(${groupIds}::uuid[]), ${actorId}
+    ON CONFLICT (tenant_id, project_id, group_id)
+    DO UPDATE SET is_active = TRUE, added_at = now(), added_by = EXCLUDED.added_by
+  `
 }
 
 /** postgres.js surfaces the SQLSTATE on the error; 23505 is unique_violation. */

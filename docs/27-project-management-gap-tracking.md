@@ -135,42 +135,32 @@ own regardless (layout persistence, per-widget caching, 10+ widget types).
 
 ## Permissions & Access Control
 
-⛔ **Not built — the RLS track, declined twice now** (once implicitly by
-Phase 1's own documented "no read gate: the board is firm-wide" decision,
-once explicitly when scoping Phase 2). The spec wants row-level visibility
-scoped to PM/team-member/client, and column-level edit permissions
-(everyone/owner/admins/pm_only). Today: `projects.write` is the one trust
-boundary for the whole board, every signed-in employee sees every project,
-and no column has its own edit permission.
+🟡 **Row-level visibility: done, opt-in — see `docs/28-user-groups.md`.**
+The RLS track was declined twice (once implicitly by Phase 1's own
+documented "no read gate: the board is firm-wide" decision, once explicitly
+when scoping Phase 2); it shipped once the user explicitly asked for group-
+based permissioning across ticketing and projects. `projects.is_restricted`
+(default `FALSE`) makes it opt-in per project rather than firm-wide by
+default: every existing project stayed visible to everyone on day one, and
+an admin narrows one to its PM, its group grants, and `reads_all_projects()`
+(owner/firm_admin/project_manager) only by explicitly restricting it.
 
-**Decision, settled, not yet built:** when this is implemented, project team
-membership is modeled through `employee_user_groups`
-(`group_type = 'project'`) + `employee_group_members` — **not** a new
-PM-specific membership table, and not the dead `projects.team_members`
-JSONB column (never read or written by any app code today; would be
-removed, not populated, when this ships). `docs/product-specification.md`'s
-"User Groups" section already specifies this shape (`group_type` includes
-`'project'` and `'team'`), and both tables already exist with RLS and
-fixture rows — but, same as `pm_task_attachments`/`pm_task_time_entries`
-(L101), scaffolded in the initial schema pass with zero real consumers:
-no route, no repo function, and `it.groups.write` is never checked anywhere
-in app code. Building project RLS on this means being the FIRST real
-consumer of Groups, not inventing membership from nothing.
+Team membership is `employee_user_groups`/`employee_group_members`, wired
+for real (a proper `group_id` FK replaced the old `group_name` naming
+convention this doc once flagged as the risk to avoid — L100). **Different
+from what this doc originally predicted:** rather than a `project_id` column
+on `employee_user_groups` (one group ↔ one project), the actual shape is a
+`project_group_grants` join table (`project_id`, `group_id`) — a group can
+be granted to more than one project, and a project can have more than one
+group, which the one-column design couldn't express. The dead
+`projects.team_members` JSONB column was dropped in the same migration, as
+predicted.
 
-One concrete schema gap to close when this is built:
-`employee_user_groups` has no column linking a group to a specific project
-— `department_code`/`location_code`/`parent_group_name` exist, `project_id`
-does not. A migration adding `project_id UUID REFERENCES projects(id) ON
-DELETE CASCADE` (nullable — only `group_type = 'project'` rows populate it)
-is the real fix; a `group_name` naming convention encoding the project
-number was considered and rejected — a committed string convention is
-exactly the kind of thing L100 already caught silently drifting once in
-this codebase (a table-name typo in a check script, unnoticed for months).
-A real FK is checked by Postgres itself; a naming convention is checked by
-nobody.
-
-Still an open "yes, now or not yet" call — this entry records WHAT the
-membership model will be when it's built, not that it's being built now.
+⛔ **Column-level edit permissions (everyone/owner/admins/pm_only) — still
+not built.** Unrelated to the row-visibility work above; blocked on the same
+reasoning `docs/26`'s "Still out of scope" already gives for anything needing
+a real per-field permission engine. `projects.write` remains the one trust
+boundary for who may edit a project's fields.
 
 ## Migration v1.0 → v2.0
 
@@ -200,6 +190,11 @@ value-clearing write path should be checked against `app_user`'s DELETE
 grant (there isn't one, anywhere, by design) before it's designed as a
 `DELETE` — see docs/26 "What shipped."
 
+~~2. Row-level PM visibility (RLS)~~ — ✅ **built, opt-in** (docs/28-user-groups.md).
+Closed with no schema surprise beyond one design improvement over what this
+doc had predicted (a `project_group_grants` join table, not a `project_id`
+column on the group itself) — see Permissions & Access Control above.
+
 1. **Accounting integration** (`actual_revenue` rollup, budget→invoice) —
    real value, no new hard risk, but touches the accounting module and needs
    its own design pass for exactly how a project's billing ties to real
@@ -213,12 +208,9 @@ grant (there isn't one, anywhere, by design) before it's designed as a
 4. **Dashboards** — depends on custom fields for anything beyond row
    counts, which are now built; still a large surface on its own
    (layout persistence, per-widget caching, 10+ widget types).
-5. **Row-level PM visibility (RLS)** — a real decision to make explicitly,
-   not a technical gap; worth resolving with a yes/no before it's implicitly
-   declined a third time. The team-membership shape it would use
-   (`employee_user_groups`/`employee_group_members`) is settled — see
-   Permissions & Access Control above — building on it is a separate
-   decision from having decided what it would look like.
+5. **Column-level edit permissions** (everyone/owner/admins/pm_only) —
+   unrelated to the row-visibility work above; blocked on the same
+   column-type-engine reasoning docs/26 already declines.
 6. **Drag-and-drop, richer view controls (List sort/filter, Gantt
    critical-path, Calendar week/day)** — genuine UI investment, lowest risk,
    lowest urgency; good candidates for "whenever there's a quiet week," not

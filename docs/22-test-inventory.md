@@ -160,20 +160,23 @@ test rather than only having been fixed once and trusted to stay fixed.
   receives the pointer frame, a different tenant on the same conversation
   id never does, and `unsubscribe()` actually stops delivery.
 
-### Tenancy, RLS & Row Visibility — 198 tests
+### Tenancy, RLS & Row Visibility — 203 tests
 
 Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [191] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [196] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
   team chat (6 — member vs. non-member, public-before-join vs. private,
   a DM's own two participants, the owner override, a portal contact seeing
   nothing at all per 20§1)
-  identity, ticketing (8)
+  identity, ticketing (9 — includes a business-area GROUP grant, additive to
+  individual membership), projects (4 — opt-in `is_restricted`, group
+  grants, `reads_all_projects()`, and a task following its project's
+  visibility; docs/28-user-groups.md)
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
 ### Auth & Authorization — 172 tests
@@ -226,12 +229,17 @@ goes through these.
 - `lib/decimal.test.ts` [5] — `compareDecimal`
 - `lib/validation.test.ts` [4] — `@kaaj/validation` resolves from apps/web
 
-### Settings & Admin — 13 tests
+### Settings & Admin — 20 tests
 
 - `routes/(app)/settings/company/logo.server.test.ts` [9] — upload/remove
   logo, validation and the real local Storage service
 - `routes/(admin)/account/api/page.server.test.ts` [4] — email subscription
   toggle
+- `lib/server/groups/groups.repo.test.ts` [7] — create/archive, the fixture's
+  own pre-existing group and membership as real coverage,
+  `setMembers`' replace-whole-list-not-delete (docs/28-user-groups.md). Its
+  effect on ticketing and project visibility is asserted separately, in
+  `row-visibility.test.ts` (Tenancy section above).
 
 ### UI / Navigation infrastructure — 9 tests
 

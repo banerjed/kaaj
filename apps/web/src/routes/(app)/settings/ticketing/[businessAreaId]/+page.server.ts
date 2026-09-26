@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as ticketing from "$lib/server/ticketing/ticketing.repo"
 import * as employees from "$lib/server/employee-profile/employees.repo"
+import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
@@ -33,6 +34,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
         tx,
         params.businessAreaId,
       ),
+      groupGrants: await ticketing.businessAreaGroups(
+        tx,
+        params.businessAreaId,
+      ),
+      allGroups: await groups.listGroups(tx),
     }
   })
 }
@@ -171,6 +177,48 @@ export const actions: Actions = {
       })
     })
     return { membersSaved: true }
+  },
+
+  // Same rights-change shape as saveMembers, one level of indirection up —
+  // a group granted here reads every non-private ticket in this area for
+  // every current and future member (docs/28-user-groups.md).
+  saveGroups: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
+    const tenantId = locals.tenantId
+    const ctx = contextFrom(locals)
+
+    const data = await request.formData()
+    const groupIds = formList(data, "group_ids")
+
+    await withTenant(actorFrom(locals), async (tx) => {
+      const before = await ticketing.businessAreaGroups(
+        tx,
+        params.businessAreaId,
+      )
+      await ticketing.setBusinessAreaGroups(
+        tx,
+        tenantId,
+        params.businessAreaId,
+        groupIds,
+        ctx!.employeeId ?? ctx!.userId,
+      )
+      await audit.record(tx, ctx!, {
+        action: "update",
+        entityType: "ticketing_business_area_group_grants",
+        entityId: params.businessAreaId,
+        changes: {
+          group_ids: {
+            from: before
+              .map((g) => g.group_id)
+              .sort()
+              .join(","),
+            to: [...groupIds].sort().join(","),
+          },
+        },
+      })
+    })
+    return { groupsSaved: true }
   },
 
   // Tier 2 customization (docs/06-customization-model.md) — configuration

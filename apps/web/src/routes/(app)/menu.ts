@@ -386,6 +386,11 @@ export const appMenuItems: ISidebarMenuItem[] = [
         label: "Project Management Fields",
         url: "/settings/project-management",
       },
+      {
+        id: "settings-groups",
+        label: "Groups",
+        url: "/settings/groups",
+      },
     ],
   },
 ]

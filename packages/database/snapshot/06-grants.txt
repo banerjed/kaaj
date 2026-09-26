@@ -184,6 +184,8 @@ pm_task_attachments	app_user	INSERT,SELECT,UPDATE
 pm_task_attachments	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 pm_task_comments	app_user	INSERT,SELECT,UPDATE
 pm_task_comments	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+project_group_grants	app_user	INSERT,SELECT,UPDATE
+project_group_grants	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 projects	app_user	INSERT,SELECT,UPDATE
 projects	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 recurring_schedules	app_user	INSERT,SELECT,UPDATE
@@ -209,6 +211,8 @@ tenants	app_user	INSERT,SELECT,UPDATE
 tenants	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_attachments	app_user	INSERT,SELECT,UPDATE
 ticketing_attachments	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+ticketing_business_area_group_grants	app_user	INSERT,SELECT,UPDATE
+ticketing_business_area_group_grants	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_business_area_members	app_user	INSERT,SELECT,UPDATE
 ticketing_business_area_members	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 ticketing_business_areas	app_user	INSERT,SELECT,UPDATE

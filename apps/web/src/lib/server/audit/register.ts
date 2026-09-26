@@ -370,6 +370,29 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     action: "saveMembers",
     why: "A business area's default-visible list decides who reads every non-private ticket in it — changing it is a bulk rights change.",
   },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "saveGroups",
+    why: "Same as saveMembers, one level of indirection up — a group granted here reads every non-private ticket in this area for every current and future member.",
+  },
+
+  // -- User groups: membership and grants change who reads what --------------
+  // (docs/28-user-groups.md)
+  {
+    route: "settings/groups/[groupId]",
+    action: "saveMembers",
+    why: "This group is used to permission ticketing business areas and restricted projects — changing membership changes what its members can see everywhere it's granted, not just here.",
+  },
+  {
+    route: "projects/[id]",
+    action: "setRestricted",
+    why: "Flips whether the project's visibility narrows to its PM, task assignees and group grants, or stays firm-wide — the same class of change as ticketing's saveGroups/saveMembers.",
+  },
+  {
+    route: "projects/[id]",
+    action: "saveGroups",
+    why: "Which groups see this project once restricted — meaningless until is_restricted is true, but a rights change when it is.",
+  },
 
   // -- Documents: grants that change who may READ a folder's contents --------
   {
@@ -597,6 +620,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "ticketing/[id]",
     action: "setCustomFields",
     why: "Ticket attributes (asset tag, account tier, ...) — the same category as severity/priority, which already change with no audit entry via addUpdate's status-change path.",
+  },
+  {
+    route: "settings/groups",
+    action: "create",
+    why: "An empty named container changes nobody's access by itself — same reasoning as addTask. It's saveMembers, not this, that moves a rights boundary.",
+  },
+  {
+    route: "settings/groups",
+    action: "archive",
+    why: "Deactivating a group with no current grants; a group still granted somewhere loses its members' access through that grant's own revocation path, not this one.",
   },
   {
     route: "accounting/ledger",

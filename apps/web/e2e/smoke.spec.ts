@@ -104,6 +104,7 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/settings/payroll/policies", heading: "Payroll Policies" },
   { path: "/settings/payroll/schedules", heading: "Pay Schedules" },
   { path: "/settings/ticketing", heading: "Ticketing" },
+  { path: "/settings/groups", heading: "Groups" },
 ]
 
 /** Console errors, minus the noise a dev server makes on every page. */

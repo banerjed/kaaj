@@ -33,6 +33,7 @@ export const PERMISSIONS = [
   "marketing.read",
   "marketing.write",
   "it.assets.write",
+  "it.groups.read",
   "it.groups.write",
   "it.integrations.write",
   "legal.documents.write",
@@ -191,6 +192,7 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
   // No pii.read. IT issues laptops; it does not need a tax identifier.
   it_admin: [
     "it.assets.write",
+    "it.groups.read",
     "it.groups.write",
     "it.integrations.write",
     "employee.read.all",

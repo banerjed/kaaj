@@ -248,12 +248,20 @@ pm_objectives	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	
 pm_project_templates	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 pm_task_attachments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 pm_task_comments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+project_group_grants	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+projects	project_visibility	SELECT	public	(( SELECT app.reads_all_projects() AS reads_all_projects) OR (NOT is_restricted) OR (project_manager_id = ( SELECT app.current_employee_id() AS current_employee_id)) OR (EXISTS ( SELECT 1
+   FROM (project_group_grants g
+     JOIN employee_group_members m ON ((m.group_id = g.group_id)))
+  WHERE ((g.project_id = projects.id) AND g.is_active AND (m.employee_id = ( SELECT app.current_employee_id() AS current_employee_id)) AND m.is_active))))	
 projects	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 recurring_schedules	accounting_delete	DELETE	public	( SELECT app.writes_accounting() AS writes_accounting)	
 recurring_schedules	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS writes_accounting)
 recurring_schedules	accounting_read	SELECT	public	( SELECT app.reads_all_accounting() AS reads_all_accounting)	
 recurring_schedules	accounting_update	UPDATE	public	( SELECT app.writes_accounting() AS writes_accounting)	( SELECT app.writes_accounting() AS writes_accounting)
 recurring_schedules	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+tasks	task_visibility	SELECT	public	(EXISTS ( SELECT 1
+   FROM projects p
+  WHERE (p.id = tasks.project_id)))	
 tasks	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tax_rates	accounting_delete	DELETE	public	( SELECT app.writes_accounting() AS writes_accounting)	
 tax_rates	accounting_insert	INSERT	public		( SELECT app.writes_accounting() AS writes_accounting)
@@ -292,6 +300,7 @@ tenant_users	auth_admin_reads_memberships	SELECT	supabase_auth_admin	true
 tenant_users	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenants	tenant_self	ALL	public	(id = app.current_tenant_id())	
 ticketing_attachments	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+ticketing_business_area_group_grants	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_business_area_members	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_business_areas	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_categories	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
@@ -317,7 +326,10 @@ ticketing_tickets	staff_ticket_visibility	SELECT	public	(( SELECT app.is_portal_
    FROM ticketing_ticket_subscribers s
   WHERE ((s.ticket_id = ticketing_tickets.id) AND (s.employee_id = ( SELECT app.current_employee_id() AS current_employee_id)) AND s.is_active))) OR ((NOT private) AND (EXISTS ( SELECT 1
    FROM ticketing_business_area_members m
-  WHERE ((m.business_area_id = ticketing_tickets.business_area_id) AND (m.employee_id = ( SELECT app.current_employee_id() AS current_employee_id)) AND m.is_active)))))	
+  WHERE ((m.business_area_id = ticketing_tickets.business_area_id) AND (m.employee_id = ( SELECT app.current_employee_id() AS current_employee_id)) AND m.is_active)))) OR ((NOT private) AND (EXISTS ( SELECT 1
+   FROM (ticketing_business_area_group_grants g
+     JOIN employee_group_members m ON ((m.group_id = g.group_id)))
+  WHERE ((g.business_area_id = ticketing_tickets.business_area_id) AND g.is_active AND (m.employee_id = ( SELECT app.current_employee_id() AS current_employee_id)) AND m.is_active)))))	
 ticketing_tickets	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 ticketing_updates	portal_update_insert	INSERT	public		((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR ((author_contact_id = ( SELECT app.current_customer_contact_id() AS current_customer_contact_id)) AND (visibility = 'external'::text) AND (EXISTS ( SELECT 1
    FROM ticketing_tickets t

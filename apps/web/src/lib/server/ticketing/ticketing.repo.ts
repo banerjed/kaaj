@@ -1012,6 +1012,46 @@ export async function setBusinessAreaMembers(
   `
 }
 
+export type GroupGrantRow = { group_id: string; display_name: string }
+
+/** Groups granted access to this business area (docs/28-user-groups.md) — additive to businessAreaMembers' individual grants, same RLS OR-arm. */
+export async function businessAreaGroups(
+  tx: Tx,
+  businessAreaId: string,
+): Promise<GroupGrantRow[]> {
+  return tx<GroupGrantRow[]>`
+    SELECT g.group_id, u.display_name
+      FROM ticketing_business_area_group_grants g
+      JOIN employee_user_groups u ON u.id = g.group_id
+     WHERE g.business_area_id = ${businessAreaId}::uuid AND g.is_active
+     ORDER BY u.display_name
+  `
+}
+
+/** Replace-whole-list, same shape as setBusinessAreaMembers. */
+export async function setBusinessAreaGroups(
+  tx: Tx,
+  tenantId: string,
+  businessAreaId: string,
+  groupIds: string[],
+  actorId: string,
+): Promise<void> {
+  await tx`
+    UPDATE ticketing_business_area_group_grants
+       SET is_active = FALSE
+     WHERE business_area_id = ${businessAreaId}::uuid
+       AND is_active
+       AND NOT (group_id = ANY(${groupIds}::uuid[]))
+  `
+  if (groupIds.length === 0) return
+  await tx`
+    INSERT INTO ticketing_business_area_group_grants (tenant_id, business_area_id, group_id, added_by)
+    SELECT ${tenantId}::uuid, ${businessAreaId}::uuid, unnest(${groupIds}::uuid[]), ${actorId}
+    ON CONFLICT (tenant_id, business_area_id, group_id)
+    DO UPDATE SET is_active = TRUE, added_at = now(), added_by = EXCLUDED.added_by
+  `
+}
+
 // -----------------------------------------------------------------------------
 // Custom fields — Tier 2 customization (docs/06-customization-model.md).
 // `custom_field_definitions` already exists for employees/tasks; this is

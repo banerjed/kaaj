@@ -91,6 +91,7 @@ pm_objectives	t	t
 pm_project_templates	t	t
 pm_task_attachments	t	t
 pm_task_comments	t	t
+project_group_grants	t	t
 projects	t	t
 recurring_schedules	t	t
 tasks	t	t
@@ -103,6 +104,7 @@ tenant_settings	t	t
 tenant_users	t	t
 tenants	t	t
 ticketing_attachments	t	t
+ticketing_business_area_group_grants	t	t
 ticketing_business_area_members	t	t
 ticketing_business_areas	t	t
 ticketing_categories	t	t
