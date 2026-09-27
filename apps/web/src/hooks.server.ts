@@ -12,13 +12,15 @@ import { log } from "$lib/server/log"
 import { recordError } from "$lib/server/observability/error-store"
 
 /**
- * Same number CLAUDE.md's Performance section targets for server render time,
- * and `scripts/measure-render-times.mjs`'s own default `THRESHOLD_MS` — one
- * definition of "slow" rather than three. A request over this logs, so the
- * target is enforced by visibility in production, not just checked by hand
- * against a fixture locally.
+ * Deliberately well above CLAUDE.md's 20ms server-render target (also
+ * `scripts/measure-render-times.mjs`'s own default `THRESHOLD_MS`) — that
+ * number already has a handful of pages routinely over it (a sweep found
+ * three around 30ms), which would make a 20ms log line routine noise rather
+ * than a signal. 50ms is the number CLAUDE.md also uses for the FULL
+ * client-facing load (network, CSS, JS, hydration) — a pure server render
+ * taking that long on its own should be rare and worth a look each time.
  */
-const SLOW_REQUEST_MS = 20
+const SLOW_REQUEST_MS = 50
 
 /**
  * Total time through the rest of the handle chain — auth, `load()`, SSR — read
