@@ -316,6 +316,7 @@ team_chat_messages	team_chat_message_visibility	SELECT	public	(( SELECT app.read
    FROM team_chat_conversations c
   WHERE ((c.id = team_chat_messages.conversation_id) AND (app.current_employee_id() = ANY (c.member_ids))))))	
 team_chat_messages	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+tenant_registry	auth_admin_reads_registry	SELECT	supabase_auth_admin	true	
 tenant_registry	tenant_registry_self	SELECT	app_user	(tenant_id = app.current_tenant_id())	
 tenant_settings	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 tenant_users	auth_admin_reads_memberships	SELECT	supabase_auth_admin	true	

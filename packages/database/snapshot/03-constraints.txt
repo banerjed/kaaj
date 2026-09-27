@@ -458,7 +458,10 @@ team_chat_messages	team_chat_messages_conversation_id_fkey	f	FOREIGN KEY (conver
 team_chat_messages	team_chat_messages_pkey	p	PRIMARY KEY (id)
 team_chat_messages	team_chat_messages_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tenant_registry	dedicated_tenant_has_a_secret_ref	c	CHECK (((tier = 'shared'::text) OR (connection_secret_ref IS NOT NULL)))
+tenant_registry	sso_provider_type_and_ref_together	c	CHECK (((sso_provider_type IS NULL) = (sso_provider_ref IS NULL)))
+tenant_registry	sso_required_needs_provider	c	CHECK (((NOT sso_required) OR (sso_provider_ref IS NOT NULL)))
 tenant_registry	tenant_registry_pkey	p	PRIMARY KEY (tenant_id)
+tenant_registry	tenant_registry_sso_provider_type_check	c	CHECK ((sso_provider_type = ANY (ARRAY['saml'::text, 'oidc'::text])))
 tenant_registry	tenant_registry_status_check	c	CHECK ((status = ANY (ARRAY['provisioning'::text, 'active'::text, 'suspended'::text, 'migrating'::text, 'unreachable'::text])))
 tenant_registry	tenant_registry_subdomain_key	u	UNIQUE (subdomain)
 tenant_registry	tenant_registry_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE

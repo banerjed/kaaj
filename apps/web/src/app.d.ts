@@ -34,6 +34,10 @@ declare global {
       customerContactId: string | null
       /** The customer customerContactId belongs to. Null for staff. */
       customerId: string | null
+      /** Whether THIS tenant requires SSO to sign in (ADR-010). Enforced in hooks.server.ts, not by hiding UI. */
+      ssoRequired: boolean
+      ssoProviderType: "saml" | "oidc" | null
+      ssoProviderRef: string | null
       /** Minted once per request (hooks.server.ts), for correlating log lines and app_error_log rows to the same request. */
       requestId: string
     }

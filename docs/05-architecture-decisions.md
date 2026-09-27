@@ -831,6 +831,31 @@ through Entra, lands on both open gaps below at once.
 None of this changes the decision — reasons 1 and 2 above still hold for tiers
 A and B — but it strengthens the case for revisiting once tier C is real.
 
+### Verified 2026-09-28 — Supabase closed its own OIDC gap
+
+The "reconsider Better Auth" list above named OIDC as something "Supabase's
+enterprise SSO does not cover." That's stale as of Supabase's **Custom
+OIDC/OAuth Providers** feature (shipped April 2026, after this ADR was
+written) — a second, separate admin API
+(`POST .../auth/v1/admin/custom-providers`, distinct from the SAML-only
+`.../admin/sso/providers`) that registers an arbitrary OIDC issuer, free on
+up to 3 providers, unlimited on Pro+. It has no built-in domain-based
+routing the way SAML does, which turns out not to matter: the "resolve by
+subdomain first" rule this ADR already mandates for SAML drives OIDC
+identically — one control-plane lookup (`tenant_registry.sso_provider_type`/
+`sso_provider_ref`), one login-page branch per type. Implemented in
+`apps/web/src/lib/server/db/subdomain.ts`,
+`apps/web/src/routes/(marketing)/login/+page.server.ts`, and
+`scripts/configure-tenant-sso.mjs`.
+
+**Confirmed the local dev stack cannot exercise SAML** — `supabase start`'s
+GoTrue returns `saml_provider_disabled` regardless of configuration (a known,
+open upstream limitation), so the SAML path is covered by mocked tests plus a
+real production/Pro-plan project, never locally. **Custom OIDC registration
+works locally** (verified live against `supabase start`'s GoTrue, registering
+a real provider against `accounts.google.com`'s discovery document) — useful
+if OIDC ends up the more commonly-tested path during development.
+
 > **A note on sources.** A widely-cited third-party comparison states that Better
 > Auth has no enterprise SSO. That conflicts with the vendor's current
 > documentation and with a live, actively-published `@better-auth/sso` package,
@@ -999,7 +1024,7 @@ tenancy with colliding natural keys), and `data-models/d1-best-practices.md`
 | 3 | ~~Rebuild FTS5 search as `tsvector` + GIN~~ — **done** | — | — |
 | 3a | Build the control plane (`tenant_registry`) and the connection router — required before any tier-B customer | ADR-009 tiers B and C | — |
 | 3b | Decide the reverse-tunnel agent for tier C (build vs. Cloudflare Tunnel / Tailscale) — only when a tier-C customer is signed | ADR-009 tier C | — |
-| 3c | Add tenant SSO configuration to the control plane (provider id, permitted domains, password-disallowed flag) | ADR-010 | — |
+| 3c | ~~Add tenant SSO configuration to the control plane~~ — **done**, `tenant_registry.sso_provider_type`/`sso_provider_ref`/`sso_required`/`sso_permitted_domains`, `app.resolve_tenant_by_subdomain()`, login-page routing and `hooks.server.ts` enforcement all shipped; `scripts/configure-tenant-sso.mjs` is the operator registration tool | ADR-010 | — |
 | 4 | Choose the application host (Fly / Render / Railway) and match its region to the Supabase project | Deployment | — |
 | 5 | Confirm whether any prospect has actually asked for on-premise deployment | ADR-007, ADR-008 | — |
 | 6a | **Add the AI assistant schema** (`ai_conversations`, `ai_messages`, `ai_knowledge_base`, `ai_user_preferences`) — Phase 1 module #5 has no storage; deferred by decision on 2026-08-27 | AI Assistant module | — |

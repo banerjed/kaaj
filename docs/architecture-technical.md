@@ -1440,43 +1440,63 @@ Putting the tenant in the token avoids a membership lookup on every request, and
 means the value RLS reads is one the auth system signed rather than something the
 application computed.
 
-### Enterprise SSO for dedicated tenants
+### Enterprise SSO — implemented
 
-A dedicated tenant can authenticate against its own corporate identity provider
-(Okta, Entra/Azure AD, Google Workspace, Ping) using SAML 2.0. Supabase Auth is
-multi-tenant here: many IdPs on one project, each with an `sso_provider_id`.
+A tenant can authenticate against its own corporate identity provider (Okta,
+Entra/Azure AD, Google Workspace, Ping — SAML 2.0) or an arbitrary OIDC issuer
+(Supabase's separate Custom OIDC/OAuth Providers feature, which closes what
+was an open gap when ADR-010 was first written). Supabase Auth is multi-tenant
+for both: many IdPs on one project, each with its own provider reference
+(`sso_provider_id` for SAML, a chosen `custom:<identifier>` for OIDC), tracked
+per tenant in `tenant_registry.sso_provider_type`/`sso_provider_ref`.
 
 **Resolve the tenant from the subdomain first, then sign in against that
-tenant's provider.** Supabase routes SSO by *email domain*; we route tenants by
-*subdomain*. They usually agree, but not always — a contractor on a personal
-address, a group with several subsidiaries on one domain — so the subdomain is
-the authority and the domain is a convenience:
+tenant's provider.** Supabase routes SAML by *email domain*; we route tenants
+by *subdomain*. They usually agree, but not always — a contractor on a
+personal address, a group with several subsidiaries on one domain — so the
+subdomain is the authority and the domain is a convenience. Real shape, in
+`apps/web/src/routes/(marketing)/login/+page.server.ts`:
 
 ```typescript
-// src/routes/(marketing)/login/+page.server.ts
-const tenant = await controlPlane.resolveBySubdomain(event.url.hostname);
+const subdomain = extractSubdomain(url.hostname)              // $lib/server/db/subdomain
+const tenant = subdomain && (await resolveTenantBySubdomain(subdomain))
 
-if (tenant.sso_provider_id) {
-    // Sign in against THIS tenant's IdP, not whichever one matches the domain
-    const { data } = await supabase.auth.signInWithSSO({
-        providerId: tenant.sso_provider_id,
-    });
-    redirect(303, data.url);
+if (tenant?.ssoProviderRef) {
+  const redirectUrl =
+    tenant.ssoProviderType === "saml"
+      ? (await locals.supabase.auth.signInWithSSO({ providerId: tenant.ssoProviderRef })).data?.url
+      : (await locals.supabase.auth.signInWithOAuth({ provider: tenant.ssoProviderRef, options: { skipBrowserRedirect: true, redirectTo } })).data?.url
+
+  if (tenant.ssoRequired && redirectUrl) redirect(303, redirectUrl)
+  // otherwise the login page shows an optional "Sign in with SSO" link
 }
-// otherwise fall through to password / OTP
+// no subdomain, no tenant, no provider, or the provider call itself failing —
+// falls through to password/OAuth login unchanged, always
 ```
 
-**Enforce SSO in the server, not the UI.** Where a tenant requires SSO, check the
-authentication method on every request rather than merely hiding the password
-field:
+**Enforce SSO in the server, not the UI.** Where a tenant requires SSO, check
+the authentication method on every request rather than merely hiding the
+password field. `sso_required`/`sso_provider_type`/`sso_provider_ref` are
+stamped into the JWT by `custom_access_token_hook` (same as every other claim
+here — no per-request DB call), and decoded in `hooks.server.ts`'s
+`authGuard`:
 
 ```typescript
-// hooks.server.ts
-const method = jwt.amr?.[0]?.method;          // 'sso/saml' for SSO sign-ins
-if (tenant.sso_required && method !== 'sso/saml') {
-    throw error(403, 'This organization requires single sign-on');
+// hooks.server.ts, via $lib/server/auth/sso-enforcement's isSsoSatisfied()
+// SAML: amr[0].method === 'sso/saml'. OIDC piggybacks the generic OAuth
+// flow, so amr alone can't tell providers apart — checks the session's
+// actual identity provider against sso_provider_ref instead.
+if (tenantId && !isSsoSatisfied(tenant, { amr, identityProvider })) {
+  error(403, "This organization requires single sign-on.")
 }
 ```
+
+**IdP registration is operator tooling** (`scripts/configure-tenant-sso.mjs`,
+mirrors `scripts/provision-tenant.mjs`'s shape), not a self-service tenant-admin
+page — deliberately, per ADR-010. It calls GoTrue's own admin endpoints
+directly (`.../auth/v1/admin/sso/providers` for SAML, `.../admin/custom-providers`
+for OIDC) with the service-role key — the same endpoints locally and in
+production, unlike the separate cloud-only Management API.
 
 **No SCIM.** There is no directory sync, so a user disabled in the customer's IdP
 is not automatically deprovisioned here. They cannot sign in again — SSO fails at

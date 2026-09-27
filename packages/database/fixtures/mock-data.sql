@@ -59,12 +59,22 @@ WHERE id = '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1';
 -- provisioned onto a dedicated database. schema_version is read from
 -- Supabase's own migration bookkeeping rather than hardcoded, so it never
 -- goes stale as migrations are added.
-INSERT INTO tenant_registry (tenant_id, subdomain, tier, schema_version)
+-- SSO configured but NOT required (ADR-010) — exercises sso_provider_type/
+-- sso_provider_ref/sso_permitted_domains (no empty column in the fixture)
+-- and the login page's optional "Sign in with SSO" link, without ever
+-- blocking Sarah Johnson's own password login in the browser/e2e suites.
+INSERT INTO tenant_registry (tenant_id, subdomain, tier, schema_version,
+                             sso_provider_type, sso_provider_ref,
+                             sso_required, sso_permitted_domains)
     VALUES (
         '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1',
         'northwind',
         'shared',
-        (SELECT MAX(version) FROM supabase_migrations.schema_migrations)
+        (SELECT MAX(version) FROM supabase_migrations.schema_migrations),
+        'saml',
+        'fixture-saml-provider-id',
+        FALSE,
+        '{northwind.example}'
     );
 
 -- Observability (docs: production debugging). One representative error row —

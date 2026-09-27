@@ -1,5 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state"
+
+  let { data } = $props()
 </script>
 
 <svelte:head>
@@ -17,4 +19,13 @@
     ><button class="btn btn-outline btn-primary mt-3 btn-wide">Sign In</button
     ></a
   >
+
+  {#if data.sso}
+    <h1 class="text-xl mt-6">Sign in through your organization</h1>
+    <a href={data.sso.redirectUrl}
+      ><button class="btn btn-outline mt-3 btn-wide"
+        >Continue with company sign-in</button
+      ></a
+    >
+  {/if}
 </div>

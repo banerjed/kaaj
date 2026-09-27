@@ -5,11 +5,12 @@ import {
 } from "$env/static/public"
 import { createServerClient } from "@supabase/ssr"
 import type { AMREntry } from "@supabase/supabase-js"
-import type { Handle, HandleServerError } from "@sveltejs/kit"
+import { error, type Handle, type HandleServerError } from "@sveltejs/kit"
 import { sequence } from "@sveltejs/kit/hooks"
 import { safeError } from "$lib/errors"
 import { log } from "$lib/server/log"
 import { recordError } from "$lib/server/observability/error-store"
+import { isSsoSatisfied } from "$lib/server/auth/sso-enforcement"
 
 /**
  * Deliberately well above CLAUDE.md's 20ms server-render target (also
@@ -142,24 +143,49 @@ const authGuard: Handle = async ({ event, resolve }) => {
   const { session, user } = await event.locals.safeGetSession()
   event.locals.session = session
   event.locals.user = user
-  event.locals.amr = null
 
   // Tenant context resolved once, here (ADR-003 rule 5). No claim = no tenant, fails closed.
   const claims = appMetadataFromToken(session?.access_token)
+  event.locals.amr = claims.amr
   event.locals.tenantId = claims.tenantId
   event.locals.tenantRole = claims.role
   event.locals.functionalRoles = claims.functionalRoles
   event.locals.employeeId = claims.employeeId
   event.locals.customerContactId = claims.customerContactId
   event.locals.customerId = claims.customerId
+  event.locals.ssoRequired = claims.ssoRequired
+  event.locals.ssoProviderType = claims.ssoProviderType
+  event.locals.ssoProviderRef = claims.ssoProviderRef
+
+  // "SSO required" is enforced here, not by hiding the login UI (ADR-010) —
+  // gated behind ssoRequired, which is false for every tenant that has never
+  // configured SSO, so this is a no-op for them. `amr` is decoded straight
+  // from the token below, NOT via safeGetSession's includeAmr/MFA path —
+  // that path calls getUser() over the network on every request (a real
+  // per-request round trip), while `amr` is already a plain top-level JWT
+  // claim `getClaims()` already verified.
+  if (
+    claims.tenantId &&
+    !isSsoSatisfied(
+      {
+        ssoRequired: claims.ssoRequired,
+        ssoProviderType: claims.ssoProviderType,
+        ssoProviderRef: claims.ssoProviderRef,
+      },
+      { amr: claims.amr, identityProvider: claims.identityProvider },
+    )
+  ) {
+    error(403, "This organization requires single sign-on.")
+  }
 
   return resolve(event)
 }
 
 /**
- * Reads `app_metadata` from the ACCESS TOKEN, not `user.app_metadata` (always
- * empty of these claims, L4). Decoding without verifying is safe only because
- * `safeGetSession` already validated this token via `getClaims()`.
+ * Reads `app_metadata` (and the top-level `amr`/`provider` claims) from the
+ * ACCESS TOKEN, not `user.app_metadata` (always empty of these claims, L4).
+ * Decoding without verifying is safe only because `safeGetSession` already
+ * validated this token via `getClaims()`.
  */
 function appMetadataFromToken(accessToken?: string): {
   tenantId: string | null
@@ -168,6 +194,11 @@ function appMetadataFromToken(accessToken?: string): {
   employeeId: string | null
   customerContactId: string | null
   customerId: string | null
+  ssoRequired: boolean
+  ssoProviderType: "saml" | "oidc" | null
+  ssoProviderRef: string | null
+  identityProvider: string | null
+  amr: AMREntry[] | null
 } {
   const none = {
     tenantId: null,
@@ -176,6 +207,11 @@ function appMetadataFromToken(accessToken?: string): {
     employeeId: null,
     customerContactId: null,
     customerId: null,
+    ssoRequired: false,
+    ssoProviderType: null,
+    ssoProviderRef: null,
+    identityProvider: null,
+    amr: null,
   }
   if (!accessToken) return none
 
@@ -192,7 +228,12 @@ function appMetadataFromToken(accessToken?: string): {
         employee_id?: unknown
         customer_contact_id?: unknown
         customer_id?: unknown
+        sso_required?: unknown
+        sso_provider_type?: unknown
+        sso_provider_ref?: unknown
+        provider?: unknown
       }
+      amr?: unknown
     }
     const meta = claims.app_metadata
     const tenantId = meta?.tenant_id
@@ -200,6 +241,9 @@ function appMetadataFromToken(accessToken?: string): {
     const employeeId = meta?.employee_id
     const customerContactId = meta?.customer_contact_id
     const customerId = meta?.customer_id
+    const ssoProviderType = meta?.sso_provider_type
+    const ssoProviderRef = meta?.sso_provider_ref
+    const provider = meta?.provider
     return {
       tenantId: typeof tenantId === "string" && tenantId ? tenantId : null,
       role: typeof role === "string" && role ? role : null,
@@ -217,6 +261,27 @@ function appMetadataFromToken(accessToken?: string): {
           : null,
       customerId:
         typeof customerId === "string" && customerId ? customerId : null,
+      // Absent claim (older token, minted before this tenant configured SSO)
+      // reads as "not required" — never fail closed into locking everyone out.
+      ssoRequired: meta?.sso_required === true,
+      ssoProviderType:
+        ssoProviderType === "saml" || ssoProviderType === "oidc"
+          ? ssoProviderType
+          : null,
+      ssoProviderRef:
+        typeof ssoProviderRef === "string" && ssoProviderRef
+          ? ssoProviderRef
+          : null,
+      identityProvider:
+        typeof provider === "string" && provider ? provider : null,
+      // Accepts both AMREntry[] (object) and RFC-8176 string[] shapes.
+      amr: Array.isArray(claims.amr)
+        ? claims.amr.map((entry) =>
+            typeof entry === "string"
+              ? { method: entry, timestamp: 0 }
+              : (entry as AMREntry),
+          )
+        : null,
     }
   } catch {
     return none // malformed token = missing tenant, not a crash

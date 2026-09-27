@@ -32,10 +32,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   // tenant_registry (ADR-009's control plane) is central regardless of
   // tier, same as tenant_users — read-only here, purely so the settings
-  // page can show which database this tenant's data actually lives in.
+  // page can show which database this tenant's data actually lives in, and
+  // (ADR-010) whether SSO is configured. Registering a provider is an
+  // operator action (scripts/configure-tenant-sso.mjs), not something this
+  // page can do.
   const registry = await withControlPlane(actorFrom(locals), async (tx) => {
-    const [row] = await tx<{ tier: string; region: string }[]>`
-      SELECT tier, region FROM tenant_registry WHERE tenant_id = ${locals.tenantId}
+    const [row] = await tx<
+      {
+        tier: string
+        region: string
+        sso_provider_type: "saml" | "oidc" | null
+        sso_required: boolean
+      }[]
+    >`
+      SELECT tier, region, sso_provider_type, sso_required
+        FROM tenant_registry WHERE tenant_id = ${locals.tenantId}
     `
     return row ?? null
   })
@@ -45,6 +56,10 @@ export const load: PageServerLoad = async ({ locals }) => {
     dataResidency: {
       tier: registry?.tier ?? "shared",
       region: registry?.region ?? null,
+    },
+    sso: {
+      providerType: registry?.sso_provider_type ?? null,
+      required: registry?.sso_required ?? false,
     },
   }
 }

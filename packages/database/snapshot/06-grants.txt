@@ -212,6 +212,7 @@ team_chat_messages	app_user	INSERT,SELECT,UPDATE
 team_chat_messages	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 tenant_registry	app_user	INSERT,SELECT,UPDATE
 tenant_registry	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+tenant_registry	supabase_auth_admin	SELECT
 tenant_settings	app_user	INSERT,SELECT,UPDATE
 tenant_settings	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 tenant_users	app_user	INSERT,SELECT,UPDATE

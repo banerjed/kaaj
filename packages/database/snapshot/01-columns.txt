@@ -2066,6 +2066,10 @@ tenant_registry	6	schema_version	text	t
 tenant_registry	7	status	text	t	'active'::text
 tenant_registry	8	last_health_check_at	timestamp with time zone	f	
 tenant_registry	9	created_at	timestamp with time zone	t	now()
+tenant_registry	10	sso_provider_type	text	f	
+tenant_registry	11	sso_provider_ref	text	f	
+tenant_registry	12	sso_required	boolean	t	false
+tenant_registry	13	sso_permitted_domains	text[]	t	'{}'::text[]
 tenant_settings	1	tenant_id	uuid	t	
 tenant_settings	2	namespace	text	t	
 tenant_settings	3	key	text	t	

@@ -283,6 +283,32 @@
       </fieldset>
 
       <fieldset class="fieldset">
+        <legend class="fieldset-legend">Single sign-on</legend>
+        <div>
+          {#if data.sso.providerType}
+            <span class="badge badge-outline capitalize">
+              {data.sso.providerType}
+              {data.sso.required ? "— required" : "— optional"}
+            </span>
+          {:else}
+            <span class="badge badge-outline">Not configured</span>
+          {/if}
+        </div>
+        <p class="label">
+          {#if data.sso.providerType}
+            Employees can sign in with your organization's identity provider.
+            {#if data.sso.required}
+              Password sign-in is disabled for this tenant.
+            {/if}
+          {:else}
+            Contact us to connect your organization's identity provider (Okta,
+            Azure AD, and others) — this is set up on our side, not
+            self-service.
+          {/if}
+        </p>
+      </fieldset>
+
+      <fieldset class="fieldset">
         <legend class="fieldset-legend">Brand colour</legend>
         <p class="label">
           Recolours the header only — buttons keep the product colour.
