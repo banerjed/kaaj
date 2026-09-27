@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
+import * as pay from "./payables.repo"
 import * as imports from "./statement-import.repo"
 import { analyseStatement, type Analysis } from "./statement-import/analyse"
 
@@ -174,6 +175,49 @@ describe("importing a statement", () => {
     })
     expect(found.possibleDuplicateLines).toEqual([3])
     expect(found.alreadyImported.size).toBe(0)
+  })
+})
+
+describe("the balance the banking page shows after an import", () => {
+  const feedBalance = (tx: Tx) =>
+    pay
+      .bankAccounts(tx)
+      .then((all) => all.find((a) => a.id === USD_ACCOUNT)!.feed_balance)
+
+  // Both orders, because every line of one import shares a created_at: a
+  // query blind to statement order can match one of them by accident.
+  const oldestFirst = [
+    "2026-01-02,Client payment,2500.00,3500.00",
+    "2026-01-03,Coffee A,-4.50,3495.50",
+    "2026-01-03,Coffee B,-4.50,3491.00",
+  ]
+  it.each([
+    ["oldest-first", oldestFirst],
+    ["newest-first", [...oldestFirst].reverse()],
+  ])(
+    "is the day's LAST balance when a %s file has several lines on one day",
+    async (_, lines) => {
+      const balance = await inRollback(FINANCE, async (tx) => {
+        await run(tx, ["Date,Description,Amount,Balance", ...lines].join("\n"))
+        return feedBalance(tx)
+      })
+      expect(balance).toBe("3491.00")
+    },
+  )
+
+  it("carries the last printed balance forward over later lines that print none", async () => {
+    const trailing = [
+      "Date,Description,Amount,Balance",
+      "2026-01-02,Client payment,2500.00,3500.00",
+      "2026-01-03,Coffee,-4.50,3495.50",
+      "2026-01-05,Fee,-1.00,",
+      "2026-01-06,Interest,0.25,",
+    ].join("\n")
+    const balance = await inRollback(FINANCE, async (tx) => {
+      await run(tx, trailing)
+      return feedBalance(tx)
+    })
+    expect(balance).toBe("3494.75")
   })
 })
 

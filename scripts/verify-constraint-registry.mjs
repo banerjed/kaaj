@@ -371,7 +371,7 @@ const CANNOT_BE_TRIPPED = new Map([
   ],
   [
     "fk_bank_transactions_category_account_id",
-    "neither the import nor the match action sets it",
+    "set only by applying a bank rule, copied from the rule's stored category_account_id — no form submits it",
   ],
   [
     "fk_bank_transactions_import_id",
@@ -384,7 +384,7 @@ const CANNOT_BE_TRIPPED = new Map([
   ["bank_accounts_tenant_id_fkey", "tenant_id comes from the session"],
   [
     "fk_bank_accounts_gl_account_id",
-    "the import only writes statement_import_profile; nothing form-driven sets gl_account_id",
+    "no action writes gl_account_id: the only form write to bank_accounts is the import saving statement_import_profile",
   ],
 ])
 

@@ -494,7 +494,7 @@
                 <td>
                   {instant(r.created_at, {
                     locale: tenantLocale,
-                    currency: "USD",
+                    currency: r.currency,
                     timezone: tenantZone,
                     timeFormat: data.tenant?.time_format,
                   })}

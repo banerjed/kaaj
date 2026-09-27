@@ -73,6 +73,8 @@ export type ParsedTransaction = {
   amount: string
   balance: string | null
   externalId: string
+  /** 0-based position in time within this file: later is larger, whichever way the bank sorted it. */
+  sequence: number
 }
 
 export type Problem = { line: number | null; message: string }
@@ -465,9 +467,11 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
   // 4. Every line into a transaction, or a problem naming the line.
   const cell = (l: Line, role: Role) =>
     col(role) >= 0 ? l.cells[col(role)] : ""
-  type Draft = Omit<ParsedTransaction, "externalId" | "amount"> & {
+  type Draft = Omit<ParsedTransaction, "externalId" | "amount" | "sequence"> & {
     cents: bigint
     balanceCents: bigint | null
+    /** The primary description cell as printed — what the duplicate key hashes. */
+    keyText: string
     /** A dated line with a balance and no amount ("Beginning balance"): anchors the balance check, is not imported. */
     anchor: boolean
   }
@@ -495,6 +499,7 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
           balance: null,
           cents: 0n,
           balanceCents: toCents(b.value),
+          keyText: "",
           anchor: true,
         })
       }
@@ -558,6 +563,8 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
         balance: null,
         cents,
         balanceCents,
+        keyText:
+          cell(l, "description") || cell(l, "reference") || cell(l, "type"),
         anchor: false,
       })
     }
@@ -623,28 +630,41 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
     }
   }
 
-  // 6. Stable ids: the same transaction in an overlapping statement gets the same id.
+  // 6. Stable ids: the same transaction in an overlapping statement gets the
+  //    same id. The key is the date, the UNSIGNED amount and the primary
+  //    description cell as printed — so correcting the sign convention or
+  //    adding a memo column on a later import cannot re-import a line.
   const flip = (c: bigint) => (invert ? -c : c)
+  const real = drafts.filter((d) => !d.anchor)
+  const ascending =
+    balanceCheck === "passed"
+      ? holdsInOrder(
+          drafts.map((d) => ({ cents: d.cents, balance: d.balanceCents })),
+        ) === true
+      : real.length < 2 || real[0].date <= real[real.length - 1].date
+  const sequences = chronologicalSequence(
+    real.map((d) => d.date),
+    ascending,
+  )
   const seen = new Map<string, number>()
-  const transactions: ParsedTransaction[] = drafts
-    .filter((d) => !d.anchor)
-    .map((d) => {
-      const amount = fromCents(flip(d.cents))
-      const key = `${d.date}|${amount}|${normaliseText(d.description)}`
-      const n = (seen.get(key) ?? 0) + 1
-      seen.set(key, n)
-      return {
-        line: d.line,
-        date: d.date,
-        valueDate: d.valueDate,
-        description: d.description,
-        reference: d.reference,
-        amount,
-        balance:
-          d.balanceCents === null ? null : fromCents(flip(d.balanceCents)),
-        externalId: `csv:${sha256(`${key}|${n}`)}`,
-      }
-    })
+  const transactions: ParsedTransaction[] = real.map((d, i) => {
+    const amount = fromCents(flip(d.cents))
+    const unsigned = fromCents(d.cents < 0n ? -d.cents : d.cents)
+    const key = `${d.date}|${unsigned}|${normaliseText(d.keyText)}`
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    return {
+      sequence: sequences[i],
+      line: d.line,
+      date: d.date,
+      valueDate: d.valueDate,
+      description: d.description,
+      reference: d.reference,
+      amount,
+      balance: d.balanceCents === null ? null : fromCents(flip(d.balanceCents)),
+      externalId: `csv:${sha256(`${key}|${n}`)}`,
+    }
+  })
 
   return {
     ...base,
@@ -943,6 +963,7 @@ function analyseOfx(text: string, opts: AnalyseOptions): Analysis {
         externalId = `ofxh:${sha256(`${key}|${n}`)}`
       }
       transactions.push({
+        sequence: 0,
         line: t.line,
         date,
         valueDate: null,
@@ -955,6 +976,11 @@ function analyseOfx(text: string, opts: AnalyseOptions): Analysis {
     }
   }
 
+  const ofxSequence = chronologicalSequence(
+    transactions.map((t) => t.date),
+    true,
+  )
+  transactions.forEach((t, i) => (t.sequence = ofxSequence[i]))
   const ok = problems.length === 0
   return {
     format: "ofx",
@@ -1034,6 +1060,21 @@ function totalsOf(ts: ParsedTransaction[]) {
     else moneyOut -= c
   }
   return { moneyIn: fromCents(moneyIn), moneyOut: fromCents(moneyOut) }
+}
+
+/**
+ * Position in time for each line: by date, and within a date by file order in
+ * the direction the file runs (a newest-first file's first line is its last).
+ */
+function chronologicalSequence(dates: string[], ascending: boolean): number[] {
+  const order = dates
+    .map((date, i) => ({ date, at: ascending ? i : dates.length - 1 - i, i }))
+    .sort((a, b) =>
+      a.date === b.date ? a.at - b.at : a.date < b.date ? -1 : 1,
+    )
+  const seq = new Array<number>(dates.length)
+  order.forEach((o, rank) => (seq[o.i] = rank))
+  return seq
 }
 
 /** Canonical JSON of a mapping: the same mapping always serialises the same way. */

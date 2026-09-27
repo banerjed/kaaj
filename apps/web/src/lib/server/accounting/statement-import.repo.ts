@@ -140,20 +140,23 @@ export async function importStatement(
     balance: t.balance,
     transaction_type: t.amount.startsWith("-") ? "debit" : "credit",
     bank_transaction_id: t.externalId,
+    statement_sequence: t.sequence,
   }))
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO bank_transactions (
       tenant_id, bank_account_id, transaction_date, value_date, description,
       reference, amount, balance, transaction_type, status, imported_at,
-      bank_transaction_id, import_id
+      bank_transaction_id, import_id, statement_sequence
     )
     SELECT ${input.tenantId}::uuid, ${input.account.id}::uuid, r.transaction_date,
            r.value_date, r.description, r.reference, r.amount, r.balance,
-           r.transaction_type, 'unmatched', now(), r.bank_transaction_id, ${record.id}::uuid
+           r.transaction_type, 'unmatched', now(), r.bank_transaction_id, ${record.id}::uuid,
+           r.statement_sequence
       FROM jsonb_to_recordset(${tx.json(rows as never)}) AS r(
              transaction_date date, value_date date, description text,
              reference varchar(100), amount numeric(15,2), balance numeric(15,2),
-             transaction_type varchar(50), bank_transaction_id varchar(255))
+             transaction_type varchar(50), bank_transaction_id varchar(255),
+             statement_sequence int)
     ON CONFLICT (tenant_id, bank_account_id, bank_transaction_id)
        WHERE bank_transaction_id IS NOT NULL
     DO NOTHING
@@ -183,6 +186,7 @@ export async function importStatement(
 export type RecentImport = {
   id: string
   account_name: string
+  currency: string
   file_name: string
   file_format: string
   transactions_imported: number
@@ -197,7 +201,7 @@ export async function recentImports(
   limit = 10,
 ): Promise<RecentImport[]> {
   return tx<RecentImport[]>`
-    SELECT i.id, a.account_name, i.file_name, i.file_format,
+    SELECT i.id, a.account_name, a.currency, i.file_name, i.file_format,
            i.transactions_imported, i.duplicates_skipped,
            to_char(i.period_start, 'YYYY-MM-DD') AS period_start,
            to_char(i.period_end, 'YYYY-MM-DD') AS period_end,

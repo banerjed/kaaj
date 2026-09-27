@@ -37,10 +37,11 @@ financial statements, payment processing, exports.
   never rounded, never a guessed format), CSV shaped like common US, UK,
   Indian and German exports, card statements, the running-balance check,
   stable duplicate ids, OFX 1.x/2.x/QFX, encodings, refused spreadsheets
-- `lib/server/accounting/statement-import.writes.test.ts` [7] — importing a
+- `lib/server/accounting/statement-import.writes.test.ts` [10] — importing a
   statement: lines written unmatched with their import, a repeat or
   overlapping statement adding only what is new, look-alike lines flagged;
-  finance may import, a plain employee cannot see the account, an auditor
+  the banking page's balance is the day's last one in either file order and
+  carries forward over lines that print none; finance may import, a plain employee cannot see the account, an auditor
   reads but cannot write
 - `routes/(app)/accounting/banking/import/page.server.test.ts` [7] — the
   import page's actions on every path that writes nothing: preview, a

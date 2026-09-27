@@ -378,7 +378,12 @@ async function bankAccountCountsFor(
 }
 
 /**
- * The latest transaction's balance, per account. `bank_accounts` is bounded
+ * The balance after the latest transaction, per account: the last row that
+ * carries a balance, plus every amount after it — a statement need not print
+ * a balance on every line, and the latest row may be one that does not. Order
+ * within a day is `created_at`, then `statement_sequence`, because every line
+ * of one import shares a `created_at`. NULL when no row carries a balance.
+ * `bank_accounts` is bounded
  * by how many accounts the firm actually has (NOT_SCALE_SENSITIVE) — small
  * enough that one query per account is fine, and deliberately NOT batched
  * into a single `= ANY(...)` query: a window function's top-1-per-partition
@@ -395,10 +400,22 @@ async function feedBalancesFor(
   const out: Record<string, string | null> = {}
   for (const id of accountIds) {
     const [row] = await tx<{ balance: string | null }[]>`
-      SELECT balance::text AS balance FROM bank_transactions
-       WHERE bank_account_id = ${id}::uuid
-       ORDER BY transaction_date DESC, created_at DESC
-       LIMIT 1
+      WITH anchor AS (
+        SELECT transaction_date, created_at,
+               coalesce(statement_sequence, -1) AS seq, balance
+          FROM bank_transactions
+         WHERE bank_account_id = ${id}::uuid AND balance IS NOT NULL
+         ORDER BY transaction_date DESC, created_at DESC,
+                  statement_sequence DESC NULLS LAST
+         LIMIT 1
+      )
+      SELECT (a.balance + coalesce((
+               SELECT sum(t.amount) FROM bank_transactions t
+                WHERE t.bank_account_id = ${id}::uuid
+                  AND (t.transaction_date, t.created_at, coalesce(t.statement_sequence, -1))
+                    > (a.transaction_date, a.created_at, a.seq)
+             ), 0))::text AS balance
+        FROM anchor a
     `
     out[id] = row?.balance ?? null
   }

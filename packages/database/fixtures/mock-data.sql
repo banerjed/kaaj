@@ -1360,7 +1360,9 @@ INSERT INTO bank_statement_imports (id, tenant_id, bank_account_id, file_name, f
      '{"delimiter": ",", "headerSignature": "date|description|moneyout|moneyin|balance", "columns": ["date", "description", "debit", "credit", "balance"], "dateFormat": "DD/MM/YYYY", "decimal": ".", "invertSign": false}'::jsonb,
      3, 2, 2, 0, '2026-02-07', '2026-02-08', 'passed', '2026-02-08T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
-UPDATE bank_transactions SET import_id = 'b5a1e0c2-7d3f-5e8a-9b4c-1f2e3d4c5b6a'
+UPDATE bank_transactions
+   SET import_id = 'b5a1e0c2-7d3f-5e8a-9b4c-1f2e3d4c5b6a',
+       statement_sequence = CASE reference WHEN 'FPS-BRITCO-001' THEN 0 ELSE 1 END
  WHERE bank_account_id = '7585ab47-4908-5830-a959-65711784fc61';
 
 UPDATE bank_accounts SET statement_import_profile =

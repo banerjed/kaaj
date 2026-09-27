@@ -66,7 +66,10 @@ Kaaj never guesses. If a file could be read two ways, it asks:
   swapped), and Kaaj tells you the line where it stopped adding up.
 - **No duplicates.** Importing the same statement twice, or two statements
   whose dates overlap, adds each transaction only once. The preview shows how
-  many are already imported.
+  many are already imported. For a CSV file a transaction is recognised by its
+  date, amount and description exactly as the bank printed them — if your bank
+  later changes how it words descriptions, the preview will show those lines
+  as new, so check the count before importing.
 - **Look-alikes.** If a new transaction has the same date and amount as one
   already in the account — perhaps one you entered by hand — the preview
   points it out so you can check it isn't the same payment.
