@@ -128,6 +128,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "The firm's own account numbers — a direct fraud target if read by anyone outside finance.",
   },
+  bank_statement_imports: {
+    defense: "rls",
+    audience: "finance",
+    why: "Which statements were imported, when, by whom and with what counts — the provenance of every imported bank line.",
+  },
   payment_gateway_settings: {
     defense: "rls",
     audience: "finance",

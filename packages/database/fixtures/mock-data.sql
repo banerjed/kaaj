@@ -1352,6 +1352,21 @@ UPDATE bank_transactions SET
     END
 WHERE reference IN ('ACH-ACME-001','CARD-JB-001','FPS-BRITCO-001','FPS-UNKNOWN-002','ACH-ACME-002','WIRE-AWS-BATCH-001');
 
+-- The GBP account's two February lines arrived by CSV statement import: the
+-- record of that import, the mapping it used (saved on the account as the
+-- profile the next upload reuses), and each line pointing back at it.
+INSERT INTO bank_statement_imports (id, tenant_id, bank_account_id, file_name, file_format, file_sha256, mapping, lines_in_file, transactions_in_file, transactions_imported, duplicates_skipped, period_start, period_end, balance_check, created_at, created_by) VALUES
+    ('b5a1e0c2-7d3f-5e8a-9b4c-1f2e3d4c5b6a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '7585ab47-4908-5830-a959-65711784fc61', 'barclays-feb-2026.csv', 'csv', 'e3b98a4da31a127d4bde6e43033f66ba274cab0eb7eb1c70ec41402bf6273dd8',
+     '{"delimiter": ",", "headerSignature": "date|description|moneyout|moneyin|balance", "columns": ["date", "description", "debit", "credit", "balance"], "dateFormat": "DD/MM/YYYY", "decimal": ".", "invertSign": false}'::jsonb,
+     3, 2, 2, 0, '2026-02-07', '2026-02-08', 'passed', '2026-02-08T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+UPDATE bank_transactions SET import_id = 'b5a1e0c2-7d3f-5e8a-9b4c-1f2e3d4c5b6a'
+ WHERE bank_account_id = '7585ab47-4908-5830-a959-65711784fc61';
+
+UPDATE bank_accounts SET statement_import_profile =
+    '{"delimiter": ",", "headerSignature": "date|description|moneyout|moneyin|balance", "columns": ["date", "description", "debit", "credit", "balance"], "dateFormat": "DD/MM/YYYY", "decimal": ".", "invertSign": false}'::jsonb
+ WHERE id = '7585ab47-4908-5830-a959-65711784fc61';
+
 -- Accounting periods, one closed to exercise period-close logic
 INSERT INTO accounting_periods (id, tenant_id, period_name, period_type, start_date, end_date, fiscal_year, status, closed_at, closed_by, created_at, updated_at) VALUES
     ('957b6ce4-6f44-50c1-84b1-d9bdb8892585', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'December 2025', 'monthly', '2025-12-01', '2025-12-31', 2025, 'locked', '2026-01-05T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85', '2026-01-05T09:00:00Z', '2026-01-05T09:00:00Z'),

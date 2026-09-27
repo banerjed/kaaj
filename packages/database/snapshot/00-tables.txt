@@ -5,6 +5,7 @@ app_error_log	t	t
 audit_log	t	t
 bank_accounts	t	t
 bank_reconciliation_rules	t	t
+bank_statement_imports	t	t
 bank_transactions	t	t
 bill_lines	t	t
 bills	t	t

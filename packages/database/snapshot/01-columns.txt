@@ -72,6 +72,7 @@ bank_accounts	25	account_number_ct	text	f
 bank_accounts	26	iban_ct	text	f	
 bank_accounts	27	routing_number_ct	text	f	
 bank_accounts	28	swift_code_ct	text	f	
+bank_accounts	29	statement_import_profile	jsonb	f	
 bank_reconciliation_rules	1	id	uuid	t	gen_random_uuid()
 bank_reconciliation_rules	2	tenant_id	uuid	t	
 bank_reconciliation_rules	3	bank_account_id	uuid	f	
@@ -98,6 +99,22 @@ bank_reconciliation_rules	23	created_at	timestamp with time zone	f	CURRENT_TIMES
 bank_reconciliation_rules	24	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 bank_reconciliation_rules	25	created_by	uuid	f	
 bank_reconciliation_rules	26	updated_by	uuid	f	
+bank_statement_imports	1	id	uuid	t	gen_random_uuid()
+bank_statement_imports	2	tenant_id	uuid	t	
+bank_statement_imports	3	bank_account_id	uuid	t	
+bank_statement_imports	4	file_name	character varying(255)	t	
+bank_statement_imports	5	file_format	character varying(10)	t	
+bank_statement_imports	6	file_sha256	character(64)	t	
+bank_statement_imports	7	mapping	jsonb	f	
+bank_statement_imports	8	lines_in_file	integer	t	
+bank_statement_imports	9	transactions_in_file	integer	t	
+bank_statement_imports	10	transactions_imported	integer	t	
+bank_statement_imports	11	duplicates_skipped	integer	t	
+bank_statement_imports	12	period_start	date	f	
+bank_statement_imports	13	period_end	date	f	
+bank_statement_imports	14	balance_check	character varying(20)	t	
+bank_statement_imports	15	created_at	timestamp with time zone	t	now()
+bank_statement_imports	16	created_by	uuid	t	
 bank_transactions	1	tenant_id	uuid	t	
 bank_transactions	2	id	uuid	t	gen_random_uuid()
 bank_transactions	3	bank_account_id	uuid	t	
@@ -119,6 +136,7 @@ bank_transactions	18	bank_transaction_id	character varying(255)	f
 bank_transactions	19	notes	text	f	
 bank_transactions	20	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 bank_transactions	21	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+bank_transactions	22	import_id	uuid	f	
 bill_lines	1	tenant_id	uuid	t	
 bill_lines	2	id	uuid	t	gen_random_uuid()
 bill_lines	3	bill_id	uuid	t	

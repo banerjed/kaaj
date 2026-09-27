@@ -52,6 +52,7 @@ const SCALE_SENSITIVE = new Map([
   ],
   ["documents", "one row per file uploaded, indefinitely (18§7 says so explicitly)"],
   ["bank_transactions", "one row per bank feed transaction, continuous"],
+  ["bank_statement_imports", "one row per statement upload, for as long as the tenant is a customer"],
   ["bill_lines", "line items on vendor bills; grows with billing volume"],
   ["bills", "one row per vendor bill; grows with billing volume"],
   ["expenses", "one row per expense claim submitted"],

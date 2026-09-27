@@ -20,10 +20,17 @@ bank_reconciliation_rules	fk_bank_reconciliation_rules_bank_account_id	f	FOREIGN
 bank_reconciliation_rules	fk_bank_reconciliation_rules_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
 bank_reconciliation_rules	fk_bank_reconciliation_rules_customer_id	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 bank_reconciliation_rules	fk_bank_reconciliation_rules_vendor_id	f	FOREIGN KEY (vendor_id) REFERENCES vendors(id)
+bank_statement_imports	bank_statement_imports_balance_check_check	c	CHECK (((balance_check)::text = ANY ((ARRAY['passed'::character varying, 'unavailable'::character varying])::text[])))
+bank_statement_imports	bank_statement_imports_counts_check	c	CHECK (((transactions_imported >= 0) AND (duplicates_skipped >= 0) AND ((transactions_imported + duplicates_skipped) = transactions_in_file)))
+bank_statement_imports	bank_statement_imports_file_format_check	c	CHECK (((file_format)::text = ANY ((ARRAY['csv'::character varying, 'ofx'::character varying])::text[])))
+bank_statement_imports	bank_statement_imports_pkey	p	PRIMARY KEY (id)
+bank_statement_imports	bank_statement_imports_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+bank_statement_imports	fk_bank_statement_imports_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
 bank_transactions	bank_transactions_pkey	p	PRIMARY KEY (id)
 bank_transactions	bank_transactions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bank_transactions	fk_bank_transactions_bank_account_id	f	FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE
 bank_transactions	fk_bank_transactions_category_account_id	f	FOREIGN KEY (category_account_id) REFERENCES chart_of_accounts(id)
+bank_transactions	fk_bank_transactions_import_id	f	FOREIGN KEY (import_id) REFERENCES bank_statement_imports(id)
 bill_lines	bill_lines_pkey	p	PRIMARY KEY (id)
 bill_lines	bill_lines_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 bill_lines	fk_bill_lines_bill_id	f	FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE

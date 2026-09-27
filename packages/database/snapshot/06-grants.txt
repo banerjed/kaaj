@@ -11,6 +11,8 @@ bank_accounts	app_user	INSERT,SELECT,UPDATE
 bank_accounts	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 bank_reconciliation_rules	app_user	INSERT,SELECT,UPDATE
 bank_reconciliation_rules	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+bank_statement_imports	app_user	INSERT,SELECT,UPDATE
+bank_statement_imports	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 bank_transactions	app_user	INSERT,SELECT,UPDATE
 bank_transactions	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 bill_lines	app_user	INSERT,SELECT,UPDATE

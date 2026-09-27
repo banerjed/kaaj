@@ -50,6 +50,10 @@ const FORM_WRITTEN = [
   "pm_project_templates",
   "custom_field_definitions",
   "custom_field_values",
+  // Bank statement import (accounting/banking/import).
+  "bank_statement_imports",
+  "bank_transactions",
+  "bank_accounts",
 ]
 
 /**
@@ -338,6 +342,49 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "custom_field_values_unique",
     "setValue's INSERT ... ON CONFLICT (...) DO UPDATE targets this exact constraint — a concurrent write resolves via the upsert, never raises a unique_violation to the caller",
+  ],
+
+  // Bank statement import. Every value below is computed by the importer or
+  // taken from the session; the only request-chosen id (the bank account)
+  // is looked up under RLS first (L103).
+  ["bank_statement_imports_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "fk_bank_statement_imports_bank_account_id",
+    "the account is read under RLS before the insert, so an id this tenant cannot see is refused as a field error first",
+  ],
+  [
+    "bank_statement_imports_file_format_check",
+    "set by the parser from the file's content ('csv' or 'ofx'), never from the request",
+  ],
+  [
+    "bank_statement_imports_balance_check_check",
+    "set by the parser ('passed' or 'unavailable'), never from the request",
+  ],
+  [
+    "bank_statement_imports_counts_check",
+    "the counts come from the INSERT's own RETURNING, so imported + duplicates = in file by construction",
+  ],
+  ["bank_transactions_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "fk_bank_transactions_bank_account_id",
+    "the account is read under RLS before the insert (L103); the match action never changes it",
+  ],
+  [
+    "fk_bank_transactions_category_account_id",
+    "neither the import nor the match action sets it",
+  ],
+  [
+    "fk_bank_transactions_import_id",
+    "set to the import row inserted earlier in the same transaction",
+  ],
+  [
+    "idx_bank_transactions_external_id",
+    "the import's INSERT ... ON CONFLICT ... DO NOTHING absorbs a repeated line and counts it as a duplicate; nothing else writes bank_transaction_id",
+  ],
+  ["bank_accounts_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "fk_bank_accounts_gl_account_id",
+    "the import only writes statement_import_profile; nothing form-driven sets gl_account_id",
   ],
 ])
 
