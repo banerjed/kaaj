@@ -4,6 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { keepValues } from "$lib/form-enhance"
+  import SectionCard from "$lib/components/SectionCard.svelte"
   import type { CustomFieldDefinition } from "$lib/server/custom-fields/custom-fields.repo"
 
   let { data, form } = $props()
@@ -102,98 +103,88 @@
     {/if}
   {/snippet}
 
-  <div class="card bg-base-100 mt-4 shadow">
-    <div class="card-body gap-2">
-      <h2 class="text-base font-medium">Project fields</h2>
-      {@render fieldsTable(data.projectFields)}
-    </div>
-  </div>
+  <SectionCard title="Project fields" class="mt-4">
+    {@render fieldsTable(data.projectFields)}
+  </SectionCard>
 
-  <div class="card bg-base-100 mt-4 shadow">
-    <div class="card-body gap-2">
-      <h2 class="text-base font-medium">Task fields</h2>
-      {@render fieldsTable(data.taskFields)}
-    </div>
-  </div>
+  <SectionCard title="Task fields" class="mt-4">
+    {@render fieldsTable(data.taskFields)}
+  </SectionCard>
 
-  <div class="card bg-base-100 mt-4 shadow">
-    <div class="card-body gap-3">
-      <h2 class="text-base font-medium">Add a field</h2>
-      <form
-        method="POST"
-        action="?/addField"
-        use:enhance={keepValues}
-        class="grid gap-3 sm:grid-cols-2"
-      >
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Applies to</legend>
-          <select
-            name="entity_type"
-            class="select select-sm w-full"
-            bind:value={addingEntityType}
-          >
-            <option value="project">Project</option>
-            <option value="task">Task</option>
-          </select>
+  <SectionCard title="Add a field" class="mt-4">
+    <form
+      method="POST"
+      action="?/addField"
+      use:enhance={keepValues}
+      class="grid gap-3 sm:grid-cols-2"
+    >
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-xs">Applies to</legend>
+        <select
+          name="entity_type"
+          class="select select-sm w-full"
+          bind:value={addingEntityType}
+        >
+          <option value="project">Project</option>
+          <option value="task">Task</option>
+        </select>
+      </fieldset>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-xs">Label</legend>
+        <input
+          name="label"
+          aria-invalid={err.aria("label")}
+          class={`input input-sm w-full ${err.input("label")}`}
+          placeholder="e.g. Estimated Licensing Cost"
+          required
+        />
+      </fieldset>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-xs">Type</legend>
+        <select
+          name="data_type"
+          class="select select-sm w-full"
+          bind:value={addingDataType}
+        >
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="money">Money</option>
+          <option value="date">Date</option>
+          <option value="boolean">Yes / No</option>
+          <option value="select">Dropdown</option>
+          <option value="multiselect">Multi-select</option>
+        </select>
+      </fieldset>
+      {#if addingDataType === "select" || addingDataType === "multiselect"}
+        <fieldset class="fieldset sm:col-span-2">
+          <legend class="fieldset-legend text-xs">
+            Options (one per line — "Label" or "Label|color". Colors: success,
+            warning, error, info, primary, secondary, accent, neutral —
+            unspecified colors are assigned automatically)
+          </legend>
+          <textarea
+            name="options"
+            class={`textarea w-full ${err.textarea("options")}`}
+            rows="3"
+            placeholder={"Gold|warning\nSilver|neutral"}
+          ></textarea>
         </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Label</legend>
-          <input
-            name="label"
-            aria-invalid={err.aria("label")}
-            class={`input input-sm w-full ${err.input("label")}`}
-            placeholder="e.g. Estimated Licensing Cost"
-            required
-          />
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Type</legend>
-          <select
-            name="data_type"
-            class="select select-sm w-full"
-            bind:value={addingDataType}
-          >
-            <option value="text">Text</option>
-            <option value="number">Number</option>
-            <option value="money">Money</option>
-            <option value="date">Date</option>
-            <option value="boolean">Yes / No</option>
-            <option value="select">Dropdown</option>
-            <option value="multiselect">Multi-select</option>
-          </select>
-        </fieldset>
-        {#if addingDataType === "select" || addingDataType === "multiselect"}
-          <fieldset class="fieldset sm:col-span-2">
-            <legend class="fieldset-legend text-xs">
-              Options (one per line — "Label" or "Label|color". Colors: success,
-              warning, error, info, primary, secondary, accent, neutral —
-              unspecified colors are assigned automatically)
-            </legend>
-            <textarea
-              name="options"
-              class={`textarea w-full ${err.textarea("options")}`}
-              rows="3"
-              placeholder={"Gold|warning\nSilver|neutral"}
-            ></textarea>
-          </fieldset>
-        {/if}
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Help text</legend>
-          <input name="help_text" class="input input-sm w-full" />
-        </fieldset>
-        <label class="label mt-6 gap-2">
-          <input
-            type="checkbox"
-            name="is_required"
-            class="checkbox checkbox-sm"
-          />
-          Required
-        </label>
-        <div class="sm:col-span-2">
-          <button type="submit" class="btn btn-primary btn-sm">Add field</button
-          >
-        </div>
-      </form>
-    </div>
-  </div>
+      {/if}
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-xs">Help text</legend>
+        <input name="help_text" class="input input-sm w-full" />
+      </fieldset>
+      <label class="label mt-6 gap-2">
+        <input
+          type="checkbox"
+          name="is_required"
+          class="checkbox checkbox-sm"
+        />
+        Required
+      </label>
+      <div class="sm:col-span-2">
+        <button type="submit" class="btn btn-primary btn-sm">Add field</button>
+      </div>
+    </form>
+  </SectionCard>
 </div>

@@ -6,6 +6,9 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -94,69 +97,63 @@
   </div>
 
   {#if data.holidays.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span class="iconify lucide--calendar-days text-base-content/30 size-10"
-        ></span>
-        <p class="mt-3 font-medium">No holidays for this year</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          Holidays are set per office — a day off in Bangalore is a working day
-          in New York. Payroll and leave accrual both read this calendar.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--calendar-days"
+      title="No holidays for this year"
+      message="Holidays are set per office — a day off in Bangalore is a working day in New York. Payroll and leave accrual both read this calendar."
+    />
   {:else}
     <div class="mt-4 grid gap-4">
       {#each byOffice as [code, list] (code)}
-        <div class="card bg-base-100 shadow">
-          <div class="card-body gap-3">
+        <SectionCard>
+          {#snippet heading()}
             <div class="flex items-baseline justify-between gap-2">
               <h2 class="text-base font-medium">{officeName(code)}</h2>
               <span class="text-base-content/70 text-sm">
                 {list.length} · dates shown in {officeLocale(code)}
               </span>
             </div>
+          {/snippet}
 
-            <ul class="list">
-              {#each list as h (h.id)}
-                <li class="list-row px-0">
-                  <div class="list-col-grow">
-                    <p class="font-medium">
-                      {localised(h.name_i18n, h.name, tenantLocale)}
-                    </p>
-                    <p class="text-base-content/70 text-sm tabular-nums">
-                      {calendarDate(h.date, officeLocale(code), "long")}
-                    </p>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    {#if h.is_paid}
-                      <div class="badge badge-sm">Paid</div>
-                    {/if}
-                    {#if h.is_recurring}
-                      <div class="badge badge-sm">Annual</div>
-                    {/if}
+          <ul class="list">
+            {#each list as h (h.id)}
+              <li class="list-row px-0">
+                <div class="list-col-grow">
+                  <p class="font-medium">
+                    {localised(h.name_i18n, h.name, tenantLocale)}
+                  </p>
+                  <p class="text-base-content/70 text-sm tabular-nums">
+                    {calendarDate(h.date, officeLocale(code), "long")}
+                  </p>
+                </div>
+                <div class="flex items-center gap-1">
+                  {#if h.is_paid}
+                    <div class="badge badge-sm">Paid</div>
+                  {/if}
+                  {#if h.is_recurring}
+                    <div class="badge badge-sm">Annual</div>
+                  {/if}
+                  <button
+                    class="btn btn-ghost btn-sm btn-square"
+                    aria-label={`Edit ${h.name}`}
+                    onclick={() => (editing = h)}
+                  >
+                    <span class="iconify lucide--pencil size-4"></span>
+                  </button>
+                  <form method="POST" action="?/archive">
+                    <input type="hidden" name="id" value={h.id} />
                     <button
-                      class="btn btn-ghost btn-sm btn-square"
-                      aria-label={`Edit ${h.name}`}
-                      onclick={() => (editing = h)}
+                      class="btn btn-ghost btn-sm btn-square text-error"
+                      aria-label={`Archive ${h.name}`}
                     >
-                      <span class="iconify lucide--pencil size-4"></span>
+                      <span class="iconify lucide--trash-2 size-4"></span>
                     </button>
-                    <form method="POST" action="?/archive">
-                      <input type="hidden" name="id" value={h.id} />
-                      <button
-                        class="btn btn-ghost btn-sm btn-square text-error"
-                        aria-label={`Archive ${h.name}`}
-                      >
-                        <span class="iconify lucide--trash-2 size-4"></span>
-                      </button>
-                    </form>
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        </div>
+                  </form>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        </SectionCard>
       {/each}
     </div>
   {/if}
@@ -271,14 +268,7 @@
           </label>
         </div>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editing = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editing = null)} />
       </form>
     </div>
     <button

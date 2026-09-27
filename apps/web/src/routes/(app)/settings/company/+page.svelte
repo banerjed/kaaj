@@ -16,6 +16,7 @@
   import { enhance } from "$app/forms"
   import { keepValues } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
 
   let { data, form } = $props()
 
@@ -121,51 +122,49 @@
 
   <!-- Logo — a separate form: a file input cannot live inside the profile
        form below without nesting two <form> elements. -->
-  <div class="card bg-base-100 mt-4 shadow">
-    <div class="card-body gap-4">
-      <h2 class="card-title text-base">Logo</h2>
-      <p class="text-base-content/70 text-xs">
-        Shown on generated invoice PDFs. PNG or JPEG, up to 2MB.
-      </p>
-      <div class="flex flex-wrap items-center gap-4">
-        {#if company.logo_storage_key}
-          <img
-            src="/settings/company/logo"
-            alt="Company logo"
-            class="border-base-300 h-16 w-auto rounded border object-contain p-1"
-          />
-        {:else}
-          <div
-            class="border-base-300 text-base-content/50 flex h-16 w-16 items-center justify-center rounded border border-dashed text-xs"
-          >
-            No logo
-          </div>
-        {/if}
-        <form
-          method="POST"
-          action="?/uploadLogo"
-          enctype="multipart/form-data"
-          use:enhance={keepValues}
-          class="flex items-center gap-2"
+  <SectionCard
+    title="Logo"
+    description="Shown on generated invoice PDFs. PNG or JPEG, up to 2MB."
+    class="mt-4"
+  >
+    <div class="flex flex-wrap items-center gap-4">
+      {#if company.logo_storage_key}
+        <img
+          src="/settings/company/logo"
+          alt="Company logo"
+          class="border-base-300 h-16 w-auto rounded border object-contain p-1"
+        />
+      {:else}
+        <div
+          class="border-base-300 text-base-content/50 flex h-16 w-16 items-center justify-center rounded border border-dashed text-xs"
         >
-          <input
-            type="file"
-            name="logo"
-            accept="image/png,image/jpeg"
-            aria-invalid={err.aria("logo")}
-            class={`file-input file-input-sm ${err.input("logo")}`}
-            required
-          />
-          <button type="submit" class="btn btn-sm">Upload</button>
+          No logo
+        </div>
+      {/if}
+      <form
+        method="POST"
+        action="?/uploadLogo"
+        enctype="multipart/form-data"
+        use:enhance={keepValues}
+        class="flex items-center gap-2"
+      >
+        <input
+          type="file"
+          name="logo"
+          accept="image/png,image/jpeg"
+          aria-invalid={err.aria("logo")}
+          class={`file-input file-input-sm ${err.input("logo")}`}
+          required
+        />
+        <button type="submit" class="btn btn-sm">Upload</button>
+      </form>
+      {#if company.logo_storage_key}
+        <form method="POST" action="?/removeLogo" use:enhance={keepValues}>
+          <button type="submit" class="btn btn-sm btn-ghost">Remove</button>
         </form>
-        {#if company.logo_storage_key}
-          <form method="POST" action="?/removeLogo" use:enhance={keepValues}>
-            <button type="submit" class="btn btn-sm btn-ghost">Remove</button>
-          </form>
-        {/if}
-      </div>
+      {/if}
     </div>
-  </div>
+  </SectionCard>
 
   <form
     method="POST"
@@ -174,342 +173,327 @@
     use:enhance={keepValues}
   >
     <!-- Identity ------------------------------------------------------- -->
-    <div class="card bg-base-100 shadow xl:col-span-2">
-      <div class="card-body gap-4">
-        <h2 class="card-title text-base">Company Information</h2>
+    <SectionCard title="Company Information" class="xl:col-span-2">
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Subdomain</legend>
+        <input
+          class="input w-full"
+          value={company.subdomain}
+          disabled
+          aria-describedby="subdomain-help"
+        />
+        <p id="subdomain-help" class="label">
+          Permanent. It is how this tenant is routed, so changing it would break
+          every existing link.
+        </p>
+      </fieldset>
 
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Company name</legend>
+        <input
+          name="company_name"
+          aria-invalid={err.aria("company_name")}
+          class={`input w-full ${err.input("company_name")}`}
+          value={company.company_name}
+          required
+        />
+      </fieldset>
+
+      {#if selectedLocales.length > 1}
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Subdomain</legend>
-          <input
-            class="input w-full"
-            value={company.subdomain}
-            disabled
-            aria-describedby="subdomain-help"
-          />
-          <p id="subdomain-help" class="label">
-            Permanent. It is how this tenant is routed, so changing it would
-            break every existing link.
+          <legend class="fieldset-legend">Translations</legend>
+          <p class="label">
+            Shown to people using that language. Blank falls back to the company
+            name above.
           </p>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <!-- Plain stacked label, not `floating-label` — an empty field would render unlabelled. -->
+            {#each selectedLocales as code (code)}
+              <label class="form-control">
+                <span class="label text-base-content/70 text-xs">{code}</span>
+                <input
+                  name={`company_name_i18n.${code}`}
+                  class="input w-full"
+                  value={company.company_name_i18n?.[code] ?? ""}
+                  placeholder={company.company_name}
+                  aria-label={`Company name in ${code}`}
+                />
+              </label>
+            {/each}
+          </div>
         </fieldset>
+      {/if}
 
+      <div class="grid gap-4 sm:grid-cols-2">
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Company name</legend>
+          <legend class="fieldset-legend">Legal entity name</legend>
           <input
-            name="company_name"
-            aria-invalid={err.aria("company_name")}
-            class={`input w-full ${err.input("company_name")}`}
-            value={company.company_name}
-            required
+            name="legal_entity_name"
+            aria-invalid={err.aria("legal_entity_name")}
+            class={`input w-full ${err.input("legal_entity_name")}`}
+            value={company.legal_entity_name ?? ""}
           />
         </fieldset>
-
-        {#if selectedLocales.length > 1}
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Translations</legend>
-            <p class="label">
-              Shown to people using that language. Blank falls back to the
-              company name above.
-            </p>
-            <div class="grid gap-2 sm:grid-cols-2">
-              <!-- Plain stacked label, not `floating-label` — an empty field would render unlabelled. -->
-              {#each selectedLocales as code (code)}
-                <label class="form-control">
-                  <span class="label text-base-content/70 text-xs">{code}</span>
-                  <input
-                    name={`company_name_i18n.${code}`}
-                    class="input w-full"
-                    value={company.company_name_i18n?.[code] ?? ""}
-                    placeholder={company.company_name}
-                    aria-label={`Company name in ${code}`}
-                  />
-                </label>
-              {/each}
-            </div>
-          </fieldset>
-        {/if}
-
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Legal entity name</legend>
-            <input
-              name="legal_entity_name"
-              aria-invalid={err.aria("legal_entity_name")}
-              class={`input w-full ${err.input("legal_entity_name")}`}
-              value={company.legal_entity_name ?? ""}
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Industry</legend>
-            <input
-              name="industry"
-              aria-invalid={err.aria("industry")}
-              class={`input w-full ${err.input("industry")}`}
-              value={company.industry ?? ""}
-            />
-          </fieldset>
-        </div>
-
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Company size</legend>
+          <legend class="fieldset-legend">Industry</legend>
+          <input
+            name="industry"
+            aria-invalid={err.aria("industry")}
+            class={`input w-full ${err.input("industry")}`}
+            value={company.industry ?? ""}
+          />
+        </fieldset>
+      </div>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Company size</legend>
+        <select
+          name="company_size"
+          aria-invalid={err.aria("company_size")}
+          class={`select w-full ${err.select("company_size")}`}
+          value={company.company_size ?? ""}
+        >
+          <option value="">Not specified</option>
+          {#each COMPANY_SIZES as size (size)}
+            <option value={size}>{size} people</option>
+          {/each}
+        </select>
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Data residency</legend>
+        <div>
+          {#if data.dataResidency.tier === "dedicated"}
+            <span class="badge badge-outline"
+              >Dedicated database — {data.dataResidency.region}</span
+            >
+          {:else}
+            <span class="badge badge-outline">Shared database</span>
+          {/if}
+        </div>
+        <p class="label">
+          {#if data.dataResidency.tier === "dedicated"}
+            This tenant's data lives in its own database, physically separate
+            from every other tenant (ADR-009).
+          {:else}
+            This tenant shares a database with other tenants on the shared tier,
+            isolated by row-level security.
+          {/if}
+        </p>
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Brand colour</legend>
+        <p class="label">
+          Recolours the header only — buttons keep the product colour.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          {#each BRAND_COLORS as c (c.code)}
+            <label class="cursor-pointer" title={c.label}>
+              <input
+                type="radio"
+                name="brand_color"
+                value={c.code}
+                class="peer sr-only"
+                aria-label={c.label}
+                checked={(company.brand_color ?? "default") === c.code}
+              />
+              <span
+                class={`ring-offset-base-100 block size-8 rounded-full ring-2 ring-transparent ring-offset-2 peer-checked:ring-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 ${c.hex ? "" : "bg-primary"}`}
+                style={c.hex ? `background-color:${c.hex}` : undefined}
+              ></span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+    </SectionCard>
+
+    <!-- Preview -------------------------------------------------------- -->
+    <SectionCard
+      title="Preview"
+      description="How dates, money and numbers will read across the product with these settings."
+      class="xl:row-span-2"
+    >
+      <dl class="grid gap-3">
+        {#each [["Date", previewDate], ["Time", previewTime], ["Currency", previewCurrency], ["Number", previewNumber], ["Abbreviated", previewCompact]] as [label, value] (label)}
+          <div class="bg-base-200 rounded-box px-3 py-2">
+            <dt class="text-base-content/70 text-xs">{label}</dt>
+            <dd class="font-medium tabular-nums">{value}</dd>
+          </div>
+        {/each}
+      </dl>
+      <p class="text-base-content/70 text-xs">
+        Sample: 1 December 2026, 15:45 UTC, 1234.56, 18,123,432
+      </p>
+    </SectionCard>
+
+    <!-- Regional ------------------------------------------------------- -->
+    <SectionCard title="Regional Settings" class="xl:col-span-2">
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Enabled languages</legend>
+        <p class="label">
+          The default must be one of these. Translation fields appear for each.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          {#each locales as l (l.code)}
+            <label class="label cursor-pointer gap-2">
+              <input
+                type="checkbox"
+                name="supported_locales"
+                value={l.code}
+                class="checkbox checkbox-sm"
+                checked={selectedLocales.includes(l.code)}
+                onchange={(e) => {
+                  const on = e.currentTarget.checked
+                  selectedLocales = on
+                    ? [...selectedLocales, l.code]
+                    : selectedLocales.filter((c) => c !== l.code)
+                }}
+              />
+              <span class="text-sm">{l.label}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Default language</legend>
           <select
-            name="company_size"
-            aria-invalid={err.aria("company_size")}
-            class={`select w-full ${err.select("company_size")}`}
-            value={company.company_size ?? ""}
+            name="default_locale"
+            aria-invalid={err.aria("default_locale")}
+            class={`select w-full ${err.select("default_locale")}`}
+            bind:value={locale}
           >
-            <option value="">Not specified</option>
-            {#each COMPANY_SIZES as size (size)}
-              <option value={size}>{size} people</option>
+            {#each locales as l (l.code)}
+              <option value={l.code}>{l.label}</option>
             {/each}
           </select>
         </fieldset>
 
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Data residency</legend>
-          <div>
-            {#if data.dataResidency.tier === "dedicated"}
-              <span class="badge badge-outline"
-                >Dedicated database — {data.dataResidency.region}</span
-              >
-            {:else}
-              <span class="badge badge-outline">Shared database</span>
-            {/if}
-          </div>
-          <p class="label">
-            {#if data.dataResidency.tier === "dedicated"}
-              This tenant's data lives in its own database, physically separate
-              from every other tenant (ADR-009).
-            {:else}
-              This tenant shares a database with other tenants on the shared
-              tier, isolated by row-level security.
-            {/if}
-          </p>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Brand colour</legend>
-          <p class="label">
-            Recolours the header only — buttons keep the product colour.
-          </p>
-          <div class="flex flex-wrap gap-3">
-            {#each BRAND_COLORS as c (c.code)}
-              <label class="cursor-pointer" title={c.label}>
-                <input
-                  type="radio"
-                  name="brand_color"
-                  value={c.code}
-                  class="peer sr-only"
-                  aria-label={c.label}
-                  checked={(company.brand_color ?? "default") === c.code}
-                />
-                <span
-                  class={`ring-offset-base-100 block size-8 rounded-full ring-2 ring-transparent ring-offset-2 peer-checked:ring-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 ${c.hex ? "" : "bg-primary"}`}
-                  style={c.hex ? `background-color:${c.hex}` : undefined}
-                ></span>
-              </label>
-            {/each}
-          </div>
-        </fieldset>
-      </div>
-    </div>
-
-    <!-- Preview -------------------------------------------------------- -->
-    <div class="card bg-base-100 shadow xl:row-span-2">
-      <div class="card-body justify-start gap-4">
-        <h2 class="card-title text-base">Preview</h2>
-        <p class="text-base-content/70 text-sm">
-          How dates, money and numbers will read across the product with these
-          settings.
-        </p>
-        <dl class="grid gap-3">
-          {#each [["Date", previewDate], ["Time", previewTime], ["Currency", previewCurrency], ["Number", previewNumber], ["Abbreviated", previewCompact]] as [label, value] (label)}
-            <div class="bg-base-200 rounded-box px-3 py-2">
-              <dt class="text-base-content/70 text-xs">{label}</dt>
-              <dd class="font-medium tabular-nums">{value}</dd>
-            </div>
-          {/each}
-        </dl>
-        <p class="text-base-content/70 text-xs">
-          Sample: 1 December 2026, 15:45 UTC, 1234.56, 18,123,432
-        </p>
-      </div>
-    </div>
-
-    <!-- Regional ------------------------------------------------------- -->
-    <div class="card bg-base-100 shadow xl:col-span-2">
-      <div class="card-body gap-4">
-        <h2 class="card-title text-base">Regional Settings</h2>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Enabled languages</legend>
-          <p class="label">
-            The default must be one of these. Translation fields appear for
-            each.
-          </p>
-          <div class="flex flex-wrap gap-3">
-            {#each locales as l (l.code)}
-              <label class="label cursor-pointer gap-2">
-                <input
-                  type="checkbox"
-                  name="supported_locales"
-                  value={l.code}
-                  class="checkbox checkbox-sm"
-                  checked={selectedLocales.includes(l.code)}
-                  onchange={(e) => {
-                    const on = e.currentTarget.checked
-                    selectedLocales = on
-                      ? [...selectedLocales, l.code]
-                      : selectedLocales.filter((c) => c !== l.code)
-                  }}
-                />
-                <span class="text-sm">{l.label}</span>
-              </label>
-            {/each}
-          </div>
-        </fieldset>
-
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Default language</legend>
-            <select
-              name="default_locale"
-              aria-invalid={err.aria("default_locale")}
-              class={`select w-full ${err.select("default_locale")}`}
-              bind:value={locale}
-            >
-              {#each locales as l (l.code)}
-                <option value={l.code}>{l.label}</option>
-              {/each}
-            </select>
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Default currency</legend>
-            <select
-              name="default_currency"
-              aria-invalid={err.aria("default_currency")}
-              class={`select w-full ${err.select("default_currency")}`}
-              bind:value={currency}
-            >
-              {#each currencies as code (code)}
-                <option value={code}>{currencyLabel(code, locale)}</option>
-              {/each}
-            </select>
-          </fieldset>
-        </div>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Enabled currencies</legend>
-          <div class="flex flex-wrap gap-3">
+          <legend class="fieldset-legend">Default currency</legend>
+          <select
+            name="default_currency"
+            aria-invalid={err.aria("default_currency")}
+            class={`select w-full ${err.select("default_currency")}`}
+            bind:value={currency}
+          >
             {#each currencies as code (code)}
-              <label class="label cursor-pointer gap-2">
-                <input
-                  type="checkbox"
-                  name="supported_currencies"
-                  value={code}
-                  class="checkbox checkbox-sm"
-                  checked={(
-                    company.supported_currencies ?? [company.default_currency]
-                  ).includes(code)}
-                />
-                <span class="text-sm">{code}</span>
-              </label>
+              <option value={code}>{currencyLabel(code, locale)}</option>
             {/each}
-          </div>
+          </select>
+        </fieldset>
+      </div>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Enabled currencies</legend>
+        <div class="flex flex-wrap gap-3">
+          {#each currencies as code (code)}
+            <label class="label cursor-pointer gap-2">
+              <input
+                type="checkbox"
+                name="supported_currencies"
+                value={code}
+                class="checkbox checkbox-sm"
+                checked={(
+                  company.supported_currencies ?? [company.default_currency]
+                ).includes(code)}
+              />
+              <span class="text-sm">{code}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
+
+      <div class="grid gap-4 sm:grid-cols-3">
+        <fieldset class="fieldset sm:col-span-1">
+          <legend class="fieldset-legend">Default timezone</legend>
+          <select
+            name="default_timezone"
+            aria-invalid={err.aria("default_timezone")}
+            class={`select w-full ${err.select("default_timezone")}`}
+            bind:value={timezone}
+          >
+            {#each zonesByRegion as group (group.region)}
+              <optgroup label={group.region}>
+                {#each group.zones as zone (zone)}
+                  <option value={zone}>{zone}</option>
+                {/each}
+              </optgroup>
+            {/each}
+          </select>
         </fieldset>
 
-        <div class="grid gap-4 sm:grid-cols-3">
-          <fieldset class="fieldset sm:col-span-1">
-            <legend class="fieldset-legend">Default timezone</legend>
-            <select
-              name="default_timezone"
-              aria-invalid={err.aria("default_timezone")}
-              class={`select w-full ${err.select("default_timezone")}`}
-              bind:value={timezone}
-            >
-              {#each zonesByRegion as group (group.region)}
-                <optgroup label={group.region}>
-                  {#each group.zones as zone (zone)}
-                    <option value={zone}>{zone}</option>
-                  {/each}
-                </optgroup>
-              {/each}
-            </select>
-          </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Date format</legend>
+          <select
+            name="date_format"
+            aria-invalid={err.aria("date_format")}
+            class={`select w-full ${err.select("date_format")}`}
+            value={company.date_format ?? "MM/DD/YYYY"}
+          >
+            {#each DATE_FORMATS as f (f)}
+              <option value={f}>{f}</option>
+            {/each}
+          </select>
+        </fieldset>
 
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Date format</legend>
-            <select
-              name="date_format"
-              aria-invalid={err.aria("date_format")}
-              class={`select w-full ${err.select("date_format")}`}
-              value={company.date_format ?? "MM/DD/YYYY"}
-            >
-              {#each DATE_FORMATS as f (f)}
-                <option value={f}>{f}</option>
-              {/each}
-            </select>
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Time format</legend>
-            <select
-              name="time_format"
-              aria-invalid={err.aria("time_format")}
-              class={`select w-full ${err.select("time_format")}`}
-              bind:value={timeFormat}
-            >
-              {#each TIME_FORMATS as f (f)}
-                <option value={f}>{f === "12h" ? "12-hour" : "24-hour"}</option>
-              {/each}
-            </select>
-          </fieldset>
-        </div>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Time format</legend>
+          <select
+            name="time_format"
+            aria-invalid={err.aria("time_format")}
+            class={`select w-full ${err.select("time_format")}`}
+            bind:value={timeFormat}
+          >
+            {#each TIME_FORMATS as f (f)}
+              <option value={f}>{f === "12h" ? "12-hour" : "24-hour"}</option>
+            {/each}
+          </select>
+        </fieldset>
       </div>
-    </div>
+    </SectionCard>
 
     <!-- Contact -------------------------------------------------------- -->
-    <div class="card bg-base-100 shadow xl:col-span-2">
-      <div class="card-body gap-4">
-        <h2 class="card-title text-base">Primary Contact</h2>
-        <div class="grid gap-4 sm:grid-cols-3">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Name</legend>
-            <input
-              name="primary_contact_name"
-              aria-invalid={err.aria("primary_contact_name")}
-              class={`input w-full ${err.input("primary_contact_name")}`}
-              value={company.primary_contact_name ?? ""}
-              autocomplete="name"
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Email</legend>
-            <input
-              name="primary_contact_email"
-              aria-invalid={err.aria("primary_contact_email")}
-              type="email"
-              inputmode="email"
-              autocomplete="email"
-              class={`input w-full ${err.input("primary_contact_email")}`}
-              value={company.primary_contact_email ?? ""}
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Phone</legend>
-            <input
-              name="primary_contact_phone"
-              aria-invalid={err.aria("primary_contact_phone")}
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              class={`input w-full ${err.input("primary_contact_phone")}`}
-              value={company.primary_contact_phone ?? ""}
-            />
-          </fieldset>
-        </div>
+    <SectionCard title="Primary Contact" class="xl:col-span-2">
+      <div class="grid gap-4 sm:grid-cols-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Name</legend>
+          <input
+            name="primary_contact_name"
+            aria-invalid={err.aria("primary_contact_name")}
+            class={`input w-full ${err.input("primary_contact_name")}`}
+            value={company.primary_contact_name ?? ""}
+            autocomplete="name"
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Email</legend>
+          <input
+            name="primary_contact_email"
+            aria-invalid={err.aria("primary_contact_email")}
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            class={`input w-full ${err.input("primary_contact_email")}`}
+            value={company.primary_contact_email ?? ""}
+          />
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Phone</legend>
+          <input
+            name="primary_contact_phone"
+            aria-invalid={err.aria("primary_contact_phone")}
+            type="tel"
+            inputmode="tel"
+            autocomplete="tel"
+            class={`input w-full ${err.input("primary_contact_phone")}`}
+            value={company.primary_contact_phone ?? ""}
+          />
+        </fieldset>
       </div>
-    </div>
+    </SectionCard>
 
     <div class="xl:col-span-3">
       <button type="submit" class="btn btn-primary">Save changes</button>

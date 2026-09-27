@@ -4,6 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -130,14 +131,10 @@
           ></textarea>
         </fieldset>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (creating = false)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Create</button>
-        </div>
+        <ModalActions
+          onCancel={() => (creating = false)}
+          submitLabel="Create"
+        />
       </form>
     </div>
     <button

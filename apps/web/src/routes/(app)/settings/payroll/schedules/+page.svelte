@@ -12,6 +12,9 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -89,24 +92,17 @@
   </div>
 
   {#if data.schedules.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span
-          class="iconify lucide--calendar-clock text-base-content/30 size-10"
-        ></span>
-        <p class="mt-3 font-medium">No pay schedules yet</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          A schedule fixes which calendar days people are paid on, in the
-          timezone of the office that pays them.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--calendar-clock"
+      title="No pay schedules yet"
+      message="A schedule fixes which calendar days people are paid on, in the timezone of the office that pays them."
+    />
   {:else}
     <div class="mt-4 grid gap-4">
       {#each data.schedules as s (s.id)}
         {@const p = projection(s)}
-        <div class="card bg-base-100 shadow">
-          <div class="card-body gap-3">
+        <SectionCard>
+          {#snippet heading()}
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 class="text-base font-medium">
@@ -151,52 +147,52 @@
                 </form>
               </div>
             </div>
+          {/snippet}
 
-            {#if expanded === s.id}
-              <!-- Two timezones: the schedule's own, and what that day is called where the viewer sits. -->
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
+          {#if expanded === s.id}
+            <!-- Two timezones: the schedule's own, and what that day is called where the viewer sits. -->
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>In {s.timezone}</th>
+                    <th>As read in {tenantZone}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each p.dates as d, i (d)}
                     <tr>
-                      <th>#</th>
-                      <th>In {s.timezone}</th>
-                      <th>As read in {tenantZone}</th>
-                      <th></th>
+                      <td class="text-base-content/70">{i + 1}</td>
+                      <td class="tabular-nums">
+                        {calendarDate(d, zoneLocale(s.timezone), "long")}
+                      </td>
+                      <td class="text-base-content/70 tabular-nums">
+                        {calendarDate(d, tenantLocale, "long")}
+                      </td>
+                      <td>
+                        {#if p.clashes[d] === "holiday"}
+                          <span class="badge badge-warning badge-sm"
+                            >Holiday</span
+                          >
+                        {:else if p.clashes[d] === "weekend"}
+                          <span class="badge badge-sm">Weekend</span>
+                        {/if}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {#each p.dates as d, i (d)}
-                      <tr>
-                        <td class="text-base-content/70">{i + 1}</td>
-                        <td class="tabular-nums">
-                          {calendarDate(d, zoneLocale(s.timezone), "long")}
-                        </td>
-                        <td class="text-base-content/70 tabular-nums">
-                          {calendarDate(d, tenantLocale, "long")}
-                        </td>
-                        <td>
-                          {#if p.clashes[d] === "holiday"}
-                            <span class="badge badge-warning badge-sm"
-                              >Holiday</span
-                            >
-                          {:else if p.clashes[d] === "weekend"}
-                            <span class="badge badge-sm">Weekend</span>
-                          {/if}
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-              {#if Object.keys(p.clashes).length > 0}
-                <p class="text-base-content/70 text-xs">
-                  Flagged dates are not moved automatically — whether to pay
-                  early or late is set per schedule below.
-                </p>
-              {/if}
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+            {#if Object.keys(p.clashes).length > 0}
+              <p class="text-base-content/70 text-xs">
+                Flagged dates are not moved automatically — whether to pay early
+                or late is set per schedule below.
+              </p>
             {/if}
-          </div>
-        </div>
+          {/if}
+        </SectionCard>
       {/each}
     </div>
   {/if}
@@ -317,14 +313,7 @@
           </label>
         </div>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editing = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editing = null)} />
       </form>
     </div>
     <button

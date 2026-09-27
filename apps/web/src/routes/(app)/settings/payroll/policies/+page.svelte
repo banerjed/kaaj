@@ -5,6 +5,9 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -85,22 +88,16 @@
   </div>
 
   {#if data.policies.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span class="iconify lucide--scale text-base-content/30 size-10"></span>
-        <p class="mt-3 font-medium">No payroll policies yet</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          Overtime law is national — FLSA in the US, the Working Time
-          Regulations in the UK, the Factories Act in India — so a firm in
-          several countries needs a rule per office, over a firm-wide default.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--scale"
+      title="No payroll policies yet"
+      message="Overtime law is national — FLSA in the US, the Working Time Regulations in the UK, the Factories Act in India — so a firm in several countries needs a rule per office, over a firm-wide default."
+    />
   {:else}
     <div class="mt-4 grid gap-4 lg:grid-cols-2">
       {#each data.policies as p (p.id)}
-        <div class="card bg-base-100 shadow">
-          <div class="card-body gap-3">
+        <SectionCard>
+          {#snippet heading()}
             <div class="flex items-start justify-between gap-2">
               <h2 class="text-base font-medium">
                 {p.location_name ?? "Firm-wide default"}
@@ -127,42 +124,42 @@
                 </form>
               </div>
             </div>
+          {/snippet}
 
-            <dl class="grid gap-2 text-sm">
+          <dl class="grid gap-2 text-sm">
+            <div class="flex justify-between gap-4">
+              <dt class="text-base-content/70">Workweek starts</dt>
+              <dd>{DAYS[p.workweek_start_day ?? 0]}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-base-content/70">Time rounding</dt>
+              <dd>{ROUNDING_LABELS[p.time_rounding ?? "none"]}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-base-content/70">Time tracking</dt>
+              <dd>{p.require_time_tracking ? "Required" : "Optional"}</dd>
+            </div>
+            {#if p.overtime_rules?.daily_threshold_hours}
               <div class="flex justify-between gap-4">
-                <dt class="text-base-content/70">Workweek starts</dt>
-                <dd>{DAYS[p.workweek_start_day ?? 0]}</dd>
+                <dt class="text-base-content/70">Overtime after</dt>
+                <dd class="tabular-nums">
+                  {p.overtime_rules.daily_threshold_hours}h/day
+                  {#if p.overtime_rules.multiplier}
+                    at ×{p.overtime_rules.multiplier}
+                  {/if}
+                </dd>
               </div>
+            {/if}
+            {#if p.overtime_rules?.weekly_threshold_hours}
               <div class="flex justify-between gap-4">
-                <dt class="text-base-content/70">Time rounding</dt>
-                <dd>{ROUNDING_LABELS[p.time_rounding ?? "none"]}</dd>
+                <dt class="text-base-content/70">Weekly threshold</dt>
+                <dd class="tabular-nums">
+                  {p.overtime_rules.weekly_threshold_hours}h
+                </dd>
               </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-base-content/70">Time tracking</dt>
-                <dd>{p.require_time_tracking ? "Required" : "Optional"}</dd>
-              </div>
-              {#if p.overtime_rules?.daily_threshold_hours}
-                <div class="flex justify-between gap-4">
-                  <dt class="text-base-content/70">Overtime after</dt>
-                  <dd class="tabular-nums">
-                    {p.overtime_rules.daily_threshold_hours}h/day
-                    {#if p.overtime_rules.multiplier}
-                      at ×{p.overtime_rules.multiplier}
-                    {/if}
-                  </dd>
-                </div>
-              {/if}
-              {#if p.overtime_rules?.weekly_threshold_hours}
-                <div class="flex justify-between gap-4">
-                  <dt class="text-base-content/70">Weekly threshold</dt>
-                  <dd class="tabular-nums">
-                    {p.overtime_rules.weekly_threshold_hours}h
-                  </dd>
-                </div>
-              {/if}
-            </dl>
-          </div>
-        </div>
+            {/if}
+          </dl>
+        </SectionCard>
       {/each}
     </div>
 
@@ -305,14 +302,7 @@
           <span class="text-sm">Require time tracking</span>
         </label>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editing = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editing = null)} />
       </form>
     </div>
     <button

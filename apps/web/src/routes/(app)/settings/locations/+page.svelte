@@ -11,6 +11,8 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -123,17 +125,11 @@
 
   {#if data.locations.length === 0}
     <!-- Empty state per doc 02: what is missing, why it matters, what next. -->
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span class="iconify lucide--map-pin text-base-content/30 size-10"
-        ></span>
-        <p class="mt-3 font-medium">No locations yet</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          Locations anchor holidays, payroll policies and each employee's
-          working hours. Add your headquarters first.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--map-pin"
+      title="No locations yet"
+      message="Locations anchor holidays, payroll policies and each employee's working hours. Add your headquarters first."
+    />
   {:else}
     <!-- Two shapes: `list` below md, table above. `md:hidden` is on the wrapper, not `.list` (L10). -->
     <div class="mt-4 md:hidden">
@@ -514,14 +510,7 @@
           </div>
         </div>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editing = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editing = null)} />
       </form>
     </div>
     <button

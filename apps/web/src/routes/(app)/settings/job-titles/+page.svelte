@@ -7,6 +7,9 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -50,7 +53,7 @@
 
 <div class="p-4 lg:p-6">
   <PageTitle
-    title="Job Titles &amp; Levels"
+    title="Job Titles & Levels"
     items={[
       { label: "Settings", path: "/settings/job-titles" },
       { label: "Job Titles", active: true },
@@ -83,22 +86,16 @@
   </div>
 
   {#if data.jobTitles.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span class="iconify lucide--briefcase text-base-content/30 size-10"
-        ></span>
-        <p class="mt-3 font-medium">No job titles yet</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          Job titles carry the pay bands each market is hired against, and are
-          what an employee record points at.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--briefcase"
+      title="No job titles yet"
+      message="Job titles carry the pay bands each market is hired against, and are what an employee record points at."
+    />
   {:else}
     <div class="mt-4 grid gap-4">
       {#each data.jobTitles as title (title.id)}
-        <div class="card bg-base-100 shadow">
-          <div class="card-body gap-3">
+        <SectionCard>
+          {#snippet heading()}
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 class="text-base font-medium">
@@ -139,77 +136,77 @@
                 </form>
               </div>
             </div>
+          {/snippet}
 
-            {#if levelsFor(title.id).length === 0}
-              <p class="text-base-content/70 text-sm">
-                No levels defined. Add one to set pay bands.
-              </p>
-            {:else}
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Level</th>
-                      <!-- One column per currency; bands are independently set, not converted (BR-FP-006). -->
+          {#if levelsFor(title.id).length === 0}
+            <p class="text-base-content/70 text-sm">
+              No levels defined. Add one to set pay bands.
+            </p>
+          {:else}
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Level</th>
+                    <!-- One column per currency; bands are independently set, not converted (BR-FP-006). -->
+                    {#each currencies as c (c)}
+                      <th>{c} band</th>
+                    {/each}
+                    <th class="w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each levelsFor(title.id) as level (level.id)}
+                    <tr class="hover:bg-base-200/40">
+                      <td class="font-medium">{level.level_name}</td>
                       {#each currencies as c (c)}
-                        <th>{c} band</th>
+                        <td class="text-sm tabular-nums">
+                          {#if level.salary_ranges?.[c]}
+                            {money(
+                              level.salary_ranges[c].min,
+                              c,
+                              bandLocale(c),
+                            )} –
+                            {money(
+                              level.salary_ranges[c].max,
+                              c,
+                              bandLocale(c),
+                            )}
+                          {:else}
+                            <span class="text-base-content/70">—</span>
+                          {/if}
+                        </td>
                       {/each}
-                      <th class="w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each levelsFor(title.id) as level (level.id)}
-                      <tr class="hover:bg-base-200/40">
-                        <td class="font-medium">{level.level_name}</td>
-                        {#each currencies as c (c)}
-                          <td class="text-sm tabular-nums">
-                            {#if level.salary_ranges?.[c]}
-                              {money(
-                                level.salary_ranges[c].min,
-                                c,
-                                bandLocale(c),
-                              )} –
-                              {money(
-                                level.salary_ranges[c].max,
-                                c,
-                                bandLocale(c),
-                              )}
-                            {:else}
-                              <span class="text-base-content/70">—</span>
-                            {/if}
-                          </td>
-                        {/each}
-                        <td>
-                          <div class="flex gap-1">
+                      <td>
+                        <div class="flex gap-1">
+                          <button
+                            class="btn btn-ghost btn-xs btn-square"
+                            aria-label={`Edit ${level.level_name}`}
+                            onclick={() =>
+                              (editingLevel = { level, titleId: title.id })}
+                          >
+                            <span class="iconify lucide--pencil size-3.5"
+                            ></span>
+                          </button>
+                          <form method="POST" action="?/archiveLevel">
+                            <input type="hidden" name="id" value={level.id} />
                             <button
-                              class="btn btn-ghost btn-xs btn-square"
-                              aria-label={`Edit ${level.level_name}`}
-                              onclick={() =>
-                                (editingLevel = { level, titleId: title.id })}
+                              class="btn btn-ghost btn-xs btn-square text-error"
+                              aria-label={`Archive ${level.level_name}`}
                             >
-                              <span class="iconify lucide--pencil size-3.5"
+                              <span class="iconify lucide--trash-2 size-3.5"
                               ></span>
                             </button>
-                            <form method="POST" action="?/archiveLevel">
-                              <input type="hidden" name="id" value={level.id} />
-                              <button
-                                class="btn btn-ghost btn-xs btn-square text-error"
-                                aria-label={`Archive ${level.level_name}`}
-                              >
-                                <span class="iconify lucide--trash-2 size-3.5"
-                                ></span>
-                              </button>
-                            </form>
-                          </div>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {/if}
-          </div>
-        </div>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </SectionCard>
       {/each}
     </div>
   {/if}
@@ -290,14 +287,7 @@
           <span class="text-sm">Exempt from overtime (FLSA)</span>
         </label>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editingTitle = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editingTitle = null)} />
       </form>
     </div>
     <button
@@ -387,14 +377,7 @@
           </div>
         </fieldset>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editingLevel = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editingLevel = null)} />
       </form>
     </div>
     <button

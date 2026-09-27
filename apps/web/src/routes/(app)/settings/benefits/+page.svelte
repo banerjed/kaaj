@@ -7,6 +7,9 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
+  import EmptyState from "$lib/components/EmptyState.svelte"
+  import SectionCard from "$lib/components/SectionCard.svelte"
+  import ModalActions from "$lib/components/ModalActions.svelte"
 
   let { data, form } = $props()
 
@@ -90,23 +93,16 @@
   </div>
 
   {#if data.packages.length === 0}
-    <div class="card bg-base-100 mt-4 shadow">
-      <div class="card-body items-center py-16 text-center">
-        <span class="iconify lucide--heart-pulse text-base-content/30 size-10"
-        ></span>
-        <p class="mt-3 font-medium">No benefits packages yet</p>
-        <p class="text-base-content/70 max-w-md text-sm">
-          A package bundles what a group of people is enrolled in — health,
-          retirement, commuter. Costs are held per currency, because the same
-          benefit is priced differently in each market.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="lucide--heart-pulse"
+      title="No benefits packages yet"
+      message="A package bundles what a group of people is enrolled in — health, retirement, commuter. Costs are held per currency, because the same benefit is priced differently in each market."
+    />
   {:else}
     <div class="mt-4 grid gap-4">
       {#each data.packages as pkg (pkg.id)}
-        <div class="card bg-base-100 shadow">
-          <div class="card-body gap-3">
+        <SectionCard>
+          {#snippet heading()}
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 class="text-base font-medium">
@@ -145,89 +141,89 @@
                 </form>
               </div>
             </div>
+          {/snippet}
 
-            {#if itemsFor(pkg.id).length === 0}
-              <p class="text-base-content/70 text-sm">
-                Nothing in this package yet.
-              </p>
-            {:else}
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Benefit</th>
-                      <th>Type</th>
-                      <th>Carrier</th>
+          {#if itemsFor(pkg.id).length === 0}
+            <p class="text-base-content/70 text-sm">
+              Nothing in this package yet.
+            </p>
+          {:else}
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Benefit</th>
+                    <th>Type</th>
+                    <th>Carrier</th>
+                    {#each currencies as c (c)}
+                      <th class="text-right">{c} / month</th>
+                    {/each}
+                    <th class="w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each itemsFor(pkg.id) as item (item.id)}
+                    <tr class="hover:bg-base-200/40">
+                      <td class="font-medium">
+                        {localised(
+                          item.benefit_name_i18n,
+                          item.benefit_name,
+                          locale,
+                        )}
+                      </td>
+                      <td class="text-sm capitalize">{item.benefit_type}</td>
+                      <td class="text-sm">
+                        {item.carrier_name ?? "—"}
+                        {#if item.carrier_varies_by_location}
+                          <span class="badge badge-sm ms-1">varies</span>
+                        {/if}
+                      </td>
                       {#each currencies as c (c)}
-                        <th class="text-right">{c} / month</th>
-                      {/each}
-                      <th class="w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each itemsFor(pkg.id) as item (item.id)}
-                      <tr class="hover:bg-base-200/40">
-                        <td class="font-medium">
-                          {localised(
-                            item.benefit_name_i18n,
-                            item.benefit_name,
-                            locale,
-                          )}
-                        </td>
-                        <td class="text-sm capitalize">{item.benefit_type}</td>
-                        <td class="text-sm">
-                          {item.carrier_name ?? "—"}
-                          {#if item.carrier_varies_by_location}
-                            <span class="badge badge-sm ms-1">varies</span>
+                        <td class="text-right text-sm tabular-nums">
+                          {#if totalCost(item, c) !== null}
+                            {money(totalCost(item, c), c, costLocale(c))}
+                            <span class="text-base-content/70 block text-xs">
+                              staff {money(
+                                item.costs_by_currency?.[c]?.employee,
+                                c,
+                                costLocale(c),
+                              )}
+                            </span>
+                          {:else}
+                            <span class="text-base-content/70">—</span>
                           {/if}
                         </td>
-                        {#each currencies as c (c)}
-                          <td class="text-right text-sm tabular-nums">
-                            {#if totalCost(item, c) !== null}
-                              {money(totalCost(item, c), c, costLocale(c))}
-                              <span class="text-base-content/70 block text-xs">
-                                staff {money(
-                                  item.costs_by_currency?.[c]?.employee,
-                                  c,
-                                  costLocale(c),
-                                )}
-                              </span>
-                            {:else}
-                              <span class="text-base-content/70">—</span>
-                            {/if}
-                          </td>
-                        {/each}
-                        <td>
-                          <div class="flex gap-1">
+                      {/each}
+                      <td>
+                        <div class="flex gap-1">
+                          <button
+                            class="btn btn-ghost btn-xs btn-square"
+                            aria-label={`Edit ${item.benefit_name}`}
+                            onclick={() =>
+                              (editingItem = { item, packageId: pkg.id })}
+                          >
+                            <span class="iconify lucide--pencil size-3.5"
+                            ></span>
+                          </button>
+                          <form method="POST" action="?/archiveItem">
+                            <input type="hidden" name="id" value={item.id} />
                             <button
-                              class="btn btn-ghost btn-xs btn-square"
-                              aria-label={`Edit ${item.benefit_name}`}
-                              onclick={() =>
-                                (editingItem = { item, packageId: pkg.id })}
+                              class="btn btn-ghost btn-xs btn-square text-error"
+                              aria-label={`Delete ${item.benefit_name}`}
                             >
-                              <span class="iconify lucide--pencil size-3.5"
+                              <span class="iconify lucide--trash-2 size-3.5"
                               ></span>
                             </button>
-                            <form method="POST" action="?/archiveItem">
-                              <input type="hidden" name="id" value={item.id} />
-                              <button
-                                class="btn btn-ghost btn-xs btn-square text-error"
-                                aria-label={`Delete ${item.benefit_name}`}
-                              >
-                                <span class="iconify lucide--trash-2 size-3.5"
-                                ></span>
-                              </button>
-                            </form>
-                          </div>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {/if}
-          </div>
-        </div>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </SectionCard>
       {/each}
     </div>
   {/if}
@@ -295,14 +291,7 @@
           ></textarea>
         </fieldset>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editingPackage = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editingPackage = null)} />
       </form>
     </div>
     <button
@@ -420,14 +409,7 @@
           </div>
         </fieldset>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editingItem = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editingItem = null)} />
       </form>
     </div>
     <button

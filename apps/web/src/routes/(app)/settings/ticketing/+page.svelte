@@ -4,6 +4,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
+  import ModalActions from "$lib/components/ModalActions.svelte"
   import type { BusinessAreaSettingsRow } from "$lib/server/ticketing/ticketing.repo"
 
   let { data, form } = $props()
@@ -161,14 +162,7 @@
           ></textarea>
         </fieldset>
 
-        <div class="modal-action">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={() => (editing = null)}>Cancel</button
-          >
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+        <ModalActions onCancel={() => (editing = null)} />
       </form>
     </div>
     <button
