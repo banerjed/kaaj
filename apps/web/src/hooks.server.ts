@@ -12,6 +12,15 @@ import { log } from "$lib/server/log"
 import { recordError } from "$lib/server/observability/error-store"
 
 /**
+ * Same number CLAUDE.md's Performance section targets for server render time,
+ * and `scripts/measure-render-times.mjs`'s own default `THRESHOLD_MS` — one
+ * definition of "slow" rather than three. A request over this logs, so the
+ * target is enforced by visibility in production, not just checked by hand
+ * against a fixture locally.
+ */
+const SLOW_REQUEST_MS = 20
+
+/**
  * Total time through the rest of the handle chain — auth, `load()`, SSR — read
  * by `scripts/measure-render-times.mjs` and by any browser's own DevTools
  * network panel. Also mints the per-request correlation id: every `log.*`
@@ -22,11 +31,21 @@ const timing: Handle = async ({ event, resolve }) => {
   const start = performance.now()
   event.locals.requestId = crypto.randomUUID()
   const response = await resolve(event)
-  response.headers.set(
-    "server-timing",
-    `app;dur=${(performance.now() - start).toFixed(1)}`,
-  )
+  const durationMs = performance.now() - start
+  response.headers.set("server-timing", `app;dur=${durationMs.toFixed(1)}`)
   response.headers.set("x-request-id", event.locals.requestId)
+
+  if (durationMs > SLOW_REQUEST_MS) {
+    log.warn({
+      msg: "slow request",
+      requestId: event.locals.requestId,
+      route: event.route?.id ?? event.url.pathname,
+      method: event.request.method,
+      durationMs: Math.round(durationMs),
+      tenantId: event.locals?.tenantId ?? null,
+    })
+  }
+
   return response
 }
 

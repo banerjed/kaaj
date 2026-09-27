@@ -50,6 +50,10 @@ const IDS = {
   billId: "b07bca71-9562-5a5f-91b1-b749912c242d",
   invoiceId: "bee0d3ca-72f7-5ba2-9a31-3bbf17daf320",
   businessAreaId: "c9800088-b86b-5ddd-acdc-5b9fbe32f268",
+  conversationId: "d0000000-0000-4000-8000-000000000001",
+  folderId: "a0000000-0000-4000-8000-000000000001",
+  objectiveId: "66574016-b971-406d-aac5-3574ae392437",
+  groupId: "0158d8de-be1c-565f-a3c4-78624d177e7f",
 }
 
 /** Route-pattern prefix -> filler, since `[id]` alone is ambiguous (employees, tickets, projects... each use that same param name for a different entity). */
@@ -58,6 +62,10 @@ const ROUTE_PARAM = [
   ["/ticketing/[id]", IDS.ticketId],
   ["/projects/[id]", IDS.projectId],
   ["/payroll/runs/[id]", IDS.payrollRunId],
+  ["/chat/[conversationId]", IDS.conversationId],
+  ["/documents/[folderId]", IDS.folderId],
+  ["/objectives/[id]", IDS.objectiveId],
+  ["/settings/groups/[groupId]", IDS.groupId],
   ["/accounting/bills/[id]", IDS.billId],
   ["/accounting/invoices/[id]", IDS.invoiceId],
   ["/compensation/[employeeId]", IDS.employeeId],
