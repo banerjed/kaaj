@@ -56,6 +56,12 @@ The central rule is simple:
      with file:line citations. Overlaps `testplan-role-security.md`'s
      "Accounting And Finance Security" REMAINING rows — read both together
      rather than tracking the same gaps twice.
+10. [testplan-soc2.md](./testplan-soc2.md)
+   - SOC 2 Type I/II readiness and examination plan: every Trust Services
+     Criterion mapped to a Kaaj control, its test and evidence; the annual
+     penetration-test and continuous-testing programme (OWASP ASVS 5.0, WSTG,
+     Top 10:2025, NIST SP 800-115); vendor controls; and a prioritised gap
+     register from the 2026-09-27 survey.
 
 ---
 
