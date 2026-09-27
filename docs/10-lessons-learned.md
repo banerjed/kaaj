@@ -2763,6 +2763,41 @@ Rule: before narrowing a table, find everything computed ACROSS it: a
 can see every row, for example a `SECURITY DEFINER` function that does only
 that computation. Otherwise the policy corrupts the figure it feeds.
 
+### L107 — two statement-import traps: "the only valid reading" can be a thousand times wrong, and a balance proves columns but not direction
+
+Both were found building the CSV/OFX statement importer, and both would
+have imported a plausible, wrong number with no error.
+
+**Choosing whatever makes the file valid.** `-1.005` is invalid with `.` as
+the decimal mark (three decimal places). With `,` as the decimal mark it is a
+perfectly good 1,005. The first version of the decimal-mark inference picked
+"the only reading under which every value is valid", and imported
+**-1005.00**. A typo became an amount a thousand times too large. The mark is
+now chosen only on evidence no row contradicts. `1.50`, or a value with both
+marks, is evidence. `1.234` alone is not, and gets a question.
+
+**A running balance proves consistency, not direction.** A statement's
+running balance is a strong check that the columns are mapped right: swap
+Money In and Money Out and it stops adding up. But a credit card statement's
+balance is the amount owed, in the same convention as its positive charges,
+so it adds up perfectly with purchases as money *in*. The first version
+"proved" the sign from the balance, and would have imported every card
+purchase as income. So the balance check now vouches for the columns only;
+direction is confirmed by a person on an account's first CSV import, and
+"inverted" flips amounts and balances together.
+
+**The body-size limit only exists in production.** adapter-node refuses a
+request body over `BODY_SIZE_LIMIT` (default 512 KB), but that check is in
+the built server's `handler.js`. `vite dev`, `vite preview`, the e2e suite
+and `./check` never run it, so a 1 MB statement or a 5 MB document works
+everywhere except for the customer. It is now in
+[12-beta-deployment.md](./12-beta-deployment.md) §4, and it already affected
+the 25 MB document upload.
+
+Rule: in an importer, refuse or ask when evidence is weak, never pick the
+reading that happens to validate. A check that passes proves only what it
+compares; write down what it does not prove.
+
 ---
 
 ## Conventions

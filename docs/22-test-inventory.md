@@ -23,7 +23,7 @@ pnpm --filter @kaaj/web e2e                # end-to-end (Playwright) — 139 tes
 1,166 tests across 59 files. Counts below are per file; the indented lines
 are that file's top-level `describe` blocks, not every `it`.
 
-### Accounting & Finance — 332 tests
+### Accounting & Finance — 401 tests
 
 The largest single area by a wide margin: general ledger, AR, AP, tax,
 financial statements, payment processing, exports.
@@ -32,6 +32,21 @@ financial statements, payment processing, exports.
   periods, invoices, AR aging, customer balances, trial balance (+ comparison),
   P&L (+ comparison), balance sheet (+ comparison), cash flow (+ comparison),
   statement of changes in equity (+ comparison)
+- `lib/server/accounting/statement-import/statement-import.test.ts` [55] —
+  the bank statement parser, no database: amounts and dates (never a float,
+  never rounded, never a guessed format), CSV shaped like common US, UK,
+  Indian and German exports, card statements, the running-balance check,
+  stable duplicate ids, OFX 1.x/2.x/QFX, encodings, refused spreadsheets
+- `lib/server/accounting/statement-import.writes.test.ts` [7] — importing a
+  statement: lines written unmatched with their import, a repeat or
+  overlapping statement adding only what is new, look-alike lines flagged;
+  finance may import, a plain employee cannot see the account, an auditor
+  reads but cannot write
+- `routes/(app)/accounting/banking/import/page.server.test.ts` [7] — the
+  import page's actions on every path that writes nothing: preview, a
+  missing file, a spreadsheet by content, a plain employee refused, and the
+  import refused without a preview, after the file changed, or before the
+  direction is confirmed
 - `lib/server/accounting/accounting.writes.test.ts` [58] — posting a journal
   entry, recording a manual journal entry, closing/reopening a period,
   year-end close, immutability of a posted entry, control-account tie-out,
@@ -266,7 +281,7 @@ these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
 
-- **`smoke.spec.ts` [62]** — every module page renders for a signed-in owner:
+- **`smoke.spec.ts` [63]** — every module page renders for a signed-in owner:
   its own heading, the nav shell, zero console errors. One entry per route
   (employees, time-off, attendance, performance, onboarding, compensation,
   objectives, projects, time-tracking, payroll, all 19 accounting pages,
@@ -276,7 +291,7 @@ shared and read-only except where a file's own header says otherwise.
   project-management checks (the Add-task Parent select is scoped to the
   project's own top-level tasks, the Kanban board's column/card structure,
   and the List↔Kanban toggle firing no network request either way).
-- **`form-errors.spec.ts` [55]** — a refused form names the field, marks it,
+- **`form-errors.spec.ts` [56]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),
   HR (holidays, employee IDs, ticketing), compensation, time-tracking,

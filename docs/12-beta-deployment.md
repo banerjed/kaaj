@@ -155,6 +155,20 @@ bypass `FORCE ROW LEVEL SECURITY` entirely ([L3](./10-lessons-learned.md)).
 `PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS. Server-side only, never in a
 `PUBLIC_`-prefixed variable.
 
+**Set `BODY_SIZE_LIMIT`, or uploads over 512 KB fail in production only.**
+adapter-node refuses any request body larger than `BODY_SIZE_LIMIT`, and the
+default is `512K`. That limit lives in the built server's `handler.js`, which
+neither `vite dev` nor `vite preview` runs — so every local run, every test and
+`./check` accept a larger file, and the first person to hit it is a customer
+([L107](./10-lessons-learned.md)). Two uploads need more: documents (25 MB) and
+bank statement import (5 MB). Set:
+
+```
+BODY_SIZE_LIMIT=26M
+```
+
+and re-check it whenever an upload limit is raised in code.
+
 ### 5. Verify against the live database
 
 ```bash

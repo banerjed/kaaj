@@ -22,3 +22,5 @@ never the reverse.
 
 - [Roles and Responsibilities](./roles-and-responsibilities.md) — who can see
   and do what, how to decide, and the two rules Kaaj enforces for you
+- [Importing bank statements](./importing-bank-statements.md) — bringing a
+  bank's CSV, OFX or QFX statement into Kaaj, and the checks it makes
