@@ -330,7 +330,10 @@ INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, customer_id,
     ('eac68c02-7b6f-5f53-9a11-86a4cf292524', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 95, 205, 'USD', '2025-01-01', '2025-12-31', 'initial_rate_card', FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('f0f6d0e9-559e-53c8-acb8-eceb3b637197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 102, 225, 'USD', '2026-01-01', NULL, '2026_rate_increase', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     ('286da2b9-071e-577f-9fb4-8d816408fa4a', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c095eafa-952e-5047-961a-82ce7b45cbf1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 78, 195, 'GBP', '2026-01-01', NULL, '2026_rate_card', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('1cd9318f-1404-5da3-8137-b7e34a981661', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 110, 260, 'USD', '2026-01-01', NULL, 'contractor_rate', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+    ('1cd9318f-1404-5da3-8137-b7e34a981661', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '385f5ae5-e567-5fb6-98f8-b45007099ff8', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 110, 260, 'USD', '2026-01-01', NULL, 'contractor_rate', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    -- Marcus's own card (his PRJ-001 entries bill at 150), so "a plain employee
+    -- reads their own rate" is tested on a row, not on none (L50).
+    ('7a1d2c3e-4f5a-5b6c-8d7e-9f0a1b2c3d4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'db1f1f2b-b140-5948-a34e-1c998ed98757', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 70, 150, 'USD', '2026-01-01', NULL, '2026_rate_card', TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- Weekly timesheets. Hours and entry counts are DERIVED from time_tracking_entries.
 INSERT INTO time_tracking_timesheets (id, tenant_id, timesheet_number, employee_id, period_type, period_start, period_end, total_hours, billable_hours, non_billable_hours, entry_count, status, created_at, updated_at) VALUES

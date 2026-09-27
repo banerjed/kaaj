@@ -40,6 +40,34 @@ async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   }
 }
 
+/** T-001 'Discovery workshops' — only Aisha has logged time on it (7.5h). */
+const T1 = "48961ce2-d17a-5ebe-81db-f608b4b6b125"
+
+/** Rolls back like `inRollback`, as a PLAIN employee — the actor a row policy narrows. */
+async function asPlainEmployee<T>(
+  employeeId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const marker = new Error("__rollback__")
+  try {
+    return await withTenant(
+      {
+        tenantId: NORTHWIND,
+        role: "employee",
+        functionalRoles: [],
+        employeeId,
+      },
+      async (tx) => {
+        const result = await fn(tx)
+        throw Object.assign(marker, { result })
+      },
+    )
+  } catch (e) {
+    if (e === marker) return (e as { result: T }).result
+    throw e
+  }
+}
+
 const NEW_ENTRY = {
   employee_id: AISHA,
   project_id: PRJ1,
@@ -63,6 +91,52 @@ describe("logging time keeps the task/project hours true", () => {
     expect(after?.hourly_rate).toBe("225.0000") // the 2026 rate card row for Aisha + Acme's client
     expect(after?.billable_amount).toBeNull() // not billed until decide()
     expect(after?.status).toBe("draft")
+  })
+
+  it("totals EVERYONE's hours when a plain employee logs, not only their own (L106)", async () => {
+    const { before, after, mine } = await asPlainEmployee(
+      MARCUS,
+      async (tx) => {
+        const read = async () =>
+          (
+            await tx<{ task: string; project: string }[]>`
+            SELECT t.actual_hours::text AS task, p.actual_hours::text AS project
+              FROM tasks t JOIN projects p ON p.id = t.project_id
+             WHERE t.id = ${T1}::uuid
+          `
+          )[0]
+        const before = await read()
+        await entries.create(
+          tx,
+          NORTHWIND,
+          { ...NEW_ENTRY, employee_id: MARCUS, task_id: T1, hours: "2" },
+          MARCUS,
+        )
+        const [mine] = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM time_tracking_entries
+         WHERE task_id = ${T1}::uuid
+      `
+        return { before, after: await read(), mine: mine.n }
+      },
+    )
+    expect(mine).toBe(1) // Marcus sees only his own entry on T-001...
+    expect(before.task).toBe("7.5000")
+    expect(after.task).toBe("9.5000") // ...yet the total still counts Aisha's 7.5
+    expect(Number(after.project) - Number(before.project)).toBe(2)
+  })
+
+  it("numbers a plain employee's entry past every entry in the tenant, not only theirs", async () => {
+    const created = await asPlainEmployee(MARCUS, async (tx) => {
+      const { id } = await entries.create(
+        tx,
+        NORTHWIND,
+        { ...NEW_ENTRY, employee_id: MARCUS, task_id: T1 },
+        MARCUS,
+      )
+      return entries.byId(tx, id)
+    })
+    // Marcus's own highest is TE-010; TE-011 and TE-012 are colleagues'.
+    expect(created?.entry_id).toBe("TE-013")
   })
 
   it("leaves no stale hours anywhere in the tenant after logging", async () => {

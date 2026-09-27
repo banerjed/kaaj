@@ -2748,13 +2748,20 @@ project's `actual_hours` would drop to their own contribution. No error, and
 a plausible number.
 
 Found while adding row policies to six other tables, before any policy
-touched time tracking. It is why the three time-tracking tables stayed in
-`EXPOSED_PENDING` pending a design decision, not a policy.
+touched time tracking. `create()` had a second case of the same thing. It
+numbers the next `TE-nnn` with a `max()` over the table, and over only your
+own entries that collides with a colleague's number. So every entry after
+the first would have been refused as `number_taken`.
 
-Rule: before narrowing a table, find every recompute that reads it
-(`grep` for the table inside `sum(`/`count(` subqueries). Each must run where
-it can see every row, for example a `SECURITY DEFINER` function that does
-only that recompute. Otherwise the policy corrupts the figure it feeds.
+Both now run in `SECURITY DEFINER` functions pinned to the caller's tenant:
+`app.refresh_time_hours` and `app.next_time_entry_number`. Only then did the
+row policy go on. With the policy in place and the old code back, the two
+tests for this fail.
+
+Rule: before narrowing a table, find everything computed ACROSS it: a
+`sum`, `count` or `max` feeding a counter or a number. Each must run where it
+can see every row, for example a `SECURITY DEFINER` function that does only
+that computation. Otherwise the policy corrupts the figure it feeds.
 
 ---
 

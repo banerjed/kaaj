@@ -164,6 +164,33 @@ describe("RLS and can() agree", () => {
     }
   })
 
+  it("gives the same answer on who approves time entries", async () => {
+    const cases: [string, string[]][] = [
+      ["employee", []],
+      ["employee", ["project_manager"]],
+      ["employee", ["hr_admin"]],
+      ["employee", ["finance_admin"]],
+      ["employee", ["auditor"]],
+      ["owner", []],
+      ["firm_admin", []],
+      ["contractor", []],
+    ]
+    for (const [role, fns] of cases) {
+      const viaPolicy = await asRole(
+        { employeeId: MARCUS, role, functionalRoles: fns },
+        async (tx) => {
+          const [r] = await tx<{ ok: boolean }[]>`
+            SELECT app.approves_time_entries() AS ok
+          `
+          return r.ok
+        },
+      )
+      expect(viaPolicy, `${role}+${fns.join("+") || "none"}`).toBe(
+        can(ctx(role, fns), "time_entries.approve"),
+      )
+    }
+  })
+
   it("gives the same answer on who reads every employee", async () => {
     for (const [role, fns] of [
       ["employee", ["hr_admin"]],
@@ -226,6 +253,14 @@ describe("tenant isolation still holds underneath", () => {
  * Table-driven so the shape of the matrix is checkable side by side, and every
  * number is what a role CAN see — "0" everywhere would pass a broken app (L21).
  */
+const TIME_READERS = [
+  "hr_admin",
+  "payroll_admin",
+  "auditor",
+  "finance_admin",
+  "project_manager",
+]
+
 const TIER1: {
   table: string
   total: number
@@ -345,6 +380,26 @@ const TIER1: {
     total: 2,
     own: 0,
     readsAll: ["hr_admin", "payroll_admin", "auditor", "finance_admin"],
+  },
+  // A colleague's billable and cost rates: time approvers, payroll/HR and
+  // finance read everyone's; everyone else, their own.
+  {
+    table: "time_tracking_entries",
+    total: 12,
+    own: 3,
+    readsAll: TIME_READERS,
+  },
+  {
+    table: "time_tracking_timesheets",
+    total: 4,
+    own: 1,
+    readsAll: TIME_READERS,
+  },
+  {
+    table: "time_tracking_hourly_rates",
+    total: 5,
+    own: 1,
+    readsAll: TIME_READERS,
   },
 ]
 

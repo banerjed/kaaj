@@ -127,6 +127,9 @@ if (!url) {
  * against pg_policies below, so a table cannot be listed here on intent.
  */
 const ROW_SCOPED = new Map([
+  ["time_tracking_entries", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
+  ["time_tracking_hourly_rates", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
+  ["time_tracking_timesheets", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
   ["app_error_log", "no application reads: `message` echoes submitted values (L69); ops tools connect as owner"],
   ["custom_field_values", "follows its project or task; any other entity_type is invisible"],
   ["hr_benefits_enrollments", "the subject and PII readers (GDPR Art. 9), as benefits_elections_pvt on employees"],
@@ -248,9 +251,6 @@ const TENANT_WIDE = new Map([
  * TENANT_WIDE with that decision cited, not here.
  */
 const EXPOSED_PENDING = new Map([
-  ["time_tracking_entries", "per-person billable rate; the matrix restricts employees.default_billable_rate_pvt"],
-  ["time_tracking_hourly_rates", "cost_rate divides out to a salary; the matrix restricts employees.default_hourly_rate_pvt"],
-  ["time_tracking_timesheets", "billed total per person per period, derived from that same rate"],
 ])
 
 /**

@@ -196,15 +196,17 @@ function reads. A role predicate here costs something and protects nothing.
   `customers`, `ticketing_*`
 - **Time tracking** — `time_tracking_entries`, `_timesheets`, `_hourly_rates`
 
-The time-tracking rate tables contradict a rule committed elsewhere: they
-carry the cost and billable rates the matrix restricts on `employees`
-(`default_hourly_rate_pvt`, `default_billable_rate_pvt`). `./check` lists
-them in `EXPOSED_PENDING` (`scripts/verify-matrix-complete.mjs`) until someone
-decides which document is right. Narrowing them is not just a policy:
-`refreshHours` recomputes project and task hours from
-`time_tracking_entries` inside the logging employee's transaction, so a
-narrower policy would make that sum cover only their own entries
-([L106](./10-lessons-learned.md)). `customers` was on the same list until its
+**Time tracking has left this tier.** Its tables carried the cost and
+billable rates the matrix restricts on `employees` (`default_hourly_rate_pvt`,
+`default_billable_rate_pvt`). `20260927110000_row_visibility_time_tracking.sql`
+scopes entries, timesheets and rate cards: your own, or a time approver
+(`app.approves_time_entries()`), payroll/HR, or finance.
+
+That took more than a policy. The project and task hours recompute, and the
+`TE-nnn` numbering, both read across the whole table inside the writer's
+transaction. Both moved into `SECURITY DEFINER` functions first
+([L106](./10-lessons-learned.md)). `/time-tracking` now lists a plain
+employee's own entries, and everyone's for an approver. `customers` was on the same list until its
 tax number was encrypted (`tax_number_ct`); this tier applies to it again.
 
 Six more tables left `EXPOSED_PENDING` for row policies in

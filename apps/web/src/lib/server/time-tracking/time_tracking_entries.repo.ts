@@ -170,7 +170,11 @@ export async function tasksForActiveProjects(
   ` as never
 }
 
-/** Drift readers, mirroring `staleCounters()` — a disagreement is visible, not believed. */
+/**
+ * Drift readers, mirroring `staleCounters()` — a disagreement is visible, not
+ * believed. Sums what the CALLER can see, so only a caller who reads every
+ * entry (a time approver, payroll, finance) gets a meaningful answer (L106).
+ */
 export async function staleHours(
   tx: Tx,
 ): Promise<{ task_name: string; claimed: string; actual: string }[]> {
@@ -191,37 +195,17 @@ export async function staleHours(
 /**
  * Recompute `tasks.actual_hours`/`billable_hours`/`non_billable_hours` and
  * `projects.actual_hours` from the entries that reference them — never
- * incremented (L58). Rejected entries are excluded: effort that was refused
- * did not happen. Always called in the same transaction as an entries write.
+ * incremented (L58). Always called in the same transaction as an entries
+ * write. The sums run in `app.refresh_time_hours`, SECURITY DEFINER, because
+ * the writer's own row policy may hide their colleagues' entries (L106).
  */
 async function refreshHours(
   tx: Tx,
   projectId: string | null,
   taskId: string | null,
 ): Promise<void> {
-  if (taskId) {
-    await tx`
-      UPDATE tasks t SET
-        actual_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
-                                   WHERE te.task_id = t.id AND te.status <> 'rejected'), 0),
-        billable_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
-                                     WHERE te.task_id = t.id AND te.status <> 'rejected'
-                                       AND te.is_billable), 0),
-        non_billable_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
-                                         WHERE te.task_id = t.id AND te.status <> 'rejected'
-                                           AND NOT te.is_billable), 0)
-       WHERE t.id = ${taskId}::uuid
-    `
-  }
-  if (projectId) {
-    await tx`
-      UPDATE projects p SET
-        actual_hours = coalesce((SELECT sum(te.hours) FROM time_tracking_entries te
-                                   WHERE te.project_id = p.id AND te.status <> 'rejected'), 0),
-        last_activity_at = now()
-       WHERE p.id = ${projectId}::uuid
-    `
-  }
+  if (!projectId && !taskId) return
+  await tx`SELECT app.refresh_time_hours(${projectId}::uuid, ${taskId}::uuid)`
 }
 
 export type NewTimeEntry = {
@@ -297,13 +281,12 @@ export async function create(
     input.entry_date,
   )
 
-  // Next `TE-nnn`, same idea as `projects.repo.ts`'s `nextNumber` — a race
-  // hits the UNIQUE constraint, not two entries sharing a number.
+  // Next `TE-nnn` — a race hits the UNIQUE constraint, not two entries sharing
+  // a number. Counted in SQL over EVERY entry in the tenant: under the row
+  // policy the caller may see only their own, and a max over those collides
+  // (L106).
   const [numbered] = await tx<{ n: number }[]>`
-    SELECT coalesce(
-             max(nullif(substring(entry_id from '[0-9]+$'), '')::int), 0
-           ) + 1 AS n
-      FROM time_tracking_entries WHERE tenant_id = ${tenantId}::uuid
+    SELECT app.next_time_entry_number() AS n
   `
   const entryId = `TE-${String(numbered.n).padStart(3, "0")}`
 

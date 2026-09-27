@@ -111,8 +111,10 @@ financial statements, payment processing, exports.
   a second status-writing path
 - `lib/server/projects/projects.test.ts` [10] — the project list, tasks,
   client-visible slice
-- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [7] —
-  logging time keeps task/project hours true
+- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [9] —
+  logging time keeps task/project hours true, including when a PLAIN
+  employee who sees only their own entries logs (the total and the `TE-nnn`
+  number still span everyone's, L106)
 - `lib/server/projects/comments.repo.test.ts` [8] — adding, editing and
   soft-deleting a task comment; refuses a task from a different project or
   no such task; the fixture's own pre-existing comment is real coverage, not
@@ -166,7 +168,7 @@ Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [215] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [231] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
@@ -179,8 +181,9 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   visibility; docs/28-user-groups.md), a child row visible exactly when its
   parent is (3 — ticket attachments, a restricted project's custom field
   value), and the error log having no application reader (1). The "Tier 1"
-  table spec also covers `hr_benefits_enrollments`, `payroll_runs` and
-  `payroll_tax_deposits`.
+  table spec also covers `hr_benefits_enrollments`, `payroll_runs`,
+  `payroll_tax_deposits` and the three time-tracking tables, and RLS/`can()`
+  agreement covers `app.approves_time_entries()`.
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
 ### Auth & Authorization — 172 tests
