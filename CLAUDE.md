@@ -65,7 +65,7 @@ directory in the repo.
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 5 exempt |
 | tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 80 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
-| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 126 tables, 9 exposed |
+| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 126 tables, 3 exposed |
 | writes are audited | every action is in the audit register, either list | 59 + 29 |
 | refusals have a message | every constraint a form can trip answers with a sentence | 34 |
 | service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
@@ -460,7 +460,7 @@ classified by table, not column: **a column added to a tenant-wide table is
 not checked** — ask of it whether its table still belongs there.
 
 **`EXPOSED_PENDING` is a list of known leaks, not an exemption.** Each of
-its 9 entries is readable by the whole tenant, although another committed
+its 3 entries is readable by the whole tenant, although another committed
 rule says it should not be, and each reason names that rule. Fixing one
 means adding a RESTRICTIVE policy and moving the table to `ROW_SCOPED`; the
 check fails while a narrowed table is still listed as exposed. A table
@@ -559,6 +559,9 @@ instead of carrying the error forward. The read path counts the real rows
 alongside the stored figure so a disagreement is visible, and a test asserts
 they agree AFTER a write ([L58](docs/10-lessons-learned.md)). A wrong counter
 feeds a progress bar, and a wrong progress bar looks exactly like a right one.
+The recompute runs under the WRITER's row policies, so **before narrowing a
+table, find every recompute that reads it**. Otherwise the sum silently covers
+only the rows the writer can see ([L106](docs/10-lessons-learned.md)).
 
 **A vocabulary for a plain `text` column lives in the repository, and the pages
 import it.** These columns have no enum and no CHECK behind them, so the list IS

@@ -2734,7 +2734,27 @@ Rule: a separate database on the same stack isolates only the direct
 `postgres.js` path. Exclude every test that writes through a Supabase
 client, or it writes to the shared database.
 
----
+### L106 — a counter recomputed under the writer's row policy sums only what the writer can see
+
+L58's rule is to recompute a denormalised figure, never increment it:
+`SET actual_hours = (SELECT sum(hours) FROM time_tracking_entries …)`. That
+subquery runs as whoever made the write, under THEIR row policies.
+
+`time_tracking_entries` was readable by the whole tenant, so the sum was
+always complete. Narrowing it to "your own, plus your approvers", the obvious
+fix for the billable rate it exposes, would make `refreshHours` total only
+the entries that employee can see. Every time someone logged an hour, the
+project's `actual_hours` would drop to their own contribution. No error, and
+a plausible number.
+
+Found while adding row policies to six other tables, before any policy
+touched time tracking. It is why the three time-tracking tables stayed in
+`EXPOSED_PENDING` pending a design decision, not a policy.
+
+Rule: before narrowing a table, find every recompute that reads it
+(`grep` for the table inside `sum(`/`count(` subqueries). Each must run where
+it can see every row, for example a `SECURITY DEFINER` function that does
+only that recompute. Otherwise the policy corrupts the figure it feeds.
 
 ---
 

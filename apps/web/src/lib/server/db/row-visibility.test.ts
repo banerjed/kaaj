@@ -326,6 +326,26 @@ const TIER1: {
     own: 0,
     readsAll: ["hr_admin", "auditor"],
   },
+  // Formerly EXPOSED_PENDING (scripts/verify-matrix-complete.mjs).
+  {
+    table: "hr_benefits_enrollments",
+    total: 4,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  // "own" is the runs MARCUS was paid in — his payslip reads their pay date.
+  {
+    table: "payroll_runs",
+    total: 4,
+    own: 1,
+    readsAll: ["hr_admin", "payroll_admin", "auditor"],
+  },
+  {
+    table: "payroll_tax_deposits",
+    total: 2,
+    own: 0,
+    readsAll: ["hr_admin", "payroll_admin", "auditor", "finance_admin"],
+  },
 ]
 
 const countOf = (who: Who, table: string) =>
@@ -400,6 +420,70 @@ describe("Tier 1: every role sees what it should", () => {
       })
     })
   }
+})
+
+describe("a child row is visible exactly when its parent is", () => {
+  const IT_0001_LOGGER = "b9b84064-a67a-5048-8282-8fc048b4dbfb"
+
+  it("shows a ticket's attachments to someone who can see the ticket", async () => {
+    expect(
+      await countOf({ employeeId: IT_0001_LOGGER }, "ticketing_attachments"),
+    ).toBe(2)
+  })
+
+  it("hides them from someone who cannot see the ticket", async () => {
+    const seen = await asRole({ employeeId: PRIYA }, async (tx) => {
+      const [r] = await tx<{ tickets: number; attachments: number }[]>`
+        SELECT (SELECT count(*)::int FROM ticketing_tickets
+                 WHERE ticket_number = 'IT-0001') AS tickets,
+               (SELECT count(*)::int FROM ticketing_attachments) AS attachments
+      `
+      return r
+    })
+    expect(seen).toEqual({ tickets: 0, attachments: 0 })
+  })
+
+  it("hides a restricted project's custom field value, and only that one", async () => {
+    const PRJ_004_RESTRICTED = "1da967fa-e086-53c7-b9d1-7605759dfda3"
+    const valuesOn = (who: Who) =>
+      asRole(who, async (tx) => {
+        const [r] = await tx<{ all: number; restricted: number }[]>`
+          SELECT count(*)::int AS all,
+                 (count(*) FILTER (WHERE entity_id = ${PRJ_004_RESTRICTED}::uuid))::int AS restricted
+            FROM custom_field_values
+        `
+        return r
+      })
+    expect(await valuesOn({ employeeId: MARCUS })).toEqual({
+      all: 7,
+      restricted: 0,
+    })
+    expect(await valuesOn({ employeeId: MARCUS, role: "owner" })).toEqual({
+      all: 8,
+      restricted: 1,
+    })
+  })
+})
+
+describe("the error log has no application reader", () => {
+  it("returns nothing through app_user, even to an owner, though it holds a row", async () => {
+    expect(
+      await countOf({ employeeId: MARCUS, role: "owner" }, "app_error_log"),
+    ).toBe(0)
+    const owned = postgres(
+      process.env.DATABASE_URL ??
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      { max: 1, onnotice: () => {} },
+    )
+    try {
+      const [r] = await owned<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM app_error_log
+      `
+      expect(r.n).toBeGreaterThan(0)
+    } finally {
+      await owned.end()
+    }
+  })
 })
 
 describe("feedback visibility is its own shape", () => {

@@ -166,7 +166,7 @@ Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [196] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [215] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
@@ -176,7 +176,11 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   identity, ticketing (9 — includes a business-area GROUP grant, additive to
   individual membership), projects (4 — opt-in `is_restricted`, group
   grants, `reads_all_projects()`, and a task following its project's
-  visibility; docs/28-user-groups.md)
+  visibility; docs/28-user-groups.md), a child row visible exactly when its
+  parent is (3 — ticket attachments, a restricted project's custom field
+  value), and the error log having no application reader (1). The "Tier 1"
+  table spec also covers `hr_benefits_enrollments`, `payroll_runs` and
+  `payroll_tax_deposits`.
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
 ### Auth & Authorization — 172 tests

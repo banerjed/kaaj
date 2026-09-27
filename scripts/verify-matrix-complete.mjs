@@ -127,6 +127,12 @@ if (!url) {
  * against pg_policies below, so a table cannot be listed here on intent.
  */
 const ROW_SCOPED = new Map([
+  ["app_error_log", "no application reads: `message` echoes submitted values (L69); ops tools connect as owner"],
+  ["custom_field_values", "follows its project or task; any other entity_type is invisible"],
+  ["hr_benefits_enrollments", "the subject and PII readers (GDPR Art. 9), as benefits_elections_pvt on employees"],
+  ["payroll_runs", "payroll readers, and each employee the runs they were paid in (their payslip reads the pay date)"],
+  ["payroll_tax_deposits", "payroll readers and the finance function"],
+  ["ticketing_attachments", "follows its ticket, and its update when it has one"],
   ["audit_log", "HR, payroll, auditor, owner; others see entries about or by themselves (L55)"],
   ["contact_requests", "no read policy: marketing-site enquiries, service role only"],
   ["customer_contacts", "a portal contact sees only their own customer's contacts"],
@@ -242,12 +248,6 @@ const TENANT_WIDE = new Map([
  * TENANT_WIDE with that decision cited, not here.
  */
 const EXPOSED_PENDING = new Map([
-  ["app_error_log", "message echoes submitted values (L69: they stay in infrastructure we control), readable by every employee"],
-  ["custom_field_values", "values for tasks in restricted projects, which project_visibility hides"],
-  ["hr_benefits_enrollments", "the matrix restricts benefit elections to self+hr (GDPR Art. 9); docs/15 Tier 2 calls it the likeliest to move up"],
-  ["payroll_runs", "on a small run, total_gross_pay divides out to salaries; in no docs/15 tier"],
-  ["payroll_tax_deposits", "the firm's tax payments; accounting left docs/15 Tier 3 for exactly this"],
-  ["ticketing_attachments", "file names and URLs of tickets whose own row policy hides them"],
   ["time_tracking_entries", "per-person billable rate; the matrix restricts employees.default_billable_rate_pvt"],
   ["time_tracking_hourly_rates", "cost_rate divides out to a salary; the matrix restricts employees.default_hourly_rate_pvt"],
   ["time_tracking_timesheets", "billed total per person per period, derived from that same rate"],

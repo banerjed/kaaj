@@ -200,15 +200,24 @@ The time-tracking rate tables contradict a rule committed elsewhere: they
 carry the cost and billable rates the matrix restricts on `employees`
 (`default_hourly_rate_pvt`, `default_billable_rate_pvt`). `./check` lists
 them in `EXPOSED_PENDING` (`scripts/verify-matrix-complete.mjs`) until someone
-decides which document is right. `customers` did too, until its tax number
-was encrypted (`tax_number_ct`); it is tenant-wide by this tier again.
+decides which document is right. Narrowing them is not just a policy:
+`refreshHours` recomputes project and task hours from
+`time_tracking_entries` inside the logging employee's transaction, so a
+narrower policy would make that sum cover only their own entries
+([L106](./10-lessons-learned.md)). `customers` was on the same list until its
+tax number was encrypted (`tax_number_ct`); this tier applies to it again.
 
-Also in `EXPOSED_PENDING`:
-- `ticketing_attachments`, whose tickets are row-scoped.
-- `custom_field_values`, whose restricted projects are row-scoped. Checked as
-  a plain employee: the project was hidden, its custom field value was not.
-- `app_error_log`, whose `message` echoes submitted values (L69).
-- `payroll_runs` and `payroll_tax_deposits`, which no tier above names.
+Six more tables left `EXPOSED_PENDING` for row policies in
+`20260927100000_row_visibility_exposed_tables.sql`:
+- `hr_benefits_enrollments`: the subject and PII readers.
+- `payroll_runs`: payroll readers, plus the runs an employee was paid in.
+- `payroll_tax_deposits`: payroll and finance.
+- `ticketing_attachments`: follows its ticket and update.
+- `custom_field_values`: follows its project or task.
+- `app_error_log`: no application reads at all.
+
+Each is asserted both ways in `row-visibility.test.ts`. With the policies
+dropped, all 15 refused-half tests fail.
 
 `clients` and `time_tracking_billable_expenses` no longer exist; they merged into `customers` and `expenses` ([L103](./10-lessons-learned.md)).
 

@@ -113,6 +113,14 @@ CREATE TEMP TABLE _global_rows (tbl TEXT PRIMARY KEY);
 GRANT SELECT ON _global_rows TO app_user;
 INSERT INTO _global_rows VALUES ('payroll_tax_rates'), ('translations');
 
+-- Tables the application may not read at all: a RESTRICTIVE USING (false)
+-- read policy, on purpose. Phase B expects ZERO rows for these instead of the
+-- tenant's own, so a policy that later re-opens one fails here too.
+CREATE TEMP TABLE _closed_to_app (tbl TEXT PRIMARY KEY, reason TEXT);
+GRANT SELECT ON _closed_to_app TO app_user;
+INSERT INTO _closed_to_app VALUES
+  ('app_error_log', 'message echoes submitted values (L69); ops tools read it as the owner');
+
 -- Tables with no fixture rows. This list exists so that a NEW table without a
 -- fixture FAILS rather than passing vacuously — see PHASE A.
 CREATE TEMP TABLE _no_fixture (tbl TEXT PRIMARY KEY);
@@ -214,7 +222,10 @@ BEGIN;
   DO $$
   DECLARE r RECORD; n BIGINT;
   BEGIN
-      FOR r IN SELECT t.tbl, b.n AS want FROM _targets t JOIN _baseline b USING (tbl) ORDER BY 1 LOOP
+      FOR r IN SELECT t.tbl,
+                      CASE WHEN EXISTS (SELECT 1 FROM _closed_to_app c WHERE c.tbl = t.tbl)
+                           THEN 0 ELSE b.n END AS want
+                 FROM _targets t JOIN _baseline b USING (tbl) ORDER BY 1 LOOP
           EXECUTE format('SELECT count(*) FROM public.%I WHERE tenant_id IS NOT NULL', r.tbl)
             INTO n;
           INSERT INTO _rls (phase, tbl, passed, detail)
