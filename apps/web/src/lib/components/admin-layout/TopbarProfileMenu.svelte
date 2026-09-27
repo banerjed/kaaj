@@ -79,7 +79,7 @@
       ></label>
       <div class="h-full w-72 p-2 sm:w-84">
         <div
-          class="bg-base-100 rounded-box relative flex h-full flex-col pt-4 sm:pt-8"
+          class="bg-base-100 text-base-content rounded-box relative flex h-full flex-col pt-4 sm:pt-8"
         >
           <label
             for="topbar-profile-drawer"
