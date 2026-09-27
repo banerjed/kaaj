@@ -383,15 +383,10 @@ async function bankAccountCountsFor(
  * a balance on every line, and the latest row may be one that does not. Order
  * within a day is `created_at`, then `statement_sequence`, because every line
  * of one import shares a `created_at`. NULL when no row carries a balance.
- * `bank_accounts` is bounded
- * by how many accounts the firm actually has (NOT_SCALE_SENSITIVE) — small
- * enough that one query per account is fine, and deliberately NOT batched
- * into a single `= ANY(...)` query: a window function's top-1-per-partition
- * still has to walk every row of whichever account has the most transactions
- * before it can move to the next partition, where a plain `ORDER BY ...
- * LIMIT 1` against one literal account id lets the planner seek straight to
- * it via `idx_bank_transactions_account_date` — proven by measurement to be
- * the faster shape here, not merely tidier-looking.
+ * `bank_accounts` is bounded by how many accounts the firm has
+ * (NOT_SCALE_SENSITIVE), so this is one query per account — each seeks to its
+ * account through `idx_bank_transactions_account_date` rather than a window
+ * function walking every account's rows.
  */
 async function feedBalancesFor(
   tx: Tx,

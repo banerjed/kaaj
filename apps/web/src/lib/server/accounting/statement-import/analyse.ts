@@ -633,7 +633,10 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
   // 6. Stable ids: the same transaction in an overlapping statement gets the
   //    same id. The key is the date, the UNSIGNED amount and the primary
   //    description cell as printed — so correcting the sign convention or
-  //    adding a memo column on a later import cannot re-import a line.
+  //    adding a memo column on a later import cannot re-import a line. Lines
+  //    sharing a key (a charge and its same-day reversal) are numbered in
+  //    time order, not file order: a later export of a newest-first account
+  //    adds that day's new lines at the TOP of the file.
   const flip = (c: bigint) => (invert ? -c : c)
   const real = drafts.filter((d) => !d.anchor)
   const ascending =
@@ -646,13 +649,21 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
     real.map((d) => d.date),
     ascending,
   )
+  const keys = real.map((d) => {
+    const unsigned = fromCents(d.cents < 0n ? -d.cents : d.cents)
+    return `${d.date}|${unsigned}|${normaliseText(d.keyText)}`
+  })
+  const occurrence = new Array<number>(real.length)
   const seen = new Map<string, number>()
+  for (const i of real
+    .map((_, i) => i)
+    .sort((a, b) => sequences[a] - sequences[b])) {
+    const n = (seen.get(keys[i]) ?? 0) + 1
+    seen.set(keys[i], n)
+    occurrence[i] = n
+  }
   const transactions: ParsedTransaction[] = real.map((d, i) => {
     const amount = fromCents(flip(d.cents))
-    const unsigned = fromCents(d.cents < 0n ? -d.cents : d.cents)
-    const key = `${d.date}|${unsigned}|${normaliseText(d.keyText)}`
-    const n = (seen.get(key) ?? 0) + 1
-    seen.set(key, n)
     return {
       sequence: sequences[i],
       line: d.line,
@@ -662,7 +673,7 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
       reference: d.reference,
       amount,
       balance: d.balanceCents === null ? null : fromCents(flip(d.balanceCents)),
-      externalId: `csv:${sha256(`${key}|${n}`)}`,
+      externalId: `csv:${sha256(`${keys[i]}|${occurrence[i]}`)}`,
     }
   })
 

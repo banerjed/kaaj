@@ -2798,6 +2798,34 @@ Rule: in an importer, refuse or ask when evidence is weak, never pick the
 reading that happens to validate. A check that passes proves only what it
 compares; write down what it does not prove.
 
+### L108 — every line of one import has the same `created_at`, so file order is the only order within a day
+
+The banking page showed the balance of the "latest" bank transaction,
+ordered by `transaction_date DESC, created_at DESC`. Imported rows were
+written in one statement, so they all share a `created_at`. For a day with
+several lines, the row the query picked was arbitrary. And when the latest
+line printed no balance, the page showed none at all. Nothing errored; the
+figure was just a plausible balance from earlier in the day.
+
+**The first test for it passed against the broken query.** It imported a
+newest-first file, and the physical row order happened to match the right
+answer. Only a test with **both** file orders fails for a query that ignores
+order: no single ordering can be right for both.
+
+The same order problem affected duplicate detection. Lines with the same key (a
+same-day charge and its reversal share one once the amount is unsigned) were
+numbered in file order. A newest-first bank adds a day's later lines at the
+TOP of the next export, which shifted the numbering: the reversal took the
+charge's id and was skipped as a "duplicate", and the charge was imported
+twice.
+
+Imported lines now carry `statement_sequence`, their position in time,
+whichever way the file ran. Duplicate numbering follows it, and the balance
+query orders by it and carries the last printed balance forward.
+
+Rule: rows written in one transaction are not ordered by their timestamps.
+A test of "the latest" or "the Nth" among them runs every input order.
+
 ---
 
 ## Conventions

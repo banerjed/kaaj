@@ -173,6 +173,54 @@ describe("CSV — clean signed amounts with a running balance", () => {
     expect(rentLater.externalId).toBe(rentFirst.externalId)
   })
 
+  it("keeps every id when a later import corrects the sign or the bank adds a memo column", () => {
+    const ids = analyse(file).transactions.map((t) => t.externalId)
+    const draft = analyse(file).mapping!
+    const inverted = analyse(file, {
+      mapping: { ...draft, invertSign: true },
+      confirmed: true,
+    })
+    expect(inverted.transactions.map((t) => t.externalId)).toEqual(ids)
+    const withMemo = file
+      .split("\n")
+      .map((l, i) =>
+        l.replace(/,(-?[\d"])/, i === 0 ? ",Memo,$1" : ",ref $i,$1"),
+      )
+      .map((l, i) => (i === 0 ? "Date,Description,Memo,Amount,Balance" : l))
+      .join("\n")
+    const memo = analyse(withMemo)
+    expect(memo.mapping!.columns).toEqual([
+      "date",
+      "description",
+      "memo",
+      "amount",
+      "balance",
+    ])
+    expect(memo.transactions.map((t) => t.externalId)).toEqual(ids)
+  })
+
+  it("numbers a same-day charge and its reversal by time, so a later newest-first export does not swap them", () => {
+    const head = "Date,Description,Amount,Balance"
+    const midday = [
+      head,
+      "2026-01-03,Shop,-50.00,950.00",
+      "2026-01-02,Deposit,1000.00,1000.00",
+    ]
+    const evening = [
+      head,
+      "2026-01-03,Shop,50.00,1000.00",
+      "2026-01-03,Shop,-50.00,950.00",
+      "2026-01-02,Deposit,1000.00,1000.00",
+    ]
+    const idOf = (lines: string[], amount: string) =>
+      analyse(lines.join("\n")).transactions.find((t) => t.amount === amount)!
+        .externalId
+    const later = analyse(evening.join("\n"))
+    expect(later.balanceCheck).toBe("passed")
+    expect(idOf(evening, "-50.00")).toBe(idOf(midday, "-50.00"))
+    expect(idOf(evening, "50.00")).not.toBe(idOf(midday, "-50.00"))
+  })
+
   it("reads the same file newest-first", () => {
     const lines = file.split("\n")
     const reversed = [lines[0], ...lines.slice(1).reverse()].join("\n")

@@ -32,7 +32,7 @@ financial statements, payment processing, exports.
   periods, invoices, AR aging, customer balances, trial balance (+ comparison),
   P&L (+ comparison), balance sheet (+ comparison), cash flow (+ comparison),
   statement of changes in equity (+ comparison)
-- `lib/server/accounting/statement-import/statement-import.test.ts` [55] —
+- `lib/server/accounting/statement-import/statement-import.test.ts` [57] —
   the bank statement parser, no database: amounts and dates (never a float,
   never rounded, never a guessed format), CSV shaped like common US, UK,
   Indian and German exports, card statements, the running-balance check,
