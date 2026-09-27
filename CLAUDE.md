@@ -276,12 +276,15 @@ three times in one session: `oklab()` components read as RGB, an alpha colour
 composited over white rather than its backdrop, and a `/\d+/g` channel regex
 over `oklch(0.20768 …)` scoring a near-black surface at brightness 20788.
 
-**Two faces, in BOTH themes: `--font-sans` is Inter, `--font-display` is
-Instrument Serif.** daisyUI themes carry no font slot and Tailwind `@theme`
-tokens are global, so a per-theme typeface would mean redefining tokens under
-`[data-theme]` and reflowing every heading on a toggle. A theme switch changes
-colour, not type. Instrument Serif ships ONE weight — `font-display` headings
-must not carry `font-bold`, or the browser synthesises a fake bold.
+**One face, in BOTH themes: `--font-sans` and `--font-display` both resolve to
+Roboto Variable**, matching Nexus's own single-family approach — the two
+tokens stay separate so display text can be sized/weighted differently from
+body text without a second font file. daisyUI themes carry no font slot and
+Tailwind `@theme` tokens are global, so a per-theme typeface would mean
+redefining tokens under `[data-theme]` and reflowing every heading on a
+toggle. A theme switch changes colour, not type. Roboto Variable covers
+weight 100–900, so `font-bold`/`font-medium` on `font-display` text renders a
+real weight, not a synthesised one — unlike the Instrument Serif it replaced.
 
 **Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
 light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark

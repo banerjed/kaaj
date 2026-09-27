@@ -19,7 +19,6 @@
 
 <div class="flex items-center justify-between">
   <!-- An <h1>, not a <p> — no page had one until the e2e suite caught it by role (L64). -->
-  <!-- No font-medium: Instrument Serif ships only weight 400, so bold would be synthesised. -->
   <h1 class="font-display text-xl">{title}</h1>
   {#if centerItem}
     {@render centerItem()}

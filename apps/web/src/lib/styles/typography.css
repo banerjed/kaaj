@@ -1,29 +1,28 @@
 /* Self-hosted (L18) — no external font CDN in the request path. Nexus's four
  * families and its [data-font-family] switcher are gone.
  *
- * TWO faces, and the same two in BOTH themes. Inter for everything the product
- * says, Instrument Serif for display headings — the pairing from Tailwind
- * Plus's Oatmeal `mist_instrument` kit, verified by reading the computed
- * `font-family` off its rendered preview rather than from the kit's name.
+ * ONE face, everywhere, in BOTH themes: Roboto, matching Nexus's own
+ * single-family approach. `--font-sans` and `--font-display` both resolve to
+ * it — the two tokens stay separate so call sites that size/weight display
+ * text differently from body text (`font-display`, e.g. PageTitle.svelte)
+ * don't need to change, but there is no second font file to load.
  *
  * Deliberately NOT per-theme. daisyUI themes carry no font slot, Tailwind
  * `@theme` tokens are global, and varying the typeface by theme would mean
- * every heading reflowing on a light/dark toggle — Inter and Instrument Serif
- * have different metrics. A theme switch changes colour, not type.
+ * every heading reflowing on a light/dark toggle. A theme switch changes
+ * colour, not type.
  *
- * Instrument Serif ships ONE weight (400). `font-display` headings must not
- * carry `font-bold` or the browser synthesises a fake bold; use size and
- * colour for emphasis there instead. */
+ * Roboto Variable covers weight 100–900 (unlike the Instrument Serif it
+ * replaced, which shipped only 400) — `font-bold`/`font-medium` on a
+ * `font-display` heading now renders a real weight, not a synthesised one. */
 
-@import "@fontsource-variable/inter/wght.css";
-@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource-variable/roboto/wght.css";
 
 /** Typography config for tailwindcss **/
 @theme {
-  /* "Inter Variable", not "Inter" — @fontsource-variable's registered name. */
-  --font-sans: "Inter Variable", system-ui, sans-serif;
-  /* Display only — section and page headings, never body or table text. */
-  --font-display: "Instrument Serif", Georgia, serif;
+  /* "Roboto Variable", not "Roboto" — @fontsource-variable's registered name. */
+  --font-sans: "Roboto Variable", system-ui, sans-serif;
+  --font-display: "Roboto Variable", system-ui, sans-serif;
 
   --text-xs: 12px;
   --text-sm: 14px;
