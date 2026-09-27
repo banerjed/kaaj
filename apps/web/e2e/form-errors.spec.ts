@@ -333,6 +333,26 @@ test("matching a bank transaction with no payment chosen is refused", async ({
   )
 })
 
+test("previewing a bank statement with no file chosen is refused, and the file field is marked", async ({
+  page,
+}) => {
+  await page.goto("/accounting/banking/import")
+  await page.locator('select[name="account"]').selectOption({ index: 1 })
+
+  await submitPastTheBrowser(page, "?/preview")
+
+  await expect(page.locator(".alert").first()).toContainText(
+    "Choose a statement file",
+  )
+  await expect(page.locator('input[name="file"]')).toHaveClass(
+    /file-input-error/,
+  )
+  await expect(page.locator('input[name="file"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  )
+})
+
 test("a lockbox payment whose allocations don't match the total received is refused", async ({
   page,
 }) => {

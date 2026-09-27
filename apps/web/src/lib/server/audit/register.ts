@@ -228,6 +228,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "Ties a bank statement line to the firm's own records — the classic reconciliation question is who confirmed that a given deposit or withdrawal was this specific payment.",
   },
   {
+    route: "accounting/banking/import",
+    action: "import",
+    why: "Brings a whole statement of money movements onto the books in one step — which file, into which account, by whom, and how many lines it added or skipped is the answer to 'where did this transaction come from?'.",
+  },
+  {
     route: "accounting/banking/rules",
     action: "create",
     why: "A standing rule that will silently recategorize future transactions to a chosen GL account — who set it up, and against which account, matters the same way a new payroll policy does.",
@@ -426,6 +431,11 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
 
 /** Writes that deliberately do NOT audit, each with a reason — not "not got round to it". */
 export const NOT_AUDITED: AuditedOperation[] = [
+  {
+    route: "accounting/banking/import",
+    action: "preview",
+    why: "Reads the uploaded file and reports what an import would do; it writes nothing.",
+  },
   {
     route: "settings/departments",
     action: "save",

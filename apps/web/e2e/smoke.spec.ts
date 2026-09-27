@@ -86,6 +86,10 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/accounting/banking/rules",
     heading: "Bank reconciliation rules",
   },
+  {
+    path: "/accounting/banking/import",
+    heading: "Import bank statement",
+  },
   { path: "/accounting/ar-aging", heading: "AR Aging" },
   { path: "/accounting/ap-due-soon", heading: "AP Due Soon" },
   { path: "/accounting/customer-balances", heading: "Customer Balances" },

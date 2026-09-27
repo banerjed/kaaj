@@ -80,6 +80,8 @@ export type Problem = { line: number | null; message: string }
 export type Analysis = {
   format: "csv" | "ofx"
   headers: string[] | null
+  /** The file's first non-blank line: a header the synonyms did not recognise is offered as one. */
+  firstRow: { cells: string[]; signature: string } | null
   columnCount: number
   sample: string[][]
   /** The mapping this result used; null for OFX. */
@@ -227,6 +229,9 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
 
   const delimiter = chosen?.delimiter ?? detectDelimiter(text)
   const rows = tokenize(text, delimiter)
+  const firstRow = rows[0]
+    ? { cells: rows[0].cells, signature: signatureOf(rows[0].cells) }
+    : null
 
   let headerIndex = -1
   if (chosen) {
@@ -307,6 +312,7 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
         ...problems,
         ...mappingProblems,
       ]),
+      firstRow,
       mapping: draftMapping(delimiter, headers, columns),
       mappingSource: source ?? "inferred",
       skipped,
@@ -433,6 +439,7 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
   const base = {
     format: "csv" as const,
     headers,
+    firstRow,
     columnCount,
     sample,
     mapping: mapping ?? draftMapping(delimiter, headers, columns),
@@ -654,9 +661,9 @@ function analyseCsv(text: string, opts: AnalyseOptions): Analysis {
   }
 }
 
-function amountOf(
-  l: { cells: string[] },
-  cell: (l: { cells: string[] }, role: Role) => string,
+function amountOf<L>(
+  l: L,
+  cell: (l: L, role: Role) => string,
   mapping: CsvMapping,
   problem: (message: string) => void,
 ): bigint | null {
@@ -952,6 +959,7 @@ function analyseOfx(text: string, opts: AnalyseOptions): Analysis {
   return {
     format: "ofx",
     headers: null,
+    firstRow: null,
     columnCount: 0,
     sample: [],
     mapping: null,
@@ -984,6 +992,7 @@ function emptyResult(
   return {
     format,
     headers,
+    firstRow: null,
     columnCount,
     sample,
     mapping: null,

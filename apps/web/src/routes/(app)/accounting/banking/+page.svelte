@@ -58,6 +58,10 @@
 
   {#if data.mayWrite}
     <div class="mt-4 flex justify-end">
+      <a href="/accounting/banking/import" class="btn btn-ghost btn-sm">
+        <span class="iconify lucide--file-up size-4"></span>
+        Import statement
+      </a>
       <a href="/accounting/banking/rules" class="btn btn-ghost btn-sm">
         <span class="iconify lucide--wand-sparkles size-4"></span>
         Reconciliation rules
