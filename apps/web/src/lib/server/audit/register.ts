@@ -617,6 +617,21 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "Same: configuration, not a rights or pay change.",
   },
   {
+    route: "settings/crm",
+    action: "addField",
+    why: "Tier 2 customization (docs/06-customization-model.md), same shape as settings/project-management's own addField — a field definition, not a value belonging to any person.",
+  },
+  {
+    route: "settings/crm",
+    action: "archiveField",
+    why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "crm/contacts",
+    action: "searchCompanies",
+    why: "A read, not a write — backs the company-filter autocomplete picker.",
+  },
+  {
     route: "ticketing/[id]",
     action: "setCustomFields",
     why: "Ticket attributes (asset tag, account tier, ...) — the same category as severity/priority, which already change with no audit entry via addUpdate's status-change path.",
@@ -734,5 +749,60 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "chat/[conversationId]",
     action: "addMember",
     why: "Self-service-shaped invite (symmetric with joinChannel) — the coarse permission plus RLS already gate who may call it; the row it creates is the record.",
+  },
+  {
+    route: "crm/companies",
+    action: "save",
+    why: "A company record changing (name, industry, account manager) changes nobody's money, employment or rights — same reasoning as settings/departments::save.",
+  },
+  {
+    route: "crm/companies/[id]",
+    action: "save",
+    why: "Same as crm/companies::save.",
+  },
+  {
+    route: "crm/companies/[id]",
+    action: "addContact",
+    why: "A new contact appearing under a company changes nobody's money, employment or rights — same reasoning as projects/[id]::addComment.",
+  },
+  {
+    route: "crm/companies/[id]",
+    action: "addDeal",
+    why: "A deal record is the firm's own sales plan, not anyone's pay — same reasoning as pm_objectives' revenue targets being TENANT_WIDE, not restricted.",
+  },
+  {
+    route: "crm/companies/[id]",
+    action: "addActivity",
+    why: "A logged call/email/meeting/note changes nobody's money, employment or rights — same reasoning as projects/[id]::addComment.",
+  },
+  {
+    route: "crm/contacts/[id]",
+    action: "save",
+    why: "Same as crm/companies/[id]::addContact — editing a contact's own details.",
+  },
+  {
+    route: "crm/contacts/[id]",
+    action: "addActivity",
+    why: "Same as crm/companies/[id]::addActivity.",
+  },
+  {
+    route: "crm/pipeline",
+    action: "moveStage",
+    why: "Board movement, the highest-frequency write in this module — same reasoning as projects/[id]::moveTask. The board itself (which column a deal sits in) is the record.",
+  },
+  {
+    route: "crm/pipeline",
+    action: "addDeal",
+    why: "Same as crm/companies/[id]::addDeal.",
+  },
+  {
+    route: "crm/deals/[id]",
+    action: "save",
+    why: "Same as crm/companies/[id]::addDeal — editing a deal's own details.",
+  },
+  {
+    route: "crm/deals/[id]",
+    action: "addActivity",
+    why: "Same as crm/companies/[id]::addActivity.",
   },
 ]

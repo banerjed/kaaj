@@ -37,6 +37,15 @@ const SNAPSHOT = "packages/database/snapshot/00-tables.txt"
  */
 const SCALE_SENSITIVE = new Map([
   ["audit_log", "append-only audit trail of every write; never pruned"],
+  ["crm_deals", "one row per potential sale; grows with pipeline volume"],
+  [
+    "crm_activities",
+    "one row per logged call/email/meeting/note; grows continuously",
+  ],
+  [
+    "customer_contacts",
+    "one row per contact a customer logs; can run into the thousands for a large tenant",
+  ],
   [
     "app_error_log",
     "one row per unexpected error; unbounded, mitigated by scripts/prune-error-log.mjs",
@@ -88,6 +97,7 @@ const SCALE_SENSITIVE = new Map([
  */
 const NOT_SCALE_SENSITIVE = new Map([
   ["accounting_periods", "one row per fiscal period; a handful per year"],
+  ["crm_pipeline_stages", "small, admin-authored config"],
   ["feature_flags", "small, admin-authored config"],
   [
     "document_folders",
@@ -119,7 +129,6 @@ const NOT_SCALE_SENSITIVE = new Map([
   ["compensation_work_schedules", "bounded by employee count"],
   ["cross_module_links", "bounded by how many records get cross-linked; small"],
   ["custom_field_definitions", "small, admin-authored config"],
-  ["customer_contacts", "bounded by customer count times contacts each"],
   ["customers", "the tenant's own customer roster; bounded by market size"],
   ["employee_assets", "bounded by employee count times assets issued"],
   ["employee_bank_accounts", "bounded by employee count"],

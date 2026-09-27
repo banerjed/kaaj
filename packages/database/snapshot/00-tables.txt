@@ -15,6 +15,9 @@ compensation_equity	t	t
 compensation_premiums	t	t
 compensation_variable	t	t
 compensation_work_schedules	t	t
+crm_activities	t	t
+crm_deals	t	t
+crm_pipeline_stages	t	t
 cross_module_links	t	t
 custom_field_definitions	t	t
 custom_field_values	t	t

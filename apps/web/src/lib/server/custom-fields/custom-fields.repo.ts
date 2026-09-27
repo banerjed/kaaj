@@ -1,10 +1,11 @@
 import type { Tx } from "../db/tenant"
 
 /**
- * Typed custom fields on projects and tasks (docs/26-project-management-custom-fields.md).
- * Tier 2 customization (docs/06-customization-model.md) — `custom_field_definitions`
- * already exists and already has one consumer (ticketing); this is the second,
- * scoped to `entity_type = 'project' | 'task'`. Values live in their own typed
+ * Typed custom fields on projects, tasks and customer contacts
+ * (docs/26-project-management-custom-fields.md). Tier 2 customization
+ * (docs/06-customization-model.md) — `custom_field_definitions` already
+ * exists and already has one consumer (ticketing); this is the second.
+ * Values live in their own typed
  * table (`custom_field_values`), not the entity's own `custom_fields` JSONB —
  * deliberately: `money/jsonb-is-text` can't register a runtime-typed column,
  * and a real `NUMERIC` column is automatically covered by
@@ -26,7 +27,11 @@ export const CUSTOM_FIELD_DATA_TYPES = [
 ] as const
 export type CustomFieldDataType = (typeof CUSTOM_FIELD_DATA_TYPES)[number]
 
-export const CUSTOM_FIELD_ENTITY_TYPES = ["project", "task"] as const
+export const CUSTOM_FIELD_ENTITY_TYPES = [
+  "project",
+  "task",
+  "customer_contact",
+] as const
 export type CustomFieldEntityType = (typeof CUSTOM_FIELD_ENTITY_TYPES)[number]
 
 /**
@@ -131,7 +136,7 @@ export async function createDefinition(
 export async function archiveDefinition(tx: Tx, id: string): Promise<boolean> {
   const [row] = await tx<{ id: string }[]>`
     UPDATE custom_field_definitions SET is_active = FALSE, updated_at = now()
-     WHERE id = ${id}::uuid AND entity_type IN ('project', 'task')
+     WHERE id = ${id}::uuid AND entity_type IN ('project', 'task', 'customer_contact')
     RETURNING id
   `
   return !!row

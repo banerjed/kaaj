@@ -611,11 +611,42 @@ WHERE ticket_number = 'CS-0002';
 -- contacts at the same customer (Acme) so RLS is exercised across contacts,
 -- not just across customers: both must see the same customer-scoped rows,
 -- neither should see Britannia's or Helios's.
-INSERT INTO customer_contacts (id, tenant_id, customer_id, first_name, last_name, email, phone, title, is_primary, is_active) VALUES
-    ('da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Dana', 'Whitcombe', 'dana.whitcombe@acme.example', '+1-212-555-0201', 'Operations Director', TRUE, TRUE),
-    ('a31f1ed7-22b2-4326-b309-204ce40919ca', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Felix', 'Ndiaye', 'felix.ndiaye@acme.example', '+1-212-555-0202', 'IT Lead', FALSE, TRUE),
-    ('1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'Imogen', 'Faulkner', 'imogen.faulkner@britco.example', '+44-20-7946-0201', 'IT Manager', TRUE, TRUE),
-    ('bd5b885a-62df-456c-8b71-af7baa246197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'Theo', 'Bakshi', 'theo.bakshi@helios.example', '+1-512-555-0201', 'Data Lead', TRUE, TRUE);
+INSERT INTO customer_contacts (id, tenant_id, customer_id, first_name, last_name, email, phone, title, department, is_primary, is_active) VALUES
+    ('da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Dana', 'Whitcombe', 'dana.whitcombe@acme.example', '+1-212-555-0201', 'Operations Director', 'Operations', TRUE, TRUE),
+    ('a31f1ed7-22b2-4326-b309-204ce40919ca', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Felix', 'Ndiaye', 'felix.ndiaye@acme.example', '+1-212-555-0202', 'IT Lead', 'IT', FALSE, TRUE),
+    ('1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'Imogen', 'Faulkner', 'imogen.faulkner@britco.example', '+44-20-7946-0201', 'IT Manager', 'IT', TRUE, TRUE),
+    ('bd5b885a-62df-456c-8b71-af7baa246197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'Theo', 'Bakshi', 'theo.bakshi@helios.example', '+1-512-555-0201', 'Data Lead', 'Data', TRUE, TRUE);
+
+-- Tier 2 customization for CRM contacts (docs/06-customization-model.md) —
+-- the customizable "other details" (alt phone/email, personal/family
+-- details) a client wants on a contact; department stays a real column
+-- since it's common and needs to filter fast at scale.
+INSERT INTO custom_field_definitions (id, tenant_id, entity_type, field_key, label, data_type, display_order, options) VALUES
+    ('c5f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'customer_contact', 'alternate_phone', 'Alternate Phone', 'text', 1, NULL);
+
+INSERT INTO custom_field_values (id, tenant_id, field_definition_id, entity_type, entity_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
+    ('c6f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c5f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', 'customer_contact', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '+1-212-555-0299', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- CRM core: pipeline stages, deals and the activity timeline, hanging off the
+-- customers/customer_contacts rows seeded above.
+INSERT INTO crm_pipeline_stages (id, tenant_id, name, sort_order, stage_type) VALUES
+    ('11111111-c1a1-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'New Inquiry', 1, 'open'),
+    ('11111111-c1a1-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Qualified', 2, 'open'),
+    ('11111111-c1a1-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Proposal Sent', 3, 'open'),
+    ('11111111-c1a1-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Negotiation', 4, 'open'),
+    ('11111111-c1a1-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Won', 5, 'won'),
+    ('11111111-c1a1-4000-8000-000000000006', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'Lost', 6, 'lost');
+
+INSERT INTO crm_deals (id, tenant_id, customer_id, customer_contact_id, stage_id, name, value_amount, currency, probability_percent, expected_close_date, owner_id) VALUES
+    ('22222222-dea1-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'bd5b885a-62df-456c-8b71-af7baa246197', '11111111-c1a1-4000-8000-000000000002', 'Helios Energy — grid analytics rollout', 45000.00, 'USD', 40, '2026-11-15', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf'),
+    ('22222222-dea1-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '11111111-c1a1-4000-8000-000000000005', 'Acme Manufacturing — Q3 renewal', 120000.00, 'USD', 100, '2026-09-01', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf'),
+    ('22222222-dea1-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', '1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '11111111-c1a1-4000-8000-000000000006', 'Britannia Retail Group — POS integration', 15000.00, 'GBP', 0, '2026-08-20', 'e05fd53c-ebdf-5049-810a-28a63369f93a');
+
+INSERT INTO crm_activities (id, tenant_id, customer_id, customer_contact_id, deal_id, activity_type, subject, body, occurred_at, created_by) VALUES
+    ('33333333-ac71-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'bd5b885a-62df-456c-8b71-af7baa246197', '22222222-dea1-4000-8000-000000000001', 'call', 'Discovery call', 'Walked through their current grid monitoring stack and where analytics would plug in.', '2026-09-20T15:00:00Z', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf'),
+    ('33333333-ac71-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '22222222-dea1-4000-8000-000000000002', 'email', 'Renewal terms sent', 'Sent the Q3 renewal quote with the updated per-seat pricing.', '2026-09-22T13:30:00Z', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf'),
+    ('33333333-ac71-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', '1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '22222222-dea1-4000-8000-000000000003', 'meeting', 'Vendor review', 'They went with an incumbent vendor for the POS integration; closing this one out.', '2026-08-18T10:00:00Z', 'e05fd53c-ebdf-5049-810a-28a63369f93a'),
+    ('33333333-ac71-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', NULL, NULL, 'note', NULL, 'Helios mentioned a second site in Austin that may need its own rollout next year.', '2026-09-24T09:15:00Z', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf');
 
 -- One tenant_users row per contact — role 'customer', employee_id NULL,
 -- mirroring the employee-derived INSERT below but sourced from

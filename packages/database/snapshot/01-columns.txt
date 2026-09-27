@@ -318,6 +318,37 @@ compensation_work_schedules	16	updated_at	timestamp with time zone	f	CURRENT_TIM
 compensation_work_schedules	17	created_by	uuid	f	
 compensation_work_schedules	18	schedule_id	text	f	
 compensation_work_schedules	19	is_active	boolean	f	true
+crm_activities	1	id	uuid	t	gen_random_uuid()
+crm_activities	2	tenant_id	uuid	t	
+crm_activities	3	customer_id	uuid	t	
+crm_activities	4	customer_contact_id	uuid	f	
+crm_activities	5	deal_id	uuid	f	
+crm_activities	6	activity_type	text	t	
+crm_activities	7	subject	text	f	
+crm_activities	8	body	text	f	
+crm_activities	9	occurred_at	timestamp with time zone	t	now()
+crm_activities	10	created_by	uuid	t	
+crm_activities	11	created_at	timestamp with time zone	t	now()
+crm_deals	1	id	uuid	t	gen_random_uuid()
+crm_deals	2	tenant_id	uuid	t	
+crm_deals	3	customer_id	uuid	t	
+crm_deals	4	customer_contact_id	uuid	f	
+crm_deals	5	stage_id	uuid	t	
+crm_deals	6	name	text	t	
+crm_deals	7	value_amount	numeric(15,2)	f	
+crm_deals	8	currency	text	f	
+crm_deals	9	probability_percent	integer	f	
+crm_deals	10	expected_close_date	date	f	
+crm_deals	11	owner_id	uuid	t	
+crm_deals	12	created_at	timestamp with time zone	t	now()
+crm_deals	13	updated_at	timestamp with time zone	t	now()
+crm_pipeline_stages	1	id	uuid	t	gen_random_uuid()
+crm_pipeline_stages	2	tenant_id	uuid	t	
+crm_pipeline_stages	3	name	text	t	
+crm_pipeline_stages	4	sort_order	integer	t	
+crm_pipeline_stages	5	stage_type	text	t	'open'::text
+crm_pipeline_stages	6	is_active	boolean	t	true
+crm_pipeline_stages	7	created_at	timestamp with time zone	t	now()
 cross_module_links	1	id	uuid	t	gen_random_uuid()
 cross_module_links	2	tenant_id	uuid	t	
 cross_module_links	3	source_module	text	t	
@@ -374,6 +405,7 @@ customer_contacts	9	is_primary	boolean	t	false
 customer_contacts	10	is_active	boolean	t	true
 customer_contacts	11	created_at	timestamp with time zone	t	now()
 customer_contacts	12	updated_at	timestamp with time zone	t	now()
+customer_contacts	13	department	character varying(100)	f	
 customers	1	id	uuid	t	gen_random_uuid()
 customers	2	tenant_id	uuid	t	
 customers	3	customer_number	character varying(50)	f	

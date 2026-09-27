@@ -31,6 +31,12 @@ compensation_variable	app_user	INSERT,SELECT,UPDATE
 compensation_variable	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 compensation_work_schedules	app_user	INSERT,SELECT,UPDATE
 compensation_work_schedules	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+crm_activities	app_user	INSERT,SELECT,UPDATE
+crm_activities	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+crm_deals	app_user	INSERT,SELECT,UPDATE
+crm_deals	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+crm_pipeline_stages	app_user	INSERT,SELECT,UPDATE
+crm_pipeline_stages	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 cross_module_links	app_user	INSERT,SELECT,UPDATE
 cross_module_links	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 custom_field_definitions	app_user	INSERT,SELECT,UPDATE

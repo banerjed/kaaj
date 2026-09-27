@@ -110,3 +110,17 @@ export const ticketStatusTone = (s: string | null): Tone =>
  */
 export const folderVisibilityTone = (v: string): Tone =>
   v === "private" ? "critical" : v === "shared" ? "progress" : "positive"
+
+/** `customers.relationship_status` — prospect/active/inactive/churned. */
+export const relationshipStatusTone = (s: string): Tone =>
+  s === "active"
+    ? "positive"
+    : s === "prospect"
+      ? "progress"
+      : s === "churned"
+        ? "critical"
+        : "neutral"
+
+/** `crm_pipeline_stages.stage_type` — open/won/lost, read off the deal's current stage. */
+export const dealStageTone = (t: string): Tone =>
+  t === "won" ? "positive" : t === "lost" ? "critical" : "progress"

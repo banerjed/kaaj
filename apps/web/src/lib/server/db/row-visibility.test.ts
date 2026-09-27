@@ -510,11 +510,11 @@ describe("a child row is visible exactly when its parent is", () => {
         return r
       })
     expect(await valuesOn({ employeeId: MARCUS })).toEqual({
-      all: 7,
+      all: 8,
       restricted: 0,
     })
     expect(await valuesOn({ employeeId: MARCUS, role: "owner" })).toEqual({
-      all: 8,
+      all: 9,
       restricted: 1,
     })
   })

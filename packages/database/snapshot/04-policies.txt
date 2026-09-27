@@ -69,13 +69,18 @@ compensation_variable	compensation_update	UPDATE	public	( SELECT app.writes_comp
 compensation_variable	compensation_visibility	SELECT	public	(( SELECT app.reads_all_compensation() AS reads_all_compensation) OR (employee_id = ( SELECT app.current_employee_id() AS current_employee_id)))	
 compensation_variable	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 compensation_work_schedules	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+crm_activities	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+crm_deals	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
+crm_pipeline_stages	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 cross_module_links	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 custom_field_definitions	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 custom_field_values	custom_field_value_visibility	SELECT	public	(((entity_type = 'project'::text) AND (EXISTS ( SELECT 1
    FROM projects p
   WHERE (p.id = custom_field_values.entity_id)))) OR ((entity_type = 'task'::text) AND (EXISTS ( SELECT 1
    FROM tasks t
-  WHERE (t.id = custom_field_values.entity_id)))))	
+  WHERE (t.id = custom_field_values.entity_id)))) OR ((entity_type = 'customer_contact'::text) AND (EXISTS ( SELECT 1
+   FROM customer_contacts cc
+  WHERE (cc.id = custom_field_values.entity_id)))))	
 custom_field_values	tenant_isolation	ALL	public	(tenant_id = app.current_tenant_id())	(tenant_id = app.current_tenant_id())
 customer_contacts	auth_admin_reads_contacts	SELECT	supabase_auth_admin	true	
 customer_contacts	portal_contact_visibility	SELECT	public	((NOT ( SELECT app.is_portal_contact() AS is_portal_contact)) OR (customer_id = ( SELECT app.current_customer_id() AS current_customer_id)))	

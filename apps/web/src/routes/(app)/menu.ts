@@ -128,7 +128,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
     id: "crm",
     icon: "lucide--handshake",
     label: "CRM",
-    ...soon,
+    permission: "crm.read",
+    children: [
+      { id: "crm-companies", label: "Companies", url: "/crm/companies" },
+      { id: "crm-contacts", label: "Contacts", url: "/crm/contacts" },
+      { id: "crm-pipeline", label: "Pipeline", url: "/crm/pipeline" },
+    ],
   },
   {
     id: "client-portal",
@@ -385,6 +390,11 @@ export const appMenuItems: ISidebarMenuItem[] = [
         id: "settings-project-management",
         label: "Project Management Fields",
         url: "/settings/project-management",
+      },
+      {
+        id: "settings-crm",
+        label: "Contact Fields",
+        url: "/settings/crm",
       },
       {
         id: "settings-groups",
