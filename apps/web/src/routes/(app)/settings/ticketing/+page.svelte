@@ -88,10 +88,19 @@
                   <button
                     class="btn btn-ghost btn-sm btn-square"
                     aria-label={`Edit ${ba.name}`}
+                    title="Edit name, prefix and description"
                     onclick={() => (editing = ba)}
                   >
                     <span class="iconify lucide--pencil size-4"></span>
                   </button>
+                  <a
+                    href={`/settings/ticketing/${ba.id}`}
+                    class="btn btn-ghost btn-sm btn-square"
+                    aria-label={`Settings for ${ba.name}: categories, access and custom fields`}
+                    title="Categories, access and custom fields"
+                  >
+                    <span class="iconify lucide--settings size-4"></span>
+                  </a>
                   <form method="POST" action="?/archive">
                     <input type="hidden" name="id" value={ba.id} />
                     <button
