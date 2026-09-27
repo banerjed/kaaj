@@ -141,11 +141,16 @@ financial statements, payment processing, exports.
   assignee/dates/dependencies, refuses a missing project/template,
   `recordUse` is a plain increment — docs/25-project-management-phase2.md
 
-### Ticketing — 0 dedicated unit tests
+### Ticketing — 7 tests
 
-No `lib/server/ticketing/*.test.ts` exists. Coverage is indirect: 8 RLS
-assertions inside `db/row-visibility.test.ts` (below), plus e2e (§2). No
-unit test exercises `ticketing.repo.ts` write paths directly.
+- `lib/server/ticketing/ticketing.writes.test.ts` [7] — a ticket's area,
+  category and subcategory form a chain the SCHEMA holds: no area, a
+  category from another area, and a subcategory from another category are
+  each refused by name, beside the consistent insert that is accepted;
+  `createTicket` refuses the same two mismatches itself, naming which.
+
+Beyond that, coverage is indirect: 8 RLS assertions inside
+`db/row-visibility.test.ts` (below), plus e2e (§2).
 
 ### Documents — 4 tests
 
@@ -352,11 +357,11 @@ observations, not a plan:
   Folder/document CRUD, sharing, archiving and cross-user permission
   isolation were verified manually during development (per the feature's
   own commit) but nothing in either suite exercises them automatically.
-- **Ticketing has no dedicated unit test file.** Its only coverage is 8 RLS
-  assertions in `row-visibility.test.ts` and the render/refusal checks in
-  `smoke.spec.ts`/`form-errors.spec.ts` — no test exercises
-  `ticketing.repo.ts`'s write paths (task lifecycle, linking, sharing)
-  directly.
+- **Ticketing's write paths are barely tested.** Only ticket creation's
+  area/category/subcategory chain has a unit test; task lifecycle, linking
+  and sharing are covered by nothing but the RLS assertions in
+  `row-visibility.test.ts` and the render/refusal checks in
+  `smoke.spec.ts`/`form-errors.spec.ts`.
 - **`accounting.writes.test.ts` and `receivables.writes.test.ts` are the
   two largest files in the repo** (58 and 73 tests) — a reasonable split
   candidate if either grows further, matching the existing

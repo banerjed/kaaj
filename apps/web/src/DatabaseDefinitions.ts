@@ -8712,7 +8712,7 @@ export type Database = {
       }
       ticketing_tickets: {
         Row: {
-          business_area_id: string | null
+          business_area_id: string
           category_id: string
           closed_at: string | null
           created_at: string
@@ -8750,7 +8750,7 @@ export type Database = {
           version: number | null
         }
         Insert: {
-          business_area_id?: string | null
+          business_area_id: string
           category_id: string
           closed_at?: string | null
           created_at?: string
@@ -8788,7 +8788,7 @@ export type Database = {
           version?: number | null
         }
         Update: {
-          business_area_id?: string | null
+          business_area_id?: string
           category_id?: string
           closed_at?: string | null
           created_at?: string
@@ -8834,11 +8834,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ticketing_tickets_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "fk_ticketing_tickets_category_in_area"
+            columns: ["tenant_id", "category_id", "business_area_id"]
             isOneToOne: false
             referencedRelation: "ticketing_categories"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id", "business_area_id"]
           },
           {
             foreignKeyName: "ticketing_tickets_customer_id_fkey"
@@ -8862,11 +8862,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ticketing_tickets_subcategory_id_fkey"
-            columns: ["subcategory_id"]
+            foreignKeyName: "fk_ticketing_tickets_subcategory_in_category"
+            columns: ["tenant_id", "subcategory_id", "category_id"]
             isOneToOne: false
             referencedRelation: "ticketing_subcategories"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id", "category_id"]
           },
           {
             foreignKeyName: "ticketing_tickets_tenant_id_fkey"

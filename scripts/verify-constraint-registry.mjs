@@ -54,6 +54,7 @@ const FORM_WRITTEN = [
   "bank_statement_imports",
   "bank_transactions",
   "bank_accounts",
+  "ticketing_tickets",
 ]
 
 /**
@@ -63,6 +64,42 @@ const FORM_WRITTEN = [
  * edit, which is the point.
  */
 const CANNOT_BE_TRIPPED = new Map([
+  // Ticketing — every feature that uses tickets as a backing store writes
+  // through createTicket/updateTicketCore, which check first.
+  ["ticketing_tickets_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "fk_ticketing_tickets_business_area_id",
+    "createTicket takes the area's ticket number first, which refuses an unknown area",
+  ],
+  [
+    "fk_ticketing_tickets_category_in_area",
+    "createTicket refuses a category outside the area (no_such_category) before inserting",
+  ],
+  [
+    "fk_ticketing_tickets_subcategory_in_category",
+    "createTicket refuses a subcategory outside the category (no_such_subcategory) before inserting",
+  ],
+  [
+    "ticketing_tickets_customer_id_fkey",
+    "set from the portal session's customer, never form input",
+  ],
+  [
+    "ticketing_tickets_logger_contact_id_fkey",
+    "set from the portal session's contact, never form input",
+  ],
+  [
+    "ticketing_tickets_parent_ticket_id_fkey",
+    "parentWouldBeInvalid refuses a parent that does not exist before the update",
+  ],
+  [
+    "ck_ticketing_tickets_one_logger",
+    "createTicket sets exactly one of logger_employee_id/logger_contact_id from the session",
+  ],
+  [
+    "ticketing_tickets_tenant_id_ticket_number_key",
+    "the number comes from the area's counter, incremented under a row lock; prefixes are unique per tenant",
+  ],
+
   // `tenant_id` is set by the server from the session, never from the request,
   // so the FK to `tenants` cannot fail on user input.
   [
@@ -306,10 +343,7 @@ const CANNOT_BE_TRIPPED = new Map([
     "fk_pm_task_comments_author_customer_id",
     "comments.repo writes author_type 'employee' only; no form sets author_customer_id",
   ],
-  [
-    "pm_project_templates_tenant_id_fkey",
-    "tenant_id comes from the session",
-  ],
+  ["pm_project_templates_tenant_id_fkey", "tenant_id comes from the session"],
 
   // Custom fields (docs/26-project-management-custom-fields.md). Also
   // closes a pre-existing gap: custom_field_definitions was never in
@@ -327,10 +361,7 @@ const CANNOT_BE_TRIPPED = new Map([
     "custom_field_definitions_data_type_check",
     "FormReader's choice(data_type, CUSTOM_FIELD_DATA_TYPES) already refuses anything off the list, in both ticketing.repo.ts and custom-fields.repo.ts",
   ],
-  [
-    "custom_field_values_tenant_id_fkey",
-    "tenant_id comes from the session",
-  ],
+  ["custom_field_values_tenant_id_fkey", "tenant_id comes from the session"],
   [
     "custom_field_values_field_definition_id_fkey",
     "custom_field_definitions rows are never hard-deleted (archiveDefinition only flips is_active) — the FK can't be violated by anything this app does",

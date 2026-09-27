@@ -2826,6 +2826,26 @@ query orders by it and carries the last printed balance forward.
 Rule: rows written in one transaction are not ordered by their timestamps.
 A test of "the latest" or "the Nth" among them runs every input order.
 
+### L109 — two foreign keys on one row do not make a chain
+
+A ticket carries `business_area_id`, `category_id` and `subcategory_id`, and
+each had its own foreign key. So each id existed, but nothing said they
+belonged together. `createTicket` checked the category against the area and
+never checked the subcategory against the category. A crafted POST stored an
+IT "Access" subcategory on a "Hardware" ticket, reported success, and
+filed it under a category it isn't in. The column was also nullable, so a
+ticket with no area at all was accepted by the schema. No row was wrong
+yet; the gap was found by reading the code.
+
+Every feature that uses tickets as a backing store writes this table, so
+an application check in one path is not enough. The chain is now composite
+foreign keys, `(tenant_id, category_id, business_area_id)` and `(tenant_id,
+subcategory_id, category_id)`, which also make Postgres check the tenant,
+something a plain foreign key never does.
+
+Rule: when a row holds a child and its parent, the child's key includes the
+parent's column.
+
 ---
 
 ## Conventions

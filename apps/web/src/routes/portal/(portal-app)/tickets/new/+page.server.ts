@@ -1,7 +1,10 @@
 import { error, fail, redirect } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as ticketing from "$lib/server/ticketing/ticketing.repo"
-import { TicketingRefused } from "$lib/server/ticketing/ticketing.repo"
+import {
+  TicketingRefused,
+  createRefusal,
+} from "$lib/server/ticketing/ticketing.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -65,9 +68,7 @@ export const actions: Actions = {
       )
       redirect(303, `/portal/tickets/${id}`)
     } catch (e) {
-      if (e instanceof TicketingRefused) {
-        return fail(400, { message: "That business area isn't available." })
-      }
+      if (e instanceof TicketingRefused) return fail(400, createRefusal(e))
       throw e
     }
   },

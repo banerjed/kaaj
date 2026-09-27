@@ -31,6 +31,7 @@ export class TicketingRefused extends Error {
       | "no_such_ticket"
       | "no_such_business_area"
       | "no_such_category"
+      | "no_such_subcategory"
       | "not_portal_visible"
       | "parent_different_business_area"
       | "parent_is_self",
@@ -38,6 +39,30 @@ export class TicketingRefused extends Error {
   ) {
     super(reason)
     this.name = "TicketingRefused"
+  }
+}
+
+/** What a ticket-create form tells the person, and which field it marks. */
+export function createRefusal(e: TicketingRefused): {
+  errorFields: string[]
+  message: string
+} {
+  switch (e.reason) {
+    case "no_such_category":
+      return {
+        errorFields: ["category_id"],
+        message: "That category isn't in this business area. Pick another.",
+      }
+    case "no_such_subcategory":
+      return {
+        errorFields: ["subcategory_id"],
+        message: "That subcategory isn't in this category. Pick another.",
+      }
+    default:
+      return {
+        errorFields: ["business_area_id"],
+        message: "That business area isn't available.",
+      }
   }
 }
 
@@ -572,6 +597,14 @@ export async function createTicket(
      WHERE id = ${input.categoryId}::uuid AND business_area_id = ${input.businessAreaId}::uuid
   `
   if (!category) throw new TicketingRefused("no_such_category")
+
+  if (input.subcategoryId) {
+    const [subcategory] = await tx<{ ok: boolean }[]>`
+      SELECT TRUE AS ok FROM ticketing_subcategories
+       WHERE id = ${input.subcategoryId}::uuid AND category_id = ${input.categoryId}::uuid
+    `
+    if (!subcategory) throw new TicketingRefused("no_such_subcategory")
+  }
 
   const { ticketNumber } = await nextTicketNumber(
     tx,

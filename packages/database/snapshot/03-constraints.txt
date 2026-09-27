@@ -499,10 +499,12 @@ ticketing_categories	ticketing_categories_business_area_id_fkey	f	FOREIGN KEY (b
 ticketing_categories	ticketing_categories_pkey	p	PRIMARY KEY (id)
 ticketing_categories	ticketing_categories_tenant_id_business_area_id_name_key	u	UNIQUE (tenant_id, business_area_id, name)
 ticketing_categories	ticketing_categories_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_categories	uq_ticketing_categories_tenant_id_area	u	UNIQUE (tenant_id, id, business_area_id)
 ticketing_subcategories	ticketing_subcategories_category_id_fkey	f	FOREIGN KEY (category_id) REFERENCES ticketing_categories(id)
 ticketing_subcategories	ticketing_subcategories_pkey	p	PRIMARY KEY (id)
 ticketing_subcategories	ticketing_subcategories_tenant_id_category_id_name_key	u	UNIQUE (tenant_id, category_id, name)
 ticketing_subcategories	ticketing_subcategories_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+ticketing_subcategories	uq_ticketing_subcategories_tenant_id_category	u	UNIQUE (tenant_id, id, category_id)
 ticketing_ticket_assignees	ticketing_ticket_assignees_employee_id_fkey	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 ticketing_ticket_assignees	ticketing_ticket_assignees_pkey	p	PRIMARY KEY (id)
 ticketing_ticket_assignees	ticketing_ticket_assignees_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -526,12 +528,12 @@ ticketing_ticket_tasks	ticketing_ticket_tasks_tenant_id_fkey	f	FOREIGN KEY (tena
 ticketing_ticket_tasks	ticketing_ticket_tasks_ticket_id_fkey	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
 ticketing_tickets	ck_ticketing_tickets_one_logger	c	CHECK ((num_nonnulls(logger_employee_id, logger_contact_id) = 1))
 ticketing_tickets	fk_ticketing_tickets_business_area_id	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
-ticketing_tickets	ticketing_tickets_category_id_fkey	f	FOREIGN KEY (category_id) REFERENCES ticketing_categories(id)
+ticketing_tickets	fk_ticketing_tickets_category_in_area	f	FOREIGN KEY (tenant_id, category_id, business_area_id) REFERENCES ticketing_categories(tenant_id, id, business_area_id)
+ticketing_tickets	fk_ticketing_tickets_subcategory_in_category	f	FOREIGN KEY (tenant_id, subcategory_id, category_id) REFERENCES ticketing_subcategories(tenant_id, id, category_id)
 ticketing_tickets	ticketing_tickets_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 ticketing_tickets	ticketing_tickets_logger_contact_id_fkey	f	FOREIGN KEY (logger_contact_id) REFERENCES customer_contacts(id)
 ticketing_tickets	ticketing_tickets_parent_ticket_id_fkey	f	FOREIGN KEY (parent_ticket_id) REFERENCES ticketing_tickets(id)
 ticketing_tickets	ticketing_tickets_pkey	p	PRIMARY KEY (id)
-ticketing_tickets	ticketing_tickets_subcategory_id_fkey	f	FOREIGN KEY (subcategory_id) REFERENCES ticketing_subcategories(id)
 ticketing_tickets	ticketing_tickets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_tickets	ticketing_tickets_tenant_id_ticket_number_key	u	UNIQUE (tenant_id, ticket_number)
 ticketing_updates	ck_ticketing_updates_one_author	c	CHECK ((num_nonnulls(author_employee_id, author_contact_id) = 1))

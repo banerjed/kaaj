@@ -2233,7 +2233,7 @@ ticketing_ticket_tasks	12	created_at	timestamp with time zone	t	now()
 ticketing_ticket_tasks	13	created_by	text	t	
 ticketing_tickets	1	id	uuid	t	gen_random_uuid()
 ticketing_tickets	2	tenant_id	uuid	t	
-ticketing_tickets	3	business_area_id	uuid	f	
+ticketing_tickets	3	business_area_id	uuid	t	
 ticketing_tickets	4	ticket_number	text	f	
 ticketing_tickets	7	title	text	t	
 ticketing_tickets	8	description	text	f	

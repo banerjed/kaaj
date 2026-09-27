@@ -479,6 +479,13 @@ Where the id comes from a request, `SELECT` it under RLS first, as
 `assertCustomerExists` in `projects.repo.ts` does
 ([L103](docs/10-lessons-learned.md)).
 
+**When a row holds both a parent and a child of it, the foreign key is
+composite.** `ticketing_tickets` holds an area, a category and a
+subcategory; three separate keys let each exist while belonging to different
+parents. Reference `(tenant_id, child_id, parent_id)` against a matching
+`UNIQUE` on the child table, which also makes Postgres check the tenant
+([L109](docs/10-lessons-learned.md)).
+
 **Before adding a table, look for one that already models the concept** — by
 meaning, not name. `clients`/`customers` and
 `time_tracking_billable_expenses`/`expenses` each held the same rows twice
