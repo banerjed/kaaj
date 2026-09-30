@@ -76,10 +76,14 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "Another template was saved at the same moment and took that reference. Try again.",
   },
-  custom_field_definitions_tenant_id_entity_type_field_key_key: {
+  uq_custom_field_definitions_key: {
     errorFields: ["label"],
     message:
       "Another field with that name already exists here. Pick a different name.",
+  },
+  fk_custom_field_definitions_business_area: {
+    errorFields: [],
+    message: "That business area no longer exists. Reload the page.",
   },
   tenants_subdomain_key: {
     errorFields: ["subdomain"],

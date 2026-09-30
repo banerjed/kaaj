@@ -3,11 +3,11 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
-  import CustomFieldInput from "$lib/components/CustomFieldInput.svelte"
+  import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
+  import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
-  import type { CustomFieldDefinition } from "$lib/server/custom-fields/custom-fields.repo"
 
   let { data, form } = $props()
 
@@ -25,41 +25,8 @@
           ? "lucide--users"
           : "lucide--sticky-note"
 
-  function fieldValue(def: CustomFieldDefinition) {
-    return data.fieldValues.find((v) => v.field_definition_id === def.id)
-  }
-
-  function formatFieldValue(def: CustomFieldDefinition): string {
-    const v = fieldValue(def)
-    if (!v) return "—"
-    switch (def.data_type) {
-      case "boolean":
-        return v.value_boolean ? "Yes" : "No"
-      case "select":
-        return (
-          def.options?.find((o) => o.value === v.value_text)?.label ??
-          v.value_text ??
-          "—"
-        )
-      case "multiselect":
-        return v.value_multi && v.value_multi.length > 0
-          ? v.value_multi
-              .map(
-                (val) =>
-                  def.options?.find((o) => o.value === val)?.label ?? val,
-              )
-              .join(", ")
-          : "—"
-      case "number":
-        return v.value_number ?? "—"
-      case "money":
-        return v.value_money ?? "—"
-      case "date":
-        return v.value_date ?? "—"
-      default:
-        return v.value_text ?? "—"
-    }
-  }
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
+  const tenantCurrency = $derived(data.tenant?.default_currency ?? "USD")
 </script>
 
 <PageHead title={`${p.first_name} ${p.last_name}`} />
@@ -122,13 +89,17 @@
           <dt class="text-base-content/70">Phone</dt>
           <dd>{p.phone ?? "—"}</dd>
         </div>
-        {#each data.fieldDefs as def (def.id)}
-          <div>
-            <dt class="text-base-content/70">{def.label}</dt>
-            <dd>{formatFieldValue(def)}</dd>
-          </div>
-        {/each}
       </dl>
+      {#if data.fieldDefs.length > 0}
+        <div class="border-base-200 mt-3 border-t pt-3">
+          <CustomFieldValues
+            definitions={data.fieldDefs}
+            values={data.fieldValues}
+            locale={tenantLocale}
+            currency={tenantCurrency}
+          />
+        </div>
+      {/if}
     </SectionCard>
 
     <SectionCard title="Activity" class="lg:col-span-2">
@@ -266,9 +237,12 @@
           />
           <span class="text-sm">Primary contact</span>
         </label>
-        {#each data.fieldDefs as def (def.id)}
-          <CustomFieldInput definition={def} value={fieldValue(def)} />
-        {/each}
+        <CustomFieldFormFields
+          definitions={data.fieldDefs}
+          values={data.fieldValues}
+          currency={tenantCurrency}
+          errorFields={form?.errorFields ?? []}
+        />
         <ModalActions onCancel={() => (editing = false)} />
       </form>
     </div>

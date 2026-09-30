@@ -385,15 +385,12 @@ custom_field_definitions	2	tenant_id	uuid	t
 custom_field_definitions	3	entity_type	text	t	
 custom_field_definitions	4	field_key	text	t	
 custom_field_definitions	5	label	text	t	
-custom_field_definitions	6	label_i18n	jsonb	f	
 custom_field_definitions	7	help_text	text	f	
 custom_field_definitions	8	display_order	integer	t	0
-custom_field_definitions	9	field_group	text	f	
+custom_field_definitions	9	category	text	t	'General'::text
 custom_field_definitions	10	data_type	text	t	
 custom_field_definitions	11	options	jsonb	f	
 custom_field_definitions	12	is_required	boolean	t	false
-custom_field_definitions	13	validation	jsonb	f	
-custom_field_definitions	14	default_value	jsonb	f	
 custom_field_definitions	15	is_active	boolean	t	true
 custom_field_definitions	16	created_at	timestamp with time zone	t	now()
 custom_field_definitions	17	updated_at	timestamp with time zone	t	now()
@@ -401,8 +398,6 @@ custom_field_definitions	18	business_area_id	uuid	f
 custom_field_values	1	id	uuid	t	gen_random_uuid()
 custom_field_values	2	tenant_id	uuid	t	
 custom_field_values	3	field_definition_id	uuid	t	
-custom_field_values	4	entity_type	text	t	
-custom_field_values	5	entity_id	uuid	t	
 custom_field_values	6	value_text	text	f	
 custom_field_values	7	value_number	numeric(18,4)	f	
 custom_field_values	8	value_money	numeric(15,2)	f	
@@ -412,6 +407,18 @@ custom_field_values	11	value_multi	jsonb	f
 custom_field_values	12	created_at	timestamp with time zone	t	now()
 custom_field_values	13	updated_at	timestamp with time zone	t	now()
 custom_field_values	14	updated_by	text	t	
+custom_field_values	15	project_id	uuid	f	
+custom_field_values	16	task_id	uuid	f	
+custom_field_values	17	customer_contact_id	uuid	f	
+custom_field_values	18	ticket_id	uuid	f	
+custom_field_values	19	entity_type	text	f	
+CASE
+    WHEN (project_id IS NOT NULL) THEN 'project'::text
+    WHEN (task_id IS NOT NULL) THEN 'task'::text
+    WHEN (customer_contact_id IS NOT NULL) THEN 'customer_contact'::text
+    WHEN (ticket_id IS NOT NULL) THEN 'ticket'::text
+    ELSE NULL::text
+END
 customer_contacts	1	id	uuid	t	gen_random_uuid()
 customer_contacts	2	tenant_id	uuid	t	
 customer_contacts	3	customer_id	uuid	t	
@@ -2255,7 +2262,6 @@ ticketing_tickets	23	reported_by_email	text	f
 ticketing_tickets	24	logger_employee_id	uuid	f	
 ticketing_tickets	25	last_updated_by	text	t	
 ticketing_tickets	32	external_summary	text	f	
-ticketing_tickets	33	custom_fields	jsonb	f	'{}'::jsonb
 ticketing_tickets	37	version	integer	f	1
 ticketing_tickets	38	tags	jsonb	f	'[]'::jsonb
 ticketing_tickets	39	created_at	timestamp with time zone	t	now()

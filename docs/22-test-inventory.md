@@ -152,6 +152,22 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
+### Custom fields — 24 tests
+
+- `lib/server/custom-fields/custom-fields.repo.test.ts` [24] — definitions
+  ordered General first, then by category first use, then within the
+  category; a ticket area sees only its own fields; move within a category;
+  rename a category including archived fields; archive only within the
+  page's scope. The schema refuses a duplicate key with no area, an unknown
+  entity type, a ticket field without an area (and an area elsewhere), a
+  value naming two records or none, a value for another kind of record's
+  field, and a value for a missing record. `saveValues` round-trips every
+  type, reports only what changed, clears to an all-NULL row, and refuses
+  an unknown or out-of-scope definition, another area's ticket field, an
+  unreadable record and an off-list option. Visibility (ticket values follow
+  the ticket, for a portal contact and a private ticket) is in
+  `row-visibility.test.ts`.
+
 ### Documents — 4 tests
 
 `lib/server/documents/documents.repo.test.ts` [4] covers only the
@@ -189,7 +205,7 @@ Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [231] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [233] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
@@ -297,13 +313,15 @@ shared and read-only except where a file's own header says otherwise.
   project-management checks (the Add-task Parent select is scoped to the
   project's own top-level tasks, the Kanban board's column/card structure,
   and the List↔Kanban toggle firing no network request either way).
-- **`form-errors.spec.ts` [56]** — a refused form names the field, marks it,
+- **`form-errors.spec.ts` [58]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),
   HR (holidays, employee IDs, ticketing), compensation, time-tracking,
   projects (a dependency cycle reads as a sentence, not a crash page),
-  objectives (an invalid target end date), company settings, and team chat
-  (empty channel name, empty message).
+  objectives (an invalid target end date), company settings, team chat
+  (empty channel name, empty message), and custom fields (a duplicate field
+  name marked only in the editor it came from; a required ticket field named
+  by its label).
 - **`theme.spec.ts` [9]** — light/dark/system application, actual paint
   (canvas-measured per CLAUDE.md's colour rule), fallback on a deleted or
   garbage stored theme, where theme selection lives in the UI.

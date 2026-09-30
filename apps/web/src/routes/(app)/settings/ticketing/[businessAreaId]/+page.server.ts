@@ -8,8 +8,10 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import * as audit from "$lib/server/audit/audit.repo"
+import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
+import { customFieldSettingsHandlers } from "$lib/server/custom-fields/settings-actions"
 
-/** /settings/ticketing/[businessAreaId] — categories, subcategories, and the default-visible member list for one business area. */
+/** /settings/ticketing/[businessAreaId] — categories, subcategories, members, group access and custom fields for one business area. */
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "firm.settings.read")
@@ -30,10 +32,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       subcategories,
       members: await ticketing.businessAreaMembers(tx, params.businessAreaId),
       employees: await employees.managerOptions(tx),
-      customFields: await ticketing.customFieldDefinitionsFor(
-        tx,
-        params.businessAreaId,
-      ),
+      customFields: await customFields.definitionsFor(tx, {
+        entityType: "ticket",
+        businessAreaId: params.businessAreaId,
+      }),
       groupGrants: await ticketing.businessAreaGroups(
         tx,
         params.businessAreaId,
@@ -42,6 +44,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     }
   })
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const fields = customFieldSettingsHandlers(({ params }) =>
+  UUID.test(params.businessAreaId ?? "")
+    ? { entityType: "ticket", businessAreaId: params.businessAreaId! }
+    : null,
+)
 
 export const actions: Actions = {
   addCategory: async ({ request, locals, params }) => {
@@ -221,73 +231,20 @@ export const actions: Actions = {
     return { groupsSaved: true }
   },
 
-  // Tier 2 customization (docs/06-customization-model.md) — configuration
-  // data, not a rights or pay change, same treatment as addCategory.
-  addCustomField: async ({ request, locals, params }) => {
-    if (!locals.tenantId) error(403, "No tenant")
-    requireCan(contextFrom(locals), "firm.settings.write")
-    const tenantId = locals.tenantId
-
-    const data = await request.formData()
-    const f = new FormReader(data)
-    const label = f.text("label", { required: true, max: 255 })
-    const helpText = f.text("help_text", { max: 500 })
-    const dataType = f.choice("data_type", ticketing.CUSTOM_FIELD_DATA_TYPES, {
-      required: true,
-    })
-    const isRequired = data.get("is_required") === "on"
-    if (!f.ok) return fail(400, f.problem("Name the field and choose a type."))
-
-    const options =
-      dataType === "select"
-        ? formList(data, "options")
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .map((optionLabel) => ({
-              value: optionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
-              label: optionLabel,
-            }))
-        : null
-    if (dataType === "select" && (!options || options.length === 0)) {
-      return fail(400, {
-        errorFields: ["options"],
-        message: "A select field needs at least one option.",
-      })
-    }
-
-    try {
-      await withTenant(actorFrom(locals), (tx) =>
-        ticketing.createCustomFieldDefinition(
-          tx,
-          tenantId,
-          params.businessAreaId,
-          {
-            label: label!,
-            helpText,
-            dataType: dataType!,
-            options,
-            isRequired,
-          },
-        ),
-      )
-      return { customFieldAdded: true }
-    } catch (e) {
-      const refused = constraintFailure(e)
-      if (refused) return refused
-      throw e
-    }
+  addField: async (event) => {
+    requireCan(contextFrom(event.locals), "firm.settings.write")
+    return fields.addField(event)
   },
-
-  archiveCustomField: async ({ request, locals }) => {
-    if (!locals.tenantId) error(403, "No tenant")
-    requireCan(contextFrom(locals), "firm.settings.write")
-    const f = new FormReader(await request.formData())
-    const id = f.uuid("id", { required: true })
-    if (!f.ok) return fail(400, f.problem("Missing field."))
-
-    await withTenant(actorFrom(locals), (tx) =>
-      ticketing.archiveCustomFieldDefinition(tx, id!),
-    )
-    return { customFieldArchived: true }
+  archiveField: async (event) => {
+    requireCan(contextFrom(event.locals), "firm.settings.write")
+    return fields.archiveField(event)
+  },
+  renameCategory: async (event) => {
+    requireCan(contextFrom(event.locals), "firm.settings.write")
+    return fields.renameCategory(event)
+  },
+  moveField: async (event) => {
+    requireCan(contextFrom(event.locals), "firm.settings.write")
+    return fields.moveField(event)
   },
 }

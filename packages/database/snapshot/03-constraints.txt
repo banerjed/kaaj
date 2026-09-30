@@ -87,20 +87,30 @@ crm_pipeline_stages	crm_pipeline_stages_stage_type_check	c	CHECK ((stage_type = 
 crm_pipeline_stages	crm_pipeline_stages_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 cross_module_links	cross_module_links_pkey	p	PRIMARY KEY (id)
 cross_module_links	cross_module_links_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-custom_field_definitions	custom_field_definitions_business_area_id_fkey	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
+custom_field_definitions	ck_custom_field_definitions_category	c	CHECK (((btrim(category) <> ''::text) AND (char_length(category) <= 100)))
+custom_field_definitions	ck_custom_field_definitions_entity_type	c	CHECK ((entity_type = ANY (ARRAY['customer_contact'::text, 'employee'::text, 'project'::text, 'task'::text, 'ticket'::text])))
+custom_field_definitions	ck_custom_field_definitions_ticket_area	c	CHECK (((entity_type = 'ticket'::text) = (business_area_id IS NOT NULL)))
 custom_field_definitions	custom_field_definitions_data_type_check	c	CHECK ((data_type = ANY (ARRAY['text'::text, 'number'::text, 'money'::text, 'date'::text, 'boolean'::text, 'select'::text, 'multiselect'::text])))
 custom_field_definitions	custom_field_definitions_pkey	p	PRIMARY KEY (id)
-custom_field_definitions	custom_field_definitions_tenant_id_entity_type_field_key_key	u	UNIQUE (tenant_id, entity_type, business_area_id, field_key)
 custom_field_definitions	custom_field_definitions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-custom_field_values	custom_field_values_field_definition_id_fkey	f	FOREIGN KEY (field_definition_id) REFERENCES custom_field_definitions(id) ON DELETE CASCADE
+custom_field_definitions	fk_custom_field_definitions_business_area	f	FOREIGN KEY (tenant_id, business_area_id) REFERENCES ticketing_business_areas(tenant_id, id)
+custom_field_definitions	uq_custom_field_definitions_key	u	UNIQUE NULLS NOT DISTINCT (tenant_id, entity_type, business_area_id, field_key)
+custom_field_definitions	uq_custom_field_definitions_tenant_id_id_entity_type	u	UNIQUE (tenant_id, id, entity_type)
+custom_field_values	ck_custom_field_values_one_record	c	CHECK ((num_nonnulls(project_id, task_id, customer_contact_id, ticket_id) = 1))
 custom_field_values	custom_field_values_one_typed_value	c	CHECK ((num_nonnulls(value_text, value_number, value_money, value_date, value_boolean, value_multi) <= 1))
 custom_field_values	custom_field_values_pkey	p	PRIMARY KEY (id)
 custom_field_values	custom_field_values_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-custom_field_values	custom_field_values_unique	u	UNIQUE (tenant_id, field_definition_id, entity_type, entity_id)
+custom_field_values	custom_field_values_unique	u	UNIQUE NULLS NOT DISTINCT (tenant_id, field_definition_id, project_id, task_id, customer_contact_id, ticket_id)
+custom_field_values	fk_custom_field_values_customer_contact	f	FOREIGN KEY (tenant_id, customer_contact_id) REFERENCES customer_contacts(tenant_id, id)
+custom_field_values	fk_custom_field_values_definition	f	FOREIGN KEY (tenant_id, field_definition_id, entity_type) REFERENCES custom_field_definitions(tenant_id, id, entity_type)
+custom_field_values	fk_custom_field_values_project	f	FOREIGN KEY (tenant_id, project_id) REFERENCES projects(tenant_id, id)
+custom_field_values	fk_custom_field_values_task	f	FOREIGN KEY (tenant_id, task_id) REFERENCES tasks(tenant_id, id)
+custom_field_values	fk_custom_field_values_ticket	f	FOREIGN KEY (tenant_id, ticket_id) REFERENCES ticketing_tickets(tenant_id, id)
 customer_contacts	customer_contacts_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 customer_contacts	customer_contacts_pkey	p	PRIMARY KEY (id)
 customer_contacts	customer_contacts_tenant_id_email_key	u	UNIQUE (tenant_id, email)
 customer_contacts	customer_contacts_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+customer_contacts	uq_customer_contacts_tenant_id_id	u	UNIQUE (tenant_id, id)
 customers	customers_customer_type_check	c	CHECK ((customer_type = ANY (ARRAY['individual'::text, 'small_business'::text, 'corporate'::text, 'enterprise'::text, 'government'::text, 'nonprofit'::text])))
 customers	customers_pkey	p	PRIMARY KEY (id)
 customers	customers_relationship_status_check	c	CHECK ((relationship_status = ANY (ARRAY['prospect'::text, 'active'::text, 'inactive'::text, 'churned'::text])))
@@ -425,6 +435,7 @@ projects	fk_projects_objective_id	f	FOREIGN KEY (objective_id) REFERENCES pm_obj
 projects	projects_pkey	p	PRIMARY KEY (id)
 projects	projects_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 projects	projects_tenant_id_project_id_key	u	UNIQUE (tenant_id, project_id)
+projects	uq_projects_tenant_id_id	u	UNIQUE (tenant_id, id)
 recurring_schedules	recurring_schedules_anchor_day_check	c	CHECK (((anchor_day >= 1) AND (anchor_day <= 31)))
 recurring_schedules	recurring_schedules_customer_id_fkey	f	FOREIGN KEY (customer_id) REFERENCES customers(id)
 recurring_schedules	recurring_schedules_pkey	p	PRIMARY KEY (id)
@@ -435,6 +446,7 @@ tasks	tasks_depth_matches_parent	c	CHECK ((((parent_task_id IS NULL) AND (depth_
 tasks	tasks_pkey	p	PRIMARY KEY (id)
 tasks	tasks_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 tasks	tasks_tenant_id_task_id_key	u	UNIQUE (tenant_id, task_id)
+tasks	uq_tasks_tenant_id_id	u	UNIQUE (tenant_id, id)
 tax_rates	tax_rates_pkey	p	PRIMARY KEY (id)
 tax_rates	tax_rates_rate_check	c	CHECK ((rate >= (0)::numeric))
 tax_rates	tax_rates_tax_collected_account_id_fkey	f	FOREIGN KEY (tax_collected_account_id) REFERENCES chart_of_accounts(id)
@@ -498,6 +510,7 @@ ticketing_business_area_members	ticketing_business_area_members_tenant_id_fkey	f
 ticketing_business_areas	ticketing_business_areas_pkey	p	PRIMARY KEY (id)
 ticketing_business_areas	ticketing_business_areas_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_business_areas	ticketing_business_areas_tenant_id_prefix_key	u	UNIQUE (tenant_id, prefix)
+ticketing_business_areas	uq_ticketing_business_areas_tenant_id_id	u	UNIQUE (tenant_id, id)
 ticketing_categories	ticketing_categories_business_area_id_fkey	f	FOREIGN KEY (business_area_id) REFERENCES ticketing_business_areas(id)
 ticketing_categories	ticketing_categories_pkey	p	PRIMARY KEY (id)
 ticketing_categories	ticketing_categories_tenant_id_business_area_id_name_key	u	UNIQUE (tenant_id, business_area_id, name)
@@ -539,6 +552,7 @@ ticketing_tickets	ticketing_tickets_parent_ticket_id_fkey	f	FOREIGN KEY (parent_
 ticketing_tickets	ticketing_tickets_pkey	p	PRIMARY KEY (id)
 ticketing_tickets	ticketing_tickets_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ticketing_tickets	ticketing_tickets_tenant_id_ticket_number_key	u	UNIQUE (tenant_id, ticket_number)
+ticketing_tickets	uq_ticketing_tickets_tenant_id_id	u	UNIQUE (tenant_id, id)
 ticketing_updates	ck_ticketing_updates_one_author	c	CHECK ((num_nonnulls(author_employee_id, author_contact_id) = 1))
 ticketing_updates	fk_ticketing_updates_ticket_id	f	FOREIGN KEY (ticket_id) REFERENCES ticketing_tickets(id)
 ticketing_updates	ticketing_updates_author_contact_id_fkey	f	FOREIGN KEY (author_contact_id) REFERENCES customer_contacts(id)

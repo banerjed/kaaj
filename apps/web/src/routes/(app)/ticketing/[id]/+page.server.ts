@@ -10,6 +10,12 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList, formString } from "$lib/server/forms"
 import * as audit from "$lib/server/audit/audit.repo"
+import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
+import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
+import {
+  customFieldProblem,
+  readCustomFieldValues,
+} from "$lib/server/custom-fields/read-values"
 
 /** A picker (parent/link candidates) never needs the whole tenant's ticket table. */
 const PICKER_LIMIT = 50
@@ -39,17 +45,27 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     // (ticketById), so there's no "merge the current value back into a
     // capped candidate list" step to do — unlike a plain `<select>`, a
     // Combobox's selected item doesn't need to appear in its own options.
-    const [updates, customFieldDefinitions, tasks, referenceLinks] =
-      await Promise.all([
-        ticketing.ticketUpdatesSummary(tx, ticket.id),
-        ticketing.customFieldDefinitionsFor(tx, ticket.business_area_id),
-        ticketing.ticketTasksFor(tx, ticket.id),
-        ticketing.referenceLinksFor(tx, ticket.id),
-      ])
+    const [
+      updates,
+      customFieldDefinitions,
+      customFieldValues,
+      tasks,
+      referenceLinks,
+    ] = await Promise.all([
+      ticketing.ticketUpdatesSummary(tx, ticket.id),
+      customFields.definitionsFor(tx, {
+        entityType: "ticket",
+        businessAreaId: ticket.business_area_id,
+      }),
+      customFields.valuesFor(tx, "ticket", [ticket.id]),
+      ticketing.ticketTasksFor(tx, ticket.id),
+      ticketing.referenceLinksFor(tx, ticket.id),
+    ])
     return {
       ticket,
       updates,
       customFieldDefinitions,
+      customFieldValues: customFieldValues[ticket.id] ?? [],
       tasks,
       referenceLinks,
       statuses: TICKET_STATUSES,
@@ -296,52 +312,43 @@ export const actions: Actions = {
     return { middle }
   },
 
-  // Dynamic — one field per this ticket's business-area definitions, read by
-  // data_type. Validated here (required, type-shape) so a crafted POST
-  // hits the same rules the form does, never only the browser.
   setCustomFields: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    requireCan(contextFrom(locals), "ticketing.write.own")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "ticketing.write.own")
     const data = await request.formData()
     const f = new FormReader(data)
 
-    return withTenant(actorFrom(locals), async (tx) => {
-      const ticket = await ticketing.ticketById(tx, params.id)
-      if (!ticket) error(404, "No such ticket")
-      const defs = await ticketing.customFieldDefinitionsFor(
-        tx,
-        ticket.business_area_id,
-      )
+    try {
+      return await withTenant(actorFrom(locals), async (tx) => {
+        const ticket = await ticketing.ticketById(tx, params.id)
+        if (!ticket) error(404, "No such ticket")
+        const scope = {
+          entityType: "ticket",
+          businessAreaId: ticket.business_area_id,
+        } as const
+        const defs = await customFields.definitionsFor(tx, scope)
+        const values = readCustomFieldValues(f, data, defs)
+        if (!f.ok) return fail(400, customFieldProblem(f, defs))
 
-      const values: Record<string, string | number | boolean | null> = {}
-      for (const def of defs) {
-        const name = `cf_${def.field_key}`
-        if (def.data_type === "boolean") {
-          values[def.field_key] = data.get(name) === "on"
-        } else if (def.data_type === "number") {
-          values[def.field_key] = f.integer(name, {
-            required: def.is_required,
-          })
-        } else if (def.data_type === "date") {
-          values[def.field_key] = f.date(name, { required: def.is_required })
-        } else if (def.data_type === "select") {
-          values[def.field_key] = f.choice(
-            name,
-            def.options?.map((o) => o.value) ?? [],
-            { required: def.is_required },
-          )
-        } else {
-          values[def.field_key] = f.text(name, {
-            required: def.is_required,
-            max: 500,
-          })
-        }
+        await customFields.saveValues(
+          tx,
+          locals.tenantId!,
+          scope,
+          ticket.id,
+          values,
+          ctx!.employeeId ?? ctx!.userId,
+        )
+        return { customFieldsSet: true }
+      })
+    } catch (e) {
+      if (e instanceof CustomFieldWriteRefused) {
+        return fail(400, {
+          message: "Those fields could not be saved. Reload and try again.",
+        })
       }
-      if (!f.ok) return fail(400, f.problem())
-
-      await ticketing.setCustomFieldValues(tx, params.id, values)
-      return { customFieldsSet: true }
-    })
+      throw e
+    }
   },
 
   // Tasks — not audited (register.ts): a checklist item, same shape as

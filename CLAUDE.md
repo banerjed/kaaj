@@ -514,11 +514,20 @@ every employee — correct-looking number, no error, no failing test
 be NULL: a blank figure is the right answer for someone who may not see it.
 `./check` fails on this shape.
 
+**Write every form action out in the page's own `actions` object.** Shared
+action code is a handler the page calls after its own `requireCan`; never
+spread actions in (`{ ...sharedActions() }`). `./check`'s authorization
+and audit steps read each page's `actions` object, so a spread action has no
+guard check and no audit classification, and both steps still pass
+([L110](docs/10-lessons-learned.md)).
+
 **A test for an access rule runs as the actor who is meant to be REFUSED.**
 Repository suites deliberately run as an owner, so a policy cannot silently
 narrow what they see — which means the restricted branch of every query is
 unreachable from them. Assert both halves: the refused actor gets NULL, *and*
-the permitted one still gets the figure. A policy that blanks everything reads
+the permitted one still gets the figure. Test a child table's policy by reading the
+child table alone: joining its parent applies the parent's policy and hides
+a broken one on the child ([L110](docs/10-lessons-learned.md)). A policy that blanks everything reads
 as a broken page, not as a rule.
 
 **Type every `tx` query that crosses into a page.** An untyped row is `any`

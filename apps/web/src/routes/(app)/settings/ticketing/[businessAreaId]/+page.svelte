@@ -5,6 +5,7 @@
   import { enhance } from "$app/forms"
   import { keepValues } from "$lib/form-enhance"
   import SectionCard from "$lib/components/SectionCard.svelte"
+  import CustomFieldSettings from "$lib/components/CustomFieldSettings.svelte"
 
   let { data, form } = $props()
 
@@ -18,8 +19,6 @@
   const grantedGroupIds = $derived(
     new Set(data.groupGrants.map((g) => g.group_id)),
   )
-
-  let newFieldDataType = $state("text")
 </script>
 
 <PageHead title={data.businessArea.name} />
@@ -49,10 +48,15 @@
       <span class="iconify lucide--check size-5"></span>
       <span>Groups with access saved.</span>
     </div>
-  {:else if form?.customFieldAdded}
+  {:else if form?.fieldAdded}
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Field added.</span>
+    </div>
+  {:else if form?.categoryRenamed}
+    <div role="status" class="alert alert-success mt-4">
+      <span class="iconify lucide--check size-5"></span>
+      <span>Category renamed.</span>
     </div>
   {/if}
 
@@ -216,128 +220,14 @@
       {/if}
     </SectionCard>
 
-    <!-- Custom fields — Tier 2 (docs/06-customization-model.md), scoped to this business area -->
-    <SectionCard
-      title="Custom fields"
-      description={`Fields that appear only on ${data.businessArea.name} tickets. Other business areas keep their own set.`}
-      class="mt-4 lg:col-span-2"
-    >
-      {#if data.customFields.length > 0}
-        <div class="overflow-x-auto">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Type</th>
-                <th>Required</th>
-                <th class="w-16">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each data.customFields as f (f.id)}
-                <tr>
-                  <td class="text-sm">
-                    {f.label}
-                    {#if f.help_text}
-                      <span class="text-base-content/60 block text-xs"
-                        >{f.help_text}</span
-                      >
-                    {/if}
-                  </td>
-                  <td class="text-sm">
-                    {f.data_type}
-                    {#if f.data_type === "select"}
-                      <span class="text-base-content/60 block text-xs"
-                        >{(f.options ?? [])
-                          .map((o) => o.label)
-                          .join(", ")}</span
-                      >
-                    {/if}
-                  </td>
-                  <td class="text-sm">{f.is_required ? "Yes" : "No"}</td>
-                  <td>
-                    <form
-                      method="POST"
-                      action="?/archiveCustomField"
-                      use:enhance
-                    >
-                      <input type="hidden" name="id" value={f.id} />
-                      <button
-                        class="btn btn-ghost btn-xs btn-square text-error"
-                        aria-label={`Archive ${f.label}`}
-                      >
-                        <span class="iconify lucide--archive size-3.5"></span>
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {:else}
-        <p class="text-base-content/70 text-sm">No custom fields yet.</p>
-      {/if}
-
-      <form
-        method="POST"
-        action="?/addCustomField"
-        use:enhance={keepValues}
-        class="mt-2 grid gap-3 sm:grid-cols-2"
-      >
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Label</legend>
-          <input
-            name="label"
-            aria-invalid={err.aria("label")}
-            class={`input input-sm w-full ${err.input("label")}`}
-            placeholder="e.g. Asset Tag"
-            required
-          />
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Type</legend>
-          <select
-            name="data_type"
-            class="select select-sm w-full"
-            bind:value={newFieldDataType}
-          >
-            <option value="text">Text</option>
-            <option value="number">Number</option>
-            <option value="date">Date</option>
-            <option value="boolean">Yes / No</option>
-            <option value="select">Dropdown</option>
-          </select>
-        </fieldset>
-        {#if newFieldDataType === "select"}
-          <fieldset class="fieldset sm:col-span-2">
-            <legend class="fieldset-legend text-xs"
-              >Options (one per line)</legend
-            >
-            <textarea
-              name="options"
-              class={`textarea w-full ${err.textarea("options")}`}
-              rows="3"
-              placeholder={"Standard\nPremium\nEnterprise"}
-            ></textarea>
-          </fieldset>
-        {/if}
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend text-xs">Help text</legend>
-          <input name="help_text" class="input input-sm w-full" />
-        </fieldset>
-        <label class="label mt-6 gap-2">
-          <input
-            type="checkbox"
-            name="is_required"
-            class="checkbox checkbox-sm"
-          />
-          Required
-        </label>
-        <div class="sm:col-span-2">
-          <button class="btn btn-primary btn-sm">Add field</button>
-        </div>
-      </form>
-    </SectionCard>
+    <div class="lg:col-span-2">
+      <CustomFieldSettings
+        id="ticket-fields"
+        title="Custom fields"
+        description={`Fields that appear only on ${data.businessArea.name} tickets. Other business areas keep their own set.`}
+        fields={data.customFields}
+        {form}
+      />
+    </div>
   </div>
 </div>

@@ -20,7 +20,8 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import type { TaskRow } from "$lib/server/projects/projects.repo"
   import { formatBytes } from "$lib/documents/format-bytes"
-  import CustomFieldInput from "$lib/components/CustomFieldInput.svelte"
+  import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
+  import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
 
   let { data, form } = $props()
 
@@ -1512,15 +1513,12 @@
           use:enhance={closeOnSuccess(() => (viewingTaskFieldsFor = null))}
         >
           <input type="hidden" name="task_id" value={t.id} />
-          {#each data.taskFieldDefs as def (def.id)}
-            <CustomFieldInput
-              definition={def}
-              value={valuesForTask.find(
-                (v) => v.field_definition_id === def.id,
-              )}
-              currency={data.project.currency ?? "USD"}
-            />
-          {/each}
+          <CustomFieldFormFields
+            definitions={data.taskFieldDefs}
+            values={valuesForTask}
+            currency={data.project.currency ?? "USD"}
+            errorFields={form?.errorFields ?? []}
+          />
           <div class="modal-action">
             <button
               type="button"
@@ -1533,6 +1531,14 @@
           </div>
         </form>
       {:else}
+        <div class="mt-4">
+          <CustomFieldValues
+            definitions={data.taskFieldDefs}
+            values={valuesForTask}
+            locale={tenantLocale}
+            currency={data.project.currency ?? "USD"}
+          />
+        </div>
         <div class="modal-action">
           <button
             type="button"
@@ -1564,15 +1570,12 @@
         class="mt-4 flex flex-col gap-4"
         use:enhance={closeOnSuccess(() => (viewingProjectFields = false))}
       >
-        {#each data.projectFieldDefs as def (def.id)}
-          <CustomFieldInput
-            definition={def}
-            value={data.projectFieldValues?.find(
-              (v) => v.field_definition_id === def.id,
-            )}
-            currency={data.project.currency ?? "USD"}
-          />
-        {/each}
+        <CustomFieldFormFields
+          definitions={data.projectFieldDefs}
+          values={data.projectFieldValues ?? []}
+          currency={data.project.currency ?? "USD"}
+          errorFields={form?.errorFields ?? []}
+        />
         <div class="modal-action">
           <button
             type="button"

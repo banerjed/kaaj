@@ -4,11 +4,16 @@ import * as contacts from "$lib/server/customers/customer-contacts.repo"
 import * as activities from "$lib/server/crm/activities.repo"
 import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
 import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
-import { readCustomFieldValues } from "$lib/server/custom-fields/read-values"
+import {
+  customFieldProblem,
+  readCustomFieldValues,
+} from "$lib/server/custom-fields/read-values"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+
+const SCOPE = { entityType: "customer_contact" } as const
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -18,7 +23,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     const contact = await contacts.getById(tx, params.id)
     if (!contact) error(404, "Contact not found")
 
-    const fieldDefs = await customFields.definitionsFor(tx, "customer_contact")
+    const fieldDefs = await customFields.definitionsFor(tx, SCOPE)
     const fieldValues = await customFields.valuesFor(tx, "customer_contact", [
       params.id,
     ])
@@ -56,30 +61,26 @@ export const actions: Actions = {
         department: f.text("department", { max: 100 }),
         is_primary: f.bool("is_primary"),
       }
-      const fieldDefs = await customFields.definitionsFor(
-        tx,
-        "customer_contact",
-      )
+      const fieldDefs = await customFields.definitionsFor(tx, SCOPE)
       const fieldValues = readCustomFieldValues(f, data, fieldDefs)
-      if (!f.ok) return fail(400, f.problem("Some fields need attention."))
+      if (!f.ok) return fail(400, customFieldProblem(f, fieldDefs))
 
       try {
         await contacts.update(tx, params.id, input)
-        for (const v of fieldValues) {
-          await customFields.setValue(
-            tx,
-            tenantId,
-            v.definitionId,
-            "customer_contact",
-            params.id,
-            v.value,
-            ctx!.employeeId ?? ctx!.userId,
-          )
-        }
+        await customFields.saveValues(
+          tx,
+          tenantId,
+          SCOPE,
+          params.id,
+          fieldValues,
+          ctx!.employeeId ?? ctx!.userId,
+        )
         return { saved: true }
       } catch (e) {
         if (e instanceof CustomFieldWriteRefused) {
-          return fail(400, { message: "That field could not be saved." })
+          return fail(400, {
+            message: "Those fields could not be saved. Reload and try again.",
+          })
         }
         const refused = constraintFailure(e)
         if (refused) return refused

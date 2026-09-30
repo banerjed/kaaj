@@ -319,21 +319,26 @@ INSERT INTO tasks (id, tenant_id, task_id, task_number, project_id, parent_task_
 -- (text/number/money/date/boolean/multiselect), real values on real
 -- projects/tasks, not a placeholder sweep. T-001/T-002 are PRJ-001's own
 -- tasks (above); PRJ-001 is '8257009f-6a91-5fd1-9efb-518198c08e2a'.
-INSERT INTO custom_field_values (id, tenant_id, field_definition_id, entity_type, entity_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', 'task', '48961ce2-d17a-5ebe-81db-f608b4b6b125', 'APAC', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', 'task', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, 6.5000, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, 4200.00, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', 'task', '48961ce2-d17a-5ebe-81db-f608b4b6b125', NULL, NULL, NULL, '2026-02-10', NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', 'task', '864cc09e-6b7e-58b4-a2e2-04233fbfea70', 'gold', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', 'project', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, NULL, NULL, NULL, '["web", "data"]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+INSERT INTO custom_field_values (id, tenant_id, field_definition_id, project_id, task_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', NULL, '48961ce2-d17a-5ebe-81db-f608b4b6b125', 'APAC', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a02', NULL, '864cc09e-6b7e-58b4-a2e2-04233fbfea70', NULL, 6.5000, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, NULL, 4200.00, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a04', NULL, '48961ce2-d17a-5ebe-81db-f608b4b6b125', NULL, NULL, NULL, '2026-02-10', NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a05', NULL, '864cc09e-6b7e-58b4-a2e2-04233fbfea70', 'gold', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a06', '8257009f-6a91-5fd1-9efb-518198c08e2a', NULL, NULL, NULL, NULL, NULL, NULL, '["web", "data"]'::jsonb, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     -- On PRJ-004, the restricted project: the row a plain employee must NOT
     -- see, or custom_field_values' row policy has nothing to refuse (L50).
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a08', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', 'project', '1da967fa-e086-53c7-b9d1-7605759dfda3', NULL, NULL, 1500.00, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a08', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'a3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a03', '1da967fa-e086-53c7-b9d1-7605759dfda3', NULL, NULL, NULL, 1500.00, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
     -- boolean coverage, via the pre-existing 'client_billable' definition —
     -- this table is new; `tasks.custom_fields` already carrying
     -- {"client_billable": true} on every task is a DIFFERENT column and
     -- gives this new table no coverage on its own.
-    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a07', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '210b40b7-df80-5139-b843-821bfa8da2f7', 'task', '6d029a3a-8887-50a7-85b0-9e22408bdf61', NULL, NULL, NULL, NULL, TRUE, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+    ('b3f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a07', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '210b40b7-df80-5139-b843-821bfa8da2f7', NULL, '6d029a3a-8887-50a7-85b0-9e22408bdf61', NULL, NULL, NULL, NULL, TRUE, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+-- Two categories on tasks, so ordering by category and within it has
+-- something to order (docs/31-custom-fields.md).
+UPDATE custom_field_definitions SET category = 'Billing'
+ WHERE entity_type = 'task' AND field_key IN ('client_billable', 'extra_hours', 'client_signoff_date');
 
 -- RESTORED table: effective-dated rates. January work must bill at January rates.
 INSERT INTO time_tracking_hourly_rates (id, tenant_id, employee_id, customer_id, cost_rate, billable_rate, currency, effective_from, effective_to, change_reason, is_active, created_by) VALUES
@@ -408,8 +413,8 @@ INSERT INTO ticketing_subcategories (id, tenant_id, category_id, name, created_a
 -- Ticketing's own custom fields (Tier 2, docs/06-customization-model.md),
 -- scoped per business area — the thing this fixture exists to demonstrate.
 -- Each area's set is genuinely different: different keys, different types,
--- different required-ness. Values live on ticketing_tickets.custom_fields,
--- keyed by field_key, set below alongside the tickets that carry them.
+-- different required-ness. Values are custom_field_values rows, set below
+-- alongside the tickets that carry them.
 INSERT INTO custom_field_definitions (id, tenant_id, entity_type, business_area_id, field_key, label, help_text, data_type, display_order, options, is_required) VALUES
     ('b1000000-0000-5000-9000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ticket', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'asset_tag', 'Asset Tag', 'Inventory tag on the affected device, if there is one.', 'text', 1, NULL, FALSE),
     ('b1000000-0000-5000-9000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ticket', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'requires_manager_approval', 'Requires Manager Approval', NULL, 'boolean', 2, NULL, FALSE),
@@ -419,13 +424,13 @@ INSERT INTO custom_field_definitions (id, tenant_id, entity_type, business_area_
     ('b3000000-0000-5000-9000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ticket', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'vendor_ticket_number', 'Vendor Ticket #', NULL, 'text', 2, NULL, FALSE);
 
 -- Tickets across three business areas. search_vector is populated by trigger on insert.
-INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, custom_fields, version, created_at) VALUES
-    ('a22f6d41-d654-5951-a043-e174f7e1a258', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0001', 'Laptop will not boot', 'Laptop will not boot', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000011', 'open', 'high', 'Laptop will not boot', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('81535673-0241-5ed1-bb17-6fe1c042e9f1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0002', 'VPN access for new starter', 'VPN access for new starter', 'a1000000-0000-5000-8000-000000000002', 'a1000000-0000-5000-8000-000000000021', 'resolved', 'medium', 'VPN access for new starter', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '56bd1329-6740-572f-aa90-c44d1b27bedf', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('c7f8ebb6-27b9-5098-b584-d4a3e0518c50', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0003', 'Second monitor request', 'Second monitor request', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'open', 'low', 'Second monitor request', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'bf17b1af-963b-53ef-9083-21506fb34e9c', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('7cf9d829-a0aa-5a22-a1f5-f8f7d7464977', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'FAC-0001', 'Meeting room booking system down', 'Meeting room booking system down', 'a3000000-0000-5000-8000-000000000001', NULL, 'in_progress', 'medium', 'Meeting room booking system down', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('fbc213ca-f362-58d3-aa36-45db45958e60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0001', 'Acme reports slow report generation', 'Acme reports slow report generation', 'a2000000-0000-5000-8000-000000000001', NULL, 'in_progress', 'high', 'Acme reports slow report generation', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'db1f1f2b-b140-5948-a34e-1c998ed98757', '{}'::jsonb, 1, '2026-01-01T09:00:00Z'),
-    ('6e78ba43-d504-546e-933d-4a5dce8d3313', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0002', 'Britannia data export format query', 'Britannia data export format query', 'a2000000-0000-5000-8000-000000000002', NULL, 'resolved', 'low', 'Britannia data export format query', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', 'c095eafa-952e-5047-961a-82ce7b45cbf1', NULL, NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, version, created_at) VALUES
+    ('a22f6d41-d654-5951-a043-e174f7e1a258', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0001', 'Laptop will not boot', 'Laptop will not boot', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000011', 'open', 'high', 'Laptop will not boot', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', 1, '2026-01-01T09:00:00Z'),
+    ('81535673-0241-5ed1-bb17-6fe1c042e9f1', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0002', 'VPN access for new starter', 'VPN access for new starter', 'a1000000-0000-5000-8000-000000000002', 'a1000000-0000-5000-8000-000000000021', 'resolved', 'medium', 'VPN access for new starter', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '56bd1329-6740-572f-aa90-c44d1b27bedf', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', 1, '2026-01-01T09:00:00Z'),
+    ('c7f8ebb6-27b9-5098-b584-d4a3e0518c50', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0003', 'Second monitor request', 'Second monitor request', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'open', 'low', 'Second monitor request', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, 'bf17b1af-963b-53ef-9083-21506fb34e9c', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', 1, '2026-01-01T09:00:00Z'),
+    ('7cf9d829-a0aa-5a22-a1f5-f8f7d7464977', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '2e90b722-25ef-51b7-866b-e93d3bcca1c3', 'FAC-0001', 'Meeting room booking system down', 'Meeting room booking system down', 'a3000000-0000-5000-8000-000000000001', NULL, 'in_progress', 'medium', 'Meeting room booking system down', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', 1, '2026-01-01T09:00:00Z'),
+    ('fbc213ca-f362-58d3-aa36-45db45958e60', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0001', 'Acme reports slow report generation', 'Acme reports slow report generation', 'a2000000-0000-5000-8000-000000000001', NULL, 'in_progress', 'high', 'Acme reports slow report generation', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '11f31511-ad53-59c7-9e90-8ee3b553489b', NULL, NULL, 'db1f1f2b-b140-5948-a34e-1c998ed98757', 1, '2026-01-01T09:00:00Z'),
+    ('6e78ba43-d504-546e-933d-4a5dce8d3313', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0002', 'Britannia data export format query', 'Britannia data export format query', 'a2000000-0000-5000-8000-000000000002', NULL, 'resolved', 'low', 'Britannia data export format query', FALSE, '2026-01-31', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', 'c095eafa-952e-5047-961a-82ce7b45cbf1', NULL, NULL, 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 1, '2026-01-01T09:00:00Z');
 -- CS-0003 (portal-submitted, by Dana) is seeded further below, after
 -- customer_contacts exists — its logger_contact_id and customer_id are
 -- real foreign keys into tables that don't exist yet at this point in the
@@ -433,24 +438,17 @@ INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, t
 
 UPDATE ticketing_tickets SET
     private = TRUE,
-    request_type = 'bug_fix',
-    custom_fields = '{"asset_tag": "MON-0087", "requires_manager_approval": true}'::jsonb
+    request_type = 'bug_fix'
 WHERE ticket_number = 'IT-0003';
 
 -- Custom field values for the rest of the demo tickets — each business
 -- area's own set (IT: asset_tag/requires_manager_approval; Client Support:
 -- account_tier/escalated; Facilities: location/vendor_ticket_number).
-UPDATE ticketing_tickets SET
-    custom_fields = '{"asset_tag": "LT-2291", "requires_manager_approval": false}'::jsonb
-WHERE ticket_number = 'IT-0001';
 
-UPDATE ticketing_tickets SET
-    custom_fields = '{"account_tier": "enterprise", "escalated": true}'::jsonb
-WHERE ticket_number = 'CS-0001';
 
-UPDATE ticketing_tickets SET
-    custom_fields = '{"location": "3rd Floor - Room 305", "vendor_ticket_number": "FACVEND-1123"}'::jsonb
-WHERE ticket_number = 'FAC-0001';
+
+
+
 
 -- Subscribers to IT-0003 — real rows, not the JSONB array this used to be.
 INSERT INTO ticketing_ticket_subscribers (tenant_id, ticket_id, employee_id, added_at, added_by)
@@ -461,9 +459,61 @@ SELECT '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', id, unnest(ARRAY[
   FROM ticketing_tickets WHERE ticket_number = 'IT-0003';
 
 UPDATE ticketing_tickets SET
-    request_type = 'support',
-    custom_fields = '{"account_tier": "standard", "escalated": false}'::jsonb
+    request_type = 'support'
 WHERE ticket_number = 'CS-0002';
+
+-- Each ticket area's own custom field values (IT: asset_tag/requires_manager_approval;
+-- Client Support: account_tier/escalated; Facilities: location/vendor_ticket_number).
+INSERT INTO custom_field_values (tenant_id, field_definition_id, ticket_id, value_text, value_boolean, updated_by)
+SELECT t.tenant_id, d.id, t.id, 'MON-0087', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'asset_tag'
+ WHERE t.ticket_number = 'IT-0003'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, NULL, TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'requires_manager_approval'
+ WHERE t.ticket_number = 'IT-0003'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, 'LT-2291', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'asset_tag'
+ WHERE t.ticket_number = 'IT-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, NULL, FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'requires_manager_approval'
+ WHERE t.ticket_number = 'IT-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, 'enterprise', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'account_tier'
+ WHERE t.ticket_number = 'CS-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, NULL, TRUE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'escalated'
+ WHERE t.ticket_number = 'CS-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, '3rd Floor - Room 305', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'location'
+ WHERE t.ticket_number = 'FAC-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, 'FACVEND-1123', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'vendor_ticket_number'
+ WHERE t.ticket_number = 'FAC-0001'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, 'standard', NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'account_tier'
+ WHERE t.ticket_number = 'CS-0002'
+UNION ALL
+SELECT t.tenant_id, d.id, t.id, NULL, FALSE, '48ccc5de-9ba7-5461-ab49-160a1146ed85'
+  FROM ticketing_tickets t JOIN custom_field_definitions d
+    ON d.entity_type = 'ticket' AND d.business_area_id = t.business_area_id AND d.field_key = 'escalated'
+ WHERE t.ticket_number = 'CS-0002';
 
 -- CS-0002's parent is CS-0001 — same business area, as required.
 UPDATE ticketing_tickets t SET parent_ticket_id = p.id
@@ -634,8 +684,8 @@ INSERT INTO customer_contacts (id, tenant_id, customer_id, first_name, last_name
 INSERT INTO custom_field_definitions (id, tenant_id, entity_type, field_key, label, data_type, display_order, options) VALUES
     ('c5f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'customer_contact', 'alternate_phone', 'Alternate Phone', 'text', 1, NULL);
 
-INSERT INTO custom_field_values (id, tenant_id, field_definition_id, entity_type, entity_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
-    ('c6f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c5f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', 'customer_contact', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '+1-212-555-0299', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+INSERT INTO custom_field_values (id, tenant_id, field_definition_id, customer_contact_id, value_text, value_number, value_money, value_date, value_boolean, value_multi, updated_by) VALUES
+    ('c6f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c5f6a1a1-4b0a-5a1a-9b1a-1a1a1a1a1a01', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '+1-212-555-0299', NULL, NULL, NULL, NULL, NULL, '48ccc5de-9ba7-5461-ab49-160a1146ed85');
 
 -- CRM core: pipeline stages, deals and the activity timeline, hanging off the
 -- customers/customer_contacts rows seeded above.
@@ -681,8 +731,8 @@ FROM customer_contacts cc;
 -- own ticket, no employee has touched it yet.
 -- category_id/subcategory_id are Question/Billing — a February-invoice
 -- question is exactly the case Billing was added for.
-INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, custom_fields, version, created_at) VALUES
-    ('16a68eb5-4d61-5548-8e17-8f1ac4c2f5c9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0003', 'Question about February invoice', 'Question about February invoice', 'a2000000-0000-5000-8000-000000000002', 'a2000000-0000-5000-8000-000000000021', 'open', 'medium', 'Question about February invoice', FALSE, '2026-03-10', '2026-03-03T14:00:00Z', '2026-03-03T14:00:00Z', NULL, NULL, 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '{}'::jsonb, 1, '2026-03-03T14:00:00Z');
+INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, version, created_at) VALUES
+    ('16a68eb5-4d61-5548-8e17-8f1ac4c2f5c9', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'c9800088-b86b-5ddd-acdc-5b9fbe32f268', 'CS-0003', 'Question about February invoice', 'Question about February invoice', 'a2000000-0000-5000-8000-000000000002', 'a2000000-0000-5000-8000-000000000021', 'open', 'medium', 'Question about February invoice', FALSE, '2026-03-10', '2026-03-03T14:00:00Z', '2026-03-03T14:00:00Z', NULL, NULL, 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'da1d1f9e-9d10-4d13-a3d9-b90f49903a13', 1, '2026-03-03T14:00:00Z');
 
 UPDATE ticketing_tickets SET
     reported_by_name = 'Dana Whitcombe',
@@ -725,8 +775,8 @@ UPDATE ticketing_tickets t SET parent_ticket_id = p.id
 -- rather than piling onto CS-0001 or IT-0002 — row-visibility.test.ts
 -- hardcodes expected-visible-update-count arrays for those two, and adding
 -- to either would mean touching that test again for no reason.
-INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, custom_fields, version, created_at) VALUES
-    ('d4000000-0000-5000-9000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0004', 'Ongoing network switch replacement', 'A long-running project to replace the core network switch, tracked as one ticket with frequent status updates.', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'active', 'medium', 'Ongoing network switch replacement', FALSE, '2026-04-30', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '6d466aa9-e51a-5d52-9015-152600855932', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', '{}'::jsonb, 1, '2026-01-01T09:00:00Z');
+INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, title, description, category_id, subcategory_id, status, severity, external_summary, private, due_date, logged_at, updated_at, resolved_at, logger_employee_id, logger_contact_id, customer_id, last_updated_by, version, created_at) VALUES
+    ('d4000000-0000-5000-9000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '872ea5b0-1dc9-5e20-be3e-5eaa8c431c0c', 'IT-0004', 'Ongoing network switch replacement', 'A long-running project to replace the core network switch, tracked as one ticket with frequent status updates.', 'a1000000-0000-5000-8000-000000000001', 'a1000000-0000-5000-8000-000000000012', 'active', 'medium', 'Ongoing network switch replacement', FALSE, '2026-04-30', '2026-01-01T09:00:00Z', '2026-01-01T09:00:00Z', NULL, '6d466aa9-e51a-5d52-9015-152600855932', NULL, NULL, 'a87e0200-0849-53b6-a491-e882feace3f5', 1, '2026-01-01T09:00:00Z');
 
 -- Inserted with a literal sequence_number, same reason as CS-0003 above.
 UPDATE ticketing_business_areas SET current_sequence = 4 WHERE prefix = 'IT';
@@ -2139,11 +2189,7 @@ UPDATE compensation_work_schedules SET schedule_id = 'SI-' || upper(substr(repla
 UPDATE compensation_work_schedules SET shift_pattern = '{"note": "seeded for fixture completeness"}'::jsonb WHERE shift_pattern IS NULL OR shift_pattern::text IN ('{}','[]','null');
 UPDATE cross_module_links SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
 UPDATE cross_module_links SET metadata = '{"note": "seeded for fixture completeness"}'::jsonb WHERE metadata IS NULL OR metadata::text IN ('{}','[]','null');
-UPDATE custom_field_definitions SET default_value = '{"note": "seeded for fixture completeness"}'::jsonb WHERE default_value IS NULL OR default_value::text IN ('{}','[]','null');
-UPDATE custom_field_definitions SET field_group = 'Field Group 1' WHERE field_group IS NULL OR field_group = '';
 UPDATE custom_field_definitions SET help_text = 'Help Text 1' WHERE help_text IS NULL OR help_text = '';
-UPDATE custom_field_definitions SET label_i18n = '{"note": "seeded for fixture completeness"}'::jsonb WHERE label_i18n IS NULL OR label_i18n::text IN ('{}','[]','null');
-UPDATE custom_field_definitions SET validation = '{"note": "seeded for fixture completeness"}'::jsonb WHERE validation IS NULL OR validation::text IN ('{}','[]','null');
 UPDATE customers SET created_by = '48ccc5de-9ba7-5461-ab49-160a1146ed85' WHERE created_by IS NULL;
 UPDATE customers SET credit_limit = 100.00 WHERE credit_limit IS NULL;
 UPDATE customers SET notes = 'Seeded so this column is never empty — an empty column is a check that has stopped testing.' WHERE notes IS NULL OR notes = '';

@@ -12,7 +12,10 @@ import { uploadTaskFile as attachTaskFile } from "$lib/server/documents/upload"
 import { UploadRefused } from "$lib/server/documents/upload"
 import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
 import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
-import { readCustomFieldValues } from "$lib/server/custom-fields/read-values"
+import {
+  customFieldProblem,
+  readCustomFieldValues,
+} from "$lib/server/custom-fields/read-values"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
@@ -64,9 +67,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       commentsByTask: await comments.commentsForProject(tx, project.id),
       filesByTask: await documents.forEntities(tx, "task", taskIds),
       // Custom fields (docs/26-project-management-custom-fields.md).
-      taskFieldDefs: await customFields.definitionsFor(tx, "task"),
+      taskFieldDefs: await customFields.definitionsFor(tx, {
+        entityType: "task",
+      }),
       taskFieldValues: await customFields.valuesFor(tx, "task", taskIds),
-      projectFieldDefs: await customFields.definitionsFor(tx, "project"),
+      projectFieldDefs: await customFields.definitionsFor(tx, {
+        entityType: "project",
+      }),
       projectFieldValues: (
         await customFields.valuesFor(tx, "project", [project.id])
       )[project.id],
@@ -592,11 +599,6 @@ export const actions: Actions = {
    * addComment: a descriptive attribute on a task changes nobody's money,
    * employment or rights (the financial-calculation boundary is precisely
    * what keeps a `money`-typed custom field out of anything that would).
-   *
-   * One `setValue` call per definition — a loop over a fixed, admin-defined
-   * field list (`definitionsFor`'s own result), never table growth; same
-   * shape as `invoice_lines`/`bill_lines`'s own EXEMPT entries in
-   * verify-no-loop-queries.mjs.
    */
   setTaskCustomFields: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -610,26 +612,26 @@ export const actions: Actions = {
 
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        const defs = await customFields.definitionsFor(tx, "task")
+        const scope = { entityType: "task" } as const
+        const defs = await customFields.definitionsFor(tx, scope)
         const values = readCustomFieldValues(f, data, defs)
-        if (!f.ok) return fail(400, f.problem("Check the highlighted field."))
+        if (!f.ok) return fail(400, customFieldProblem(f, defs))
 
-        for (const v of values) {
-          await customFields.setValue(
-            tx,
-            locals.tenantId!,
-            v.definitionId,
-            "task",
-            taskId!,
-            v.value,
-            ctx!.employeeId ?? ctx!.userId,
-          )
-        }
+        await customFields.saveValues(
+          tx,
+          locals.tenantId!,
+          scope,
+          taskId!,
+          values,
+          ctx!.employeeId ?? ctx!.userId,
+        )
         return { fieldsSaved: true }
       })
     } catch (e) {
       if (e instanceof CustomFieldWriteRefused) {
-        return fail(400, { message: "That field could not be saved." })
+        return fail(400, {
+          message: "Those fields could not be saved. Reload and try again.",
+        })
       }
       throw e
     }
@@ -646,26 +648,26 @@ export const actions: Actions = {
 
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        const defs = await customFields.definitionsFor(tx, "project")
+        const scope = { entityType: "project" } as const
+        const defs = await customFields.definitionsFor(tx, scope)
         const values = readCustomFieldValues(f, data, defs)
-        if (!f.ok) return fail(400, f.problem("Check the highlighted field."))
+        if (!f.ok) return fail(400, customFieldProblem(f, defs))
 
-        for (const v of values) {
-          await customFields.setValue(
-            tx,
-            locals.tenantId!,
-            v.definitionId,
-            "project",
-            params.id,
-            v.value,
-            ctx!.employeeId ?? ctx!.userId,
-          )
-        }
+        await customFields.saveValues(
+          tx,
+          locals.tenantId!,
+          scope,
+          params.id,
+          values,
+          ctx!.employeeId ?? ctx!.userId,
+        )
         return { fieldsSaved: true }
       })
     } catch (e) {
       if (e instanceof CustomFieldWriteRefused) {
-        return fail(400, { message: "That field could not be saved." })
+        return fail(400, {
+          message: "Those fields could not be saved. Reload and try again.",
+        })
       }
       throw e
     }

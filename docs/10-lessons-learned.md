@@ -2846,6 +2846,32 @@ something a plain foreign key never does.
 Rule: when a row holds a child and its parent, the child's key includes the
 parent's column.
 
+### L110 — two checks that could not see what they were meant to check
+
+Both were found consolidating custom fields, and both would have passed
+with the bug present.
+
+**Actions spread into a page are invisible to `./check`.** The settings
+pages were going to mount shared actions with
+`actions = { ...customFieldSettingsActions(scope) }`. The authorization and
+audit steps find actions by reading each page's `actions` object for
+`  name: async (`, so spread actions would have had no guard check and no
+audit classification, and both steps would have passed. The shared code is
+now handlers that do not authorize; each page writes its actions out, runs
+its own `requireCan`, and calls the handler.
+
+**A visibility test that joins the parent tests the parent.** The first
+test for ticket custom field values joined `ticketing_tickets` to show
+ticket numbers. With the values policy weakened to let every ticket value
+through, it still passed: the join to the tickets table applied the
+tickets' own row policy and hid exactly the rows the values policy should
+have. The test now reads `custom_field_values` alone and maps ids to
+numbers in code, and fails against the weakened policy.
+
+Rule: a check is only as good as what it can see. Write actions out where
+the checks look for them, and test a child table's policy by reading the
+child table alone.
+
 ---
 
 ## Conventions

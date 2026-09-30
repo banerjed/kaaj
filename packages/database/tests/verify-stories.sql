@@ -431,9 +431,10 @@ SELECT _check('TIX-custom-fields','SCHEMA','ticketing',
      WHERE entity_type='ticket'$$);
 SELECT _check('TIX-custom-values','DATA','ticketing',
   'Ticket custom field values use keys that have a definition for THAT ticket''s own business area',
-  $$SELECT bool_and(t.custom_fields ?| (SELECT array_agg(field_key) FROM custom_field_definitions
-      WHERE entity_type='ticket' AND business_area_id = t.business_area_id))
-    FROM ticketing_tickets t WHERE t.custom_fields <> '{}'::jsonb$$);
+  $$SELECT count(*) > 0 AND bool_and(d.business_area_id = t.business_area_id)
+      FROM custom_field_values v
+      JOIN ticketing_tickets t ON t.id = v.ticket_id
+      JOIN custom_field_definitions d ON d.id = v.field_definition_id$$);
 SELECT _check('TIX-tasks','DATA','ticketing',
   'Tickets can carry a checklist of tasks, in both done and not-done states',
   $$SELECT count(DISTINCT is_done)>1 FROM ticketing_ticket_tasks$$);

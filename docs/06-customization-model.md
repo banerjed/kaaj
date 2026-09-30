@@ -127,6 +127,11 @@ retroactively.
 
 ## Tier 2: Custom fields
 
+> **Superseded in part by [31-custom-fields.md](./31-custom-fields.md).**
+> Values now live in `custom_field_values` — typed columns, one foreign key
+> per kind of record — not in each entity's `custom_fields` JSONB, and
+> definitions carry a `category`. The JSONB columns below are being removed.
+
 ### Current state
 
 `custom_fields` JSONB already exists on `employees`, `tasks`, `projects`,

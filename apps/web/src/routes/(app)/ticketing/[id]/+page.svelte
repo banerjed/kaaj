@@ -1,4 +1,6 @@
 <script lang="ts">
+  import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
+  import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { instant } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance, deserialize } from "$app/forms"
@@ -130,18 +132,6 @@
 
   /** The one status that greys/strikes a cross-referenced ticket — literally "closed", not any other terminal-looking status ("duplicate" included). */
   const isClosed = (status: string) => status === "closed"
-
-  function formatCustomFieldValue(
-    def: (typeof data.customFieldDefinitions)[number],
-    value: string | number | boolean | null | undefined,
-  ): string {
-    if (value === null || value === undefined || value === "") return "—"
-    if (def.data_type === "boolean") return value ? "Yes" : "No"
-    if (def.data_type === "select") {
-      return def.options?.find((o) => o.value === value)?.label ?? String(value)
-    }
-    return String(value)
-  }
 
   // Item 2: parent/linked-ticket pickers search on demand rather than
   // choosing from a capped preloaded list — a business area (or the whole
@@ -833,24 +823,19 @@
           {#if data.customFieldDefinitions.length > 0}
             <div>
               {@render sectionHeader("Details")}
-              <p class="text-base-content/60 mt-2 text-xs">
+              <p class="text-base-content/70 mt-2 text-xs">
                 {data.ticket.business_area_name} fields
               </p>
 
               {#if !editing}
-                <dl
-                  class="mt-1 grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-sm"
-                >
-                  {#each data.customFieldDefinitions as def (def.id)}
-                    <dt class="text-base-content/60">{def.label}</dt>
-                    <dd>
-                      {formatCustomFieldValue(
-                        def,
-                        data.ticket.custom_fields[def.field_key],
-                      )}
-                    </dd>
-                  {/each}
-                </dl>
+                <div class="mt-1">
+                  <CustomFieldValues
+                    definitions={data.customFieldDefinitions}
+                    values={data.customFieldValues}
+                    locale={tenantLocale}
+                    currency={data.tenant?.default_currency ?? "USD"}
+                  />
+                </div>
               {:else}
                 <form
                   method="POST"
@@ -858,55 +843,12 @@
                   use:enhance={keepValues}
                   class="mt-2 grid gap-3"
                 >
-                  {#each data.customFieldDefinitions as def (def.id)}
-                    {@const name = `cf_${def.field_key}`}
-                    {@const current = data.ticket.custom_fields[def.field_key]}
-                    <fieldset class="fieldset">
-                      <legend class="fieldset-legend text-xs">
-                        {def.label}{def.is_required ? " *" : ""}
-                      </legend>
-                      {#if def.data_type === "boolean"}
-                        <input
-                          type="checkbox"
-                          {name}
-                          class="checkbox"
-                          checked={current === true}
-                        />
-                      {:else if def.data_type === "select"}
-                        <select
-                          {name}
-                          class={`select select-sm w-full ${err.select(name)}`}
-                          required={def.is_required}
-                        >
-                          <option value="">—</option>
-                          {#each def.options ?? [] as opt (opt.value)}
-                            <option
-                              value={opt.value}
-                              selected={opt.value === current}
-                              >{opt.label}</option
-                            >
-                          {/each}
-                        </select>
-                      {:else}
-                        <input
-                          type={def.data_type === "number"
-                            ? "number"
-                            : def.data_type === "date"
-                              ? "date"
-                              : "text"}
-                          {name}
-                          value={current ?? ""}
-                          class={`input input-sm w-full ${err.input(name)}`}
-                          required={def.is_required}
-                        />
-                      {/if}
-                      {#if def.help_text}
-                        <p class="text-base-content/60 text-xs">
-                          {def.help_text}
-                        </p>
-                      {/if}
-                    </fieldset>
-                  {/each}
+                  <CustomFieldFormFields
+                    definitions={data.customFieldDefinitions}
+                    values={data.customFieldValues}
+                    currency={data.tenant?.default_currency ?? "USD"}
+                    errorFields={form?.errorFields ?? []}
+                  />
                   <div>
                     <button class="btn btn-primary btn-sm">Save fields</button>
                   </div>

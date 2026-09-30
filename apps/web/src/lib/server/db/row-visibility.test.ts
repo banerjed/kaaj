@@ -504,8 +504,8 @@ describe("a child row is visible exactly when its parent is", () => {
       asRole(who, async (tx) => {
         const [r] = await tx<{ all: number; restricted: number }[]>`
           SELECT count(*)::int AS all,
-                 (count(*) FILTER (WHERE entity_id = ${PRJ_004_RESTRICTED}::uuid))::int AS restricted
-            FROM custom_field_values
+                 (count(*) FILTER (WHERE project_id = ${PRJ_004_RESTRICTED}::uuid))::int AS restricted
+            FROM custom_field_values WHERE ticket_id IS NULL
         `
         return r
       })
@@ -954,6 +954,52 @@ describe("ticketing", () => {
     expect(
       await ticketNumbers({ employeeId: SARAH, role: "employee" }),
     ).toContain("IT-0002")
+  })
+
+  // A ticket's custom field values follow the ticket: a portal contact sees
+  // their own customer's, and a private ticket's stay hidden from members.
+  // Reads custom_field_values ALONE — joining ticketing_tickets would let the
+  // ticket's own policy do the filtering and hide a broken value policy.
+  const TICKET_NUMBER: Record<string, string> = {
+    "fbc213ca-f362-58d3-aa36-45db45958e60": "CS-0001",
+    "6e78ba43-d504-546e-933d-4a5dce8d3313": "CS-0002",
+    "7cf9d829-a0aa-5a22-a1f5-f8f7d7464977": "FAC-0001",
+    "a22f6d41-d654-5951-a043-e174f7e1a258": "IT-0001",
+    "c7f8ebb6-27b9-5098-b584-d4a3e0518c50": "IT-0003",
+  }
+  const ticketValues = (who: Who) =>
+    asRole(who, async (tx) => {
+      const rows = await tx<{ ticket_id: string }[]>`
+        SELECT DISTINCT ticket_id::text FROM custom_field_values
+         WHERE ticket_id IS NOT NULL
+      `
+      return rows.map((r) => TICKET_NUMBER[r.ticket_id] ?? r.ticket_id).sort()
+    })
+
+  it("shows a portal contact the custom field values of their own customer's tickets only", async () => {
+    expect(
+      await ticketValues({
+        customerContactId: IMOGEN,
+        customerId: BRITCO,
+        role: "customer",
+      }),
+    ).toEqual(["CS-0002"])
+    expect(
+      await ticketValues({
+        customerContactId: DANA,
+        customerId: ACME,
+        role: "customer",
+      }),
+    ).toEqual(["CS-0001"])
+  })
+
+  it("hides a private ticket's custom field values from an area member, not from its logger", async () => {
+    expect(
+      await ticketValues({ employeeId: MARCUS, role: "employee" }),
+    ).not.toContain("IT-0003")
+    expect(
+      await ticketValues({ employeeId: PRIYA, role: "employee" }),
+    ).toContain("IT-0003")
   })
 
   it("ticketing.read.all sees every ticket regardless of membership", async () => {

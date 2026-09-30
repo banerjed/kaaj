@@ -354,17 +354,61 @@ const CANNOT_BE_TRIPPED = new Map([
     "tenant_id comes from the session",
   ],
   [
-    "custom_field_definitions_business_area_id_fkey",
-    "never set by the project/task create path (always NULL there); ticketing's own path always passes an id already resolved via businessAreaById in that route's load()",
+    "ck_custom_field_definitions_category",
+    "the form trims the category and sends a blank one as General; its max length matches the CHECK",
+  ],
+  [
+    "ck_custom_field_definitions_entity_type",
+    "set from the page's own fixed scope, never form input",
+  ],
+  [
+    "ck_custom_field_definitions_ticket_area",
+    "FieldScope carries an area for tickets and none otherwise, by type",
+  ],
+  [
+    "uq_custom_field_definitions_tenant_id_id_entity_type",
+    "id is the primary key; this is a foreign-key target",
   ],
   [
     "custom_field_definitions_data_type_check",
-    "FormReader's choice(data_type, CUSTOM_FIELD_DATA_TYPES) already refuses anything off the list, in both ticketing.repo.ts and custom-fields.repo.ts",
+    "FormReader's choice(data_type, CUSTOM_FIELD_DATA_TYPES) refuses anything off the list",
   ],
   ["custom_field_values_tenant_id_fkey", "tenant_id comes from the session"],
   [
-    "custom_field_values_field_definition_id_fkey",
-    "custom_field_definitions rows are never hard-deleted (archiveDefinition only flips is_active) — the FK can't be violated by anything this app does",
+    "ck_custom_field_values_one_record",
+    "saveValues writes exactly one record column, chosen by the scope's entity type",
+  ],
+  [
+    "fk_custom_field_values_definition",
+    "saveValues refuses a definition outside the scope (no_such_definition) before inserting",
+  ],
+  [
+    "fk_custom_field_values_project",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
+    "fk_custom_field_values_task",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
+    "fk_custom_field_values_customer_contact",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
+    "fk_custom_field_values_ticket",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
+    "uq_projects_tenant_id_id",
+    "id is the primary key; this is a foreign-key target",
+  ],
+  [
+    "uq_tasks_tenant_id_id",
+    "id is the primary key; this is a foreign-key target",
+  ],
+  [
+    "uq_ticketing_tickets_tenant_id_id",
+    "id is the primary key; this is a foreign-key target",
   ],
   [
     "custom_field_values_one_typed_value",

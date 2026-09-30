@@ -351,8 +351,6 @@ export type TicketDetail = TicketRow & {
   subscribers: PersonRow[]
   linked: TicketRef[]
   children: TicketRef[]
-  /** Keyed by field_key — pair with `customFieldDefinitionsFor(business_area_id)` to render. */
-  custom_fields: Record<string, string | number | boolean | null>
 }
 
 /** Sanitized again on the way out — defense in depth for any row a `RichTextEditor` didn't write (fixtures, a future direct SQL insert). */
@@ -372,15 +370,13 @@ export async function ticketById(
       parent_ticket_number: string | null
       parent_ticket_title: string | null
       parent_ticket_status: string | null
-      custom_fields: Record<string, string | number | boolean | null>
     })[]
   >`
     SELECT ${tx.unsafe(TICKET_COLUMNS)},
            t.description, t.external_summary,
            t.business_area_id, t.category_id, t.subcategory_id, t.private,
            t.parent_ticket_id, p.ticket_number AS parent_ticket_number,
-           p.title AS parent_ticket_title, p.status AS parent_ticket_status,
-           coalesce(t.custom_fields, '{}'::jsonb) AS custom_fields
+           p.title AS parent_ticket_title, p.status AS parent_ticket_status
     ${tx.unsafe(TICKET_FROM)}
     LEFT JOIN ticketing_tickets p ON p.id = t.parent_ticket_id
      WHERE t.id = ${id}::uuid
@@ -1082,111 +1078,6 @@ export async function setBusinessAreaGroups(
     SELECT ${tenantId}::uuid, ${businessAreaId}::uuid, unnest(${groupIds}::uuid[]), ${actorId}
     ON CONFLICT (tenant_id, business_area_id, group_id)
     DO UPDATE SET is_active = TRUE, added_at = now(), added_by = EXCLUDED.added_by
-  `
-}
-
-// -----------------------------------------------------------------------------
-// Custom fields — Tier 2 customization (docs/06-customization-model.md).
-// `custom_field_definitions` already exists for employees/tasks; this is
-// ticketing's use of it, scoped per business area via the
-// `business_area_id` column 20260909130000 added. Values live on
-// ticketing_tickets.custom_fields, keyed by field_key, exactly as the doc
-// describes — definitions and values are deliberately separate tables.
-// -----------------------------------------------------------------------------
-
-export const CUSTOM_FIELD_DATA_TYPES = [
-  "text",
-  "number",
-  "date",
-  "boolean",
-  "select",
-] as const
-export type CustomFieldDataType = (typeof CUSTOM_FIELD_DATA_TYPES)[number]
-
-export type CustomFieldOption = { value: string; label: string }
-
-export type CustomFieldDefinition = {
-  id: string
-  field_key: string
-  label: string
-  help_text: string | null
-  data_type: CustomFieldDataType
-  options: CustomFieldOption[] | null
-  is_required: boolean
-  display_order: number
-}
-
-/** Every active field this business area's tickets carry, in display order — the form-rendering read, for both the settings page and the ticket detail page. */
-export async function customFieldDefinitionsFor(
-  tx: Tx,
-  businessAreaId: string,
-): Promise<CustomFieldDefinition[]> {
-  return tx<CustomFieldDefinition[]>`
-    SELECT id, field_key, label, help_text, data_type, options, is_required, display_order
-      FROM custom_field_definitions
-     WHERE entity_type = 'ticket' AND business_area_id = ${businessAreaId}::uuid AND is_active
-     ORDER BY display_order, label
-  `
-}
-
-/** `snake_case`, matching the JSONB key convention every other custom field already uses (shirt_size, parking_spot, ...). */
-function slugifyFieldKey(label: string): string {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-}
-
-export async function createCustomFieldDefinition(
-  tx: Tx,
-  tenantId: string,
-  businessAreaId: string,
-  input: {
-    label: string
-    helpText: string | null
-    dataType: CustomFieldDataType
-    options: CustomFieldOption[] | null
-    isRequired: boolean
-  },
-): Promise<{ id: string }> {
-  const fieldKey = slugifyFieldKey(input.label)
-  const [row] = await tx<{ id: string }[]>`
-    INSERT INTO custom_field_definitions
-      (tenant_id, entity_type, business_area_id, field_key, label, help_text,
-       data_type, options, is_required, display_order)
-    SELECT ${tenantId}::uuid, 'ticket', ${businessAreaId}::uuid, ${fieldKey}, ${input.label},
-           ${input.helpText}, ${input.dataType},
-           ${input.options ? tx.json(input.options as never) : null},
-           ${input.isRequired},
-           coalesce((SELECT max(display_order) + 1 FROM custom_field_definitions
-                      WHERE entity_type = 'ticket' AND business_area_id = ${businessAreaId}::uuid), 1)
-    RETURNING id
-  `
-  return row
-}
-
-export async function archiveCustomFieldDefinition(
-  tx: Tx,
-  id: string,
-): Promise<boolean> {
-  const [row] = await tx<{ id: string }[]>`
-    UPDATE custom_field_definitions SET is_active = FALSE, updated_at = now()
-     WHERE id = ${id}::uuid AND entity_type = 'ticket'
-    RETURNING id
-  `
-  return !!row
-}
-
-export async function setCustomFieldValues(
-  tx: Tx,
-  ticketId: string,
-  values: Record<string, string | number | boolean | null>,
-): Promise<void> {
-  await tx`
-    UPDATE ticketing_tickets
-       SET custom_fields = ${tx.json(values as never)}, updated_at = now()
-     WHERE id = ${ticketId}::uuid
   `
 }
 

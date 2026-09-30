@@ -608,13 +608,23 @@ export const NOT_AUDITED: AuditedOperation[] = [
   },
   {
     route: "settings/ticketing/[businessAreaId]",
-    action: "addCustomField",
-    why: "Tier 2 customization (docs/06-customization-model.md), same shape as addCategory — a field definition, not a value belonging to any person.",
+    action: "addField",
+    why: "Tier 2 customization (docs/31-custom-fields.md), same shape as addCategory — a field definition, not a value belonging to any person.",
   },
   {
     route: "settings/ticketing/[businessAreaId]",
-    action: "archiveCustomField",
+    action: "archiveField",
     why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "renameCategory",
+    why: "Renames a heading that groups field definitions; configuration, not a value belonging to any person.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "moveField",
+    why: "Reorders field definitions within a heading; display configuration only.",
   },
   {
     route: "settings/project-management",
@@ -627,6 +637,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "Same: configuration, not a rights or pay change.",
   },
   {
+    route: "settings/project-management",
+    action: "renameCategory",
+    why: "Same as settings/ticketing/[businessAreaId]::renameCategory.",
+  },
+  {
+    route: "settings/project-management",
+    action: "moveField",
+    why: "Same as settings/ticketing/[businessAreaId]::moveField.",
+  },
+  {
     route: "settings/crm",
     action: "addField",
     why: "Tier 2 customization (docs/06-customization-model.md), same shape as settings/project-management's own addField — a field definition, not a value belonging to any person.",
@@ -635,6 +655,16 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "settings/crm",
     action: "archiveField",
     why: "Same: configuration, not a rights or pay change.",
+  },
+  {
+    route: "settings/crm",
+    action: "renameCategory",
+    why: "Same as settings/ticketing/[businessAreaId]::renameCategory.",
+  },
+  {
+    route: "settings/crm",
+    action: "moveField",
+    why: "Same as settings/ticketing/[businessAreaId]::moveField.",
   },
   {
     route: "crm/contacts",

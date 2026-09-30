@@ -1226,3 +1226,56 @@ test("creating a payment link with no Stripe key configured is refused, not sile
   expect(result.status).toBe(400)
   expect(result.raw).toMatch(/no stripe key/i)
 })
+
+test("a duplicate custom field name is refused, and marked only in the editor it came from", async ({
+  page,
+}) => {
+  await page.goto("/settings/project-management")
+  await page.waitForLoadState("networkidle")
+  // "Region" already exists on tasks, so the database refuses it (uq_custom_field_definitions_key).
+  const task = page.locator(
+    'form[action="?/addField"]:has(input[name="entity_type"][value="task"])',
+  )
+  const project = page.locator(
+    'form[action="?/addField"]:has(input[name="entity_type"][value="project"])',
+  )
+  await task.locator('input[name="label"]').fill("Region")
+  await task.locator('button[type="submit"]').click()
+
+  await expect(page.locator(".alert").first()).toContainText(
+    "Another field with that name",
+  )
+  await expect(task.locator('input[name="label"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  )
+  await expect(task.locator('input[name="label"]')).toHaveValue("Region")
+  await expect(project.locator('input[name="label"]')).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  )
+})
+
+test("a required ticket custom field left blank is named by its label and marked", async ({
+  page,
+}) => {
+  // CS-0001 is in Client Support, whose Account Tier field is required.
+  await page.goto("/ticketing/fbc213ca-f362-58d3-aa36-45db45958e60")
+  await openModal(page, /^update$/i, 'input[name="title"]')
+  await page.getByRole("tab", { name: "Details" }).click()
+
+  await page.locator('select[name="cf_account_tier"]').selectOption("")
+  await submitPastTheBrowser(
+    page,
+    "?/setCustomFields",
+    'form[action="?/setCustomFields"] button',
+  )
+  await expect(page.locator(".alert").first()).toContainText("Account Tier")
+  await expect(page.locator('select[name="cf_account_tier"]')).toHaveClass(
+    /select-error/,
+  )
+  await expect(page.locator('select[name="cf_account_tier"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  )
+})
