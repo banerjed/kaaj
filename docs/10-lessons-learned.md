@@ -2872,6 +2872,27 @@ Rule: a check is only as good as what it can see. Write actions out where
 the checks look for them, and test a child table's policy by reading the
 child table alone.
 
+### L111 — a portal contact is app_user with a tenant claim, so tenant_isolation lets them in
+
+Customer portal contacts connect as the same database role as staff, with
+the same `tenant_id` claim. `tenant_isolation` asks only "same tenant?", so
+every table whose sole policy is `tenant_isolation` is readable by a
+customer's portal contact. Nothing errors, and no portal page queries those
+tables, which is why it went unnoticed.
+
+Found while adding custom fields to companies and deals: as Imogen
+(Britannia's portal contact), every company, every deal's value (Acme's
+$120,000 renewal) and every logged call in the firm were readable. A probe
+of every table then found about 70 readable, including attendance,
+time-off, projects, objectives, payroll policies and the user list.
+
+`customers` and the CRM tables are now closed to the portal
+(20260930110000). The rest is open work: the classification step checks
+that each table is tenant-wide, row-scoped or per-column, but "tenant-wide"
+has meant "the whole firm's STAFF" while the policy says "anyone with the
+tenant claim". Until every table either closes to the portal or says why a
+customer may read it, treat `tenant_isolation` alone as readable by customers.
+
 ---
 
 ## Conventions

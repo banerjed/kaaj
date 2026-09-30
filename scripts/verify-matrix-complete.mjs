@@ -21,13 +21,19 @@ const NOT_SENSITIVE = new Map([
   // Keys, tenancy and bookkeeping.
   ["id", "surrogate key"],
   ["tenant_id", "tenancy discriminator; isolation is a separate concern"],
-  ["employee_id", "the subject's own id — the join key, on rows already policy-scoped"],
+  [
+    "employee_id",
+    "the subject's own id — the join key, on rows already policy-scoped",
+  ],
   ["created_at", "bookkeeping"],
   ["updated_at", "bookkeeping"],
   ["created_by", "bookkeeping"],
   ["version", "optimistic concurrency"],
   ["status", "lifecycle state, not a personal attribute"],
-  ["effective_from", "when a record applies; the amount beside it is what is protected"],
+  [
+    "effective_from",
+    "when a record applies; the amount beside it is what is protected",
+  ],
   ["effective_to", "when a record stops applying"],
   ["currency", "the unit of an amount; discloses a market, not a figure"],
 
@@ -64,8 +70,14 @@ const NOT_SENSITIVE = new Map([
   ["pay_frequency", "monthly vs fortnightly — a classification, not a figure"],
   ["standard_hours_per_day", "working pattern"],
   ["standard_days_per_week", "working pattern"],
-  ["pto_balances", "the person's own leave, shown to colleagues as availability"],
-  ["custom_fields", "customer-defined; must never feed payroll (see CLAUDE.md)"],
+  [
+    "pto_balances",
+    "the person's own leave, shown to colleagues as availability",
+  ],
+  [
+    "custom_fields",
+    "customer-defined; must never feed payroll (see CLAUDE.md)",
+  ],
   ["prior_employers", "the person publishes it on their profile"],
   ["prior_education", "the person publishes it on their profile"],
   ["gender", "self-declared, published by the person"],
@@ -127,18 +139,67 @@ if (!url) {
  * against pg_policies below, so a table cannot be listed here on intent.
  */
 const ROW_SCOPED = new Map([
-  ["time_tracking_entries", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
-  ["time_tracking_hourly_rates", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
-  ["time_tracking_timesheets", "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)"],
-  ["app_error_log", "no application reads: `message` echoes submitted values (L69); ops tools connect as owner"],
-  ["custom_field_values", "follows its project or task; any other entity_type is invisible"],
-  ["hr_benefits_enrollments", "the subject and PII readers (GDPR Art. 9), as benefits_elections_pvt on employees"],
-  ["payroll_runs", "payroll readers, and each employee the runs they were paid in (their payslip reads the pay date)"],
+  [
+    "customers",
+    "tenant-wide for staff (docs/15 Tier 3); a portal contact reads only their own company and writes none",
+  ],
+  [
+    "crm_deals",
+    "tenant-wide for staff, shared with the team working the account; no portal access",
+  ],
+  [
+    "crm_activities",
+    "tenant-wide for staff, as its customer is; no portal access",
+  ],
+  [
+    "crm_pipeline_stages",
+    "tenant-wide sales configuration for staff; no portal access",
+  ],
+  [
+    "time_tracking_entries",
+    "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)",
+  ],
+  [
+    "time_tracking_hourly_rates",
+    "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)",
+  ],
+  [
+    "time_tracking_timesheets",
+    "your own, or a time approver, payroll/HR, or finance; hours recompute and numbering run SECURITY DEFINER (L106)",
+  ],
+  [
+    "app_error_log",
+    "no application reads: `message` echoes submitted values (L69); ops tools connect as owner",
+  ],
+  [
+    "custom_field_values",
+    "follows its project or task; any other entity_type is invisible",
+  ],
+  [
+    "hr_benefits_enrollments",
+    "the subject and PII readers (GDPR Art. 9), as benefits_elections_pvt on employees",
+  ],
+  [
+    "payroll_runs",
+    "payroll readers, and each employee the runs they were paid in (their payslip reads the pay date)",
+  ],
   ["payroll_tax_deposits", "payroll readers and the finance function"],
-  ["ticketing_attachments", "follows its ticket, and its update when it has one"],
-  ["audit_log", "HR, payroll, auditor, owner; others see entries about or by themselves (L55)"],
-  ["contact_requests", "no read policy: marketing-site enquiries, service role only"],
-  ["customer_contacts", "a portal contact sees only their own customer's contacts"],
+  [
+    "ticketing_attachments",
+    "follows its ticket, and its update when it has one",
+  ],
+  [
+    "audit_log",
+    "HR, payroll, auditor, owner; others see entries about or by themselves (L55)",
+  ],
+  [
+    "contact_requests",
+    "no read policy: marketing-site enquiries, service role only",
+  ],
+  [
+    "customer_contacts",
+    "a portal contact sees only their own customer's contacts",
+  ],
   ["document_folders", "staff see folders shared with them or their role"],
   ["documents", "staff and portal visibility follow folder shares"],
   ["employee_bank_accounts", "the subject and HR/payroll (pii_visibility)"],
@@ -148,15 +209,36 @@ const ROW_SCOPED = new Map([
   ["hr_employment_history", "carries pay; same policy as compensation_base"],
   ["hr_feedback", "giver, receiver and HR (feedback_visibility)"],
   ["hr_reviews", "the subject, their manager and HR (performance_visibility)"],
-  ["hr_survey_responses", "the respondent and HR; anonymous responses stay anonymous"],
-  ["payroll_employee_deductions", "the subject and payroll (payroll_visibility)"],
-  ["payroll_india_salary_structure", "the subject and payroll (payroll_visibility)"],
-  ["payroll_india_tax_declarations", "the subject and payroll (payroll_visibility)"],
+  [
+    "hr_survey_responses",
+    "the respondent and HR; anonymous responses stay anonymous",
+  ],
+  [
+    "payroll_employee_deductions",
+    "the subject and payroll (payroll_visibility)",
+  ],
+  [
+    "payroll_india_salary_structure",
+    "the subject and payroll (payroll_visibility)",
+  ],
+  [
+    "payroll_india_tax_declarations",
+    "the subject and payroll (payroll_visibility)",
+  ],
   ["payroll_run_employees", "the subject and payroll (payroll_visibility)"],
-  ["payroll_tax_withholding_certificates", "the subject and payroll (payroll_visibility)"],
+  [
+    "payroll_tax_withholding_certificates",
+    "the subject and payroll (payroll_visibility)",
+  ],
   ["profiles", "each user reads their own profile only"],
-  ["projects", "restricted projects: their manager, granted groups, and reads_all_projects"],
-  ["stripe_customers", "no read policy: subscription billing, service role only"],
+  [
+    "projects",
+    "restricted projects: their manager, granted groups, and reads_all_projects",
+  ],
+  [
+    "stripe_customers",
+    "no read policy: subscription billing, service role only",
+  ],
   ["tax_rates", "finance function only (accounting_read)"],
   ["team_chat_conversations", "members of the conversation only"],
   ["team_chat_members", "members of the conversation only"],
@@ -164,8 +246,14 @@ const ROW_SCOPED = new Map([
   ["team_chat_messages", "members of the conversation only"],
   ["ticketing_ticket_reference_links", "follows the ticket's staff visibility"],
   ["ticketing_ticket_tasks", "follows the ticket's staff visibility"],
-  ["ticketing_tickets", "staff by business area; portal contacts their own customer's"],
-  ["ticketing_updates", "follows the ticket; internal updates never reach the portal"],
+  [
+    "ticketing_tickets",
+    "staff by business area; portal contacts their own customer's",
+  ],
+  [
+    "ticketing_updates",
+    "follows the ticket; internal updates never reach the portal",
+  ],
 ])
 
 /**
@@ -177,37 +265,72 @@ const ROW_SCOPED = new Map([
 const TENANT_WIDE = new Map([
   // docs/15-row-level-visibility.md Tier 2: person-scoped, low harm between
   // colleagues, deferred deliberately.
-  ["hr_attendance", "docs/15 Tier 2: clock-in times judged no harm worth a policy"],
-  ["hr_change_requests", "docs/15 Tier 2; revisit if request_details starts carrying pay"],
+  [
+    "hr_attendance",
+    "docs/15 Tier 2: clock-in times judged no harm worth a policy",
+  ],
+  [
+    "hr_change_requests",
+    "docs/15 Tier 2; revisit if request_details starts carrying pay",
+  ],
   ["hr_goals", "docs/15 Tier 2"],
   ["hr_onboarding_tasks", "docs/15 Tier 2"],
-  ["hr_time_off_requests", "docs/15 Tier 2; dates are availability, and reason is optional free text"],
+  [
+    "hr_time_off_requests",
+    "docs/15 Tier 2; dates are availability, and reason is optional free text",
+  ],
   // docs/15 "Explicitly excluded, with reasons".
   ["jobs", "docs/15: a work queue, not business data"],
-  ["pii_erasures", "docs/15: proves an erasure happened; scoping it to the subject is backwards"],
-  ["pii_keys", "docs/15: wrapped keys teach nothing without PRIVATE_PII_KEK, and erasure must find them"],
-  ["compensation_work_schedules", "working pattern, published so colleagues know availability"],
-  ["crm_activities", "calls/emails/meetings/notes logged against an account; visible the same as customers, which every row here references"],
-  ["crm_deals", "pipeline value and stage, shared with the team working the account — same reasoning as pm_objectives' revenue targets"],
-  ["crm_pipeline_stages", "sales pipeline configuration, not customer data"],
-  ["cross_module_links", "ids linking records; each side keeps its own visibility"],
+  [
+    "pii_erasures",
+    "docs/15: proves an erasure happened; scoping it to the subject is backwards",
+  ],
+  [
+    "pii_keys",
+    "docs/15: wrapped keys teach nothing without PRIVATE_PII_KEK, and erasure must find them",
+  ],
+  [
+    "compensation_work_schedules",
+    "working pattern, published so colleagues know availability",
+  ],
+  [
+    "cross_module_links",
+    "ids linking records; each side keeps its own visibility",
+  ],
   ["custom_field_definitions", "tenant configuration"],
-  ["customers", "docs/15 Tier 3: the customer roster staff work with; the tax id is encrypted (tax_number_ct)"],
-  ["document_folder_shares", "who a folder is shared with; the documents stay row-scoped"],
-  ["employee_assets", "which equipment is issued to whom; an operational register"],
-  ["employee_certifications", "professional certifications; the number is encrypted (_ct)"],
+  [
+    "document_folder_shares",
+    "who a folder is shared with; the documents stay row-scoped",
+  ],
+  [
+    "employee_assets",
+    "which equipment is issued to whom; an operational register",
+  ],
+  [
+    "employee_certifications",
+    "professional certifications; the number is encrypted (_ct)",
+  ],
   ["employee_group_members", "group membership, a directory fact"],
   ["employee_group_roles", "which role a group carries, configuration"],
-  ["employee_training_records", "training completion, a compliance register colleagues and managers share"],
+  [
+    "employee_training_records",
+    "training completion, a compliance register colleagues and managers share",
+  ],
   ["employee_user_groups", "group definitions, configuration"],
   ["exchange_rates", "global reference data, the same for every tenant"],
   ["feature_flags", "on/off switches, tenant or global; no data"],
   ["firm_benefit_items", "the benefits the firm offers, not who elected them"],
-  ["firm_benefits_packages", "the benefits the firm offers, not who elected them"],
+  [
+    "firm_benefits_packages",
+    "the benefits the firm offers, not who elected them",
+  ],
   ["firm_benefits_plans", "plan-level costs the firm publishes at enrolment"],
   ["firm_departments", "organisation structure"],
   ["firm_holidays", "the holiday calendar"],
-  ["firm_job_levels", "published salary bands per level; an individual's band is employees.compensation_band_pvt"],
+  [
+    "firm_job_levels",
+    "published salary bands per level; an individual's band is employees.compensation_band_pvt",
+  ],
   ["firm_job_titles", "organisation structure"],
   ["firm_locations", "office directory"],
   ["firm_payroll_policies", "overtime and rounding rules, not anyone's pay"],
@@ -216,7 +339,10 @@ const TENANT_WIDE = new Map([
   ["hr_onboarding_templates", "templates, configuration"],
   ["hr_review_cycles", "review calendar; the reviews are row-scoped"],
   ["hr_surveys", "survey definitions and aggregates; responses are row-scoped"],
-  ["hr_time_off_balances", "leave balance shown to colleagues as availability (see employees.pto_balances)"],
+  [
+    "hr_time_off_balances",
+    "leave balance shown to colleagues as availability (see employees.pto_balances)",
+  ],
   ["hr_time_off_policies", "leave rules, configuration"],
   ["payroll_deduction_definitions", "deduction types, not who takes them"],
   ["payroll_pay_schedules", "pay calendar, configuration"],
@@ -225,17 +351,32 @@ const TENANT_WIDE = new Map([
   ["pm_automations", "project workflow configuration"],
   ["pm_dashboard_widgets", "project dashboards"],
   ["pm_dashboards", "project dashboards"],
-  ["pm_objectives", "revenue targets are the firm's own plan, shared with delivery staff"],
+  [
+    "pm_objectives",
+    "revenue targets are the firm's own plan, shared with delivery staff",
+  ],
   ["pm_project_templates", "templates, configuration"],
-  ["project_group_grants", "ids only: which group may see which restricted project"],
+  [
+    "project_group_grants",
+    "ids only: which group may see which restricted project",
+  ],
   ["pm_task_attachments", "project delivery files"],
   ["pm_task_comments", "project discussion"],
-  ["tenant_registry", "the tenant's own routing row; connection_secret_ref names a secret, never holds it"],
-  ["tenant_settings", "workflow switches (thresholds, SLA hours); no credentials"],
+  [
+    "tenant_registry",
+    "the tenant's own routing row; connection_secret_ref names a secret, never holds it",
+  ],
+  [
+    "tenant_settings",
+    "workflow switches (thresholds, SLA hours); no credentials",
+  ],
   ["tenant_users", "who holds which role, a directory fact"],
   ["tenants", "the tenant's own company profile"],
   ["ticketing_business_area_members", "who staffs which service desk"],
-  ["ticketing_business_area_group_grants", "ids only: which group staffs which service desk"],
+  [
+    "ticketing_business_area_group_grants",
+    "ids only: which group staffs which service desk",
+  ],
   ["ticketing_business_areas", "service desk configuration"],
   ["ticketing_categories", "service desk configuration"],
   ["ticketing_subcategories", "service desk configuration"],
@@ -253,8 +394,7 @@ const TENANT_WIDE = new Map([
  * outlive the fix. A table the team decided is fine tenant-wide belongs in
  * TENANT_WIDE with that decision cited, not here.
  */
-const EXPOSED_PENDING = new Map([
-])
+const EXPOSED_PENDING = new Map([])
 
 /**
  * Every condition a PERMISSIVE read policy uses, sorted by whether it admits
@@ -279,7 +419,10 @@ const dbTables = new Set(
   execFileSync(
     "psql",
     [
-      url, "-X", "-tA", "-c",
+      url,
+      "-X",
+      "-tA",
+      "-c",
       `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') ORDER BY 1`,
     ],
@@ -294,7 +437,10 @@ const readPolicies = JSON.parse(
   execFileSync(
     "psql",
     [
-      url, "-X", "-tA", "-c",
+      url,
+      "-X",
+      "-tA",
+      "-c",
       `SELECT coalesce(json_agg(json_build_object(
                 'table', tablename, 'name', policyname, 'roles', roles,
                 'restrictive', permissive = 'RESTRICTIVE', 'qual', qual)), '[]')
@@ -311,7 +457,9 @@ const unknownConditions = [
     readPolicies
       .filter((p) => !p.restrictive)
       .map((p) => collapse(p.qual))
-      .filter((q) => !TENANT_WIDE_CONDITIONS.has(q) && !NARROWING_CONDITIONS.has(q)),
+      .filter(
+        (q) => !TENANT_WIDE_CONDITIONS.has(q) && !NARROWING_CONDITIONS.has(q),
+      ),
   ),
 ]
 if (unknownConditions.length) {
@@ -330,7 +478,10 @@ const rlsOn = new Set(
   execFileSync(
     "psql",
     [
-      url, "-X", "-tA", "-c",
+      url,
+      "-X",
+      "-tA",
+      "-c",
       `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relrowsecurity`,
     ],
@@ -398,7 +549,9 @@ for (const [name, map] of [
 }
 
 if (tableProblems.length) {
-  console.error(`\n  ${tableProblems.length} table classification problem(s):\n`)
+  console.error(
+    `\n  ${tableProblems.length} table classification problem(s):\n`,
+  )
   for (const p of tableProblems) console.error(`    ${p}`)
   console.error(
     "\n  Every table is row-scoped (a policy narrows it — verified here), per" +
@@ -412,7 +565,12 @@ if (tableProblems.length) {
 const rows = execFileSync(
   "psql",
   [
-    url, "-X", "-tA", "-F", "\t", "-c",
+    url,
+    "-X",
+    "-tA",
+    "-F",
+    "\t",
+    "-c",
     `SELECT table_name, column_name FROM information_schema.columns
       WHERE table_schema='public' AND table_name IN (${tables.map((t) => `'${t}'`).join(",")})
       ORDER BY table_name, ordinal_position`,

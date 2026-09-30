@@ -859,6 +859,67 @@ describe("customer portal identity", () => {
     expect(await contactCount({ role: "customer" })).toBe(0)
   })
 
+  // The CRM is the firm's view of its customers — pipeline value, call notes,
+  // internal fields on contacts. A portal contact reads their own company's
+  // row and none of the rest. Both halves: staff still read all of it.
+  const crmCounts = (who: Who) =>
+    asRole(who, async (tx) => {
+      const [r] = await tx<
+        {
+          customers: number
+          deals: number
+          activities: number
+          stages: number
+          contactValues: number
+        }[]
+      >`
+        SELECT (SELECT count(*)::int FROM customers) AS customers,
+               (SELECT count(*)::int FROM crm_deals) AS deals,
+               (SELECT count(*)::int FROM crm_activities) AS activities,
+               (SELECT count(*)::int FROM crm_pipeline_stages) AS stages,
+               (SELECT count(*)::int FROM custom_field_values
+                 WHERE customer_contact_id IS NOT NULL) AS "contactValues"
+      `
+      return r
+    })
+
+  it("shows a portal contact their own company and nothing else of the CRM", async () => {
+    expect(
+      await crmCounts({
+        customerContactId: DANA,
+        customerId: ACME,
+        role: "customer",
+      }),
+    ).toEqual({
+      customers: 1,
+      deals: 0,
+      activities: 0,
+      stages: 0,
+      contactValues: 0,
+    })
+  })
+
+  it("still shows staff the whole CRM", async () => {
+    expect(await crmCounts({ employeeId: MARCUS, role: "employee" })).toEqual({
+      customers: 3,
+      deals: 3,
+      activities: 4,
+      stages: 6,
+      contactValues: 1,
+    })
+  })
+
+  it("refuses a portal contact's write to a company, even their own", async () => {
+    const touched = await asRole(
+      { customerContactId: DANA, customerId: ACME, role: "customer" },
+      async (tx) =>
+        (
+          await tx`UPDATE customers SET notes = notes WHERE id = ${ACME}::uuid RETURNING id`
+        ).length,
+    )
+    expect(touched).toBe(0)
+  })
+
   it("app.current_customer_id() and can() agree: a portal contact never gets an internal grant", async () => {
     const ctx: AuthContext = {
       tenantId: NORTHWIND,
