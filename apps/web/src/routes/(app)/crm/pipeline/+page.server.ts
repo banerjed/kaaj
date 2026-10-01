@@ -9,15 +9,36 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
-export const load: PageServerLoad = async ({ locals }) => {
+/**
+ * Cards per column before "show more". `crm_deals` is SCALE_SENSITIVE — one
+ * row per potential sale, forever — so the board reads a page of each stage,
+ * never the whole table. A card is heavier than a table row, hence the low
+ * end of the 20-50 band.
+ */
+const PER_STAGE = 20
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
 
+  // One column at a time, the same shape the company page's activity feed
+  // uses: the URL carries which stage is expanded and how far.
+  const expandStageId = url.searchParams.get("stage")
+  const expandPages = Math.max(1, Number(url.searchParams.get("pages")) || 1)
+
   return withTenant(actorFrom(locals), async (tx) => ({
-    deals: await deals.list(tx),
+    deals: await deals.listForBoard(tx, {
+      perStage: PER_STAGE,
+      expandStageId,
+      expandLimit: expandPages * PER_STAGE,
+    }),
+    stageSummary: await deals.stageSummary(tx),
     stages: await pipelineStages.list(tx),
     companies: await customers.list(tx),
     owners: await managerOptions(tx),
+    expandStageId,
+    expandPages,
+    perStage: PER_STAGE,
   }))
 }
 

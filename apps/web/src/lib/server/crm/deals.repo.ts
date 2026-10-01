@@ -43,6 +43,93 @@ export async function list(tx: Tx): Promise<Deal[]> {
   `
 }
 
+/**
+ * The board, paged PER COLUMN rather than per page.
+ *
+ * A Kanban column is its own list, so a single `LIMIT` over the whole board
+ * would starve the later stages entirely. One window function ranks within
+ * each stage — never a query per stage, which is the N+1 shape
+ * `verify-no-loop-queries.mjs` exists to catch on a `SCALE_SENSITIVE` table.
+ *
+ * `expand` raises the limit for ONE column, so "show more" costs the same
+ * single query.
+ */
+export async function listForBoard(
+  tx: Tx,
+  {
+    perStage,
+    expandStageId = null,
+    expandLimit = perStage,
+  }: { perStage: number; expandStageId?: string | null; expandLimit?: number },
+): Promise<Deal[]> {
+  // The CTE ranks over the base table alone — no joins, and no extra column
+  // on the rows that reach the page, so `Deal` stays exactly what comes back.
+  // A cast evaluates even on the short-circuited side of an AND, so an absent
+  // stage is NULL and never '' (L37).
+  return tx<Deal[]>`
+    WITH ranked AS (
+      SELECT id, stage_id,
+             row_number() OVER (
+               PARTITION BY stage_id ORDER BY created_at DESC
+             ) AS rn
+        FROM crm_deals
+    )
+    ${tx.unsafe(SELECT)}
+     WHERE d.id IN (
+             SELECT id FROM ranked
+              WHERE rn <= CASE
+                            WHEN ${expandStageId}::uuid IS NOT NULL
+                             AND stage_id = ${expandStageId}::uuid
+                            THEN ${expandLimit}::int
+                            ELSE ${perStage}::int
+                          END
+           )
+     ORDER BY s.sort_order ASC, d.created_at DESC
+  `
+}
+
+/**
+ * What each column actually holds, counted in the database.
+ *
+ * The board renders a page of each stage, so counting the LOADED cards would
+ * report the page size as the pipeline — a wrong number that looks exactly
+ * like a right one.
+ *
+ * Totals are per CURRENCY. A figure summing USD and GBP deals is not a
+ * number anyone can act on, and money is never converted for display
+ * (BR-FP-003). The sum happens in SQL: `NUMERIC` is exact there, and adding
+ * two money strings in JavaScript is silent concatenation or a float64.
+ */
+export type StageSummary = {
+  stage_id: string
+  deal_count: number
+  totals: { currency: string; amount: string }[]
+}
+
+export async function stageSummary(tx: Tx): Promise<StageSummary[]> {
+  const counts = await tx<{ stage_id: string; deal_count: number }[]>`
+    SELECT stage_id, count(*)::int AS deal_count
+      FROM crm_deals
+     GROUP BY stage_id
+  `
+  const totals = await tx<
+    { stage_id: string; currency: string; amount: string }[]
+  >`
+    SELECT stage_id, currency, sum(value_amount)::text AS amount
+      FROM crm_deals
+     WHERE value_amount IS NOT NULL AND currency IS NOT NULL
+     GROUP BY stage_id, currency
+     ORDER BY currency
+  `
+  return counts.map((c) => ({
+    stage_id: c.stage_id,
+    deal_count: c.deal_count,
+    totals: totals
+      .filter((t) => t.stage_id === c.stage_id)
+      .map(({ currency, amount }) => ({ currency, amount })),
+  }))
+}
+
 export async function listForCustomer(
   tx: Tx,
   customerId: string,

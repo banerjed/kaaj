@@ -173,7 +173,7 @@
 
 {#if editing}
   <div class="modal modal-open" role="dialog" aria-label="Edit contact">
-    <div class="modal-box">
+    <div class="modal-box max-w-2xl">
       <h3 class="text-lg font-medium">Edit contact</h3>
       <form
         method="POST"

@@ -152,7 +152,7 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
-### CRM — 15 tests
+### CRM — 23 tests
 
 - `lib/server/customers/customers.writes.test.ts` [15] — person accounts, the
   shape where a client is an individual rather than a business.
@@ -170,6 +170,16 @@ Beyond that, coverage is indirect: 8 RLS assertions inside
   action share — treats an individual with none or several contacts as a
   company, which is the case that made such a row unsaveable when the two
   disagreed.
+- `lib/server/crm/deals.repo.test.ts` [8] — the pipeline board's read path.
+  `listForBoard` caps each COLUMN independently (a single `LIMIT` over the
+  board would starve the later stages), expands only the named column, takes
+  the newest of a column rather than an arbitrary slice, and asks for no
+  stage without passing `''` to a cast (L37). `stageSummary` counts what the
+  column HOLDS rather than what the board loaded — counting the loaded cards
+  would report the page size as the pipeline — keeps a column's currencies
+  apart instead of adding USD to GBP (BR-FP-003), sums exactly in SQL as a
+  string (`0.10 + 0.20` is `0.30`, where JavaScript gives
+  `0.30000000000000004`), and still counts a deal that carries no value.
 
 Beyond that, coverage is indirect: the CRM RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).

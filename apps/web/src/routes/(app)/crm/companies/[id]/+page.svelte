@@ -354,7 +354,7 @@
     role="dialog"
     aria-label={person ? "Edit client" : "Edit company"}
   >
-    <div class="modal-box max-w-xl">
+    <div class="modal-box max-w-3xl">
       <h3 class="text-lg font-medium">
         {person ? "Edit client" : "Edit company"}
       </h3>

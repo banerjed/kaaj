@@ -216,7 +216,7 @@
 
 {#if editing}
   <div class="modal modal-open" role="dialog" aria-label="Edit deal">
-    <div class="modal-box">
+    <div class="modal-box max-w-3xl">
       <h3 class="text-lg font-medium">Edit deal</h3>
       <form
         method="POST"

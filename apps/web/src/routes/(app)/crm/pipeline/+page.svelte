@@ -8,6 +8,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
+  import { money } from "$lib/format"
 
   let { data, form } = $props()
 
@@ -29,6 +30,9 @@
       : []),
   ]
 
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
+  const tenantCurrency = $derived(data.tenant?.default_currency ?? "USD")
+
   const dealsByStage = $derived(
     new Map(
       data.stages.map((s) => [
@@ -38,11 +42,20 @@
     ),
   )
 
-  const totalValue = (stageId: string) => {
-    const rows = dealsByStage.get(stageId) ?? []
-    const sum = rows.reduce((acc, d) => acc + Number(d.value_amount ?? 0), 0)
-    return sum > 0 ? sum.toLocaleString() : null
-  }
+  // Counts and totals come from the database, not from the cards on screen:
+  // the board shows a PAGE of each column, so counting what is loaded would
+  // report the page size as the pipeline.
+  const summaryOf = $derived(
+    new Map(data.stageSummary.map((s) => [s.stage_id, s])),
+  )
+  const loadedCount = (stageId: string) =>
+    dealsByStage.get(stageId)?.length ?? 0
+  const totalCount = (stageId: string) =>
+    summaryOf.get(stageId)?.deal_count ?? 0
+
+  /** `?stage=<id>&pages=<n>` — one column at a time, so the query stays one query. */
+  const showMoreHref = (stageId: string) =>
+    `?stage=${stageId}&pages=${(data.expandStageId === stageId ? data.expandPages : 1) + 1}`
 </script>
 
 <PageHead title="Pipeline" />
@@ -84,19 +97,21 @@
     >
       {#each data.stages as s (s.id)}
         {@const cards = dealsByStage.get(s.id) ?? []}
-        <div class="bg-base-200/40 rounded-box p-2">
+        <div class="bg-base-200/40 rounded-box flex max-h-[70vh] flex-col p-2">
           <p
-            class="text-base-content/70 mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase"
+            class="text-base-content/70 flex items-center justify-between px-1 text-xs font-semibold uppercase"
           >
             {s.name}
-            <span class="badge badge-sm">{cards.length}</span>
+            <span class="badge badge-sm">{totalCount(s.id)}</span>
           </p>
-          {#if totalValue(s.id)}
-            <p class="text-base-content/70 mb-2 px-1 text-xs">
-              {totalValue(s.id)}
+          <!-- Per currency. A total mixing USD and GBP is not a number
+               anyone can act on, and money is never converted (BR-FP-003). -->
+          {#each summaryOf.get(s.id)?.totals ?? [] as t (t.currency)}
+            <p class="text-base-content/70 mt-1 px-1 text-xs tabular-nums">
+              {money(t.amount, t.currency, tenantLocale)}
             </p>
-          {/if}
-          <div class="flex flex-col gap-2">
+          {/each}
+          <div class="mt-2 flex flex-col gap-2 overflow-y-auto pe-1">
             {#each cards as d (d.id)}
               <div class="card bg-base-100 shadow-sm">
                 <div class="card-body gap-2 p-3">
@@ -109,8 +124,11 @@
                   <p class="text-base-content/70 text-xs">{d.customer_name}</p>
                   {#if d.value_amount}
                     <p class="text-sm tabular-nums">
-                      {d.currency}
-                      {d.value_amount}
+                      {money(
+                        d.value_amount,
+                        d.currency ?? tenantCurrency,
+                        tenantLocale,
+                      )}
                     </p>
                   {/if}
                   <!-- POST, never GET — this writes. -->
@@ -140,6 +158,11 @@
               </div>
             {/each}
           </div>
+          {#if loadedCount(s.id) < totalCount(s.id)}
+            <a href={showMoreHref(s.id)} class="btn btn-ghost btn-xs mt-2">
+              Show more ({totalCount(s.id) - loadedCount(s.id)} more)
+            </a>
+          {/if}
         </div>
       {/each}
     </div>
