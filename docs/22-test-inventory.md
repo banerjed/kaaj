@@ -152,9 +152,9 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
-### CRM — 10 tests
+### CRM — 15 tests
 
-- `lib/server/customers/customers.writes.test.ts` [10] — person accounts, the
+- `lib/server/customers/customers.writes.test.ts` [15] — person accounts, the
   shape where a client is an individual rather than a business.
   `personName` joins, trims, and handles a mononym without a dangling space.
   `createIndividual` writes the `customers` row and its single
@@ -164,8 +164,12 @@ Beyond that, coverage is indirect: 8 RLS assertions inside
   are distinct under `UNIQUE (tenant_id, email)`, and is refused by name on
   an address already on file. `updateIndividual` renames both rows so the
   derived name cannot drift, keeps the account's email in step with the
-  contact's copy, and returns `false` rather than claiming success for a
-  client that does not exist (L68).
+  contact's copy, leaves the client still a person account, and returns
+  `false` rather than claiming success for a client that does not exist
+  (L68). `isPersonAccount` — the single predicate the page and the save
+  action share — treats an individual with none or several contacts as a
+  company, which is the case that made such a row unsaveable when the two
+  disagreed.
 
 Beyond that, coverage is indirect: the CRM RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
@@ -320,7 +324,7 @@ goes through these.
 
 ## 2. End-to-end tests (Playwright) — grouped by purpose
 
-152 tests across 7 spec files plus one setup project. Unlike the unit suite,
+154 tests across 7 spec files plus one setup project. Unlike the unit suite,
 these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
@@ -337,13 +341,16 @@ shared and read-only except where a file's own header says otherwise.
   project-management checks (the Add-task Parent select is scoped to the
   project's own top-level tasks, the Kanban board's column/card structure,
   and the List↔Kanban toggle firing no network request either way).
-- **`form-errors.spec.ts` [58]** — a refused form names the field, marks it,
+- **`form-errors.spec.ts` [60]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),
   HR (holidays, employee IDs, ticketing), compensation, time-tracking,
   projects (a dependency cycle reads as a sentence, not a crash page),
   objectives (an invalid target end date), company settings, team chat
-  (empty channel name, empty message), and custom fields (a duplicate field
+  (empty channel name, empty message), CRM (a client's duplicate email —
+  the uncaught 500 the constraint registry now answers for — and a crafted
+  POST adding a second contact to a person account, refused by the action
+  rather than only hidden), and custom fields (a duplicate field
   name marked only in the editor it came from; a required ticket field named
   by its label).
 - **`theme.spec.ts` [9]** — light/dark/system application, actual paint

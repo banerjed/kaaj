@@ -1279,3 +1279,89 @@ test("a required ticket custom field left blank is named by its label and marked
     "true",
   )
 })
+
+/**
+ * A duplicate email was an uncaught 500 — `customer_contacts` carries
+ * `UNIQUE (tenant_id, email)` and neither CRM table was registered, so the
+ * refusal arrived as "Internal Error" with the form's contents gone. This is
+ * the L66 shape the constraint registry exists to prevent, and the person
+ * flow writes a contact row for EVERY client, so it stopped being theoretical.
+ *
+ * Read-only like the rest of the file: the submission is refused, so no row
+ * is created.
+ */
+test("a client's duplicate email is a marked field, not an error page", async ({
+  page,
+}) => {
+  await page.goto("/crm/companies")
+  await openModal(page, /new client/i, 'input[name="first_name"]')
+
+  await page.locator('input[name="first_name"]').fill("Dana")
+  await page.locator('input[name="last_name"]').fill("Doppelganger")
+  // Already Dana Whitcombe's, from the fixture.
+  await page.locator('input[name="email"]').fill("dana.whitcombe@acme.example")
+
+  await submitPastTheBrowser(page, "?/save")
+
+  // A sentence saying what to do, not "duplicate key value".
+  const alert = page.locator(".alert").first()
+  await expect(alert).toContainText("already on file")
+  await expect(alert).toContainText("leave the email blank")
+
+  // The modal survived with the work in it, and the mark is on the email.
+  const email = page.locator('input[name="email"]')
+  await expect(email).toBeVisible()
+  await expect(email).toHaveValue("dana.whitcombe@acme.example")
+  await expect(page.locator('input[name="last_name"]')).toHaveValue(
+    "Doppelganger",
+  )
+  await expect(email).toHaveClass(/input-error/)
+  await expect(email).toHaveAttribute("aria-invalid", "true")
+})
+
+/**
+ * A person account IS their single contact, so the detail page offers no
+ * "New contact" — but a hidden control is not a permission (L44). A crafted
+ * POST taking the count to 2 would both break the layout and, because the
+ * page and the save action share one predicate, make the client unsaveable.
+ */
+test("adding a contact to a person account is refused by the action, not just hidden", async ({
+  page,
+}) => {
+  const PRIYA = "5c6e1b74-0b48-5a3e-9a8a-6c1d2f8e4b11"
+  await page.goto(`/crm/companies/${PRIYA}`)
+  await expect(
+    page.getByRole("button", { name: /new contact/i }),
+    "the person layout should not offer a New contact button",
+  ).toHaveCount(0)
+
+  const response = await page.request.post(
+    `/crm/companies/${PRIYA}?/addContact`,
+    {
+      form: {
+        first_name: "Crafted",
+        last_name: "Request",
+        email: "",
+        phone: "",
+        title: "",
+        department: "",
+      },
+      headers: { "x-sveltekit-action": "true" },
+    },
+  )
+  // SvelteKit's action protocol answers 200 and carries the `fail()` in the
+  // body — the status is the transport's, not the action's.
+  const body = await response.text()
+  expect(body, "the action should refuse, not accept").toContain(
+    "they are their own contact",
+  )
+  expect(body).toContain('"status":400')
+
+  // And the refusal is a refusal: the person still has exactly one contact.
+  await page.reload()
+  await expect(page.getByText("Crafted Request")).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: /new contact/i }),
+    "a second contact would have flipped the page to the company layout",
+  ).toHaveCount(0)
+})

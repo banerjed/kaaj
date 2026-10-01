@@ -35,12 +35,17 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     const company = await customers.getById(tx, params.id)
     if (!company) error(404, "Client not found")
     const fieldValues = await customFields.valuesFor(tx, "company", [params.id])
+    const people = await contacts.listForCustomer(tx, params.id)
 
     return {
       company,
+      isPersonAccount: customers.isPersonAccount(
+        company.customer_type,
+        people.length,
+      ),
       fieldDefs: await customFields.definitionsFor(tx, SCOPE),
       fieldValues: fieldValues[params.id] ?? [],
-      contacts: await contacts.listForCustomer(tx, params.id),
+      contacts: people,
       deals: await deals.listForCustomer(tx, params.id),
       activities: await activities.listForCustomer(
         tx,
@@ -112,7 +117,11 @@ export const actions: Actions = {
 
         const current = await customers.getById(tx, params.id)
         if (!current) error(404, "Client not found")
-        const isPerson = current.customer_type === "individual"
+        const people = await contacts.listForCustomer(tx, params.id)
+        const isPerson = customers.isPersonAccount(
+          current.customer_type,
+          people.length,
+        )
         // A stale tab would otherwise run the business branch over a person,
         // leaving `customer_name` no longer derived and the account's email
         // out of step with the contact row's copy.
@@ -186,6 +195,19 @@ export const actions: Actions = {
 
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
+        // The page hides the button for a person account, and a hidden
+        // control is not a permission (L44). A second contact would both
+        // break the layout and make the client unsaveable.
+        const current = await customers.getById(tx, params.id)
+        if (!current) error(404, "Client not found")
+        const people = await contacts.listForCustomer(tx, params.id)
+        if (customers.isPersonAccount(current.customer_type, people.length)) {
+          return fail(400, {
+            message:
+              "This client is a person, not a business — they are their own contact. Edit their details instead.",
+          })
+        }
+
         await contacts.create(tx, tenantId, input)
         return { contactAdded: true }
       })

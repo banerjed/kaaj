@@ -160,6 +160,26 @@ export type IndividualInput = {
   notes: string | null
 }
 
+/**
+ * Whether this client is a person account rather than a business.
+ *
+ * The contact count is part of the test, not a nicety: the one-contact
+ * invariant is held by construction (see `IndividualInput`), so a row typed
+ * `individual` before this shape existed may have none or several. Such a row
+ * gets the company treatment everywhere — a layout that hides contacts it has
+ * no other way to show would strand them.
+ *
+ * Defined once because the page and the action MUST agree. When they did not,
+ * the form rendered one shape and the action expected the other, and the row
+ * could not be saved at all.
+ */
+export function isPersonAccount(
+  customerType: CustomerType | null,
+  contactCount: number,
+): boolean {
+  return customerType === "individual" && contactCount === 1
+}
+
 /** The account name shown everywhere a business's name would be. Handles a mononym. */
 export function personName(firstName: string, lastName: string): string {
   return [firstName.trim(), lastName.trim()].filter(Boolean).join(" ")

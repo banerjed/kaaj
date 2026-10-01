@@ -57,6 +57,30 @@ describe("personName", () => {
   })
 })
 
+describe("isPersonAccount", () => {
+  it("is a person only when the shape is actually a person account", () => {
+    expect(customers.isPersonAccount("individual", 1)).toBe(true)
+  })
+
+  /**
+   * The one-contact invariant is held by construction, so a row typed
+   * individual before `createIndividual` existed can have none or several.
+   * Those get the company treatment — and the page and the save action must
+   * agree on that, or the form renders one shape while the action expects the
+   * other and the client cannot be saved at all.
+   */
+  it("treats an off-shape individual as a company", () => {
+    expect(customers.isPersonAccount("individual", 0)).toBe(false)
+    expect(customers.isPersonAccount("individual", 2)).toBe(false)
+  })
+
+  it("is never a person for a business, whatever its contact count", () => {
+    expect(customers.isPersonAccount("corporate", 1)).toBe(false)
+    expect(customers.isPersonAccount("small_business", 1)).toBe(false)
+    expect(customers.isPersonAccount(null, 1)).toBe(false)
+  })
+})
+
 describe("createIndividual", () => {
   it("writes the account and its contact together, with the name derived", async () => {
     await inRollback(async (tx) => {
@@ -172,6 +196,31 @@ describe("updateIndividual", () => {
       expect(people[0].last_name).toBe("Moreau-Hart")
       // The account's copy of the address and the contact's must agree.
       expect(people[0].email).toBe(account?.email)
+    })
+  })
+
+  it("still writes one contact, so the client stays a person account", async () => {
+    await inRollback(async (tx) => {
+      const { id } = await customers.createIndividual(tx, NORTHWIND, {
+        ...base,
+        first_name: "Ines",
+        last_name: "Moreau",
+        email: null,
+        phone: null,
+      })
+      await customers.updateIndividual(tx, id, {
+        ...base,
+        first_name: "Ines",
+        last_name: "Moreau-Hart",
+        email: null,
+        phone: null,
+      })
+
+      const account = await customers.getById(tx, id)
+      const people = await contacts.listForCustomer(tx, id)
+      expect(
+        customers.isPersonAccount(account!.customer_type, people.length),
+      ).toBe(true)
     })
   })
 

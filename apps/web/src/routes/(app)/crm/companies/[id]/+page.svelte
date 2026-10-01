@@ -18,15 +18,9 @@
   const c = $derived(data.company)
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  // A person account is one `customers` row plus its single contact. The
-  // contact count is part of the test: a row typed `individual` before this
-  // shape existed may have none or several, and the person layout would then
-  // hide contacts it has no other way to show.
-  const person = $derived(
-    c.customer_type === "individual" && data.contacts.length === 1
-      ? data.contacts[0]
-      : null,
-  )
+  // The same predicate the save action uses — they must agree, or the form
+  // renders one shape while the action expects the other.
+  const person = $derived(data.isPersonAccount ? data.contacts[0] : null)
 
   // Opened straight from the list's edit icon (`?edit=1`), the same
   // deep-link shape /time-tracking already uses. Seeded once on purpose: it
