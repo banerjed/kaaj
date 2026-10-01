@@ -32,7 +32,7 @@ INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_na
                        credit_limit, is_active, notes, customer_type, relationship_status,
                        industry, company_size, account_manager_id, acquisition_date,
                        acquisition_source, legal_entity_name, default_hourly_rate)
-SELECT c.id, _perf.tenant(), 'C-' || lpad(c.c::text, 6, '0'), c.name, c.name,
+SELECT c.id, _perf.tenant(), 'C-' || _perf.pad(c.c, 6), c.name, c.name,
        'accounts@' || lower(replace(c.name, ' ', '')) || '.example',
        '+1-555-' || lpad((c.c % 10000)::text, 4, '0'),
        'https://' || lower(replace(c.name, ' ', '')) || '.example',

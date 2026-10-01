@@ -35,7 +35,7 @@ INSERT INTO projects (id, tenant_id, project_id, project_number, project_name, d
                       status, priority, health_status, budget_type, budget, estimated_hours,
                       currency, billing_method, hourly_rate, is_billable, created_by,
                       is_restricted, last_activity_at, created_at)
-SELECT p.id, _perf.tenant(), 'PRJ-' || lpad(p.p::text, 5, '0'), 'PRJ-' || lpad(p.p::text, 5, '0'),
+SELECT p.id, _perf.tenant(), 'PRJ-' || _perf.pad(p.p, 5), 'PRJ-' || _perf.pad(p.p, 5),
        CASE WHEN p.client_project
             THEN _perf.pick(ARRAY['Platform modernisation','Data warehouse','Mobile app','ERP rollout',
                                   'Security programme','Cloud migration','Analytics','Support retainer'], 'proj:n', p.p)
@@ -171,7 +171,7 @@ INSERT INTO time_tracking_entries (id, tenant_id, entry_id, employee_id, timeshe
                                    entry_type, description, is_billable, hourly_rate,
                                    billable_amount, amount, currency, status, submitted_at,
                                    approved_at, created_by, created_at)
-SELECT _perf.u('time', x.seq), _perf.tenant(), 'TE-' || lpad(x.seq::text, 7, '0'),
+SELECT _perf.u('time', x.seq), _perf.tenant(), 'TE-' || _perf.pad(x.seq, 7),
        x.employee_id,
        _perf.u('timesheet', x.b * 1000 + (x.day - date '2000-01-03') / 7),
        pr.id, _perf.u('task', x.p * 1000 + 1 + floor(_perf.r('te:task', x.seq) * pj.ntasks)::int),

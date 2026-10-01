@@ -119,7 +119,7 @@ INSERT INTO employees (id, tenant_id, employee_id, employee_number, first_name, 
                        manager_id, location_code, pay_frequency, compensation_type,
                        base_amount_pvt, currency, birth_date, is_active, created_by, fte)
 SELECT _perf.u('employee', e.k), _perf.tenant(),
-       'BL-' || lpad(e.k::text, 5, '0'), lpad(e.k::text, 6, '0'),
+       'BL-' || _perf.pad(e.k, 5), _perf.pad(e.k, 6),
        _perf.pick(_perf.first_names(), 'emp:f', e.k),
        _perf.pick(_perf.last_names(), 'emp:l', e.k),
        lower(_perf.pick(_perf.first_names(), 'emp:f', e.k) || '.'

@@ -30,6 +30,13 @@ LANGUAGE sql STABLE AS $$
     SELECT greatest(floor_, round(base * (SELECT scale FROM _perf.params)))::int
 $$;
 
+-- n zero-padded to at least `width` digits. Unlike lpad(), never truncates:
+-- lpad('1234', 3) is '123', which would turn invoice 1,234 into a duplicate.
+CREATE OR REPLACE FUNCTION _perf.pad(n bigint, width int) RETURNS text
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+    SELECT CASE WHEN length(n::text) >= width THEN n::text ELSE lpad(n::text, width, '0') END
+$$;
+
 -- A stable uuid for the n-th record of a kind.
 CREATE OR REPLACE FUNCTION _perf.u(kind text, n bigint) RETURNS uuid
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$

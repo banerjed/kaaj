@@ -92,7 +92,7 @@ INSERT INTO ticketing_tickets (id, tenant_id, business_area_id, ticket_number, t
                                logger_employee_id, customer_id, last_updated_by,
                                external_summary, created_at, sla_due_at, first_response_at)
 SELECT _perf.u('ticket', x.t), _perf.tenant(), _perf.u('area', x.area),
-       a.prefix || '-' || lpad(x.seq::text, 5, '0'),
+       a.prefix || '-' || _perf.pad(x.seq, 5),
        _perf.pick(ARRAY['Cannot sign in','Laptop running slowly','Request for access','Invoice looks wrong',
                         'Report generation is slow','Need a new monitor','Question about leave balance',
                         'VPN keeps dropping','Please review this contract','Build pipeline failing'], 'tix:title', x.t)
@@ -135,7 +135,7 @@ UPDATE ticketing_business_areas b SET current_sequence = s.n
 INSERT INTO ticketing_updates (id, tenant_id, ticket_id, ticket_number, update_type,
                                author_employee_id, author_name, content_text, visibility, created_at)
 SELECT _perf.u('update', x.t * 100 + k), _perf.tenant(), _perf.u('ticket', x.t),
-       a.prefix || '-' || lpad(x.seq::text, 5, '0'), 'comment',
+       a.prefix || '-' || _perf.pad(x.seq, 5), 'comment',
        ac.id, 'Staff member',
        _perf.pick(ARRAY['Looking into this now.','Can you share a screenshot?','Escalated to the second line.',
                         'A fix is being deployed tonight.','Confirmed resolved on our side.',
@@ -151,7 +151,7 @@ INSERT INTO ticketing_attachments (tenant_id, attachment_id, ticket_id, ticket_n
                                    file_url, file_size_bytes, file_size, mime_type, storage_key,
                                    uploaded_by, uploaded_at)
 SELECT _perf.tenant(), 'ATT-' || x.t, _perf.u('ticket', x.t),
-       a.prefix || '-' || lpad(x.seq::text, 5, '0'),
+       a.prefix || '-' || _perf.pad(x.seq, 5),
        'screenshot-' || x.t || '.png', 'perf/attachments/' || x.t || '.png',
        _perf.ri('att:sz', x.t, 20000, 2000000), _perf.ri('att:sz', x.t, 20000, 2000000),
        'image/png', 'perf/attachments/' || x.t || '.png', 'perf-generator',

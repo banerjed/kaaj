@@ -113,10 +113,70 @@ async function seed({ scale, asOf }) {
   await status()
 }
 
-/** Facts a correct build must satisfy; fails loudly on the first that does not. */
+/**
+ * Facts a correct build must satisfy that no constraint enforces — each a
+ * query counting violations, which must be zero. The per-row arithmetic
+ * (invoice total = subtotal + tax, …) is already a CHECK on insert.
+ */
+const INVARIANTS = [
+  ["every journal entry balances, natively and in base", `
+    SELECT count(*) FROM (
+      SELECT entry_id FROM journal_entry_lines WHERE tenant_id = $1 GROUP BY entry_id
+      HAVING sum(debit_amount) <> sum(credit_amount)
+          OR sum(base_debit_amount) <> sum(base_credit_amount)) x`],
+  ["every invoice's subtotal and tax equal its lines", `
+    SELECT count(*) FROM invoices i
+      JOIN (SELECT invoice_id, sum(amount) a, sum(tax_amount) t FROM invoice_lines GROUP BY 1) l
+        ON l.invoice_id = i.id
+     WHERE i.tenant_id = $1 AND (i.subtotal <> l.a OR i.tax_total <> l.t)`],
+  ["every invoice has at least one line", `
+    SELECT count(*) FROM invoices i WHERE i.tenant_id = $1
+       AND NOT EXISTS (SELECT 1 FROM invoice_lines l WHERE l.invoice_id = i.id)`],
+  ["every bill's subtotal equals its lines", `
+    SELECT count(*) FROM bills b
+      JOIN (SELECT bill_id, sum(amount) a FROM bill_lines GROUP BY 1) l ON l.bill_id = b.id
+     WHERE b.tenant_id = $1 AND b.subtotal <> l.a`],
+  ["what an invoice says was paid equals its allocations", `
+    SELECT count(*) FROM invoices i
+      LEFT JOIN (SELECT invoice_id, sum(amount) a FROM payment_allocations GROUP BY 1) p
+        ON p.invoice_id = i.id
+     WHERE i.tenant_id = $1 AND i.amount_paid <> coalesce(p.a, 0)`],
+  ["every issued invoice, approved bill and payment has its journal entry", `
+    SELECT (SELECT count(*) FROM invoices WHERE tenant_id = $1
+               AND status NOT IN ('draft','void') AND journal_entry_id IS NULL)
+         + (SELECT count(*) FROM bills WHERE tenant_id = $1
+               AND status <> 'draft' AND journal_entry_id IS NULL)
+         + (SELECT count(*) FROM payments WHERE tenant_id = $1 AND journal_entry_id IS NULL)`],
+  ["task and timesheet counters agree with their rows (L58)", `
+    SELECT (SELECT count(*) FROM projects p WHERE p.tenant_id = $1 AND p.task_count <>
+              (SELECT count(*) FROM tasks t WHERE t.project_id = p.id))
+         + (SELECT count(*) FROM time_tracking_timesheets s WHERE s.tenant_id = $1 AND s.entry_count <>
+              (SELECT count(*) FROM time_tracking_entries e WHERE e.timesheet_id = s.id))`],
+  ["time entries point at a task of their own project", `
+    SELECT count(*) FROM time_tracking_entries e LEFT JOIN tasks t ON t.id = e.task_id
+     WHERE e.tenant_id = $1 AND (t.id IS NULL OR t.project_id <> e.project_id)`],
+  ["each business area's counter matches its tickets", `
+    SELECT count(*) FROM ticketing_business_areas b WHERE b.tenant_id = $1
+       AND b.current_sequence <> (SELECT count(*) FROM ticketing_tickets t
+                                   WHERE t.business_area_id = b.id)`],
+  ["nothing is dated after as_of", `
+    SELECT (SELECT count(*) FROM invoices WHERE tenant_id = $1 AND invoice_date > (SELECT as_of FROM _perf.params))
+         + (SELECT count(*) FROM time_tracking_entries WHERE tenant_id = $1 AND entry_date > (SELECT as_of FROM _perf.params))
+         + (SELECT count(*) FROM crm_activities WHERE tenant_id = $1 AND occurred_at::date > (SELECT as_of FROM _perf.params))`],
+]
+
+/** Every check, then the sealed sample; exits non-zero on the first failure. */
 async function verify() {
+  let failed = 0
+  for (const [name, query] of INVARIANTS) {
+    const [row] = await sql.unsafe(query, [PERF_TENANT_ID])
+    const n = Number(Object.values(row)[0])
+    console.log(`  ${n === 0 ? "✓" : "✗"} ${name}${n === 0 ? "" : ` — ${n} violation(s)`}`)
+    if (n !== 0) failed++
+  }
   const opened = await verifySealed(sql, PERF_TENANT_ID)
-  console.log(`  sealed values open with the app's own key handling: ${opened} checked`)
+  console.log(`  ✓ sealed values open with the app's own key handling (${opened} checked)`)
+  if (failed) throw new Error(`${failed} invariant(s) failed`)
 }
 
 async function status() {
