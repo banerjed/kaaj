@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { FormReader } from "./forms"
+import { FormReader, uuidParam } from "./forms"
 
 /**
  * The regression guard for L33 and L34. Every case here was reachable by a
@@ -283,5 +283,32 @@ describe("decimal bounds are compared as decimals, not floats", () => {
     const ok = form({ amount: "0.01" })
     ok.decimal("amount", { scale: 2, min: 0.01 })
     expect(ok.ok).toBe(true)
+  })
+})
+
+describe("uuidParam", () => {
+  /**
+   * A query string is as crafted as a form body, and nothing sits in front of
+   * it. `/crm/pipeline?stage=` was a live Internal Error: `searchParams.get()`
+   * returns `""`, not `null`, and SQL does not short-circuit, so the `::uuid`
+   * cast evaluated and raised (L37).
+   */
+  it("passes a real uuid through", () => {
+    expect(uuidParam("11111111-c1a1-4000-8000-000000000002")).toBe(
+      "11111111-c1a1-4000-8000-000000000002",
+    )
+    expect(uuidParam("11111111-C1A1-4000-8000-000000000002")).toBe(
+      "11111111-C1A1-4000-8000-000000000002",
+    )
+  })
+
+  it("answers null for every shape that would reach a cast and raise", () => {
+    expect(uuidParam(null)).toBeNull()
+    expect(uuidParam(undefined)).toBeNull()
+    expect(uuidParam("")).toBeNull()
+    expect(uuidParam("garbage")).toBeNull()
+    expect(uuidParam("11111111-c1a1-4000-8000")).toBeNull()
+    expect(uuidParam("11111111-c1a1-4000-8000-00000000000z")).toBeNull()
+    expect(uuidParam(" 11111111-c1a1-4000-8000-000000000002 ")).toBeNull()
   })
 })

@@ -2893,6 +2893,63 @@ has meant "the whole firm's STAFF" while the policy says "anyone with the
 tenant claim". Until every table either closes to the portal or says why a
 customer may read it, treat `tenant_isolation` alone as readable by customers.
 
+---
+
+### L112 — a SCALE_SENSITIVE table is classified by `./check`, but no check reads the QUERY
+
+`scripts/verify-query-scale.mjs` proves every table is classified as
+scale-sensitive or not, with a reason. It never looks at a single `SELECT`.
+So a table can be correctly registered as "grows continuously" while every
+read of it fetches the whole thing, and that step stays green.
+
+Four of these shipped in one module. `crm_deals` fed the pipeline board
+through an unpaged `list()`; `crm_activities` was read whole by both
+`listForContact` and `listForDeal`, while `listForCustomer` beside them
+paged correctly at 10 with a "Load more"; `customer_contacts` was read whole
+by a card sitting in a fixed-height scroller. On the fixture each returns
+three rows and looks right.
+
+**Grepping for the table name does not find them.** These repositories
+compose a shared `SELECT` constant and call `tx.unsafe(SELECT)`, so the table
+is not textually in the function at all — a sweep for `FROM crm_activities`
+inside each function body returns nothing and reads as a clean result. To
+audit this, resolve what the file's `SELECT` targets first, then list the
+exported functions with no `LIMIT`.
+
+**A `LIMIT` with no count is a silent truncation.** Ten of four hundred
+activities looks exactly like all ten. Each paged read needs a `count(*)`
+beside it and a line on the page saying which it is showing — the same
+"a denormalised figure is visible beside the real one" shape as L58.
+
+And a read nothing calls is still a liability: `deals.list()` survived the
+board rewrite as dead code, unpaged, waiting to be reused by the next caller
+who needed "all the deals".
+
+---
+
+### L113 — the page and the action have to compute a predicate the SAME way, so compute it once
+
+`crm/companies/[id]` decides whether a client is a person account. The page
+asked `customer_type === 'individual' && contacts.length === 1`; the save
+action asked only `customer_type === 'individual'`. For a row typed
+individual with no contacts, or several — possible because the one-contact
+invariant is held by construction rather than by the schema — the page
+rendered the business form, the action computed "person", and the stale-tab
+guard refused every save. The fallback added to keep such a row *safe* made
+it uneditable instead.
+
+Nothing could have caught this: both halves typecheck, both are reachable,
+and the fixture had no row of that shape, so every test passed.
+
+When a page's layout and an action's write path turn on the same question,
+the predicate is one exported function that both call — `isPersonAccount` in
+the repository, computed in `load()` and read by the page. Two copies of a
+rule are one rule that will disagree, which is the same reason a vocabulary
+for a `text` column lives in the repository (L57).
+
+Ask of any such guard: **what happens to a row that is already in the shape
+the invariant forbids?** It exists; the invariant is new.
+
 The portal was switched off the same day (20260930130000): a contact's
 sign-in no longer carries a tenant, so none of this is reachable meanwhile.
 

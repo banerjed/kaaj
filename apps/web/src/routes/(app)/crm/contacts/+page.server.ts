@@ -4,7 +4,7 @@ import * as contacts from "$lib/server/customers/customer-contacts.repo"
 import * as customers from "$lib/server/customers/customers.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { formString } from "$lib/server/forms"
+import { formString, uuidParam } from "$lib/server/forms"
 
 const PAGE_SIZE = 20
 
@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   requireCan(contextFrom(locals), "crm.read")
 
   const search = url.searchParams.get("q") ?? ""
-  const customerId = url.searchParams.get("company") ?? ""
+  const customerId = uuidParam(url.searchParams.get("company")) ?? ""
   const department = url.searchParams.get("dept") ?? ""
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1)
 

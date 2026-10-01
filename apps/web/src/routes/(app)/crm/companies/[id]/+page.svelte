@@ -7,6 +7,7 @@
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { relationshipStatusTone } from "$lib/components/status-tone"
+  import { instant, money } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
@@ -30,9 +31,12 @@
   let addingContact = $state(false)
   let addingDeal = $state(false)
 
-  const dealsTotal = $derived(
-    data.deals.reduce((sum, d) => sum + Number(d.value_amount ?? 0), 0),
-  )
+  const fmtCtx = $derived({
+    locale: tenantLocale,
+    currency: c.currency,
+    timezone: data.tenant?.default_timezone ?? "UTC",
+    timeFormat: data.tenant?.time_format,
+  })
   const loadMoreActivitiesHref = $derived(
     `?activities=${data.activityPages + 1}`,
   )
@@ -168,7 +172,7 @@
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-base font-medium">
                 Contacts
-                {#if data.contacts.length > 0}({data.contacts.length}){/if}
+                {#if data.contactCount > 0}({data.contactCount}){/if}
               </h2>
               <button
                 class="btn btn-ghost btn-sm gap-2"
@@ -207,6 +211,11 @@
                 </li>
               {/each}
             </ul>
+            {#if data.contacts.length < data.contactCount}
+              <p class="text-base-content/70 mt-2 text-xs">
+                Showing {data.contacts.length} of {data.contactCount}
+              </p>
+            {/if}
           {/if}
         </SectionCard>
       {/if}
@@ -217,14 +226,15 @@
             <div>
               <h2 class="text-base font-medium">
                 Deals
-                {#if data.deals.length > 0}({data.deals.length}){/if}
+                {#if data.dealCount > 0}({data.dealCount}){/if}
               </h2>
-              {#if dealsTotal}
-                <p class="text-base-content/70 text-xs">
-                  {c.currency}
-                  {dealsTotal.toLocaleString()} total
+              <!-- Per currency, summed in SQL. A figure adding USD to GBP is
+                   not a number anyone can act on (BR-FP-003). -->
+              {#each data.dealTotals as t (t.currency)}
+                <p class="text-base-content/70 text-xs tabular-nums">
+                  {money(t.amount, t.currency, tenantLocale)} total
                 </p>
-              {/if}
+              {/each}
             </div>
             <button
               class="btn btn-ghost btn-sm gap-2"
@@ -253,11 +263,22 @@
                 </a>
                 <p class="text-base-content/70 text-xs">
                   {d.stage_name}
-                  {#if d.value_amount}· {d.currency} {d.value_amount}{/if}
+                  {#if d.value_amount}
+                    · {money(
+                      d.value_amount,
+                      d.currency ?? c.currency,
+                      tenantLocale,
+                    )}
+                  {/if}
                 </p>
               </li>
             {/each}
           </ul>
+          {#if data.deals.length < data.dealCount}
+            <p class="text-base-content/70 mt-2 text-xs">
+              Showing {data.deals.length} of {data.dealCount}
+            </p>
+          {/if}
         {/if}
       </SectionCard>
 
@@ -323,9 +344,10 @@
                     {/if}
                     <p class="text-base-content/70 mt-0.5 text-xs">
                       {#if a.contact_name}with {a.contact_name} ·
-                      {/if}{a.created_by_name} · {new Date(
+                      {/if}{a.created_by_name} · {instant(
                         a.occurred_at,
-                      ).toLocaleString()}
+                        fmtCtx,
+                      )}
                     </p>
                   </div>
                 </div>

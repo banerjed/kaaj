@@ -18,6 +18,9 @@ import {
 
 const SCOPE = { entityType: "deal" } as const
 
+/** `crm_activities` grows per event; the feed shows the most recent, with the real total beside it. */
+const ACTIVITY_PAGE_SIZE = 10
+
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
@@ -34,7 +37,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       stages: await pipelineStages.list(tx),
       contacts: await contacts.listForCustomer(tx, deal.customer_id),
       owners: await managerOptions(tx),
-      activities: await activities.listForDeal(tx, params.id),
+      activities: await activities.listForDeal(
+        tx,
+        params.id,
+        ACTIVITY_PAGE_SIZE,
+      ),
+      activityTotal: await activities.countForDeal(tx, params.id),
       activityTypes: activities.ACTIVITY_TYPES,
     }
   })

@@ -90,12 +90,25 @@ export async function departments(tx: Tx): Promise<string[]> {
 export async function listForCustomer(
   tx: Tx,
   customerId: string,
+  limit = 20,
 ): Promise<CustomerContact[]> {
   return tx<CustomerContact[]>`
     ${tx.unsafe(SELECT)}
      WHERE cc.customer_id = ${customerId} AND cc.is_active
      ORDER BY cc.is_primary DESC, cc.last_name ASC
+     LIMIT ${limit}
   `
+}
+
+export async function countForCustomer(
+  tx: Tx,
+  customerId: string,
+): Promise<number> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM customer_contacts
+     WHERE customer_id = ${customerId} AND is_active
+  `
+  return row?.n ?? 0
 }
 
 export async function getById(

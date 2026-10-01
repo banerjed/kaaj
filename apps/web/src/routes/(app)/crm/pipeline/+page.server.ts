@@ -6,7 +6,7 @@ import * as customers from "$lib/server/customers/customers.repo"
 import { managerOptions } from "$lib/server/employee-profile/employees.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { FormReader, uuidParam } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
 /**
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   // One column at a time, the same shape the company page's activity feed
   // uses: the URL carries which stage is expanded and how far.
-  const expandStageId = url.searchParams.get("stage")
+  const expandStageId = uuidParam(url.searchParams.get("stage"))
   const expandPages = Math.max(1, Number(url.searchParams.get("pages")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => ({

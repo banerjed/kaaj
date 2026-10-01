@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest"
 import { closeConnections } from "../db/client"
 import { withTenant, type Tx } from "../db/tenant"
 import * as deals from "./deals.repo"
+import { uuidParam } from "../forms"
 
 /**
  * The pipeline board's read path. `crm_deals` is SCALE_SENSITIVE, so the
@@ -22,6 +23,7 @@ const BRITANNIA = "ac7a04b4-a28e-5a15-9993-596db32c8d4e"
 const YUKI = "fa4c9324-158b-55b7-acdd-7fe7917bc7cf"
 const QUALIFIED = "11111111-c1a1-4000-8000-000000000002"
 const NEW_INQUIRY = "11111111-c1a1-4000-8000-000000000001"
+const ABSENT_UUID = "00000000-0000-4000-8000-000000000000"
 
 async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   const marker = new Error("__rollback__")
@@ -102,11 +104,26 @@ describe("listForBoard", () => {
     })
   })
 
-  it("asks for no stage without passing '' to a cast (L37)", async () => {
+  /**
+   * `null` was the only value this used to assert, which is the one value
+   * that was never at risk — the test passed while `/crm/pipeline?stage=`
+   * was a live Internal Error. `searchParams.get()` returns `""` for `?x=`
+   * and whatever was typed for `?x=garbage`, and SQL does not short-circuit,
+   * so either reaching a `::uuid` parameter raises (L37). `uuidParam` is what
+   * stands between the query string and this function.
+   */
+  it.each([
+    ["absent", null],
+    ["blank — the `?stage=` case", uuidParam("")],
+    ["malformed — the `?stage=garbage` case", uuidParam("garbage")],
+    ["a uuid that is not a stage", uuidParam(ABSENT_UUID)],
+  ])("survives an expand stage that is %s", async (_label, expandStageId) => {
     await inRollback(async (tx) => {
-      await expect(
-        deals.listForBoard(tx, { perStage: 20, expandStageId: null }),
-      ).resolves.toBeInstanceOf(Array)
+      const rows = await deals.listForBoard(tx, {
+        perStage: 20,
+        expandStageId,
+      })
+      expect(Array.isArray(rows)).toBe(true)
     })
   })
 })

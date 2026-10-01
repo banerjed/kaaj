@@ -60,20 +60,45 @@ export async function countForCustomer(
 export async function listForContact(
   tx: Tx,
   contactId: string,
+  limit = 10,
 ): Promise<Activity[]> {
   return tx<Activity[]>`
     ${tx.unsafe(SELECT)}
      WHERE a.customer_contact_id = ${contactId}
      ORDER BY a.occurred_at DESC
+     LIMIT ${limit}
   `
 }
 
-export async function listForDeal(tx: Tx, dealId: string): Promise<Activity[]> {
+export async function countForContact(
+  tx: Tx,
+  contactId: string,
+): Promise<number> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM crm_activities
+     WHERE customer_contact_id = ${contactId}
+  `
+  return row?.n ?? 0
+}
+
+export async function listForDeal(
+  tx: Tx,
+  dealId: string,
+  limit = 10,
+): Promise<Activity[]> {
   return tx<Activity[]>`
     ${tx.unsafe(SELECT)}
      WHERE a.deal_id = ${dealId}
      ORDER BY a.occurred_at DESC
+     LIMIT ${limit}
   `
+}
+
+export async function countForDeal(tx: Tx, dealId: string): Promise<number> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM crm_activities WHERE deal_id = ${dealId}
+  `
+  return row?.n ?? 0
 }
 
 export type ActivityInput = {

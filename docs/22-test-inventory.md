@@ -152,7 +152,7 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
-### CRM — 23 tests
+### CRM — 26 tests
 
 - `lib/server/customers/customers.writes.test.ts` [15] — person accounts, the
   shape where a client is an individual rather than a business.
@@ -170,7 +170,7 @@ Beyond that, coverage is indirect: 8 RLS assertions inside
   action share — treats an individual with none or several contacts as a
   company, which is the case that made such a row unsaveable when the two
   disagreed.
-- `lib/server/crm/deals.repo.test.ts` [8] — the pipeline board's read path.
+- `lib/server/crm/deals.repo.test.ts` [11] — the pipeline board's read path.
   `listForBoard` caps each COLUMN independently (a single `LIMIT` over the
   board would starve the later stages), expands only the named column, takes
   the newest of a column rather than an arbitrary slice, and asks for no
@@ -180,6 +180,10 @@ Beyond that, coverage is indirect: 8 RLS assertions inside
   apart instead of adding USD to GBP (BR-FP-003), sums exactly in SQL as a
   string (`0.10 + 0.20` is `0.30`, where JavaScript gives
   `0.30000000000000004`), and still counts a deal that carries no value.
+  The expand-stage parameter is exercised with every shape a query string can
+  actually produce — absent, `""`, malformed, and a well-formed uuid that is
+  not a stage. It previously asserted only `null`, the one value never at
+  risk, and passed while `/crm/pipeline?stage=` was a live Internal Error.
 
 Beyond that, coverage is indirect: the CRM RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
@@ -259,7 +263,15 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   and cannot write a company; staff still read all of it.
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
-### Auth & Authorization — 172 tests
+### Auth & Authorization — 186 tests
+
+- `lib/server/auth/sso-enforcement.test.ts` [7] — `isSsoSatisfied` for a
+  tenant that requires SSO: a SAML session is recognised from `amr`, an OIDC
+  one from its identity provider, a password session is refused, and a tenant
+  with no SSO configured is unaffected (ADR-010).
+- `lib/server/db/subdomain.test.ts` [7] — `extractSubdomain` across
+  `.localhost`, a port, an IPv4 host and the apex, which is what routes a
+  sign-in to the right tenant's identity provider before any session exists.
 
 - `lib/server/auth/action-authz.test.ts` [145] — per-action authorization
   matrix across compensation, employees, settings (company, locations,
@@ -298,9 +310,11 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 Not module-specific — every page's form and every money/date/locale render
 goes through these.
 
-- `lib/server/forms.test.ts` [32] — `FormReader`: three outcomes not two
+- `lib/server/forms.test.ts` [34] — `FormReader`: three outcomes not two
   (L33), the column type is not the validator (L34), values that feed
-  `Intl`, decimal bounds compared as decimals
+  `Intl`, decimal bounds compared as decimals. Plus `uuidParam`, which is
+  the query string's equivalent of `f.uuid()` — `""` and a malformed value
+  both answer null rather than reaching a `::uuid` cast and raising (L37).
 - `lib/format.test.ts` [27] — `money`, `money` (compact), `calendarDate`,
   `instant`, `currentTimeIn`, `localised`, `number`, `hours`
 - `lib/server/rich-text.test.ts` [9] — `sanitizeRichText`
@@ -321,10 +335,14 @@ goes through these.
   effect on ticketing and project visibility is asserted separately, in
   `row-visibility.test.ts` (Tenancy section above).
 
-### UI / Navigation infrastructure — 9 tests
+### UI / Navigation infrastructure — 14 tests
 
 - `lib/components/admin-layout/helpers.test.ts` [9] — `visibleMenuItems`,
   `getActivatedItemParentKeys`
+- `lib/permissions.test.ts` [5] — `has`/`hasAny` over the viewer's capability
+  list, which is what decides whether a row offers an edit icon. Hiding a
+  control is navigation hygiene, never access control (L44) — the action's
+  own `requireCan` is what refuses.
 
 ### Misc — 1 test
 
@@ -398,6 +416,7 @@ summarized here rather than duplicated so it can't drift out of sync:
 | structure snapshot              | schema is exactly what was committed                                                                                                                                                                                                                             | 4,290 lines    |
 | security                        | authorization, PII, tenant isolation (both suites)                                                                                                                                                                                                               | 360            |
 | provisioning script             | `node --test scripts/provision-tenant.test.mjs` — NOT in `./check`; DB cases need `PROVISION_TEST_PG`: provisions, dry-run writes nothing, duplicate refused, registration atomic, no password/DSN leak, restricted login, Management API against a fake `fetch` | 18             |
+| tenant SSO script               | `node --test scripts/configure-tenant-sso.test.mjs` — NOT in `./check` and NOT in CI (`scripts/` is not a workspace package, so turbo never reaches it); run it by hand when touching the script. Pure/refusal/mocked-`fetch` cases always run; the one database case needs a throwaway Postgres SUPERUSER                                                 | 18             |
 | + 16 more single-purpose checks | authz, actor propagation, no-backtick, no-loop-query, scale classification, unprotected fallback, sensitive-column classification, audit coverage, refusal messages, service-role quarantine, fixture completeness, dedicated-tenant reachability                | —              |
 
 `packages/spec-tests` is a second, independent authorization suite — spec-

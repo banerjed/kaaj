@@ -21,6 +21,13 @@ const SCOPE = { entityType: "company" } as const
 
 const ACTIVITY_PAGE_SIZE = 10
 
+/**
+ * Rows in the Contacts and Deals cards. Both tables are SCALE_SENSITIVE, and
+ * both cards sit in a fixed-height scroller — reading the whole history to
+ * fill a 72-unit box is the shape that bites once a client is years old.
+ */
+const CARD_PAGE_SIZE = 20
+
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
@@ -35,18 +42,24 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     const company = await customers.getById(tx, params.id)
     if (!company) error(404, "Client not found")
     const fieldValues = await customFields.valuesFor(tx, "company", [params.id])
-    const people = await contacts.listForCustomer(tx, params.id)
+    // The count, not the loaded page: a capped list would make a business
+    // with 21 contacts look like a one-contact person account.
+    const contactCount = await contacts.countForCustomer(tx, params.id)
+    const people = await contacts.listForCustomer(tx, params.id, CARD_PAGE_SIZE)
 
     return {
       company,
+      contactCount,
+      dealCount: await deals.countForCustomer(tx, params.id),
+      dealTotals: await deals.totalsForCustomer(tx, params.id),
       isPersonAccount: customers.isPersonAccount(
         company.customer_type,
-        people.length,
+        contactCount,
       ),
       fieldDefs: await customFields.definitionsFor(tx, SCOPE),
       fieldValues: fieldValues[params.id] ?? [],
       contacts: people,
-      deals: await deals.listForCustomer(tx, params.id),
+      deals: await deals.listForCustomer(tx, params.id, CARD_PAGE_SIZE),
       activities: await activities.listForCustomer(
         tx,
         params.id,

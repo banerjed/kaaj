@@ -43,4 +43,21 @@ maintainer's call.
 
 | Date | Reviewed through | Range | Scope | Findings |
 |---|---|---|---|---|
-| 2026-10-01 | `3d9a5d8` | `ec606a5..3d9a5d8` | 18 commits, 137 files (+7,472 / −2,995): enterprise SSO, custom fields consolidation, portal off, row actions, CRM person accounts, pipeline paging | 1 critical (live 500 on `?stage=`), 2 high (unpaged `crm_activities`; JS money arithmetic), 4 medium, 2 owed `Lnn` entries. Reported in-session; not fixed. |
+| 2026-10-01 | `3d9a5d8` | `ec606a5..3d9a5d8` | 18 commits, 137 files (+7,472 / −2,995): enterprise SSO, custom fields consolidation, portal off, row actions, CRM person accounts, pipeline paging | 1 critical (live 500 on a uuid query param), 2 high (unpaged SCALE_SENSITIVE reads; money summed in JS and across currencies), 4 medium. Remediated in the follow-up commit; `projects.read` left open as a decision (see below). L112 and L113 written. |
+
+### Open from the 2026-10-01 review
+
+- **`projects/[id]` and `/projects` have no read permission on `load()`.**
+  There is no `projects.read` in `@kaaj/authz` at all, so this is a modelling
+  gap rather than a slip: adding one means choosing which roles hold it, which
+  lands in the role map, in `packages/spec-tests`' independent matrix and in
+  `authz-conformance.spec.test.ts` — where a disagreement means "decide which
+  is right", not "make one match the other". Needs a decision, not a patch.
+- **Seven `(app)` loads have no permission check at all** — attendance,
+  time-off, the four employee pages, payroll payslips. All pre-date this
+  review window and several are plausibly deliberate (every employee may read
+  the directory). Worth confirming one by one rather than assuming either way.
+- **`customer-contacts.departments()`** does a `SELECT DISTINCT` over a
+  SCALE_SENSITIVE table to populate a filter. Bounded in output, unbounded in
+  work; fixing it is a different design (a lookup table or a cap), not a
+  `LIMIT`.

@@ -5,12 +5,20 @@
   import ModalActions from "$lib/components/ModalActions.svelte"
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
+  import { instant } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
 
   let { data, form } = $props()
+
+  const fmtCtx = $derived({
+    locale: data.tenant?.default_locale ?? "en-US",
+    currency: data.tenant?.default_currency ?? "USD",
+    timezone: data.tenant?.default_timezone ?? "UTC",
+    timeFormat: data.tenant?.time_format,
+  })
 
   const err = $derived(fieldErrors(form))
   const p = $derived(data.contact)
@@ -157,15 +165,18 @@
                     <p class="text-base-content/70 text-sm">{a.body}</p>
                   {/if}
                   <p class="text-base-content/70 mt-0.5 text-xs">
-                    {a.created_by_name} · {new Date(
-                      a.occurred_at,
-                    ).toLocaleString()}
+                    {a.created_by_name} · {instant(a.occurred_at, fmtCtx)}
                   </p>
                 </div>
               </div>
             </li>
           {/each}
         </ul>
+        {#if data.activityTotal > data.activities.length}
+          <p class="text-base-content/70 mt-2 text-xs">
+            Showing the most recent {data.activities.length} of {data.activityTotal}
+          </p>
+        {/if}
       {/if}
     </SectionCard>
   </div>
