@@ -1600,6 +1600,11 @@ describe("recurring invoice schedules (US-ACC-004)", () => {
 
     it("does not generate the same schedule twice in the same run", async () => {
       const { first, second } = await inRollback(async (tx) => {
+        // Due today, so one run moves it past today. From the fixture's own
+        // date, a run can land the next date on or before today too, and a
+        // second run then rightly catches that period up.
+        await tx`UPDATE recurring_schedules SET next_run_date = CURRENT_DATE
+                  WHERE next_run_date <= CURRENT_DATE AND is_active`
         const first = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
         const second = await acc.generateDueInvoices(tx, NORTHWIND, ACTOR)
         return { first, second }

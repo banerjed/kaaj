@@ -1875,6 +1875,10 @@ describe("accruals and amortization (§11)", () => {
 
     it("does not post the same schedule twice in the same run", async () => {
       const { first, second } = await inRollback(async (tx) => {
+        // Due today, so one run moves each schedule past today — see the
+        // same test for recurring invoices.
+        await tx`UPDATE amortization_schedules SET next_run_date = CURRENT_DATE
+                  WHERE next_run_date <= CURRENT_DATE`
         const first = await postDueAmortizations(tx, NORTHWIND, ACTOR)
         const second = await postDueAmortizations(tx, NORTHWIND, ACTOR)
         return { first, second }

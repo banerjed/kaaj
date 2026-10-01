@@ -98,12 +98,16 @@ describe("compensation effective dating", () => {
 
   it("does NOT push a future-dated raise into the employees cache", async () => {
     const row = await inRollback(async (tx) => {
+      // From the database's own date: the app and Postgres can disagree on
+      // what day it is (L43), and a literal date stops being future.
+      const [{ future }] =
+        await tx`SELECT to_char(CURRENT_DATE + 365, 'YYYY-MM-DD') AS future`
       await comp.addRaise(
         tx,
         NORTHWIND,
         {
           employee_id: CHEN,
-          effective_from: "2026-10-01",
+          effective_from: future,
           compensation_type: "salary",
           amount: "3500000.00",
           currency: "INR",
