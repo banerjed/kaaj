@@ -15,14 +15,22 @@ export type Activity = {
   created_by: string
   /** Denormalised for display; see the SELECT below. */
   created_by_name: string
+  /**
+   * The customer's own person on the other side of the conversation, where
+   * one was named. NULL for a company-level note — distinct from
+   * `created_by_name`, which is always the staff member who recorded it.
+   */
+  contact_name: string | null
 }
 
 const SELECT = `
   SELECT a.id, a.customer_id, a.customer_contact_id, a.deal_id, a.activity_type,
          a.subject, a.body, a.occurred_at, a.created_by,
-         e.first_name || ' ' || e.last_name AS created_by_name
+         e.first_name || ' ' || e.last_name AS created_by_name,
+         cc.first_name || ' ' || cc.last_name AS contact_name
     FROM crm_activities a
     JOIN employees e ON e.id = a.created_by
+    LEFT JOIN customer_contacts cc ON cc.id = a.customer_contact_id
 `
 
 /** `crm_activities` is SCALE_SENSITIVE (grows continuously) — the company page shows the most recent `limit`, not the whole history. */

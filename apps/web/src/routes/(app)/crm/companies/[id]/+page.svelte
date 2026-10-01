@@ -264,9 +264,21 @@
           <button class="btn btn-primary btn-sm">Log</button>
           <input
             name="body"
-            class="input input-sm w-full sm:col-span-3"
+            class="input input-sm w-full sm:col-span-2"
             placeholder="Details (optional)"
           />
+          <!-- Optional: a call or meeting is usually WITH someone, but a note
+               about the account is not. Blank stays NULL. -->
+          <select
+            name="customer_contact_id"
+            class="select select-sm w-full"
+            aria-label="Who was involved"
+          >
+            <option value="">No specific contact</option>
+            {#each data.contacts as p (p.id)}
+              <option value={p.id}>{p.first_name} {p.last_name}</option>
+            {/each}
+          </select>
         </form>
 
         {#if data.activities.length === 0}
@@ -289,7 +301,8 @@
                       <p class="text-base-content/70 text-sm">{a.body}</p>
                     {/if}
                     <p class="text-base-content/70 mt-0.5 text-xs">
-                      {a.created_by_name} · {new Date(
+                      {#if a.contact_name}with {a.contact_name} ·
+                      {/if}{a.created_by_name} · {new Date(
                         a.occurred_at,
                       ).toLocaleString()}
                     </p>
