@@ -20,6 +20,9 @@
   let creating = $state(false)
   let kind = $state<"person" | "business">("person")
 
+  const secondaryLine = (c: (typeof data.companies)[number]): string | null =>
+    c.customer_type === "individual" ? (c.email ?? c.phone) : c.website
+
   const rowActions = (c: (typeof data.companies)[number]): RowAction[] => [
     {
       kind: "view",
@@ -121,8 +124,12 @@
                   >
                     {c.customer_name}
                   </a>
-                  {#if c.website}
-                    <p class="text-base-content/70 text-xs">{c.website}</p>
+                  <!-- A person has no website; what identifies them is how
+                       you reach them. -->
+                  {#if secondaryLine(c)}
+                    <p class="text-base-content/70 text-xs">
+                      {secondaryLine(c)}
+                    </p>
                   {/if}
                 </td>
                 <td>
