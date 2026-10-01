@@ -37,7 +37,8 @@ function discover(dir, prefix = "") {
   const routes = []
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
-    if (statSync(full).isDirectory()) routes.push(...discover(full, `${prefix}/${name}`))
+    if (statSync(full).isDirectory())
+      routes.push(...discover(full, `${prefix}/${name}`))
     else if (name === "+page.svelte") routes.push(prefix || "/")
   }
   return routes
@@ -55,7 +56,10 @@ export function pagePaths(ids, extra = []) {
     const match = ROUTE_PARAM.find(([prefix]) => pattern.startsWith(prefix))
     const id = match && ids[match[1]]
     if (!id) unresolved.push(pattern)
-    else resolved.push(pattern.replace(match[0], match[0].replace(/\[[^\]]+\]/, id)))
+    else
+      resolved.push(
+        pattern.replace(match[0], match[0].replace(/\[[^\]]+\]/, id)),
+      )
   }
   return { paths: [...new Set([...resolved, ...extra])].sort(), unresolved }
 }
@@ -66,7 +70,9 @@ export async function signIn(page, baseUrl, email, password) {
   await page.locator('input[name="email"]').fill(email)
   await page.locator('input[name="password"]').fill(password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 })
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    timeout: 30_000,
+  })
 }
 
 function serverTimingMs(response) {
@@ -89,7 +95,9 @@ export async function timePages(page, baseUrl, paths, repeats) {
     let failure = null
     for (let i = 0; i < repeats; i++) {
       try {
-        const response = await page.goto(`${baseUrl}${path}`, { timeout: 60_000 })
+        const response = await page.goto(`${baseUrl}${path}`, {
+          timeout: 60_000,
+        })
         status = response?.status() ?? status
         bytes = (await response?.body())?.length ?? bytes
         const ms = serverTimingMs(response)
