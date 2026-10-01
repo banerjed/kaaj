@@ -1,6 +1,9 @@
 # Lessons Learned
 
-**Running document.** Append as things are learned; do not rewrite history.
+**Running document.** Append as things are learned. An entry's *body* is not
+rewritten once published — the measured figures and the exact wrong value are
+what make it more than a slogan — but entries are re-homed and re-ordered as
+the file grows.
 
 Every entry here cost real debugging time. They share a shape: **the system kept
 working and told you nothing.** An empty page, a silently unstyled component, a
@@ -179,7 +182,7 @@ The check that would have caught all of this earlier is one question asked of
 any new write: **who can read what this writes?** The audit work answered "who
 may write it" carefully and never asked the other half.
 
-### L111 — a portal contact is app_user with a tenant claim, so tenant_isolation lets them in
+### L111 — A portal contact is app_user with a tenant claim, so tenant_isolation lets them in
 
 Customer portal contacts connect as the same database role as staff, with
 the same `tenant_id` claim. `tenant_isolation` asks only "same tenant?", so
@@ -200,7 +203,7 @@ has meant "the whole firm's STAFF" while the policy says "anyone with the
 tenant claim". Until every table either closes to the portal or says why a
 customer may read it, treat `tenant_isolation` alone as readable by customers.
 
-### L103 — two tables for one concept, a protection applied to one of them, and a disclosure check that only looked where protection already was
+### L103 — Two tables for one concept means a protection applied to only one of them
 
 `clients` (projects, objectives, time tracking) and `customers` (accounting,
 ticketing, documents, the portal) held the same three companies. The fixture
@@ -279,7 +282,7 @@ policy filters rather than raises.
 think?** A route guard and a row policy that disagree are not defence in depth.
 They are one defence and one assumption.
 
-### L94 — a "browsable before joining" arm on a public row admits a portal contact just as readily as an employee, unless the policy says otherwise
+### L94 — A "public row" arm admits a portal contact as readily as an employee
 
 `team_chat_conversation_visibility`'s public-channel arm — `kind = 'channel'
 AND visibility = 'public'` — checks a property of the ROW, not of the actor,
@@ -618,7 +621,7 @@ Two things make it hold rather than merely being intended:
 Removing the recount was tried before trusting it: six of the eighteen write
 tests fail. A guard that has never been observed to fail is not evidence.
 
-### L106 — a counter recomputed under the writer's row policy sums only what the writer can see
+### L106 — A counter recomputed under the writer's row policy sums only what the writer can see
 
 L58's rule is to recompute a denormalised figure, never increment it:
 `SET actual_hours = (SELECT sum(hours) FROM time_tracking_entries …)`. That
@@ -647,7 +650,7 @@ Rule: before narrowing a table, find everything computed ACROSS it: a
 can see every row, for example a `SECURITY DEFINER` function that does only
 that computation. Otherwise the policy corrupts the figure it feeds.
 
-### L99 — advancing a recurring date FROM its own last value compounds a month-end clamp forever
+### L99 — Advancing a recurring date FROM its own last value compounds a month-end clamp forever
 
 `recurring_schedules`/`amortization_schedules` advanced with `next_run_date
 + interval '1 month'` (or `3 months`/`1 year`). Postgres clamps this to the
@@ -678,7 +681,7 @@ a fixed rate, a nominal date) — not "whatever it was last time plus one
 step" — store the anchor separately from the cursor, and always advance
 from the anchor, never from the cursor's last value.
 
-### L107 — two statement-import traps: "the only valid reading" can be a thousand times wrong, and a balance proves columns but not direction
+### L107 — A bank statement's "only valid reading" can be a thousand times wrong
 
 Both were found building the CSV/OFX statement importer, and both would
 have imported a plausible, wrong number with no error.
@@ -713,7 +716,7 @@ Rule: in an importer, refuse or ask when evidence is weak, never pick the
 reading that happens to validate. A check that passes proves only what it
 compares; write down what it does not prove.
 
-### L108 — every line of one import has the same `created_at`, so file order is the only order within a day
+### L108 — Every line of one import has the same `created_at`, so file order is the only order within a day
 
 The banking page showed the balance of the "latest" bank transaction,
 ordered by `transaction_date DESC, created_at DESC`. Imported rows were
@@ -951,7 +954,7 @@ enum membership in the action, where a `fail(400, { errorFields })` puts the
 user back in the form. `@kaaj/enums` already has the enum values, and
 `./check` keeps them current.
 
-### L66 — Every database refusal a form could provoke was an "Internal Error" page
+### L66 — A database refusal a form can provoke needs a sentence, not a 500
 
 `FormReader` is thorough about the shape of a value and knows nothing about
 what is already in the table. Everything in that second category reached the
@@ -987,7 +990,7 @@ table fails until somebody decides what the person should be told. This is the
 third time a rule that existed only in prose turned out to be followed
 unevenly (L54, L48).
 
-### L67 — `/^\d{4}-\d{2}-\d{2}$/` accepted 2026-02-31, and it was stored as 2026-03-03
+### L67 — A shape regex is not a date check
 
 `FormReader.date()` exists because a shape check is not a date check, and says
 so in its own docstring. Two files validated dates with the bare regex anyway —
@@ -1016,7 +1019,7 @@ raw` — so a day that does not exist cannot come back as one that does.
 of anything the driver serialises on the way out: the check has to be in the
 same units as the thing being stored.
 
-### L68 — A refused form closed the form, and an archive that did nothing said it had
+### L68 — A refused form must stay open, and a no-op write must not report success
 
 Two halves of the same failure: the page asserted an outcome that had not
 happened.
@@ -1047,7 +1050,7 @@ claims anything, or writes an audit entry.
 that is identical to success, the page is not reporting the write, it is
 reporting that the request was received.
 
-### L77 — `fail()` answers HTTP 200 with the real status inside the body, for anything that isn't a full-page form submission
+### L77 — `fail()` answers HTTP 200 with the real status inside the body
 
 Writing adversarial e2e cases against `/employees/new` (`ADV-05`–`ADV-07`,
 `form-errors.spec.ts`), a raw `page.request.post()` carrying a deliberately
@@ -1110,7 +1113,7 @@ sixth broken copy would have caught the first five. Fixed by renaming
 should return exactly `f.problem()`'s shape — `{ message, errorFields }` —
 never a shape that merely looks similar.
 
-### L82 — A `tx.unsafe()` fragment with more than one bind parameter, nested inside another query via `${...}`, doesn't bind past the first
+### L82 — A nested `tx.unsafe()` fragment binds only its first parameter
 
 Two repo functions (`cashFlowStatement`/`cashFlowTotals`, both taking
 `from`/`to`) shared one SQL shape — the per-account begin/end balance CTE —
@@ -1141,7 +1144,7 @@ the fragment: `cashFlowStatement`/`cashFlowTotals` each inline their own copy
 of the CTE, using ordinary `${from}`/`${to}` template interpolation (the
 well-tested path), accepting the duplication.
 
-### L57 — A create form and a filter that disagree hide the row that was just written
+### L57 — A create form and a filter that disagree hide the row just written
 
 `/projects` filtered on a status list of `planning, active, on_hold, completed,
 cancelled`. `projects.status` defaults to **`draft`**, and the list omitted it.
@@ -1334,7 +1337,7 @@ Two rules follow. **Recreating a policy means restating every modifier** — the
 policy change, before anything else** — it is one second, and it is the only
 thing standing between a two-word omission and cross-tenant disclosure.
 
-### L92 — a policy helper that re-queries its own table breaks `RETURNING`, not `SELECT`
+### L92 — A policy helper that re-queries its own table breaks `RETURNING`, not `SELECT`
 
 A table's RLS policy called a function that read that same table
 (`document_folders`' policy, checking folder visibility via a helper that
@@ -1351,7 +1354,7 @@ own values rather than re-querying — and test the actual `RETURNING` write
 path, not just an isolated `SELECT`, since `verify-rls.sql` only ever
 `SELECT`s and would pass either way.
 
-### L95 — `UPDATE`/`DELETE` cannot find a row the table's `SELECT` policy hides, even when the `UPDATE` policy's own `USING` clause would allow it
+### L95 — `UPDATE`/`DELETE` cannot reach a row the `SELECT` policy hides
 
 Rejoining a channel after leaving it is `UPDATE team_chat_members SET
 left_at = NULL ... WHERE employee_id = :me`, and `team_chat_member_update`'s
@@ -1383,7 +1386,7 @@ row that's already a "current" member, never exercises the state where the
 row has fallen out of the membership check that both policies were quietly
 depending on.
 
-### L98 — closing an immutability gap on one RLS command doesn't close it on the sibling command
+### L98 — Closing an immutability gap on one RLS command doesn't close it on the sibling command
 
 `20260912060000_journal_entry_immutability.sql` rewrote `accounting_update`
 on `journal_entries`/`journal_entry_lines` to add `AND status <> 'posted'`,
@@ -1417,7 +1420,7 @@ grep the same table's OTHER policies (especially the RESTRICTIVE ones from
 whatever migration first created them) for the same missing predicate
 before considering the invariant closed.
 
-### L93 — a trigger that recomputes a derived array from a policy-scoped table must be `SECURITY DEFINER`, or it silently maintains nothing; and `RETURNING` still can't see it either way
+### L93 — A trigger recomputing from a policy-scoped table must be `SECURITY DEFINER`
 
 Team chat's `member_ids` design (docs/20-team-chat.md §3) hangs every
 `team_chat_members`/`team_chat_messages` policy off a denormalized
@@ -1520,7 +1523,7 @@ Two things follow:
   that the right rows come back for a given claim; they could not assert that
   the application sends the right claim.
 
-### L84 — `service_role` bypassed RLS but had no table GRANTs at all, so every existing service-role write path was silently broken
+### L84 — RLS-exempt is not granted — `service_role` still needs table GRANTs
 
 `BYPASSRLS` and table-level `GRANT`s are two separate permission layers in
 Postgres; nothing in any migration ever granted `service_role` SELECT,
@@ -1545,7 +1548,7 @@ can actually write — call the real endpoint and read the response**, the
 same way `L48` says a guard never observed failing is not evidence a guard
 exists.
 
-### L88 — Supabase Storage's `storage.objects`/`storage.buckets` reject direct SQL DELETE, by an on-table trigger
+### L88 — Supabase Storage rejects direct SQL DELETE, by an on-table trigger
 
 `storage.protect_delete()` raises `Direct deletion from storage tables is not
 allowed. Use the Storage API instead` on any raw `DELETE` against those two
@@ -1573,7 +1576,7 @@ for a same-tenant object (succeeds) and a cross-tenant one (a write is
 rejected with a genuine RLS violation; a read reports 404, not the content).
 No service-role workaround was needed for tenant-scoped Storage access.
 
-### L105 — a second database on the local stack is not isolated from the first
+### L105 — A second database on the local stack is not isolated from the first
 
 To avoid `supabase db reset` on a database another session was using, this
 work built `kaaj_dedupe` beside `postgres` on the same local instance, using
@@ -1595,7 +1598,7 @@ Rule: a separate database on the same stack isolates only the direct
 `postgres.js` path. Exclude every test that writes through a Supabase
 client, or it writes to the shared database.
 
-### L109 — two foreign keys on one row do not make a chain
+### L109 — Two foreign keys on one row do not make a chain
 
 A ticket carries `business_area_id`, `category_id` and `subcategory_id`, and
 each had its own foreign key. So each id existed, but nothing said they
@@ -1675,7 +1678,7 @@ database bakes local experiments into the baseline. Already happened once: a
 manual `ALTER` left `invoices.total` as `numeric(18,2)` when the migration says
 `numeric(15,2)`.
 
-### L104 — a data migration's data path never runs locally, and ci-database.sh applies it without a transaction
+### L104 — A data migration's data path never runs locally, and CI has no transaction
 
 `supabase db reset` applies every migration and only THEN seeds the fixture.
 So the `UPDATE … FROM`/`INSERT … SELECT` half of a data-moving migration
@@ -1700,7 +1703,7 @@ Rules:
   atomic under either runner, and `set_config(..., true)` and
   `ON COMMIT DROP` then behave as intended.
 
-### L101 — a table scaffolded wholesale in the initial schema pass can silently duplicate a feature built for real under a different name later
+### L101 — A table scaffolded up front can silently duplicate one built later for real
 
 Planning Phase 2 of project management (docs/25-project-management-phase2.md)
 started from docs/23-project-management-phase1.md's own list of four
@@ -1732,7 +1735,7 @@ scaffolded wholesale in an early pass (`docs/23-...`'s own phrase) looks
 exactly like unbuilt work from its own migration; whether it actually is
 depends on what else exists under a name nobody thought to check.
 
-### L102 — a family of scaffolded tables can have more members than the one being wired up
+### L102 — A family of scaffolded tables can have more members than the one being wired up
 
 Building real user groups (`docs/28-user-groups.md`) wired up
 `employee_user_groups`/`employee_group_members` — but the initial schema
@@ -1756,7 +1759,7 @@ scaffolded table turns out to need wiring up, check whether it has scaffolded
 
 None of these are visible on a fixture of a dozen rows.
 
-### L112 — a SCALE_SENSITIVE table is classified by `./check`, but no check reads the QUERY
+### L112 — A SCALE_SENSITIVE table is classified by `./check`, but no check reads the QUERY
 
 `scripts/verify-query-scale.mjs` proves every table is classified as
 scale-sensitive or not, with a reason. It never looks at a single `SELECT`.
@@ -1786,7 +1789,7 @@ And a read nothing calls is still a liability: `deals.list()` survived the
 board rewrite as dead code, unpaged, waiting to be reused by the next caller
 who needed "all the deals".
 
-### L85 — an index that textually matches `ORDER BY ... DESC NULLS LAST` was never used, because a DESC btree index defaults to NULLS FIRST
+### L85 — A DESC btree index defaults to NULLS FIRST, so `NULLS LAST` never uses it
 
 `idx_hr_feedback_date ON hr_feedback (tenant_id, feedback_date DESC, feedback_id)`
 looks like it satisfies `ORDER BY feedback_date DESC NULLS LAST, feedback_id ASC`
@@ -1806,7 +1809,7 @@ planner *still* wouldn't pick it, then checking the column's nullability.
 list matching is not enough; the null-ordering has to match too, and it never
 will by accident for a DESC sort on a nullable column.
 
-### L91 — a helper pulled out of a loop to satisfy `verify-no-loop-queries.mjs` hid a real N+1, and a transaction held across a reminder batch's send loop wasn't backported from the fix already applied three commits later to a near-identical function
+### L91 — Hoisting a query out of a loop hides an N+1; it does not remove it
 
 Two commits from the same two-day window, found by a background code-review
 pass rather than by `./check` (both were green throughout):
@@ -1846,7 +1849,7 @@ to the pattern. When a review finds one instance, grep siblings that do the
 same kind of thing for the same shape before considering it closed — a
 codebase this size will have written it more than once in the same sitting.
 
-### L97 — a GIN index on an array column doesn't help a `scalar = ANY(column)` predicate
+### L97 — A GIN index on an array column doesn't help a `scalar = ANY(column)` predicate
 
 `team_chat_conversations.member_ids` (`UUID[]`) had a `USING GIN (member_ids)`
 index, added on the plausible-sounding theory that "an array column doing
@@ -2045,7 +2048,10 @@ do?"** — the same shape as [L19](#l19--structural-verification-is-not-visual-v
 hides in the shell file: the group class here, and Nexus's `data-theme`
 attribute handling.
 
-### L72 — We drifted from the template's badge idiom, and only a third tool saw it
+### L72 — Measure a code-quality complaint before acting on it
+
+Four rules came out of one investigation, and the order matters: measure the
+complaint, then measure the fix, and distrust any number you computed by hand.
 
 The complaint was "lots of very complex class definitions, against the grain of
 daisyUI". Measured, the product code was the opposite: `(app)` had **8**
@@ -2055,14 +2061,14 @@ Checked against daisyUI's own rule set, `(app)` had zero dynamically built
 class names, zero arbitrary colour utilities, and zero component-fighting
 overrides — every apparent override was `card bg-base-100 shadow`, which is
 required because `.card` sets no background, and which Nexus itself writes 62
-times to our 63.
+times to this product's 63.
 
 What WAS wrong was invisible to that complaint: eleven pages had independently
 written the same status→badge ternary. That consolidated cleanly.
 
 **The interesting part is what happened next.** Nexus uses `badge-soft` 28
 times and solid never, and daisyUI's own guidance prefers soft — two
-authorities agreeing against us — so the badges were switched. Rendering them
+authorities agreeing against this codebase — so the badges were switched. Rendering them
 and MEASURING the contrast said otherwise: in the light theme soft is worse on
 every tone, and takes warning from 9.57:1 (passing AA) to 1.94:1. The change
 was reverted and the divergence recorded.
@@ -2111,14 +2117,14 @@ covers a colour. The same argument applies to a copied icon set, a copied type
 scale, or any other design token block.
 
 Two things fell out of it. `theme.spec.ts` asserted `--color-base-100` equalled
-`#ffffff` — a literal from the palette we no longer own, which is the coupling
+`#ffffff` — a literal from the palette this product no longer owns, which is the coupling
 the change existed to remove; it now asserts the variable RESOLVED and lets the
 painted brightness say which palette applied. And the theme NAMES are now
 daisyUI's, written to `data-theme`, while the labels a person reads stay Light
 and Dark — a stored `light` or `dark` from before falls through the existing
 unknown-theme guard to `system`, so no migration was needed.
 
-**Every hand-parsed colour string in this session was wrong.** Three separate
+**Every hand-parsed colour string in that investigation was wrong.** Three separate
 times: `oklab()` components read as RGB 0-255 (reported 10.28:1 for a 1.94:1
 pair), an alpha colour composited over white instead of its real backdrop
 (1.4:1 for 4.63:1), and a `/\d+/g` channel regex over `oklch(0.20768 …)`
@@ -2126,7 +2132,7 @@ scoring a near-black surface at brightness 20788. Paint the colour to a canvas
 and read the pixel; the browser is the only correct parser, and it is three
 lines.
 
-### L80 — `overflow-x-auto` on a table clips an absolutely-positioned dropdown inside it, to a few pixels, with nothing erroring
+### L80 — `overflow-x-auto` clips an absolutely-positioned dropdown inside the table
 
 Building the bill-entry form (`/accounting/bills/new`), the per-line expense
 account `Combobox` sat inside a `<td>` — the first time this component was
@@ -2169,7 +2175,7 @@ asserts the page's `<h1>` and nothing about whether an interactive control
 inside it can actually be reached, which is exactly how this one shipped
 undetected.
 
-### L96 — an `$effect` that calls `invalidateAll()` reruns itself, silently, forever
+### L96 — An `$effect` that calls `invalidateAll()` reruns itself, silently, forever
 
 Team chat's mark-read effect read `data.conversation.id` and, after a
 `fetch`, called `invalidateAll()`, which reruns every `load()` on the route.
@@ -2264,10 +2270,9 @@ of truth for repeated behavior, not a generic framework inside the app.
 
 ### L115 — Never serialize cookies or auth internals into page data
 
-> **Renumbered.** This entry shared a number with a later, unrelated
-> lesson, and every `L24` reference in the codebase meant that other
-> one (L24, locale). Nothing referenced this entry, so it moved rather than
-> the one in use.
+> **Renumbered from L24.** Two entries carried that number. Every `L24`
+> citation in the codebase means the locale one, which keeps it; nothing
+> cited this entry, so this is the one that moved.
 
 `cookies.getAll()` belongs inside the server-side Supabase client adapter only.
 Returning it from `+layout.server.ts` sends authentication material through the
@@ -2281,10 +2286,9 @@ client during SSR, render the dependent UI only after the client exists.
 
 ### L116 — Authenticate once per request, in `hooks.server.ts`
 
-> **Renumbered.** This entry shared a number with a later, unrelated
-> lesson, and every `L25` reference in the codebase meant that other
-> one (L25, money scale). Nothing referenced this entry, so it moved rather than
-> the one in use.
+> **Renumbered from L25.** Two entries carried that number. Every `L25`
+> citation in the codebase means the money-scale one, which keeps it; nothing
+> cited this entry, so this is the one that moved.
 
 `safeGetSession()` is deliberately expensive: it validates the session with
 `getUser()` and may fetch MFA assurance data. Calling it again from every
@@ -2339,7 +2343,7 @@ formatting call site that touched it lost its type checking.
 A check nobody has watched fail is not evidence. These are the ways this
 repo's own suites have passed vacuously.
 
-### L114 — a CI job that has never been green is not a test suite, it is a decoration
+### L114 — A CI job that has never been green is not a test suite, it is a decoration
 
 `tests.yml` failed every run from 2026-09-24 to 2026-10-01 — thirty in a
 row, none successful. Nobody noticed, because `build`, `linting`, `format`,
@@ -2475,7 +2479,7 @@ Three columns remain deliberately empty — `projects.contract_id`,
 reference do not exist yet. Those are committed exemptions with that reason,
 and they should be deleted when the modules land.
 
-### L61 — L50 applies to tests, not just to fixtures
+### L61 — An assertion whose subject is NULL passes without testing anything
 
 A test asserted that a foreign-currency invoice's journal ties to its base
 total. It passed. Then the code it was testing was deliberately broken — base
@@ -2500,7 +2504,7 @@ L25's `.9052` versus `.9012`: a value that cannot distinguish two behaviours
 tests neither. And the only reliable way to find out is to break the code and
 watch — a passing test says nothing about what it would catch.
 
-### L110 — two checks that could not see what they were meant to check
+### L110 — A check that cannot see its subject reports nothing, not a failure
 
 Both were found consolidating custom fields, and both would have passed
 with the bug present.
@@ -2526,7 +2530,7 @@ Rule: a check is only as good as what it can see. Write actions out where
 the checks look for them, and test a child table's policy by reading the
 child table alone.
 
-### L87 — a fixture's generic "no empty column" backfill wrote placeholder text into columns no code had ever read, and it surfaced as real rule conditions the moment a feature finally read them
+### L87 — A column a generic fixture backfill filled is as untested as a NULL
 
 `mock-data.sql`'s completeness sweep fills any NULL column, table by table,
 with a generic value keyed on type — `'Transaction Type 1'` for an unclassified
@@ -2560,99 +2564,59 @@ to set `description_regex`/`amount_*`/`transaction_type` explicitly in the
 own "JetBrains, -299.00, debit" story, so the backfill's `WHERE ... IS NULL`
 UPDATE became a no-op for that row.
 
-### L89 — `invoices.reference` and `invoices.notes` carried the fixture's generic completeness-sweep filler, and the first real reader put it on a customer-facing document
+**It has recurred four times, on four tables**, each time caught by the first
+feature to read the column and never by a test. The shape is identical every
+time; only the table changes.
 
-Same shape as L87, a second time, on a different table. `mock-data.sql`'s
-blanket "no empty column" sweep had filled every invoice's `reference` with
-the literal string `'Reference 1'` and `notes` with `'Seeded so this column
-is never empty...'` — harmless while nothing read them, which nothing did:
-`grep` confirms no repository function selected either column before this
-session. Building the invoice PDF (US-ACC-001) was the first real reader,
-and a live-rendered PDF showed both placeholders verbatim, on what would be
-a real document handed to a customer.
+| | Table and columns | Caught by |
+|---|---|---|
+| 1 | `bank_reconciliation_rules` — `description_regex`, `amount_*`, `transaction_type` | the rules page rendering `'Transaction Type 1'` as a condition |
+| 2 | `invoices` — `reference`, `notes` (was L89) | the first real reader put `'Reference 1'` on a customer-facing document |
+| 3 | `invoices` — `payment_url`, `payment_gateway`, `payment_gateway_id` (was L90) | a fake pay URL and a `'GoCardless'` label for a gateway the product does not implement |
+| 4 | `tasks` — `depends_on_task_ids`, `blocks_task_ids` (see L100) | `'["standard"]'::jsonb` is not a task id, and the dependency graph was about to become load-bearing |
 
-Caught by actually looking at the rendered PDF in a browser, not by any
-test — a snapshot/content test asserting exact page text would have caught
-it, but none existed, and a test written after the fact would have encoded
-the bug as the expected value. Fixed by replacing the blanket UPDATE for
-these two columns with per-invoice values consistent with each invoice's
-own story (a PO reference, a one-line description of what was billed),
-the same fix shape as L87 — the completeness sweep's own `WHERE ... IS
-NULL` becomes a no-op once a real value already sits there.
+Four recurrences is the argument for the habit, not for a fifth entry: **treat
+every sweep-filled value as unverified until something reads it.**
 
-The general rule L87 already states — check whether a long-dormant
-column's seeded value came from the sweep before trusting it — holds
-regardless of which table it recurs on; this entry exists mainly to record
-that it already has, so the next occurrence is recognized faster.
+### L89 — See L87 (recurrence 2: `invoices.reference` / `notes`)
 
-### L90 — `invoices.payment_url`/`payment_gateway`/`payment_gateway_id` carried the same sweep filler, a third recurrence, caught before shipping this time
+Merged into [L87](#l87--a-column-a-generic-fixture-backfill-filled-is-as-untested-as-a-null), which now carries the rule and the full recurrence record.
+This number is kept because code comments cite it.
 
-L87/L89's shape again, on the same `invoices` table L89 already touched.
-The sweep had filled every invoice with a fake `https://pay.northwind.
-example/invoices/...` URL and a `'GoCardless'`/`'Stripe'` gateway label —
-plausible-looking, and no repository function had ever selected any of the
-three columns, so nothing noticed. Building Stripe payment links
-(US-ACC-002) made `invoices/[id]/+page.svelte` render `payment_url`
-verbatim as a real, clickable "Payment link" — which would have shown a
-fabricated Stripe-branded link on an invoice that never actually had one,
-the same "correct-looking value, wrong place" shape the whole disclosure
-section warns about, just for availability rather than a leak.
+### L90 — See L87 (recurrence 3: `invoices` payment-gateway columns)
 
-Caught this time by recognizing the L87/L89 pattern by name while building
-the feature that would have exposed it, rather than by a live screenshot
-after the fact. Fixed the same way both prior entries were, with one
-difference this table's own spec check (`verify-stories.sql`'s US-ACC-002)
-forced: it asserts at least one invoice HAS a populated payment link, so
-"all NULL" isn't an option here the way it was for L89. The blanket sweep
-is gone; in its place, one deliberately-chosen invoice (INV-2026-004)
-carries a payment link shaped exactly like what `createInvoicePaymentLink`
-actually produces (`payment_gateway = 'stripe'`, a `buy.stripe.com/test_`
-URL) — a single, honest example rather than every invoice getting a
-gateway ("GoCardless") this feature doesn't even implement.
+Merged into [L87](#l87--a-column-a-generic-fixture-backfill-filled-is-as-untested-as-a-null), which now carries the rule and the full recurrence record.
+This number is kept because code comments cite it.
 
-The rule this keeps confirming: a column that has carried the sweep's
-filler since the fixture was written is not evidence anyone verified it —
-it is evidence nothing has read it yet. Check every "no empty column"
-value against what actually reads it before trusting it as real data, not
-just the first two times this happened.
+### L100 — A committed check-list that names tables by string is only as good as its strings
 
-### L100 — `tasks.depends_on_task_ids`/`blocks_task_ids` carried the same sweep filler, a fourth recurrence, and the constraint-registry check that would have caught it on `tasks` had a table-name typo silencing it since before this session
+`scripts/verify-constraint-registry.mjs`'s `FORM_WRITTEN` list — the tables it
+checks for an unregistered, form-reachable constraint — named
+`"projects_tasks"`. No table by that name has ever existed; the real table is
+`tasks`. The query silently matched zero rows for it, so every constraint on
+`tasks` — including two pre-existing ones, `tasks_tenant_id_fkey` and
+`tasks_tenant_id_task_id_key` — had been unchecked since the table was
+created, and `./check` had been green the whole time.
 
-L87/L89/L90's shape, a fourth time, plus a second, independent finding on
-the same table. Both surfaced building Phase 1 of project management
-(docs/23-project-management-phase1.md), which made `depends_on_task_ids`
-and `blocks_task_ids` load-bearing for the first time.
+It surfaced only because the work was about to add the first CHECK/FK
+constraints `tasks` had ever had (`no_self_dependency`,
+`tasks_depth_matches_parent`, `fk_tasks_parent_task_id`) and went looking for
+where to register them. Nothing would have found it otherwise: a name that
+matches nothing produces an empty result, and an empty result is
+indistinguishable from "nothing to report".
 
-**The sweep filler.** Both columns had carried `'["standard"]'::jsonb` since
-the fixture was written — not a valid task id, just a placeholder that
-satisfied `verify-fixture-coverage.mjs`'s "not empty" check. Nothing had
-ever read either column as an actual dependency graph, so nothing noticed.
-Building the same feature that would have exposed it (as in L90) replaced
-the filler with a real two-edge chain instead: `blocks_task_ids` in
-particular is now a genuine reverse index recomputed from
-`depends_on_task_ids`, so hand-typing anything into it would drift the
-moment either was written for real.
+**Every committed list that names a schema object by string needs the schema
+to confirm the name exists.** This repo's exemption lists, `FORM_WRITTEN`,
+`SCALE_SENSITIVE`, the audit register and the disclosure matrix are all this
+shape. A typo in any of them does not fail — it silently narrows what is
+checked, which is the one failure mode a committed list exists to prevent.
 
-**The typo.** `scripts/verify-constraint-registry.mjs`'s `FORM_WRITTEN`
-list — the tables it checks for an unregistered, form-reachable
-constraint — named `"projects_tasks"`. No table by that name has ever
-existed; the real table is `tasks`. The query silently matched zero rows
-for it, so every constraint on `tasks` — including two pre-existing ones,
-`tasks_tenant_id_fkey` and `tasks_tenant_id_task_id_key` — had been
-unchecked since the table was created, and `./check` had been green
-throughout. Found only because this session was about to add the first
-CHECK/FK constraints `tasks` had ever had (`no_self_dependency`,
-`tasks_depth_matches_parent`, `fk_tasks_parent_task_id`) and went looking
-for where to register them.
+The same work also hit the fixture-filler trap for a fourth time
+(`tasks.depends_on_task_ids`/`blocks_task_ids` carried `'["standard"]'::jsonb`,
+which is not a task id); that half is recorded with the rest in
+[L87](#l87--a-column-a-generic-fixture-backfill-filled-is-as-untested-as-a-null).
 
-Two rules, not one: a column's fixture value being non-empty is not evidence
-anyone verified it (L90's rule again) — and a committed list that names
-tables or columns by string is only as good as the strings in it, which
-nothing table-driven double-checks against the schema itself. Both are
-silent-pass shapes: the sweep filler because nothing read the column, the
-typo because the check's own query just matched nothing and moved on.
-
-### L86 — a load-test seeder cloned a table's rows without re-pointing their foreign key, so every clone attached to the SAME original parent, corrupting it
+### L86 — Cloning rows without re-pointing their foreign key corrupts the original
 
 `scripts/loadtest.mjs` clones one existing row N times to simulate a
 SCALE_SENSITIVE table at scale — realistic for a table like `invoices`, where
@@ -2662,7 +2626,8 @@ NOT realistic for a *child* table cloned the same way: `invoice_lines`,
 verbatim, foreign key included, so 200,000 new lines all still point at the
 ONE original invoice/entry/bill/project — not at 200,000 new parents. Two
 distinct failures came out of this: an invoice's real `line_subtotal` now sums
-200,000 lines instead of a handful (the timeout this session started from),
+200,000 lines instead of a handful (the timeout that investigation started
+from),
 and a real journal entry's debits and credits now disagree by billions (a
 genuine, if reversible, corruption of `unbalanced()`'s invariant for as long as
 the seed is loaded) — while 200,000 newly-inserted invoice/bill/project rows
@@ -2733,7 +2698,7 @@ it matched Sign in, and `getByLabel("Assistant")` matched the panel's own
 "Close assistant" control as a substring. Both failed loudly on the first run,
 which is the difference between them and the one above.
 
-### L64 — No page in the application had an `<h1>`
+### L64 — A heading asked for by role is the only way to prove a page has one
 
 The first end-to-end run failed on eighteen of twenty-one pages, all with the
 same message: *did not render its heading*.
@@ -2826,7 +2791,7 @@ carry the published salary bands. `audit_log` can never be pruned, so
 over-auditing is permanent noise — which is why a line exists at all rather
 than auditing everything.
 
-### L113 — the page and the action have to compute a predicate the SAME way, so compute it once
+### L113 — The page and the action have to compute a predicate the SAME way, so compute it once
 
 `crm/companies/[id]` decides whether a client is a person account. The page
 asked `customer_type === 'individual' && contacts.length === 1`; the save
@@ -2906,7 +2871,7 @@ opt-out env var for this check is the identical footgun one level up. The
 "point dev at prod for one run" workflow this doc used to document is gone;
 use the hosted project's own Supabase Studio instead.
 
-### L76 — A loose `waitForURL` regex after a racy click resolves against the URL you were already on
+### L76 — A loose `waitForURL` regex resolves against the URL you were already on
 
 Writing a Playwright helper to sign in as someone other than the suite's
 default owner (`e2e/helpers.ts`'s `signInAs`, for `access-lifecycle.spec.ts`
@@ -3004,7 +2969,7 @@ psql "$DATABASE_URL" -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
 `./setup` fixes it too, and re-verifies RLS while it is there. A machine that
 ran `./setup` once and has been fine ever since will still hit this the
 first time anything in the session calls `db reset` directly (a policy
-change, a schema experiment, this Tier), because the reset undoes a step the
+change, a schema experiment, a new module), because the reset undoes a step the
 original setup ran that nothing about `db reset` re-runs.
 
 The fix is the same one-liner, run again after any `db reset`:
@@ -3021,6 +2986,25 @@ is very likely why — not a defect in whatever you just wrote.
 
 
 ## Conventions
+
+**An entry's title states the RULE, in the present tense, in one clause.** The
+index at the top is the only thing most readers see, so a title that reports an
+incident — "No page in the application had an `<h1>`" — makes them open the
+entry to find out whether it still matters. The rule does not expire; the
+incident does. Keep it under about 80 characters, start with a capital, and put
+one lesson in it: a title joining two findings with "and" is two entries.
+
+```
+✅ ### L58 — A denormalised counter is recomputed, never incremented
+✅ ### L3  — Connect as `app_user`, never the owner
+❌ ### L64 — No page in the application had an `<h1>`
+❌ ### L91 — a helper pulled out of a loop to satisfy X hid a real N+1, and a
+             transaction held across a send loop wasn't backported from …
+```
+
+The incident belongs in the body, where the specifics — the measured figures,
+the exact wrong value stored, the dependency source read — are what make the
+entry more than a slogan.
 
 **Explanation lives here; code carries a pointer.** A comment that restates a
 lesson goes stale in place and makes the file harder to scan. Reference the
