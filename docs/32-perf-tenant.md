@@ -12,8 +12,9 @@ local stack, so the whole app can be measured at scale and its slow parts found
 
 ## What exists, and why it is not enough
 
-- **`scripts/loadtest.mjs`** clones ONE existing Northwind row N times per
-  `SCALE_SENSITIVE` table. Three problems for this purpose:
+- **`scripts/loadtest.mjs`** (deleted once this was built) cloned ONE
+  existing Northwind row N times per `SCALE_SENSITIVE` table. Three problems
+  for this purpose:
   - every clone of a child row keeps its parent's foreign key, so 200,000
     invoice lines land on one invoice and new invoices get none
     ([L86](./10-lessons-learned.md));
@@ -28,8 +29,8 @@ local stack, so the whole app can be measured at scale and its slow parts found
 
 Reused: `loadtest.mjs`'s refusal to run anywhere but the local stack, the
 `SCALE_SENSITIVE` register in `verify-query-scale.mjs` (read, not restated),
-`sealField` for encrypted columns, and `measure-render-times.mjs`. Once this
-exists, `loadtest.mjs` is superseded and its header says so.
+`sealField` for encrypted columns, and `measure-render-times.mjs`.
+`loadtest.mjs` itself is deleted rather than kept as a deprecated second way.
 
 ## Where it lives
 
