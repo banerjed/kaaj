@@ -263,7 +263,7 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   and cannot write a company; staff still read all of it.
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
-### Auth & Authorization — 186 tests
+### Auth & Authorization — 187 tests
 
 - `lib/server/auth/sso-enforcement.test.ts` [7] — `isSsoSatisfied` for a
   tenant that requires SSO: a SAML session is recognised from `amr`, an OIDC
@@ -281,9 +281,13 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   addProject) — the last two closed a gap `projects` had even before
   docs/23-project-management-phase1.md; "the matrix covers every action
   that exists"
-- `lib/server/auth/can.test.ts` [27] — the floor, separation of duties,
+- `lib/server/auth/can.test.ts` [28] — the floor, separation of duties,
   owner/firm_admin, derived managers, bundle composition, reading vs.
-  revealing a sensitive value
+  revealing a sensitive value. Module access vs. row visibility:
+  `projects.read` is held by every staff role (it gates the module; the
+  rows are `project_visibility` RLS) and refused for a `customer` base
+  role — the only branch where it answers false, so the guard is observed
+  failing rather than assumed to work.
 
 ### Audit — 18 tests
 

@@ -35,6 +35,11 @@ const {
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  // The page checks its own read permission; a `requireCan` in this page's
+  // actions covers only the POST, and the (app) layout gate is coarse
+  // identity, not this module (L79). Which projects are then visible is
+  // `project_visibility` RLS, not this check.
+  requireCan(ctx, "projects.read")
 
   return withTenant(actorFrom(locals), async (tx) => {
     const project = await projects.byId(tx, params.id)

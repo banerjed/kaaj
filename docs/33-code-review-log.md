@@ -47,12 +47,15 @@ maintainer's call.
 
 ### Open from the 2026-10-01 review
 
-- **`projects/[id]` and `/projects` have no read permission on `load()`.**
-  There is no `projects.read` in `@kaaj/authz` at all, so this is a modelling
-  gap rather than a slip: adding one means choosing which roles hold it, which
-  lands in the role map, in `packages/spec-tests`' independent matrix and in
-  `authz-conformance.spec.test.ts` — where a disagreement means "decide which
-  is right", not "make one match the other". Needs a decision, not a patch.
+- ~~**`projects/[id]` and `/projects` have no read permission on
+  `load()`.**~~ **Closed.** `projects.read` now exists and sits in
+  `EVERYONE`, the same split as `document.read`: the permission is whether a
+  staff member may open the module, and `project_visibility` RLS decides
+  which projects they then see (everything not `is_restricted`, plus what
+  they manage or hold a group grant on). No staff member's access changed;
+  what the guard adds is an explicit refusal for a `customer` base role,
+  which is deliberately not built on `EVERYONE`. Neither authorization suite
+  named a projects permission, so the conformance bridge needed no change.
 - **Seven `(app)` loads have no permission check at all** — attendance,
   time-off, the four employee pages, payroll payslips. All pre-date this
   review window and several are plausibly deliberate (every employee may read

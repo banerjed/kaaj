@@ -37,6 +37,7 @@ export const PERMISSIONS = [
   "it.groups.write",
   "it.integrations.write",
   "legal.documents.write",
+  "projects.read",
   "projects.write",
   "time_entries.write",
   "time_entries.approve",
@@ -126,6 +127,13 @@ const EVERYONE: Permission[] = [
   "document.write",
   "team_chat.read",
   "team_chat.write",
+  // Whether an employee may use the projects module at all. Which projects
+  // they then see is `project_visibility` RLS: everything not
+  // `is_restricted`, plus projects they manage or hold a group grant on
+  // (docs/28). Same split as `document.read` above — the permission is the
+  // module, the policy is the rows. A `customer` base role is deliberately
+  // not built on EVERYONE, so this is also what refuses a portal contact.
+  "projects.read",
 ]
 
 const BASE: Record<BaseRole, Permission[]> = {
