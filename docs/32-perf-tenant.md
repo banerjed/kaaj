@@ -204,21 +204,40 @@ in the ticket, project and custom-field policies. Perf-tenant logins
 
 ## Measurement
 
-- `measure-render-times.mjs` gains a perf profile: perf-tenant ids for each
-  `[param]`, the actor list, and a report per page per actor with server
-  time and response size — size catches the unpaged list.
-- `pg_stat_statements` (shipped with Supabase) is reset before a run and
-  ranked after it by total and mean time, so the report names the query, not
-  just the page.
-- The first full run is written up as a baseline: the slowest pages and
-  queries, and what each needs (an index, paging, a rewritten policy).
+`pnpm db:perf measure [--repeats=3] [--actors=owner,employee] [--top=25]`
+(`packages/database/perf/measure.mjs`), against a build
+(`pnpm --filter @kaaj/web build`); it starts its own `vite preview` on 5178.
+
+- **Registered for the run only.** The tenant, its `tenant_registry` row
+  (dedicated tier, a `sealed:v1:` ref to the perf cluster as `app_user`), the
+  actors' `tenant_users` rows and their `auth.users` / `auth.identities` are
+  written to the shared database at the start and deleted in a `finally` —
+  and deleted first, in case an earlier run died. A permanent row would make
+  every session's `./check` depend on the perf cluster being up. The ref is
+  sealed, not an environment-variable name, so any session that meets the
+  row mid-run can open it.
+- **Every `(app)` page, as every actor**, discovered from `src/routes/(app)`
+  (`apps/web/scripts/page-timing.mjs`, shared with
+  `measure-render-times.mjs`). Each `[param]` opens the *largest* record of
+  its kind — the busiest ticket, the project with most tasks, the invoice
+  with most lines.
+- **Per actor, `pg_stat_statements` is reset before and read after**, so the
+  report shows what each kind of user costs the database as well as a merged
+  ranking by total and mean time. A run in which no `app_user` statement
+  reached the perf cluster stops: routing that fell back to the shared
+  database would time fast, empty pages.
+- **The machine's load average** at the start and end is printed with the
+  results. Timings from a machine shared with other builds are only
+  comparable with each other.
+- Raw results go to `~/.kaaj/perf-measurements/<timestamp>.json`.
 
 ## Interaction with `./check`
 
-To be measured, not assumed: run `./check` with the perf tenant loaded. If it
-passes, the suites are genuinely tenant-scoped and the tenant may stay loaded.
-If not, `./check` gains a first step that refuses while the perf tenant is
-present and says how to remove it — never a confusing failure later.
+The tenant lives in its own cluster, so `./check` and the unit suites never
+see its rows. The one overlap is a `measure` run: while it runs, the shared
+database holds a dedicated-tier registry row, which the "dedicated targets"
+step resolves and checks like Fenwick's. It passes while the perf cluster is
+up and migrated to the same version, and the row is gone when the run ends.
 
 ## Phases
 

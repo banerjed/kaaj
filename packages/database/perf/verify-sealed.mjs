@@ -4,36 +4,16 @@
  * ciphertext the app can read, not merely something that looks populated.
  * Run by `perf-tenant.mjs verify`.
  */
-import { readFileSync } from "node:fs"
 import {
   decrypt,
   parseEnvelope,
   unwrapKey,
 } from "../../../apps/web/src/lib/server/pii/envelope.ts"
-
-const ENV_EXAMPLE = new URL("../../../apps/web/.env.example", import.meta.url)
-
-function kekByVersion() {
-  let raw = process.env.PRIVATE_PII_KEK
-  if (!raw) {
-    raw = readFileSync(ENV_EXAMPLE, "utf8")
-      .split("\n")
-      .find((l) => l.startsWith("PRIVATE_PII_KEK="))
-      ?.slice("PRIVATE_PII_KEK=".length)
-      .trim()
-      .replace(/^"|"$/g, "")
-  }
-  return new Map(
-    raw.split(",").map((e) => e.trim()).filter(Boolean).map((e) => [
-      Number(e.slice(0, e.indexOf(":"))),
-      Buffer.from(e.slice(e.indexOf(":") + 1), "base64"),
-    ]),
-  )
-}
+import { perfKeyRing } from "./kek.mjs"
 
 /** Returns the number of values opened; throws on the first that will not open. */
 export async function verifySealed(sql, tenantId, sample = 25) {
-  const keks = kekByVersion()
+  const keks = perfKeyRing()
   const checks = [
     { table: "employees", column: "ssn_tax_id_ct", subject: "employee" },
     { table: "customers", column: "tax_number_ct", subject: "tenant" },

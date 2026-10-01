@@ -1,7 +1,7 @@
 /**
  * Encrypted columns for the performance tenant, sealed exactly as the app
  * seals them (`sealField` in apps/web/src/lib/server/pii/pii.repo.ts): a data
- * key per subject in `pii_keys`, wrapped under PRIVATE_PII_KEK, and an
+ * key per subject in `pii_keys`, wrapped under the perf KEK (kek.mjs), and an
  * AES-256-GCM envelope bound to tenant | table | column | row. Decrypting
  * these is a real per-row cost on the pages that show them, which is the
  * point — a perf tenant with NULL ciphertext measures a different app.
@@ -9,15 +9,14 @@
  * Plaintext is derived from the row id, so it is deterministic; ciphertext is
  * not (each envelope has a random IV), which is how the app writes it too.
  */
-import { readFileSync } from "node:fs"
 import {
   encrypt,
   newDataKey,
   serialiseEnvelope,
   wrapKey,
 } from "../../../apps/web/src/lib/server/pii/envelope.ts"
-
-const ENV_EXAMPLE = new URL("../../../apps/web/.env.example", import.meta.url)
+import { newestKey } from "../../../apps/web/src/lib/server/db/sealed-secret.js"
+import { perfKeyRing } from "./kek.mjs"
 
 /** table, column, whose key seals it, and a plausible value for the row. */
 const SEALED = [
@@ -50,22 +49,6 @@ function digits(id, count, offset = 0) {
   return out
 }
 
-function kekRing() {
-  let raw = process.env.PRIVATE_PII_KEK
-  if (!raw) {
-    const line = readFileSync(ENV_EXAMPLE, "utf8")
-      .split("\n")
-      .find((l) => l.startsWith("PRIVATE_PII_KEK="))
-    raw = line?.slice("PRIVATE_PII_KEK=".length).trim().replace(/^"|"$/g, "")
-  }
-  if (!raw) throw new Error("PRIVATE_PII_KEK is not set and .env.example has none")
-  const entries = raw.split(",").map((e) => e.trim()).filter(Boolean)
-  const [version, key] = entries
-    .map((e) => [Number(e.slice(0, e.indexOf(":"))), Buffer.from(e.slice(e.indexOf(":") + 1), "base64")])
-    .sort((a, b) => b[0] - a[0])[0]
-  return { version, key }
-}
-
 /** The tenant's key label, as pii.repo.ts's keyLabel derives it. */
 function keyLabel(subdomain, tenantId) {
   const prefix = subdomain.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 8)
@@ -95,7 +78,7 @@ async function dataKeys(sql, tenantId, subjectType, subjectIds, kek, label) {
 }
 
 export async function sealEncryptedColumns(sql, tenantId) {
-  const kek = kekRing()
+  const kek = newestKey(perfKeyRing())
   const [tenant] = await sql`SELECT subdomain FROM tenants WHERE id = ${tenantId}`
   const label = keyLabel(tenant.subdomain, tenantId)
 

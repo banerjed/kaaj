@@ -9,27 +9,24 @@
  * permanent row would make every other session's `./check` "dedicated
  * targets" step depend on this cluster being up.
  *
- * The connection ref is SEALED, under the app's own PRIVATE_PII_KEK, so any
- * session's app or `./check` that meets the row during a run can open it —
- * an environment-variable ref would be unresolvable everywhere but the
- * `vite preview` this starts. The app needs a build (`pnpm --filter
- * @kaaj/web build`) and nothing else.
+ * The `vite preview` this starts runs with the perf KEK (kek.mjs) — a
+ * production build refuses the development key — and with the connection
+ * ref, an environment variable, set on it alone. Another session's `./check`
+ * that meets the registry row mid-run cannot resolve it and says so by that
+ * variable's name. The app needs a build (`pnpm --filter @kaaj/web build`)
+ * and nothing else.
  *
  * GET only. Pages run as app_user against the perf cluster, so a page that
  * writes on read would change the data; none is known to.
  */
 import { spawn } from "node:child_process"
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, openSync, readdirSync, writeFileSync } from "node:fs"
 import { homedir, loadavg } from "node:os"
 import { join } from "node:path"
 import postgres from "postgres"
 import { chromium } from "@playwright/test"
 import { pagePaths, rank, signIn, timePages } from "../../../apps/web/scripts/page-timing.mjs"
-import {
-  newestKey,
-  parseKeyRing,
-  sealConnectionUrl,
-} from "../../../apps/web/src/lib/server/db/sealed-secret.js"
+import { perfKek } from "./kek.mjs"
 
 const SHARED_URL =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
@@ -38,18 +35,8 @@ const MIGRATIONS = new URL("../../../supabase/migrations/", import.meta.url).pat
 const PORT = 5178 // distinct from e2e (5175), measure-render-times (5176), front-page check (5177)
 const BASE_URL = `http://localhost:${PORT}`
 const PASSWORD = "devpassword"
-
-/** The key the served app opens secrets with: its own .env.local, as vite loads it. */
-function appKek() {
-  if (process.env.PRIVATE_PII_KEK) return process.env.PRIVATE_PII_KEK
-  for (const name of [".env.local", ".env.example"]) {
-    const file = join(APP_DIR, name)
-    if (!existsSync(file)) continue
-    const m = readFileSync(file, "utf8").match(/^PRIVATE_PII_KEK=["']?([^"'\n]+)/m)
-    if (m) return m[1]
-  }
-  throw new Error("PRIVATE_PII_KEK not found in the environment or apps/web/.env.local")
-}
+const SECRET_REF = "PERF_TENANT_MEASURE_RUN_IN_PROGRESS_DATABASE_URL"
+const OUT_DIR = join(homedir(), ".kaaj", "perf-measurements")
 
 if (!/@(127\.0\.0\.1|localhost)[:/]/.test(SHARED_URL)) {
   console.error("  DATABASE_URL is not local — refusing to register a tenant there.")
@@ -116,7 +103,7 @@ async function unregister(shared, tenantId, userIds) {
 }
 
 /** What sign-in and routing need from the control plane, and nothing else. */
-async function register(shared, perf, tenantId, actors, connectionUrl) {
+async function register(shared, perf, tenantId, actors) {
   // As JSON both ways: jsonb, arrays and enums then survive the trip untouched.
   const [{ tenant, members }] = await perf`
     SELECT (SELECT to_jsonb(t) FROM tenants t WHERE t.id = ${tenantId}) AS tenant,
@@ -125,14 +112,11 @@ async function register(shared, perf, tenantId, actors, connectionUrl) {
                AND tu.user_id = ANY(${actors.map((a) => a.user_id)}::uuid[])) AS members`
   const schemaVersion = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort().at(-1).split("_")[0]
 
-  const { version, key } = newestKey(parseKeyRing(appKek()))
-  const secretRef = sealConnectionUrl(connectionUrl, tenantId, version, key)
-
   await shared.begin(async (tx) => {
     await tx`INSERT INTO tenants SELECT * FROM jsonb_populate_record(NULL::tenants, ${tx.json(tenant)})`
     await tx`
       INSERT INTO tenant_registry (tenant_id, subdomain, tier, connection_secret_ref, schema_version, status)
-      VALUES (${tenantId}, ${tenant.subdomain}, 'dedicated', ${secretRef}, ${schemaVersion}, 'active')`
+      VALUES (${tenantId}, ${tenant.subdomain}, 'dedicated', ${SECRET_REF}, ${schemaVersion}, 'active')`
     await tx`INSERT INTO tenant_users SELECT * FROM jsonb_populate_recordset(NULL::tenant_users, ${tx.json(members)})`
     for (const a of actors) {
       await tx`
@@ -285,16 +269,22 @@ export async function measure({ perfUrl, tenantId, repeats, only, top }) {
     const { paths, unresolved } = pagePaths(ids, extraPaths)
 
     await unregister(shared, tenantId, userIds) // a previous run that died before its cleanup
-    await register(shared, perf, tenantId, actors, appUserPerfUrl)
+    await register(shared, perf, tenantId, actors)
 
+    mkdirSync(OUT_DIR, { recursive: true })
+    const log = openSync(join(OUT_DIR, "preview.log"), "w")
     server = spawn("pnpm", ["exec", "vite", "preview", "--port", String(PORT), "--strictPort"], {
       cwd: APP_DIR,
-      stdio: "ignore",
+      stdio: ["ignore", log, log],
       detached: true,
       // A PUBLIC_SUPABASE_* exported in a shell profile outranks .env.local (L75).
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([k]) => !k.startsWith("PUBLIC_SUPABASE_")),
-      ),
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([k]) => !k.startsWith("PUBLIC_SUPABASE_")),
+        ),
+        PRIVATE_PII_KEK: perfKek(),
+        [SECRET_REF]: appUserPerfUrl,
+      },
     })
     await waitForServer(`${BASE_URL}/login/sign_in`)
 
@@ -318,7 +308,10 @@ export async function measure({ perfUrl, tenantId, repeats, only, top }) {
           // Routing that silently fell back to the shared database, where this
           // tenant has no rows, would time fast empty pages and look like a win.
           if (!byActor[a.actor].length)
-            throw new Error("no app_user statements reached the perf cluster — the app is not routed to it")
+            throw new Error(
+              `no app_user statements reached the perf cluster as ${a.actor} (signed in at ${page.url()}) — ` +
+                `the app is not routed to it; see ${join(OUT_DIR, "preview.log")}`,
+            )
           console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages × ${repeats} in ${((Date.now() - t) / 1000).toFixed(0)}s`)
         } catch (e) {
           if (e.message.startsWith("no app_user statements")) throw e
@@ -336,9 +329,7 @@ export async function measure({ perfUrl, tenantId, repeats, only, top }) {
     const text = report({ actors, results, queries, byActor, unresolved, extraPaths, load })
     console.log(`\n${text}`)
 
-    const dir = join(homedir(), ".kaaj", "perf-measurements")
-    mkdirSync(dir, { recursive: true })
-    const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`)
+    const file = join(OUT_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`)
     writeFileSync(file, JSON.stringify({ as_of, repeats, load, ids, actors, results, byActor, unresolved }, null, 2))
     console.log(`\n  ${((Date.now() - started) / 1000).toFixed(0)}s; raw results in ${file}`)
   } finally {
