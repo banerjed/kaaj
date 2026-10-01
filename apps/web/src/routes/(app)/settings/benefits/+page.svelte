@@ -10,10 +10,14 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(data.tenant?.supported_locales ?? [locale])
@@ -51,6 +55,41 @@
   /** Employer + employee total; summed in SQL, not JS — money is a string here. */
   const totalCost = (item: BenefitItem, currency: string) =>
     item.total_by_currency?.[currency] ?? null
+
+  const packageActions = (pkg: (typeof data.packages)[number]): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editingPackage = pkg),
+            label: `Edit ${pkg.name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archivePackage", fields: { id: pkg.id } },
+            label: `Deactivate ${pkg.name}`,
+          },
+        ]
+      : []
+
+  const itemActions = (
+    item: (typeof data.items)[number],
+    packageId: string,
+  ): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editingItem = { item, packageId }),
+            label: `Edit ${item.benefit_name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archiveItem", fields: { id: item.id } },
+            label: `Delete ${item.benefit_name}`,
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Benefits" />
@@ -123,22 +162,7 @@
                   <span class="iconify lucide--plus size-4"></span>
                   Benefit
                 </button>
-                <button
-                  class="btn btn-ghost btn-sm btn-square"
-                  aria-label={`Edit ${pkg.name}`}
-                  onclick={() => (editingPackage = pkg)}
-                >
-                  <span class="iconify lucide--pencil size-4"></span>
-                </button>
-                <form method="POST" action="?/archivePackage">
-                  <input type="hidden" name="id" value={pkg.id} />
-                  <button
-                    class="btn btn-ghost btn-sm btn-square text-error"
-                    aria-label={`Deactivate ${pkg.name}`}
-                  >
-                    <span class="iconify lucide--archive size-4"></span>
-                  </button>
-                </form>
+                <RowActions actions={packageActions(pkg)} />
               </div>
             </div>
           {/snippet}
@@ -195,27 +219,10 @@
                         </td>
                       {/each}
                       <td>
-                        <div class="flex gap-1">
-                          <button
-                            class="btn btn-ghost btn-xs btn-square"
-                            aria-label={`Edit ${item.benefit_name}`}
-                            onclick={() =>
-                              (editingItem = { item, packageId: pkg.id })}
-                          >
-                            <span class="iconify lucide--pencil size-3.5"
-                            ></span>
-                          </button>
-                          <form method="POST" action="?/archiveItem">
-                            <input type="hidden" name="id" value={item.id} />
-                            <button
-                              class="btn btn-ghost btn-xs btn-square text-error"
-                              aria-label={`Delete ${item.benefit_name}`}
-                            >
-                              <span class="iconify lucide--trash-2 size-3.5"
-                              ></span>
-                            </button>
-                          </form>
-                        </div>
+                        <RowActions
+                          actions={itemActions(item, pkg.id)}
+                          size="xs"
+                        />
                       </td>
                     </tr>
                   {/each}

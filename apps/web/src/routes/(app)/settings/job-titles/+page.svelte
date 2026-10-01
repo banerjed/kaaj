@@ -10,10 +10,14 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -47,6 +51,42 @@
     level: FirmJobLevel | null
     titleId: string
   } | null>(null)
+
+  const titleActions = (title: (typeof data.jobTitles)[number]): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editingTitle = title),
+            label: `Edit ${title.title}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archiveTitle", fields: { id: title.id } },
+            label: `Deactivate ${title.title}`,
+            title: "Deactivate",
+          },
+        ]
+      : []
+
+  const levelActions = (
+    level: (typeof data.jobLevels)[number],
+    titleId: string,
+  ): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editingLevel = { level, titleId }),
+            label: `Edit ${level.level_name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archiveLevel", fields: { id: level.id } },
+            label: `Archive ${level.level_name}`,
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Job Titles" />
@@ -117,23 +157,7 @@
                   <span class="iconify lucide--plus size-4"></span>
                   Level
                 </button>
-                <button
-                  class="btn btn-ghost btn-sm btn-square"
-                  aria-label={`Edit ${title.title}`}
-                  onclick={() => (editingTitle = title)}
-                >
-                  <span class="iconify lucide--pencil size-4"></span>
-                </button>
-                <form method="POST" action="?/archiveTitle">
-                  <input type="hidden" name="id" value={title.id} />
-                  <button
-                    class="btn btn-ghost btn-sm btn-square text-error"
-                    aria-label={`Deactivate ${title.title}`}
-                    title="Deactivate"
-                  >
-                    <span class="iconify lucide--archive size-4"></span>
-                  </button>
-                </form>
+                <RowActions actions={titleActions(title)} />
               </div>
             </div>
           {/snippet}
@@ -178,27 +202,10 @@
                         </td>
                       {/each}
                       <td>
-                        <div class="flex gap-1">
-                          <button
-                            class="btn btn-ghost btn-xs btn-square"
-                            aria-label={`Edit ${level.level_name}`}
-                            onclick={() =>
-                              (editingLevel = { level, titleId: title.id })}
-                          >
-                            <span class="iconify lucide--pencil size-3.5"
-                            ></span>
-                          </button>
-                          <form method="POST" action="?/archiveLevel">
-                            <input type="hidden" name="id" value={level.id} />
-                            <button
-                              class="btn btn-ghost btn-xs btn-square text-error"
-                              aria-label={`Archive ${level.level_name}`}
-                            >
-                              <span class="iconify lucide--trash-2 size-3.5"
-                              ></span>
-                            </button>
-                          </form>
-                        </div>
+                        <RowActions
+                          actions={levelActions(level, title.id)}
+                          size="xs"
+                        />
                       </td>
                     </tr>
                   {/each}

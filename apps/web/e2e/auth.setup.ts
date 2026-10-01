@@ -47,7 +47,9 @@ setup("sign in as the seeded owner", async ({ page }) => {
   // failing (dev-users.sql explains why), so the assertion is that real
   // fixture rows arrived.
   await page.waitForURL("**/employees", { timeout: 30_000 })
-  await expect(page.getByRole("link", { name: "Sarah Johnson" })).toBeVisible({
+  await expect(
+    page.getByRole("link", { name: "Sarah Johnson", exact: true }),
+  ).toBeVisible({
     timeout: 15_000,
   })
 

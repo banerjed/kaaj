@@ -8,10 +8,14 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const DAYS = [
     "Sunday",
@@ -38,6 +42,18 @@
     new Set(data.policies.map((p) => p.location_code).filter(Boolean)),
   )
   const hasDefault = $derived(data.policies.some((p) => !p.location_id))
+
+  const rowActions = (p: (typeof data.policies)[number]): RowAction[] =>
+    canWrite
+      ? [
+          { kind: "edit", onclick: () => (editing = p), label: "Edit policy" },
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: p.id } },
+            label: "Delete policy",
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Payroll Policies" />
@@ -105,24 +121,7 @@
                   <span class="badge badge-sm ms-1">Fallback</span>
                 {/if}
               </h2>
-              <div class="flex gap-1">
-                <button
-                  class="btn btn-ghost btn-sm btn-square"
-                  aria-label="Edit policy"
-                  onclick={() => (editing = p)}
-                >
-                  <span class="iconify lucide--pencil size-4"></span>
-                </button>
-                <form method="POST" action="?/archive">
-                  <input type="hidden" name="id" value={p.id} />
-                  <button
-                    class="btn btn-ghost btn-sm btn-square text-error"
-                    aria-label="Delete policy"
-                  >
-                    <span class="iconify lucide--trash-2 size-4"></span>
-                  </button>
-                </form>
-              </div>
+              <RowActions actions={rowActions(p)} />
             </div>
           {/snippet}
 

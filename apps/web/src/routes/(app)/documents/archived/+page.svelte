@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { enhance } from "$app/forms"
-  import { keepValues } from "$lib/form-enhance"
   import { calendarDate } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import { formatBytes } from "$lib/documents/format-bytes"
 
@@ -32,7 +31,7 @@
             <th>Name</th>
             <th>Owner</th>
             <th>Archived</th>
-            <th></th>
+            <th class="w-24">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -46,17 +45,19 @@
                   : "—"}</td
               >
               <td>
-                <form
-                  method="POST"
-                  action="?/restoreFolder"
-                  use:enhance={keepValues}
-                >
-                  <input type="hidden" name="folder_id" value={f.id} />
-                  <button type="submit" class="btn btn-ghost btn-sm">
-                    <span class="iconify lucide--rotate-ccw size-4"></span>
-                    Restore
-                  </button>
-                </form>
+                <RowActions
+                  actions={[
+                    {
+                      kind: "restore",
+                      post: {
+                        action: "?/restoreFolder",
+                        fields: { folder_id: f.id },
+                      },
+                      label: `Restore ${f.name}`,
+                      title: "Restore",
+                    },
+                  ]}
+                />
               </td>
             </tr>
           {/each}
@@ -79,7 +80,7 @@
             <th>Size</th>
             <th>Owner</th>
             <th>Archived</th>
-            <th></th>
+            <th class="w-24">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -95,18 +96,22 @@
               >
               <td>
                 {#if d.folder_id}
-                  <form
-                    method="POST"
-                    action="?/restoreDocument"
-                    use:enhance={keepValues}
-                  >
-                    <input type="hidden" name="document_id" value={d.id} />
-                    <input type="hidden" name="folder_id" value={d.folder_id} />
-                    <button type="submit" class="btn btn-ghost btn-sm">
-                      <span class="iconify lucide--rotate-ccw size-4"></span>
-                      Restore
-                    </button>
-                  </form>
+                  <RowActions
+                    actions={[
+                      {
+                        kind: "restore",
+                        post: {
+                          action: "?/restoreDocument",
+                          fields: {
+                            document_id: d.id,
+                            folder_id: d.folder_id,
+                          },
+                        },
+                        label: `Restore ${d.file_name}`,
+                        title: "Restore",
+                      },
+                    ]}
+                  />
                 {/if}
               </td>
             </tr>

@@ -4,6 +4,9 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import Combobox from "$lib/components/Combobox.svelte"
   import type { ComboboxOption } from "$lib/components/Combobox.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
   import { deserialize } from "$app/forms"
 
   let { data } = $props()
@@ -17,6 +20,25 @@
   )
 
   const lastPage = $derived(Math.max(1, Math.ceil(data.total / data.pageSize)))
+
+  const canWrite = $derived(has(data.permissions, "crm.write"))
+
+  const rowActions = (p: (typeof data.contacts)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/crm/contacts/${p.id}`,
+      label: `View ${p.first_name} ${p.last_name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/crm/contacts/${p.id}?edit=1`,
+            label: `Edit ${p.first_name} ${p.last_name}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 
   /** Preserve existing filters when changing the page. */
   const withParam = (key: string, value: string) => {
@@ -138,6 +160,7 @@
               <th>Title</th>
               <th>Email</th>
               <th>Phone</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -167,6 +190,7 @@
                 <td class="text-sm">{p.title ?? "—"}</td>
                 <td class="text-sm">{p.email}</td>
                 <td class="text-sm">{p.phone ?? "—"}</td>
+                <td><RowActions actions={rowActions(p)} /></td>
               </tr>
             {/each}
           </tbody>

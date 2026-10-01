@@ -6,14 +6,42 @@
   import { keepValues } from "$lib/form-enhance"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import CustomFieldSettings from "$lib/components/CustomFieldSettings.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   let newSubcategoryFor = $state<string | null>(null)
   const subcategoriesOf = (categoryId: string) =>
     data.subcategories.filter((s) => s.category_id === categoryId)
+
+  const categoryActions = (c: (typeof data.categories)[number]): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "archive",
+            post: { action: "?/archiveCategory", fields: { id: c.id } },
+            label: `Archive ${c.name}`,
+          },
+        ]
+      : []
+
+  const subcategoryActions = (
+    s: (typeof data.subcategories)[number],
+  ): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "archive",
+            post: { action: "?/archiveSubcategory", fields: { id: s.id } },
+            label: `Archive ${s.name}`,
+          },
+        ]
+      : []
 
   const memberIds = $derived(new Set(data.members.map((m) => m.employee_id)))
   const grantedGroupIds = $derived(
@@ -77,15 +105,7 @@
                 >
                   + Subcategory
                 </button>
-                <form method="POST" action="?/archiveCategory" use:enhance>
-                  <input type="hidden" name="id" value={c.id} />
-                  <button
-                    class="btn btn-ghost btn-xs btn-square text-error"
-                    aria-label={`Archive ${c.name}`}
-                  >
-                    <span class="iconify lucide--archive size-3.5"></span>
-                  </button>
-                </form>
+                <RowActions actions={categoryActions(c)} size="xs" />
               </div>
             </div>
             {#if subcategoriesOf(c.id).length > 0}
@@ -93,19 +113,7 @@
                 {#each subcategoriesOf(c.id) as s (s.id)}
                   <li class="flex items-center justify-between py-0.5">
                     <span class="text-base-content/80 text-sm">— {s.name}</span>
-                    <form
-                      method="POST"
-                      action="?/archiveSubcategory"
-                      use:enhance
-                    >
-                      <input type="hidden" name="id" value={s.id} />
-                      <button
-                        class="btn btn-ghost btn-xs btn-square text-error"
-                        aria-label={`Archive ${s.name}`}
-                      >
-                        <span class="iconify lucide--archive size-3"></span>
-                      </button>
-                    </form>
+                    <RowActions actions={subcategoryActions(s)} size="xs" />
                   </li>
                 {/each}
               </ul>

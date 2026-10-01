@@ -4,16 +4,37 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
   import { relationshipStatusTone } from "$lib/components/status-tone"
   import { fieldErrors } from "$lib/form-errors"
+  import { has } from "$lib/permissions"
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "crm.write"))
 
   let creating = $state(false)
+
+  const rowActions = (c: (typeof data.companies)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/crm/companies/${c.id}`,
+      label: `View ${c.customer_name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/crm/companies/${c.id}?edit=1`,
+            label: `Edit ${c.customer_name}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 </script>
 
 <PageHead title="Companies" />
@@ -86,6 +107,7 @@
               <th>Industry</th>
               <th>Account manager</th>
               <th class="text-right">Contacts</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -114,6 +136,7 @@
                 <td class="text-right text-sm tabular-nums"
                   >{c.contact_count}</td
                 >
+                <td><RowActions actions={rowActions(c)} /></td>
               </tr>
             {/each}
           </tbody>

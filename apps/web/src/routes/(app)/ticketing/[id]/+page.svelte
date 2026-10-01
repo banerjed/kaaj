@@ -13,6 +13,7 @@
   import type { ComboboxOption } from "$lib/components/Combobox.svelte"
   import { closeOnSuccess, resetOnSuccess, keepValues } from "$lib/form-enhance"
   import type { TicketUpdateRow } from "$lib/server/ticketing/ticketing.repo"
+  import { page } from "$app/state"
 
   let { data, form } = $props()
 
@@ -30,7 +31,16 @@
   let activeTab = $state<
     "update" | "details" | "tasks" | "relationships" | "attachments" | "summary"
   >("details")
-  let editing = $state(false)
+  // Opened straight from the list's edit icon (`?edit=1`), the same
+  // deep-link shape /time-tracking already uses. Seeded once on purpose: it
+  // is this page's own draft state from here on, and must not snap shut when
+  // the URL changes under it.
+  // `mayWrite` is part of the seed because every other way in is behind that
+  // flag, and the edit form itself is only gated on `editing`.
+  // svelte-ignore state_referenced_locally
+  let editing = $state(
+    data.mayWrite && page.url.searchParams.get("edit") === "1",
+  )
   let taskInputEl: HTMLInputElement | undefined = $state()
   const err = $derived(fieldErrors(form))
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")

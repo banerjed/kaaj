@@ -8,10 +8,14 @@
   import { projectHealthTone as healthTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "projects.write"))
 
   /** The create dialog. Closed unless the last submit failed on a field. */
   let creating = $state(false)
@@ -22,6 +26,23 @@
 
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
   const label = (v: string) => v.replace(/_/g, " ")
+
+  const rowActions = (o: (typeof data.objectives)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/objectives/${o.id}`,
+      label: `View ${o.objective_name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/objectives/${o.id}?edit=1`,
+            label: `Edit ${o.objective_name}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 </script>
 
 <PageHead title="Objectives" />
@@ -123,11 +144,14 @@
               </div>
             </dl>
 
-            <p
-              class="text-base-content/70 border-base-200 border-t pt-2 text-xs"
+            <div
+              class="border-base-200 flex items-center justify-between gap-3 border-t pt-2"
             >
-              {o.owner_name ?? "No owner"}
-            </p>
+              <p class="text-base-content/70 truncate text-xs">
+                {o.owner_name ?? "No owner"}
+              </p>
+              <RowActions actions={rowActions(o)} />
+            </div>
           </div>
         </div>
       {/each}

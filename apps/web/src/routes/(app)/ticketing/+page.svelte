@@ -4,6 +4,9 @@
   import { ticketStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { hasAny } from "$lib/permissions"
 
   let { data } = $props()
 
@@ -35,6 +38,27 @@
   )
 
   const hasFilters = $derived(Object.values(data.filters).some((v) => v !== ""))
+
+  const canWrite = $derived(
+    hasAny(data.permissions, "ticketing.write.own", "ticketing.write.all"),
+  )
+
+  const rowActions = (t: (typeof data.tickets)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/ticketing/${t.id}`,
+      label: `View ${t.ticket_number}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/ticketing/${t.id}?edit=1`,
+            label: `Edit ${t.ticket_number}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 
   const totalPages = $derived(
     Math.max(1, Math.ceil(data.total / data.pageSize)),
@@ -215,6 +239,7 @@
               <th>Logged</th>
               <th>Due</th>
               <th>State</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -260,6 +285,7 @@
                     {t.status.replace(/_/g, " ")}
                   </StatusBadge>
                 </td>
+                <td><RowActions actions={rowActions(t)} /></td>
               </tr>
             {/each}
           </tbody>

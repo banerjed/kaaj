@@ -2,6 +2,9 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
@@ -9,8 +12,22 @@
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "crm.write"))
 
   let creating = $state(false)
+
+  const rowActions = (d: (typeof data.deals)[number]): RowAction[] => [
+    { kind: "view", href: `/crm/deals/${d.id}`, label: `View ${d.name}` },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/crm/deals/${d.id}?edit=1`,
+            label: `Edit ${d.name}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 
   const dealsByStage = $derived(
     new Map(
@@ -118,6 +135,7 @@
                       ><button class="btn btn-xs mt-1">Move</button></noscript
                     >
                   </form>
+                  <RowActions size="xs" actions={rowActions(d)} />
                 </div>
               </div>
             {/each}

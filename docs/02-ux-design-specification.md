@@ -746,6 +746,18 @@ Home > HR > Employees > John Smith > Edit Profile
 - Sticky header on scroll
 - Responsive (converts to cards on mobile)
 
+> **As built, two of these differ deliberately** — see
+> [07-app-provenance.md](07-app-provenance.md). Inline actions are **always
+> visible, not on hover** (hover controls are unreachable by touch and
+> invisible to keyboard users until focused), and they are **inline icons,
+> never the `[⋮]` kebab** drawn below: a dropdown inside a `<td>` inside the
+> `overflow-x-auto` wrapper every list table carries gets clipped to a few
+> pixels with nothing erroring (L80). The icons come from
+> `$lib/components/RowActions.svelte`, which owns the vocabulary — view,
+> edit, settings, archive, restore, download — and renders only the ones a
+> given row actually supports. Sorting, row selection and row expansion
+> remain unbuilt.
+
 **Example:**
 ```
 ┌────────────────────────────────────────────────────────────┐

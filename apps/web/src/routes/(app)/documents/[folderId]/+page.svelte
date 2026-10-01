@@ -7,6 +7,8 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
   import { folderVisibilityTone } from "$lib/components/status-tone"
   import { formatBytes } from "$lib/documents/format-bytes"
 
@@ -129,7 +131,7 @@
             <th>Created</th>
             <th>Owner</th>
             <th>Visibility</th>
-            <th></th>
+            <th class="w-24">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -147,34 +149,28 @@
               <td>{calendarDate(d.created_at, tenantLocale)}</td>
               <td>{d.uploaded_by_name ?? "—"}</td>
               <td><StatusBadge tone="neutral">{d.visibility}</StatusBadge></td>
-              <td class="flex items-center gap-1">
-                <a
-                  href="/documents/download/{d.id}"
-                  class="btn btn-ghost btn-square btn-sm"
-                  aria-label="Download {d.file_name}"
-                >
-                  <span
-                    class="iconify lucide--download text-base-content/80 size-4"
-                  ></span>
-                </a>
-                {#if data.canEdit}
-                  <form
-                    method="POST"
-                    action="?/archiveDocument"
-                    use:enhance={keepValues}
-                  >
-                    <input type="hidden" name="document_id" value={d.id} />
-                    <button
-                      type="submit"
-                      class="btn btn-ghost btn-square btn-sm"
-                      aria-label="Archive {d.file_name}"
-                    >
-                      <span
-                        class="iconify lucide--archive text-base-content/80 size-4"
-                      ></span>
-                    </button>
-                  </form>
-                {/if}
+              <td>
+                <RowActions
+                  actions={[
+                    {
+                      kind: "download",
+                      href: `/documents/download/${d.id}`,
+                      label: `Download ${d.file_name}`,
+                    },
+                    ...(data.canEdit
+                      ? ([
+                          {
+                            kind: "archive",
+                            post: {
+                              action: "?/archiveDocument",
+                              fields: { document_id: d.id },
+                            },
+                            label: `Archive ${d.file_name}`,
+                          },
+                        ] satisfies RowAction[])
+                      : []),
+                  ]}
+                />
               </td>
             </tr>
           {/each}

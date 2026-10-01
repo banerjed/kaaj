@@ -7,6 +7,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
   import { folderVisibilityTone } from "$lib/components/status-tone"
   import { formatBytes } from "$lib/documents/format-bytes"
 
@@ -68,10 +69,10 @@
   class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
 >
   {#each data.folders as f (f.id)}
-    <a
-      href="/documents/{f.id}"
-      class="card card-border bg-base-100 hover:shadow-md"
-    >
+    <!-- The card is a div, not one big anchor: an anchor cannot contain the
+         row's action buttons (L30 — nesting interactives is invalid HTML and
+         breaks focus). The folder name carries the link instead. -->
+    <div class="card card-border bg-base-100 hover:shadow-md">
       <div class="card-body gap-2 p-4">
         <div class="flex items-center gap-2">
           <div
@@ -79,19 +80,36 @@
           >
             <span class="iconify lucide--folder size-5"></span>
           </div>
-          <span class="truncate text-sm font-medium">{f.name}</span>
+          <a
+            href="/documents/{f.id}"
+            class="link link-hover truncate text-sm font-medium"
+          >
+            {f.name}
+          </a>
         </div>
         <div class="flex items-center justify-between">
           <span class="text-base-content/60 text-xs"
             >{f.document_count}
             {f.document_count === 1 ? "file" : "files"}</span
           >
-          <StatusBadge tone={folderVisibilityTone(f.visibility)}
-            >{f.visibility}</StatusBadge
-          >
+          <div class="flex items-center gap-2">
+            <StatusBadge tone={folderVisibilityTone(f.visibility)}
+              >{f.visibility}</StatusBadge
+            >
+            <RowActions
+              size="xs"
+              actions={[
+                {
+                  kind: "view",
+                  href: `/documents/${f.id}`,
+                  label: `Open ${f.name}`,
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
-    </a>
+    </div>
   {:else}
     <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
       <EmptyState
@@ -144,7 +162,7 @@
               <th>Created</th>
               <th>Owner</th>
               <th>Visibility</th>
-              <th></th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -164,15 +182,15 @@
                 <td><StatusBadge tone="neutral">{d.visibility}</StatusBadge></td
                 >
                 <td>
-                  <a
-                    href="/documents/download/{d.id}"
-                    class="btn btn-ghost btn-square btn-sm"
-                    aria-label="Download {d.file_name}"
-                  >
-                    <span
-                      class="iconify lucide--download text-base-content/80 size-4"
-                    ></span>
-                  </a>
+                  <RowActions
+                    actions={[
+                      {
+                        kind: "download",
+                        href: `/documents/download/${d.id}`,
+                        label: `Download ${d.file_name}`,
+                      },
+                    ]}
+                  />
                 </td>
               </tr>
             {/each}

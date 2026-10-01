@@ -8,6 +8,8 @@
   import { payrollRunStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
 
   let { data, form } = $props()
 
@@ -19,6 +21,15 @@
   /** Figures shown in the run's own market locale, never converted (BR-FP-003). */
   const localeFor = (country: string | null) =>
     localeForCountry(data.locations, country, tenantLocale)
+
+  /** View only: a run moves through its lifecycle on its own page. */
+  const rowActions = (r: (typeof data.runs)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/payroll/runs/${r.id}`,
+      label: `View pay run ${r.run_id}`,
+    },
+  ]
 </script>
 
 <PageHead title="Pay Runs" />
@@ -98,6 +109,7 @@
               <th class="text-right">Net</th>
               <th>Prepared / approved</th>
               <th>Status</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -146,6 +158,7 @@
                     {r.run_status}
                   </StatusBadge>
                 </td>
+                <td><RowActions actions={rowActions(r)} /></td>
               </tr>
             {/each}
           </tbody>

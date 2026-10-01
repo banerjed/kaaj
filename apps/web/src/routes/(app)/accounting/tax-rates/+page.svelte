@@ -3,6 +3,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { closeOnSuccess } from "$lib/form-enhance"
   import { calendarDate } from "$lib/format"
@@ -62,7 +63,7 @@
             <th>Since</th>
             <th>Status</th>
             {#if data.mayWrite}
-              <th></th>
+              <th class="w-24">Actions</th>
             {/if}
           </tr>
         </thead>
@@ -87,22 +88,30 @@
                 </StatusBadge>
               </td>
               {#if data.mayWrite}
-                <td class="text-right">
-                  {#if t.is_active}
-                    <form method="POST" action="?/deactivate" use:enhance>
-                      <input type="hidden" name="id" value={t.id} />
-                      <button type="submit" class="btn btn-ghost btn-sm">
-                        Deactivate
-                      </button>
-                    </form>
-                  {:else}
-                    <form method="POST" action="?/activate" use:enhance>
-                      <input type="hidden" name="id" value={t.id} />
-                      <button type="submit" class="btn btn-ghost btn-sm">
-                        Activate
-                      </button>
-                    </form>
-                  {/if}
+                <td>
+                  <RowActions
+                    actions={[
+                      t.is_active
+                        ? {
+                            kind: "archive",
+                            post: {
+                              action: "?/deactivate",
+                              fields: { id: t.id },
+                            },
+                            label: `Deactivate ${t.tax_name}`,
+                            title: "Deactivate",
+                          }
+                        : {
+                            kind: "restore",
+                            post: {
+                              action: "?/activate",
+                              fields: { id: t.id },
+                            },
+                            label: `Activate ${t.tax_name}`,
+                            title: "Activate",
+                          },
+                    ]}
+                  />
                 </td>
               {/if}
             </tr>

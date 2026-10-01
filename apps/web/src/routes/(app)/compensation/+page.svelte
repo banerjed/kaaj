@@ -3,6 +3,8 @@
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
 
   let { data } = $props()
 
@@ -11,6 +13,15 @@
   /** Pay is read in the market it is paid in, and never converted. */
   const localeFor = (c: string) =>
     localeForCurrency(data.locations, c, tenantLocale)
+
+  /** View only: a pay change is recorded on the person's own page, never here. */
+  const rowActions = (r: (typeof data.rows)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/compensation/${r.employee_id}`,
+      label: `View pay for ${r.first_name} ${r.last_name}`,
+    },
+  ]
 </script>
 
 <PageHead title="Compensation" />
@@ -49,6 +60,7 @@
               <th>Basis</th>
               <th class="text-right">Amount</th>
               <th>Effective</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -82,6 +94,7 @@
                 <td class="text-sm tabular-nums">
                   {calendarDate(r.effective_from, locale)}
                 </td>
+                <td><RowActions actions={rowActions(r)} /></td>
               </tr>
             {/each}
           </tbody>

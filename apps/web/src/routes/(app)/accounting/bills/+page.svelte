@@ -7,6 +7,7 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import Pagination from "$lib/components/Pagination.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
 
@@ -127,6 +128,7 @@
                 <th class="text-right">Paid</th>
                 <th class="text-right">Outstanding</th>
                 <th>Status</th>
+                <th class="w-24">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -186,6 +188,17 @@
                     <StatusBadge tone={statusTone(b.status)}>
                       {b.status?.replace(/_/g, " ")}
                     </StatusBadge>
+                  </td>
+                  <td>
+                    <RowActions
+                      actions={[
+                        {
+                          kind: "view",
+                          href: `/accounting/bills/${b.id}`,
+                          label: `View bill ${b.bill_number}`,
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               {/each}

@@ -13,10 +13,14 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const supportedLocales = $derived(
     data.tenant?.supported_locales ?? [data.tenant?.default_locale ?? "en-US"],
@@ -81,6 +85,32 @@
       [l.city, l.state, l.postal_code].filter(Boolean).join(", "),
       regionName(l.country),
     ].filter(Boolean) as string[]
+
+  const rowActions = (location: FirmLocation): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => {
+              modalTab = "Basic"
+              editing = location
+            },
+            label: `Edit ${location.name}`,
+          },
+          {
+            kind: "archive",
+            post: {
+              action: "?/archive",
+              fields: {
+                id: location.id,
+                location_code: location.location_code ?? "",
+              },
+            },
+            label: `Deactivate ${location.name}`,
+            title: "Deactivate",
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Locations" />
@@ -205,35 +235,7 @@
                 <td class="text-sm">
                   {location.currency ?? data.tenant?.default_currency ?? "—"}
                 </td>
-                <td>
-                  <div class="flex gap-1">
-                    <button
-                      class="btn btn-ghost btn-sm btn-square"
-                      aria-label={`Edit ${location.name}`}
-                      onclick={() => {
-                        modalTab = "Basic"
-                        editing = location
-                      }}
-                    >
-                      <span class="iconify lucide--pencil size-4"></span>
-                    </button>
-                    <form method="POST" action="?/archive">
-                      <input type="hidden" name="id" value={location.id} />
-                      <input
-                        type="hidden"
-                        name="location_code"
-                        value={location.location_code}
-                      />
-                      <button
-                        class="btn btn-ghost btn-sm btn-square text-error"
-                        aria-label={`Deactivate ${location.name}`}
-                        title="Deactivate"
-                      >
-                        <span class="iconify lucide--archive size-4"></span>
-                      </button>
-                    </form>
-                  </div>
-                </td>
+                <td><RowActions actions={rowActions(location)} /></td>
               </tr>
             {/each}
           </tbody>

@@ -8,10 +8,14 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -61,6 +65,23 @@
 
   const locationName = (code: string | null) =>
     data.locations.find((l) => l.location_code === code)?.name ?? code ?? "—"
+
+  const rowActions = (row: Row): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editing = row),
+            label: `Edit ${row.name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: row.id } },
+            label: `Deactivate ${row.name}`,
+            title: "Deactivate",
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Departments" />
@@ -179,27 +200,7 @@
                 <td class="text-right text-sm tabular-nums">
                   {row.employee_count}
                 </td>
-                <td>
-                  <div class="flex gap-1">
-                    <button
-                      class="btn btn-ghost btn-sm btn-square"
-                      aria-label={`Edit ${row.name}`}
-                      onclick={() => (editing = row)}
-                    >
-                      <span class="iconify lucide--pencil size-4"></span>
-                    </button>
-                    <form method="POST" action="?/archive">
-                      <input type="hidden" name="id" value={row.id} />
-                      <button
-                        class="btn btn-ghost btn-sm btn-square text-error"
-                        aria-label={`Deactivate ${row.name}`}
-                        title="Deactivate"
-                      >
-                        <span class="iconify lucide--archive size-4"></span>
-                      </button>
-                    </form>
-                  </div>
-                </td>
+                <td><RowActions actions={rowActions(row)} /></td>
               </tr>
             {/each}
           </tbody>

@@ -185,8 +185,12 @@ test("the firm's own rows reached the page, not an empty shell", async ({
   // A signed-in session with no tenant claim renders a directory with zero
   // people and no error. Twelve is the fixture's headcount.
   await page.goto("/employees")
-  await expect(page.getByRole("link", { name: "Marcus Chen" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "Sarah Johnson" })).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Marcus Chen", exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Sarah Johnson", exact: true }),
+  ).toBeVisible()
 })
 
 test("the assistant panel opens and says it is not built", async ({ page }) => {

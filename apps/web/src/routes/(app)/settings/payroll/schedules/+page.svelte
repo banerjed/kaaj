@@ -15,10 +15,14 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const tenantZone = $derived(data.tenant?.default_timezone ?? "UTC")
@@ -52,6 +56,22 @@
   let editing = $state<PaySchedule | "new" | null>(null)
   const current = $derived(editing === "new" ? null : editing)
   let expanded = $state<string | null>(null)
+
+  const rowActions = (s: PaySchedule): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editing = s),
+            label: `Edit ${s.name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: s.id } },
+            label: `Deactivate ${s.name}`,
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Pay Schedules" />
@@ -129,22 +149,7 @@
                 >
                   {expanded === s.id ? "Hide" : "Next 12 pay dates"}
                 </button>
-                <button
-                  class="btn btn-ghost btn-sm btn-square"
-                  aria-label={`Edit ${s.name}`}
-                  onclick={() => (editing = s)}
-                >
-                  <span class="iconify lucide--pencil size-4"></span>
-                </button>
-                <form method="POST" action="?/archive">
-                  <input type="hidden" name="id" value={s.id} />
-                  <button
-                    class="btn btn-ghost btn-sm btn-square text-error"
-                    aria-label={`Deactivate ${s.name}`}
-                  >
-                    <span class="iconify lucide--archive size-4"></span>
-                  </button>
-                </form>
+                <RowActions actions={rowActions(s)} />
               </div>
             </div>
           {/snippet}

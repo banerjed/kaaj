@@ -26,7 +26,9 @@ test("a percent/underscore wildcard in the search box is treated as a literal, n
   // to behave like "match everything" here, which is a search-relevance
   // question, not a security one.
   await page.goto("/employees?q=" + encodeURIComponent("%"))
-  await expect(page.getByRole("link", { name: "Sarah Johnson" })).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Sarah Johnson", exact: true }),
+  ).toBeVisible()
 })
 
 test("a very unusual login email is refused as ordinary bad credentials, not a crash (ADV-10)", async ({

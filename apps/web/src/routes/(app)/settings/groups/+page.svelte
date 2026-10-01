@@ -5,12 +5,35 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  // The page's own actions check `it.groups.write`, not `firm.settings.write`.
+  const canWrite = $derived(has(data.permissions, "it.groups.write"))
 
   let creating = $state(false)
+
+  const rowActions = (g: (typeof data.groups)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/settings/groups/${g.id}`,
+      label: `View ${g.display_name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: g.id } },
+            label: `Deactivate ${g.display_name}`,
+            title: "Deactivate",
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 </script>
 
 <PageHead title="Groups" />
@@ -80,18 +103,7 @@
               <td class="text-base-content/70 text-sm"
                 >{g.description ?? "—"}</td
               >
-              <td>
-                <form method="POST" action="?/archive">
-                  <input type="hidden" name="id" value={g.id} />
-                  <button
-                    class="btn btn-ghost btn-sm btn-square text-error"
-                    aria-label={`Deactivate ${g.display_name}`}
-                    title="Deactivate"
-                  >
-                    <span class="iconify lucide--archive size-4"></span>
-                  </button>
-                </form>
-              </td>
+              <td><RowActions actions={rowActions(g)} /></td>
             </tr>
           {/each}
         </tbody>

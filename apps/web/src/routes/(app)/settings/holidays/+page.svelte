@@ -9,10 +9,14 @@
   import EmptyState from "$lib/components/EmptyState.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const supportedLocales = $derived(
@@ -41,6 +45,22 @@
 
   let editing = $state<FirmHoliday | "new" | null>(null)
   const current = $derived(editing === "new" ? null : editing)
+
+  const rowActions = (h: FirmHoliday): RowAction[] =>
+    canWrite
+      ? [
+          {
+            kind: "edit",
+            onclick: () => (editing = h),
+            label: `Edit ${h.name}`,
+          },
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: h.id } },
+            label: `Archive ${h.name}`,
+          },
+        ]
+      : []
 </script>
 
 <PageHead title="Holidays" />
@@ -133,22 +153,7 @@
                   {#if h.is_recurring}
                     <div class="badge badge-sm">Annual</div>
                   {/if}
-                  <button
-                    class="btn btn-ghost btn-sm btn-square"
-                    aria-label={`Edit ${h.name}`}
-                    onclick={() => (editing = h)}
-                  >
-                    <span class="iconify lucide--pencil size-4"></span>
-                  </button>
-                  <form method="POST" action="?/archive">
-                    <input type="hidden" name="id" value={h.id} />
-                    <button
-                      class="btn btn-ghost btn-sm btn-square text-error"
-                      aria-label={`Archive ${h.name}`}
-                    >
-                      <span class="iconify lucide--trash-2 size-4"></span>
-                    </button>
-                  </form>
+                  <RowActions actions={rowActions(h)} />
                 </div>
               </li>
             {/each}

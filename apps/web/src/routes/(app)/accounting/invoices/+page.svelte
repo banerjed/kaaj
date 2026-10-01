@@ -7,6 +7,7 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import Pagination from "$lib/components/Pagination.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
   import { fieldErrors } from "$lib/form-errors"
 
   let { data, form } = $props()
@@ -135,6 +136,7 @@
                 <th class="text-right">Paid</th>
                 <th class="text-right">Outstanding</th>
                 <th>Status</th>
+                <th class="w-24">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -194,6 +196,17 @@
                     <StatusBadge tone={statusTone(i.status)}>
                       {i.status?.replace(/_/g, " ")}
                     </StatusBadge>
+                  </td>
+                  <td>
+                    <RowActions
+                      actions={[
+                        {
+                          kind: "view",
+                          href: `/accounting/invoices/${i.id}`,
+                          label: `View invoice ${i.invoice_number}`,
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               {/each}

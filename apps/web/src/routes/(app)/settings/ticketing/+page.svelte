@@ -5,14 +5,52 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess } from "$lib/form-enhance"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
   import type { BusinessAreaSettingsRow } from "$lib/server/ticketing/ticketing.repo"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "firm.settings.write"))
 
   let editing = $state<BusinessAreaSettingsRow | "new" | null>(null)
   const current = $derived(editing === "new" ? null : editing)
+
+  const rowActions = (ba: BusinessAreaSettingsRow): RowAction[] => [
+    {
+      kind: "view",
+      href: `/settings/ticketing/${ba.id}`,
+      label: `View ${ba.name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            onclick: () => (editing = ba),
+            label: `Edit ${ba.name}`,
+            title: "Edit name, prefix and description",
+          },
+        ] satisfies RowAction[])
+      : []),
+    {
+      kind: "settings",
+      href: `/settings/ticketing/${ba.id}`,
+      label: `Settings for ${ba.name}: categories, access and custom fields`,
+      title: "Categories, access and custom fields",
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "archive",
+            post: { action: "?/archive", fields: { id: ba.id } },
+            label: `Deactivate ${ba.name}`,
+            title: "Deactivate",
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 </script>
 
 <PageHead title="Ticketing" />
@@ -83,36 +121,7 @@
               <td class="text-base-content/70 text-sm"
                 >{ba.description ?? "—"}</td
               >
-              <td>
-                <div class="flex gap-1">
-                  <button
-                    class="btn btn-ghost btn-sm btn-square"
-                    aria-label={`Edit ${ba.name}`}
-                    title="Edit name, prefix and description"
-                    onclick={() => (editing = ba)}
-                  >
-                    <span class="iconify lucide--pencil size-4"></span>
-                  </button>
-                  <a
-                    href={`/settings/ticketing/${ba.id}`}
-                    class="btn btn-ghost btn-sm btn-square"
-                    aria-label={`Settings for ${ba.name}: categories, access and custom fields`}
-                    title="Categories, access and custom fields"
-                  >
-                    <span class="iconify lucide--settings size-4"></span>
-                  </a>
-                  <form method="POST" action="?/archive">
-                    <input type="hidden" name="id" value={ba.id} />
-                    <button
-                      class="btn btn-ghost btn-sm btn-square text-error"
-                      aria-label={`Deactivate ${ba.name}`}
-                      title="Deactivate"
-                    >
-                      <span class="iconify lucide--archive size-4"></span>
-                    </button>
-                  </form>
-                </div>
-              </td>
+              <td><RowActions actions={rowActions(ba)} /></td>
             </tr>
           {/each}
         </tbody>

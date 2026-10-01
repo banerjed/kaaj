@@ -4,10 +4,14 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import type { Tone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data } = $props()
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
+  const canWrite = $derived(has(data.permissions, "employee.write"))
 
   /** Pay and dates render in each person's OWN office locale, not the firm's (L24). */
   const officeLocale = (code: string | null) =>
@@ -24,6 +28,23 @@
 
   const initials = (e: (typeof data.employees)[number]) =>
     `${(e.preferred_name || e.first_name)[0] ?? ""}${e.last_name[0] ?? ""}`.toUpperCase()
+
+  const rowActions = (e: (typeof data.employees)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/employees/${e.id}`,
+      label: `View ${displayName(e)}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/employees/${e.id}/edit`,
+            label: `Edit ${displayName(e)}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 
   const lastPage = $derived(Math.max(1, Math.ceil(data.total / data.pageSize)))
 
@@ -142,13 +163,20 @@
                 <span class="text-xs font-medium">{initials(e)}</span>
               </div>
             </div>
-            <div class="list-col-grow">
-              <a class="link font-medium" href={`/employees/${e.id}`}>
-                {displayName(e)}
-              </a>
-              <p class="text-base-content/70 text-xs">
-                {e.job_title ?? "—"}{e.job_level ? ` · ${e.job_level}` : ""}
-              </p>
+            <!-- Actions sit INSIDE the grow column, not beside it: daisyUI's
+                 `list-row` grid has three columns, and a fourth child pushes
+                 `list-col-wrap` out of its span — the row then renders with
+                 the icons stranded mid-row. -->
+            <div class="list-col-grow flex items-center justify-between gap-2">
+              <div>
+                <a class="link font-medium" href={`/employees/${e.id}`}>
+                  {displayName(e)}
+                </a>
+                <p class="text-base-content/70 text-xs">
+                  {e.job_title ?? "—"}{e.job_level ? ` · ${e.job_level}` : ""}
+                </p>
+              </div>
+              <RowActions actions={rowActions(e)} />
             </div>
             <p class="list-col-wrap text-base-content/70 text-sm">
               {e.department_name ?? "—"} · {officeName(e.location_code)}
@@ -177,6 +205,7 @@
               <th>Started</th>
               <th class="text-right">Base pay</th>
               <th>Status</th>
+              <th class="w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -235,6 +264,7 @@
                     {e.employment_status.replaceAll("_", " ")}
                   </StatusBadge>
                 </td>
+                <td><RowActions actions={rowActions(e)} /></td>
               </tr>
             {/each}
           </tbody>

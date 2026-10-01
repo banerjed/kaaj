@@ -11,10 +11,14 @@
   } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import RowActions from "$lib/components/RowActions.svelte"
+  import type { RowAction } from "$lib/components/row-actions"
+  import { has } from "$lib/permissions"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const canWrite = $derived(has(data.permissions, "projects.write"))
 
   /** The create dialog. Closed unless the last submit failed on a field. */
   let creating = $state(false)
@@ -28,6 +32,23 @@
   const pct = (v: string | null) => Math.round(Number(v ?? 0))
 
   const label = (v: string) => v.replace(/_/g, " ")
+
+  const rowActions = (p: (typeof data.projects)[number]): RowAction[] => [
+    {
+      kind: "view",
+      href: `/projects/${p.id}`,
+      label: `View ${p.project_name}`,
+    },
+    ...(canWrite
+      ? ([
+          {
+            kind: "edit",
+            href: `/projects/${p.id}?edit=1`,
+            label: `Edit ${p.project_name}`,
+          },
+        ] satisfies RowAction[])
+      : []),
+  ]
 </script>
 
 <PageHead title="Projects" />
@@ -174,11 +195,14 @@
               </div>
             </dl>
 
-            <p
-              class="text-base-content/70 border-base-200 border-t pt-2 text-xs"
+            <div
+              class="border-base-200 flex items-center justify-between gap-3 border-t pt-2"
             >
-              {p.manager_name ?? "No project manager"}
-            </p>
+              <p class="text-base-content/70 truncate text-xs">
+                {p.manager_name ?? "No project manager"}
+              </p>
+              <RowActions actions={rowActions(p)} />
+            </div>
           </div>
         </div>
       {/each}

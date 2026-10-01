@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/state"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
@@ -16,7 +17,11 @@
 
   const err = $derived(fieldErrors(form))
 
-  let editing = $state(false)
+  // Opened straight from the list's edit icon (`?edit=1`), the same
+  // deep-link shape /time-tracking already uses. Seeded once on purpose: it
+  // is this page's own draft state from here on, and must not snap shut when
+  // the URL changes under it.
+  let editing = $state(page.url.searchParams.get("edit") === "1")
   let addingProject = $state(false)
 
   const label = (v: string | null) => (v ?? "").replace(/_/g, " ")

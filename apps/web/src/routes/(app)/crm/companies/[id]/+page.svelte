@@ -10,6 +10,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
+  import { page } from "$app/state"
 
   let { data, form } = $props()
 
@@ -17,7 +18,11 @@
   const c = $derived(data.company)
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
-  let editing = $state(false)
+  // Opened straight from the list's edit icon (`?edit=1`), the same
+  // deep-link shape /time-tracking already uses. Seeded once on purpose: it
+  // is this page's own draft state from here on, and must not snap shut when
+  // the URL changes under it.
+  let editing = $state(page.url.searchParams.get("edit") === "1")
   let addingContact = $state(false)
   let addingDeal = $state(false)
 
