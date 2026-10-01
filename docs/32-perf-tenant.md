@@ -133,16 +133,63 @@ Germany) and 4 currencies, 24 months in.
 | team_chat_messages | 200,000 | |
 | audit_log | 150,000 | |
 
-About **2.6 million rows**. Every `SCALE_SENSITIVE` table gets rows: a check
-fails if one is left empty, because an empty table renders an empty page and
-an empty page is an unmeasured page.
+About **2.6 million rows**. Every `SCALE_SENSITIVE` table gets rows:
+`pnpm db:perf status` lists any left empty, because an empty table renders an
+empty page and an empty page is an unmeasured page.
+
+### Phase 1 as built (scale 1, as of 2026-10-01)
+
+1,843,671 rows in about 3 minutes on a quiet machine (12 under heavy load from
+other sessions — the time entries dominate). Where it differs from the model,
+the build is the more realistic figure:
+
+| Table | Built | Note |
+|---|---|---|
+| customers / contacts | 3,000 / 9,693 | |
+| crm_deals / crm_activities | 12,000 / 53,807 | |
+| projects / tasks / comments | 1,500 / 55,136 / 36,488 | |
+| time_tracking_entries / timesheets | 417,679 / 55,981 | only delivery staff log time — about 560 people, not 800 |
+| ticketing_tickets / updates | 40,000 / 182,376 | |
+| custom_field_values | 249,779 | on companies, contacts, deals, tickets, projects and tasks |
+| invoices / lines | 30,000 / 117,455 | |
+| payments / bills / bill lines | 35,857 / 12,000 / 30,792 | payments include supplier payments |
+| journal_entries / lines | 77,196 / 197,760 | every one balanced natively and in base |
+| bank_transactions / expenses | 40,857 / 25,000 | |
+
+`SCALE_SENSITIVE` tables still empty, for phase 2: `hr_attendance`,
+`hr_time_off_requests`, `hr_reviews`, `hr_goals`, `hr_feedback`,
+`hr_change_requests`, `hr_onboarding_tasks`, `hr_survey_responses`,
+`hr_employee_documents`, `documents`, `team_chat_messages`, `audit_log`,
+`app_error_log`, `jobs`, `invoice_credits`, `bank_statement_imports`,
+`pm_task_attachments`, `pm_automation_executions`,
+`ticketing_ticket_reference_links`.
+
+`pnpm db:perf verify` checks, on every build: journals balance in both
+currencies; invoices and bills equal their lines; payments equal their
+allocations; every issued document has its journal entry; denormalised
+counters equal their rows; time entries point at their own project's tasks;
+ticket counters match; nothing is dated after `as_of`; and a sample of
+sealed values opens with the app's own key handling.
+`packages/database/perf/fingerprint.sql` prints the same line for two builds
+at the same scale and date.
+
+## Already found while building
+
+Before any measuring, the generator surfaced two scan-per-insert patterns
+that grow with the tenant:
+
+- `app.next_time_entry_number()` takes `max()` over a regex of `entry_id`
+  across every time entry in the firm — ~420,000 rows per new entry.
+- `nextSequenceNumber` (invoices, journal entries, payments) does the same
+  over `LIKE 'PREFIX-%'`.
 
 ## Who is measured
 
 Owner-only timings miss the slowest paths: the owner short-circuits policies
 such as `reads_all_tickets()`, while a plain employee pays for every `EXISTS`
 in the ticket, project and custom-field policies. Perf-tenant logins
-(`@perf.example`, password `devpassword`, local only):
+(`perf.<actor>@brightline.example`, password `devpassword`, local only;
+`_perf.actors` lists them):
 
 | Actor | Why |
 |---|---|
@@ -152,7 +199,7 @@ in the ticket, project and custom-field policies. Perf-tenant logins
 | IT admin | every ticket, by role |
 | auditor | reads everything, writes nothing |
 | sales manager | CRM at volume |
-| line manager (40 reports) | manager-scoped employee and time views |
+| line manager (the most reports) | manager-scoped employee and time views |
 | plain employee | pays for every row policy |
 
 ## Measurement
