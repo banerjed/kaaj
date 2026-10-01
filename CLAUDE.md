@@ -608,6 +608,14 @@ shared with the unit suites, so a spec that writes needs its own serial project
 and a reseed. Run with `pnpm --filter @kaaj/web e2e` — deliberately NOT in
 `./check`, which is 24 seconds and worth keeping that way.
 
+**A code review records how far it got in
+[docs/33-code-review-log.md](docs/33-code-review-log.md), by COMMIT SHA.**
+Several sessions commit here concurrently, so "everything since Tuesday" is a
+moving window that both re-covers work and skips it. The log carries the next
+run's `git diff <sha> HEAD` command and the list of rules a review is FOR —
+the ones CLAUDE.md states and `./check` cannot see, since `./check` is green
+on every commit and re-running it is not a review.
+
 **A new test file, or a new top-level `describe` in an existing one, gets a
 line in [docs/22-test-inventory.md](docs/22-test-inventory.md).** Nothing
 enforces this — there is no check to fail, the same as the `testplan-*.md`
