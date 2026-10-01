@@ -53,6 +53,18 @@ const MODEL = {
 
 const sql = postgres(DB_URL, { types: {}, onnotice: () => {}, max: 1 })
 
+/**
+ * The SCALE_SENSITIVE register, read from verify-query-scale.mjs's source —
+ * importing it would run that check as a side effect. Entries may span
+ * several lines, so the table name is matched as the first string after `[`.
+ */
+function scaleSensitiveTables() {
+  const src = readFileSync(new URL("../../../scripts/verify-query-scale.mjs", import.meta.url), "utf8")
+  const start = src.indexOf("const SCALE_SENSITIVE = new Map([")
+  const end = src.indexOf("\n])", start)
+  return [...src.slice(start, end).matchAll(/\[\s*"([a-z_]+)",/g)].map((m) => m[1])
+}
+
 async function tenantTables() {
   return sql`
     SELECT c.table_name
@@ -206,6 +218,15 @@ async function status() {
     console.log(`  ${table.padEnd(34)} ${n.toLocaleString("en-US").padStart(10)}${note}`)
   }
   console.log(`  ${"total".padEnd(34)} ${total.toLocaleString("en-US").padStart(10)}`)
+
+  // An empty table renders an empty page, and an empty page is unmeasured.
+  const counted = new Map(rows)
+  const empty = scaleSensitiveTables().filter((t) => !counted.get(t))
+  console.log(
+    empty.length === 0
+      ? "  every SCALE_SENSITIVE table has rows"
+      : `  SCALE_SENSITIVE tables with no rows (${empty.length}): ${empty.join(", ")}`,
+  )
 }
 
 const { positionals, values } = parseArgs({

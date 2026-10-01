@@ -233,4 +233,44 @@ UPDATE time_tracking_timesheets ts SET
          GROUP BY timesheet_id) s
  WHERE ts.id = s.timesheet_id;
 
+-- Custom fields on projects and tasks, in categories, on most records.
+INSERT INTO custom_field_definitions (id, tenant_id, entity_type, category, field_key, label,
+                                      data_type, options, is_required, display_order)
+SELECT _perf.u('cfd', 200 + n), _perf.tenant(), entity_type, category, field_key, label,
+       data_type, options::jsonb, false, ord
+  FROM (VALUES
+    (1,'project','General','delivery_model','Delivery model','select','[{"value":"onshore","label":"Onshore"},{"value":"offshore","label":"Offshore"},{"value":"hybrid","label":"Hybrid"}]',1),
+    (2,'project','Commercial','po_number','PO number','text',NULL,1),
+    (3,'project','Commercial','contract_value','Contract value','money',NULL,2),
+    (4,'project','Commercial','renewal_date','Renewal date','date',NULL,3),
+    (5,'task','General','complexity','Complexity','select','[{"value":"low","label":"Low","tone":"success"},{"value":"medium","label":"Medium","tone":"warning"},{"value":"high","label":"High","tone":"error"}]',1),
+    (6,'task','General','story_points','Story points','number',NULL,2),
+    (7,'task','Review','reviewed','Peer reviewed','boolean',NULL,1)
+  ) f(n, entity_type, category, field_key, label, data_type, options, ord);
+
+INSERT INTO custom_field_values (tenant_id, field_definition_id, project_id, task_id, updated_by,
+                                 value_text, value_number, value_money, value_date, value_boolean)
+SELECT _perf.tenant(), d.id,
+       CASE WHEN d.entity_type = 'project' THEN r.rid END,
+       CASE WHEN d.entity_type = 'task' THEN r.rid END,
+       'perf-generator',
+       CASE d.field_key
+         WHEN 'delivery_model' THEN _perf.pick(ARRAY['onshore','offshore','hybrid'], 'pcf', r.h)
+         WHEN 'po_number' THEN 'PO-' || abs(r.h) % 1000000
+         WHEN 'complexity' THEN _perf.pick(ARRAY['low','medium','high'], 'pcf', r.h) END,
+       CASE WHEN d.field_key = 'story_points' THEN _perf.pick(ARRAY[1,2,3,5,8,13], 'pcf:n', r.h)::numeric(18,4) END,
+       CASE WHEN d.field_key = 'contract_value' THEN (_perf.ri('pcf:m', r.h, 20, 2000) * 1000)::numeric(15,2) END,
+       CASE WHEN d.data_type = 'date' THEN _perf.as_of() + _perf.ri('pcf:d', r.h, -200, 400) END,
+       CASE WHEN d.data_type = 'boolean' THEN _perf.r('pcf:b', r.h) < 0.5 END
+  FROM custom_field_definitions d
+  JOIN LATERAL (
+    SELECT id AS rid, hashtext(id::text || d.field_key)::bigint AS h FROM projects
+     WHERE d.entity_type = 'project' AND tenant_id = _perf.tenant()
+    UNION ALL
+    SELECT id, hashtext(id::text || d.field_key)::bigint FROM tasks
+     WHERE d.entity_type = 'task' AND tenant_id = _perf.tenant()
+  ) r ON true
+ WHERE d.tenant_id = _perf.tenant() AND d.entity_type IN ('project', 'task')
+   AND _perf.r('pcf:has', r.h) < 0.75;
+
 DROP TABLE _pm, _pm_n, _clients, _clients_n, _proj, _billable, _home, _work;

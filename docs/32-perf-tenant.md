@@ -1,6 +1,7 @@
 # Performance Tenant — a Large, Realistic Second Tenant
 
-**Status:** proposed (2026-10-01), not built.
+**Status:** phase 1 built (2026-10-01): generator, cluster, organisation,
+actors, CRM, projects and time, ticketing, accounting. Phases 2–3 not started.
 
 **Goal:** a permanent, reproducible second tenant the size of a real
 1,000-person firm two years into using the product, loaded on demand into the
@@ -32,24 +33,32 @@ exists, `loadtest.mjs` is superseded and its header says so.
 
 ## Where it lives
 
-A normal **shared-tier** tenant in the local `postgres` database, beside
-Northwind:
+**Its own Postgres cluster** (`packages/database/perf/cluster.sh`: port
+54349, database `kaaj_perf`, data in `~/.kaaj/perf-pgdata`), migrated from
+the same files as the shared database. Planned first as a tenant inside the
+shared database; changed during the build, because:
 
-- sign-in works as for any tenant (Supabase Auth and the token hook read
-  `auth.users`/`tenant_users` in this database);
-- it measures the path most tenants take — `tenant_id`-leading indexes with
-  one large tenant among small ones, RLS policy subqueries over large tables.
+- `supabase db reset` — run by any session in any worktree — recreates the
+  Supabase server and drops **every** database on it, so a permanent store
+  cannot live there;
+- millions of generated rows must never sit under another session's
+  `./check` or unit tests.
 
-It is **never** in `[db.seed] sql_paths`: `supabase db reset` stays
-Northwind-only and fast. It is loaded explicitly and removed by a reset (or
-`drop`). The generator takes a target URL, so the same data can later be
-loaded into a dedicated-tier cluster for comparison.
+This is ADR-009's dedicated tier, exactly as Fenwick's demo tenant
+(`provision-dedicated-db.sh`): the tenant's business data lives in its own
+database, while sign-in stays in the shared one. Measuring through the app
+(phase 3) registers the tenant with the control plane the same way. What it
+gives up: a large tenant *among* small ones in shared tables; per-tenant
+query cost — the `tenant_id`-leading indexes, the RLS policy subqueries —
+is the same.
 
 ```
-pnpm db:perf seed [--scale=1] [--as-of=2026-10-01]   build it (minutes, not seconds)
+pnpm db:perf:cluster up|rebuild|status|stop          the cluster itself
+pnpm db:perf seed [--scale=1] [--as-of=2026-10-01]   build the tenant (clean, deterministic)
 pnpm db:perf status                                  row counts per table, vs the model
-pnpm db:perf drop                                    remove the tenant (DELETE cascades from tenants)
-pnpm db:perf measure                                 pages × actors, plus the slowest queries
+pnpm db:perf verify                                  invariants + sealed values open
+pnpm db:perf drop                                    remove the tenant
+pnpm db:perf measure                                 pages × actors, slowest queries (phase 3)
 ```
 
 `--scale=0.05` gives a 50-person version for a quick run.
