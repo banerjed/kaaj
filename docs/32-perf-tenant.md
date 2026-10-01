@@ -1,7 +1,8 @@
 # Performance Tenant — a Large, Realistic Second Tenant
 
-**Status:** phases 1 and 2 built (2026-10-01): every `SCALE_SENSITIVE` table
-has rows. Phase 3 (measurement) not started.
+**Status:** built (2026-10-01): every `SCALE_SENSITIVE` table has rows, and
+`pnpm db:perf measure` times every page as eight kinds of user. The first
+baseline is below; nothing it found is fixed yet.
 
 **Goal:** a permanent, reproducible second tenant the size of a real
 1,000-person firm two years into using the product, loaded on demand into the
@@ -182,6 +183,13 @@ that grow with the tenant:
   across every time entry in the firm — ~420,000 rows per new entry.
 - `nextSequenceNumber` (invoices, journal entries, payments) does the same
   over `LIKE 'PREFIX-%'`.
+- `hr_reviews.status` defaults to `'not_started'`, which its own CHECK
+  (`draft`, `submitted`, `acknowledged`) refuses: any insert that leaves
+  status to the default fails.
+- Generator, not app: rows filled earlier in the same transaction have no
+  statistics, and on the planner's empty-table guess an `UPDATE … FROM
+  (… GROUP BY)` re-aggregated every time entry per task — 25 minutes for one
+  step. The steps `ANALYZE` before recomputing.
 
 ## Who is measured
 
@@ -209,13 +217,11 @@ in the ticket, project and custom-field policies. Perf-tenant logins
 (`pnpm --filter @kaaj/web build`); it starts its own `vite preview` on 5178.
 
 - **Registered for the run only.** The tenant, its `tenant_registry` row
-  (dedicated tier, a `sealed:v1:` ref to the perf cluster as `app_user`), the
+  (dedicated tier, the perf cluster as `app_user`), the
   actors' `tenant_users` rows and their `auth.users` / `auth.identities` are
   written to the shared database at the start and deleted in a `finally` —
   and deleted first, in case an earlier run died. A permanent row would make
-  every session's `./check` depend on the perf cluster being up. The ref is
-  sealed, not an environment-variable name, so any session that meets the
-  row mid-run can open it.
+  every session's `./check` depend on the perf cluster being up.
 - **Every `(app)` page, as every actor**, discovered from `src/routes/(app)`
   (`apps/web/scripts/page-timing.mjs`, shared with
   `measure-render-times.mjs`). Each `[param]` opens the *largest* record of
@@ -226,18 +232,87 @@ in the ticket, project and custom-field policies. Perf-tenant logins
   ranking by total and mean time. A run in which no `app_user` statement
   reached the perf cluster stops: routing that fell back to the shared
   database would time fast, empty pages.
+- **Measured through a production build**, which refuses the development
+  `PRIVATE_PII_KEK`. The perf tenant is sealed under its own local key,
+  `~/.kaaj/perf-pii-kek`, generated on first use; losing it means a
+  reseed. The preview runs with that key, and with the registry's
+  connection ref (an environment variable) set on it alone — another
+  session's `./check` that meets the row mid-run reports it unresolvable by
+  that variable's name.
 - **The machine's load average** at the start and end is printed with the
   results. Timings from a machine shared with other builds are only
   comparable with each other.
-- Raw results go to `~/.kaaj/perf-measurements/<timestamp>.json`.
+- Raw results go to `~/.kaaj/perf-measurements/<timestamp>.json`, and the
+  preview's log to `preview.log` beside them.
+
+## Baseline (2026-10-01)
+
+Scale 1 (2,804,997 rows, built in 193s), as of 2026-10-01; 78 pages × 8
+actors × 3 repeats in 247s; load average 2.2 at the start, 3.0 at the end.
+Median server time in ms (the `server-timing` header). A blank is a refusal
+(403) or a record the actor may not see (404), as intended.
+
+| Page | owner | finance | hr | it | auditor | sales | manager | employee | HTML |
+|---|---|---|---|---|---|---|---|---|---|
+| /crm/pipeline | 4,750 | | | | 4,732 | 4,574 | | | 1.9 MB |
+| /crm/companies | 4,740 | | | | 4,736 | 4,586 | | | 4.5 MB |
+| /time-tracking | 227 | 207 | 313 | 1,422 | 311 | 528 | 513 | 318 | 1.3 MB |
+| /accounting/trial-balance, comparative | 533 | 520 | | | 524 | | | | |
+| /accounting/trial-balance | 388 | 410 | | | 376 | | | | |
+| /accounting/balance-sheet, comparative | 322 | 347 | | | 330 | | | | |
+| /projects | 127 | 120 | 90 | 224 | 233 | 222 | 91 | 221 | 4.0 MB |
+| /accounting/balance-sheet | 172 | 177 | | | 165 | | | | |
+| /accounting/tax-summary | 145 | 125 | | | 138 | | | | |
+| /accounting/cash-flow | 120 | 130 | | | 116 | | | | |
+| /projects/[largest] | 123 | 107 | 40 | 38 | 109 | 41 | 112 | 97 | 754 KB |
+| /documents | 53 | 103 | 71 | 71 | 104 | 73 | 95 | 95 | 1.2 MB |
+| /accounting/profit-loss | 102 | 71 | | | 67 | | | | |
+
+Every other page renders in under 85ms for every actor (the slowest,
+`/time-off` as sales, 82ms). Of the 348 page × actor renders that returned
+200, 187 met the 20ms target; for the owner, 41 of 77. Database time per actor across the
+whole sweep: owner 36.1s, auditor 37.0s, sales 30.5s, finance 8.0s, IT
+3.7s, employee 2.5s, manager 2.4s, HR 1.9s — the first three are almost
+entirely the CRM lists.
+
+What each needs, slowest first:
+
+1. **`/crm/companies` and `/crm/pipeline` — 4.7s, a missing index.**
+   `customers.list` counts each company's contacts in a correlated
+   subquery, and `customer_contacts` has no index on `customer_id`: each of
+   3,000 companies scans the tenant's 9,693 contacts, 29 million row
+   checks. Needs an index on `customer_contacts (tenant_id, customer_id)`.
+   Then paging: the companies list renders all 3,000 (4.5 MB), and the
+   pipeline loads every company for a picker, which wants a search
+   combobox.
+2. **`/time-tracking` — 200ms to 1.4s, 1.3 MB.** The entries query averages
+   112ms (1.07s at worst, for IT), and the open-task picker sorts every
+   open task in the firm to return 2,000 (100ms) on every load.
+3. **Accounting reports — 120 to 530ms.** Trial balance, balance sheet, tax
+   summary, cash flow and P&L each aggregate all ~200,000 journal lines per
+   request; a comparative view does it twice. Needs balances summarised by
+   period, so a report adds up periods rather than lines.
+4. **`/projects` — 90 to 233ms, 4 MB.** All 1,500 projects on one page,
+   unpaged, against the Performance rule for a `SCALE_SENSITIVE` table;
+   plus the L58 counter check (`staleCounters`), a `GROUP BY` over every
+   task of every listed project (109ms). Paging fixes both.
+5. **Large but fast:** `/accounting/fx-revaluation` (2.4 MB),
+   `/accounting/ar-aging` and `/accounting/customer-balances` (1.2 MB
+   each), `/crm/contacts/[id]` (880 KB), `/payroll/runs/[id]` (819 KB) —
+   each renders every row it has, which is time in the browser rather than
+   on the server.
+
+Not measured: `/objectives/[id]` — the generator makes no objectives.
 
 ## Interaction with `./check`
 
 The tenant lives in its own cluster, so `./check` and the unit suites never
 see its rows. The one overlap is a `measure` run: while it runs, the shared
-database holds a dedicated-tier registry row, which the "dedicated targets"
-step resolves and checks like Fenwick's. It passes while the perf cluster is
-up and migrated to the same version, and the row is gone when the run ends.
+database holds a dedicated-tier registry row whose connection ref only the
+measuring preview can resolve, so another session's "dedicated targets"
+step fails for those few minutes, naming
+`PERF_TENANT_MEASURE_RUN_IN_PROGRESS_DATABASE_URL`. The row is removed when
+the run ends, and at the start of the next run if one died.
 
 ## Phases
 
@@ -247,5 +322,5 @@ up and migrated to the same version, and the row is gone when the run ends.
    coverage check, and the `./check` evaluation.
 2. **The rest:** HR (attendance, time off, reviews, goals, feedback,
    onboarding), payroll runs, documents, chat, audit log.
-3. **Measurement:** the perf profile in `measure-render-times.mjs`, the
-   `pg_stat_statements` ranking, and the baseline write-up.
+3. **Measurement:** `pnpm db:perf measure` (pages × actors, the
+   `pg_stat_statements` ranking per actor) and the baseline above.
