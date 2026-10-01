@@ -2,19 +2,15 @@ import { expect, test } from "@playwright/test"
 import { signInAs } from "./helpers"
 
 /**
- * TESTPLAN.md §0, DEFECT-02 — a customer-portal contact reaches the entire
- * staff application. `(app)/+layout.server.ts` checks only that a session
- * exists and carries SOME active tenant membership — never that the
- * membership's role is staff rather than `customer`. A customer_contact-
- * backed `tenant_users` row satisfies both checks trivially.
+ * The customer portal is switched off (20260930130000): a customer contact's
+ * sign-in carries no tenant, so it reaches no firm's data, and the /portal
+ * pages are gone. The sweep below is the original DEFECT-02 check
+ * (TESTPLAN.md §0) and still applies: no staff page renders for a contact.
  *
- * Read-only throughout, matching smoke.spec.ts's own constraint against the
- * shared fixture: nothing here submits a form.
+ * Read-only throughout: nothing here submits a form.
  */
 
-const DANA = "dana.whitcombe@acme.example" // Acme Manufacturing, primary
-const FELIX = "felix.ndiaye@acme.example" // Acme Manufacturing, same customer as Dana
-const IMOGEN = "imogen.faulkner@britco.example" // Britannia Retail Group — a DIFFERENT customer
+const DANA = "dana.whitcombe@acme.example" // a contact of Acme Manufacturing
 
 /** Every route smoke.spec.ts already proves renders correctly for the owner. */
 const STAFF_ROUTES = [
@@ -49,32 +45,38 @@ const STAFF_ROUTES = [
   "/settings/payroll/schedules",
 ]
 
-test("a customer contact lands on the portal, not the staff app", async ({
-  page,
-}) => {
+test("a customer contact's sign-in reaches no firm", async ({ page }) => {
   await signInAs(page, DANA)
-  await page.waitForURL(/\/(portal|employees|login)/, { timeout: 15_000 })
+  await page.waitForURL((url) => !url.pathname.startsWith("/login/sign_in"), {
+    timeout: 15_000,
+  })
+  await page.goto("/employees")
+  await page.waitForURL(/\/account/, { timeout: 15_000 })
+  expect(page.url()).toContain("no_tenant")
+})
 
-  expect(
-    page.url(),
-    "DEFECT-02: a customer session must never land in the staff app",
-  ).toMatch(/\/portal/)
+test("the portal pages no longer exist", async ({ page }) => {
+  for (const path of ["/portal", "/portal/tickets", "/portal/login"]) {
+    const response = await page.goto(path)
+    expect(response?.status(), path).toBe(404)
+  }
 })
 
 test("sweep: no staff route renders staff content for a customer contact", async ({
   page,
 }) => {
   await signInAs(page, DANA)
-  await page.waitForURL(/\/(portal|employees|login)/, { timeout: 15_000 })
+  await page.waitForURL((url) => !url.pathname.startsWith("/login/sign_in"), {
+    timeout: 15_000,
+  })
 
   // Collected with expect.soft so ONE run reports every affected route
-  // instead of stopping at the first — this is what scopes DEFECT-02's
-  // actual blast radius (TESTPLAN.md SEC-03).
+  // instead of stopping at the first.
   for (const route of STAFF_ROUTES) {
     const response = await page.goto(route)
     const url = page.url()
     const refused =
-      /\/(portal|login)/.test(url) || (response?.status() ?? 0) >= 400
+      /\/(account|login)/.test(url) || (response?.status() ?? 0) >= 400
 
     expect
       .soft(
@@ -84,39 +86,4 @@ test("sweep: no staff route renders staff content for a customer contact", async
       )
       .toBe(true)
   }
-})
-
-test("the portal ticket list is scoped to the signed-in contact's own customer", async ({
-  page,
-}) => {
-  await signInAs(page, DANA)
-  await page.waitForURL(/\/(portal|employees)/, { timeout: 15_000 })
-  await page.goto("/portal/tickets")
-
-  await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible()
-  // Fixture: CS-0001 and CS-0003 belong to Acme Manufacturing.
-  await expect(page.getByText("CS-0001")).toBeVisible()
-  await expect(page.getByText("CS-0003")).toBeVisible()
-})
-
-test("a second contact at the SAME customer sees the same tickets", async ({
-  page,
-}) => {
-  await signInAs(page, FELIX)
-  await page.waitForURL(/\/(portal|employees)/, { timeout: 15_000 })
-  await page.goto("/portal/tickets")
-
-  await expect(page.getByText("CS-0001")).toBeVisible()
-  await expect(page.getByText("CS-0003")).toBeVisible()
-})
-
-test("a contact at a DIFFERENT customer sees none of Acme's tickets", async ({
-  page,
-}) => {
-  await signInAs(page, IMOGEN)
-  await page.waitForURL(/\/(portal|employees)/, { timeout: 15_000 })
-  await page.goto("/portal/tickets")
-
-  await expect(page.getByText("CS-0001")).not.toBeVisible()
-  await expect(page.getByText("CS-0003")).not.toBeVisible()
 })

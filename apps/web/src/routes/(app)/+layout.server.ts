@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit"
+import { error, redirect } from "@sveltejs/kit"
 import type { LayoutServerLoad } from "./$types"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { toSafeAuthSession } from "$lib/server/auth_session"
@@ -31,12 +31,12 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     redirect(303, "/account?no_tenant=1")
   }
 
-  // A portal contact's tenant_users row satisfies both checks above just as
-  // trivially as staff does — nothing else here distinguishes them. Route
-  // them to the portal they're meant for, not the internal application
-  // (DEFECT-02, TESTPLAN.md §0).
+  // The customer portal is off and a contact's sign-in carries no tenant
+  // (20260930130000), so the check above already refuses them. This one
+  // keeps a customer membership out of the staff application if a claim ever
+  // says otherwise (DEFECT-02, TESTPLAN.md §0).
   if (locals.tenantRole === "customer") {
-    redirect(303, "/portal")
+    error(403, "This account has no access to the application.")
   }
 
   // Loaded once here since it's needed on every screen. Typed deliberately — an untyped row is `any` downstream (L53).

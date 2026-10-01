@@ -27,10 +27,6 @@ const EXEMPT = new Map([
     "an anonymous visitor; there is no session, let alone a tenant",
   ],
   [
-    "apps/web/src/routes/portal/login/+page.server.ts -> default",
-    "signing in — there is no session yet, let alone a tenant or a permission",
-  ],
-  [
     "apps/web/src/routes/(admin)/account/api/+page.server.ts -> updateEmail",
     "acts on the signed-in auth user's own account, before any tenant",
   ],
@@ -137,7 +133,9 @@ for (const dir of [SERVER, ROUTES]) {
 }
 
 if (deletions.length) {
-  console.error(`\n  ${deletions.length} DELETE statement(s) in application code:\n`)
+  console.error(
+    `\n  ${deletions.length} DELETE statement(s) in application code:\n`,
+  )
   for (const d of deletions) console.error(`    ${d}`)
   console.error(
     "\n  Records are retained, never destroyed. Archive the row instead" +
@@ -168,7 +166,7 @@ if (problems.length) {
   console.error(`\n  ${problems.length} action(s) write without authorizing:\n`)
   for (const p of problems) console.error(`    ${p}`)
   console.error(
-    "\n  Add requireCan(contextFrom(locals), \"<permission>\") before the first" +
+    '\n  Add requireCan(contextFrom(locals), "<permission>") before the first' +
       "\n  write, or list it in scripts/verify-authz.mjs with a reason." +
       "\n  See docs/14-access-control.md.\n",
   )
@@ -187,11 +185,15 @@ if (misordered.length) {
   process.exit(1)
 }
 if (checked === 0) {
-  console.error("  no actions found — the scanner is looking in the wrong place")
+  console.error(
+    "  no actions found — the scanner is looking in the wrong place",
+  )
   process.exit(1)
 }
 if (stale.length) {
-  console.error(`\n  ${stale.length} exemption(s) name an action that no longer exists:\n`)
+  console.error(
+    `\n  ${stale.length} exemption(s) name an action that no longer exists:\n`,
+  )
   for (const s of stale) console.error(`    ${s}`)
   console.error(
     "\n  The action was renamed, moved, or removed. Remove it from EXEMPT in" +

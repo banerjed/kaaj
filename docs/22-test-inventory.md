@@ -206,7 +206,7 @@ Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [236] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [238] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
@@ -329,10 +329,9 @@ shared and read-only except where a file's own header says otherwise.
 - **`theme.spec.ts` [9]** — light/dark/system application, actual paint
   (canvas-measured per CLAUDE.md's colour rule), fallback on a deleted or
   garbage stored theme, where theme selection lives in the UI.
-- **`portal.spec.ts` [5]** — the customer-facing portal: lands a contact on
-  `/portal` not the staff app, a sweep asserting no staff route renders
-  staff content for a customer contact, ticket-list scoping to the
-  signed-in contact's own customer.
+- **`portal.spec.ts` [3]** — the customer portal is switched off: a
+  contact's sign-in reaches no firm, the `/portal` pages return 404, and a
+  sweep of staff routes confirms none renders for a contact.
 - **`rbac-boundaries.spec.ts` [4]** — specific access-control regressions:
   an unpermissioned settings read, cross-employee compensation visibility,
   server-side refusal of a client-gated action, IDOR via a raw request.

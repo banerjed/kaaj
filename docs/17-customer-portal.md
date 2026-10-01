@@ -1,6 +1,12 @@
 # Customer Portal
 
-**Status:** §1 (portal identity) ✅ built; §2 (ticketing) ✅ built; §3–4
+**Status:** ⛔ **switched off 2026-09-30.** A customer contact's sign-in now
+carries no tenant (`20260930130000_customer_portal_off.sql`) and the `/portal`
+pages are deleted, because portal contacts share `app_user` and most tables
+were readable to them ([L111](./10-lessons-learned.md)). Turning it back on
+means restoring the hook's customer branch and closing every staff table to
+portal contacts first. What follows describes the design as it was built:
+§1 (portal identity) ✅ built; §2 (ticketing) ✅ built; §3–4
 (documents, chat) 📋 specified, not implemented — see
 [11-module-roadmap.md](./11-module-roadmap.md) Phase 8
 **Created:** 2026-09-04

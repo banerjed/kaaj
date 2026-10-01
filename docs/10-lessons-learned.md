@@ -2893,6 +2893,9 @@ has meant "the whole firm's STAFF" while the policy says "anyone with the
 tenant claim". Until every table either closes to the portal or says why a
 customer may read it, treat `tenant_isolation` alone as readable by customers.
 
+The portal was switched off the same day (20260930130000): a contact's
+sign-in no longer carries a tenant, so none of this is reachable meanwhile.
+
 ---
 
 ## Conventions

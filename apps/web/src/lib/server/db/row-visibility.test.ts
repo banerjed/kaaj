@@ -921,6 +921,42 @@ describe("customer portal identity", () => {
     })
   })
 
+  // The customer portal is off (20260930130000): a contact's sign-in becomes
+  // no session at all.
+  // The hook's logic, called over the owner connection; app_user may not
+  // execute it, which is correct.
+  const claimsFor = async (userId: string) => {
+    const owned = postgres(
+      process.env.DATABASE_URL ??
+        "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      { max: 1, onnotice: () => {} },
+    )
+    try {
+      return await owned.begin(async (tx) => {
+        const [r] = await tx<{ meta: Record<string, unknown> }[]>`
+          SELECT public.custom_access_token_hook(
+            jsonb_build_object('user_id', ${userId}::text,
+                               'claims', '{"app_metadata":{}}'::jsonb)
+          ) -> 'claims' -> 'app_metadata' AS meta`
+        return r.meta
+      })
+    } finally {
+      await owned.end()
+    }
+  }
+
+  it("gives a customer contact's sign-in no tenant, so it reaches nothing", async () => {
+    const DANA_USER = "039b3e8a-0fbc-c6df-1b77-fa30deb15347"
+    expect((await claimsFor(DANA_USER)).tenant_id).toBeUndefined()
+  })
+
+  it("still gives a staff sign-in its tenant — the permitted half", async () => {
+    const OWNER_USER = "75bf4b0c-4f4b-cad9-daec-de7be09ff367"
+    const meta = await claimsFor(OWNER_USER)
+    expect(meta.tenant_id).toBe(NORTHWIND)
+    expect(meta.customer_contact_id).toBeNull()
+  })
+
   it("refuses a portal contact's write to a company, even their own", async () => {
     const touched = await asRole(
       { customerContactId: DANA, customerId: ACME, role: "customer" },

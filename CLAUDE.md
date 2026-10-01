@@ -150,6 +150,13 @@ schema with `tenant_id`, isolated by row-level security
 Full reasoning, including what was rejected and why, is in
 [docs/05-architecture-decisions.md](docs/05-architecture-decisions.md).
 
+**The customer portal is switched off.** A customer contact's sign-in carries
+no tenant (`20260930130000_customer_portal_off.sql`), and the `/portal` pages
+are gone. Portal contacts were `app_user` with a tenant claim, so every table
+with only `tenant_isolation` was readable to them
+([L111](docs/10-lessons-learned.md)); close every staff table to them before
+turning it back on.
+
 **Payroll and expense tracking are NOT YET IMPLEMENTED.**
 - **Payroll** has a run lifecycle and nothing more. `/payroll/runs` moves a
   run through draft, calculate, approve and finalize, audited, but nothing
