@@ -63,22 +63,22 @@ directory in the repo.
 | actor | every `withTenant` carries the actor, not a bare tenant id | — |
 | no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
 | no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 5 exempt |
-| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 33 + 80 |
+| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 40 + 87 |
 | no unprotected fallback | no protected column `COALESCE`s to an open one | — |
-| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 126 tables, 0 exposed |
+| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 130 tables, 0 exposed |
 | writes are audited | every action is in the audit register, either list | 59 + 29 |
-| refusals have a message | every constraint a form can trip answers with a sentence | 34 |
+| refusals have a message | every constraint a form can trip answers with a sentence | 52 |
 | service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
 | product name not hardcoded | the product name is spelled once, in config.ts | — |
 | fixtures are complete | no base-table column is empty in the fixture | — |
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
-| security | authorization, PII and tenant isolation, both suites | 360 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,260 tests |
+| security | authorization, PII and tenant isolation, both suites | 558 |
+| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,399 tests |
 | front-page load | signs in for real, loads `/employees`, fails over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-09-20.
+column. They were last verified 2026-10-01.
 
 These are complementary and none substitutes for another:
 
@@ -590,6 +590,15 @@ The recompute runs under the WRITER's row policies, so **before narrowing a
 table, find every recompute that reads it**. Otherwise the sum silently covers
 only the rows the writer can see ([L106](docs/10-lessons-learned.md)).
 
+**When a page's layout and an action's write path turn on the same question,
+the predicate is one exported function both call.** `crm/companies/[id]` asked
+`customer_type === 'individual' && contacts.length === 1` in the template and
+`customer_type === 'individual'` in the action; a row in the shape the second
+matched but the first did not could never be saved, and nothing caught it
+because both halves typecheck and the fixture had no such row
+([L113](docs/10-lessons-learned.md)). Same reason a `text` column's vocabulary
+lives in one place, below.
+
 **A vocabulary for a plain `text` column lives in the repository, and the pages
 import it.** These columns have no enum and no CHECK behind them, so the list IS
 the constraint — and two copies of a constraint are one constraint that will
@@ -615,6 +624,18 @@ moving window that both re-covers work and skips it. The log carries the next
 run's `git diff <sha> HEAD` command and the list of rules a review is FOR —
 the ones CLAUDE.md states and `./check` cannot see, since `./check` is green
 on every commit and re-running it is not a review.
+
+**A workflow you have not seen green is not running.** `tests.yml` failed
+every run for five weeks while `build`, `linting`, `format`, `database` and
+`e2e` were green on the same commits — a wall of ticks with one cross reads as
+"something flaky over there". It was hiding two suites that never executed at
+all, five of whose assertions are Storage RLS tenant isolation. Check the run
+COUNT, not the last run: `gh run list --workflow=<file> --limit 30` separates
+"failing" from "has never passed", which look identical on one red tick
+([L114](docs/10-lessons-learned.md)). A suite that talks to anything over HTTP
+needs its workflow checked specifically — locally `supabase start` is always
+running, so the difference between "needs Postgres" and "needs GoTrue" does not
+exist on a dev machine.
 
 **A new test file, or a new top-level `describe` in an existing one, gets a
 line in [docs/22-test-inventory.md](docs/22-test-inventory.md).** Nothing
@@ -680,6 +701,15 @@ does removing a justified one — both require a reviewed edit. A `NOT IN` patte
 silently absorbs future violations, which is how a suite quietly stops testing
 anything.
 
+**And the literal is confirmed against the schema.** `verify-constraint-registry.mjs`
+listed `"projects_tasks"`, a table that has never existed, so every constraint
+on the real `tasks` went unchecked for months with `./check` green: a name that
+matches nothing returns an empty result, and an empty result is
+indistinguishable from "nothing to report"
+([L100](docs/10-lessons-learned.md)). Any list that names a schema object by
+string — `FORM_WRITTEN`, `SCALE_SENSITIVE`, the audit register, the disclosure
+matrix — fails if the name is absent from the schema.
+
 ---
 
 ## Comments
@@ -741,6 +771,13 @@ Unpaged is fine on the fixture's dozen rows and a full-table read once a
 tenant has been a customer for a year — the same failure mode
 `verify-no-loop-queries.mjs` and the scale-sensitive register exist to
 catch.
+
+**A `LIMIT` with no count beside it is a silent truncation.** Ten of four
+hundred looks exactly like all ten. Every paged read returns a `count(*)`
+alongside, and the page says which it is showing — `crm/companies/[id]`'s
+"Showing the most recent N of M" is the pattern. The register classifies the
+TABLE; nothing reads the query, so a correctly-classified table can still be
+fetched whole with that step green ([L112](docs/10-lessons-learned.md)).
 
 ---
 
@@ -869,6 +906,15 @@ await repo.update(tx, id, {
   middle_name: f.text("middle_name", { max: 100 }),      // ❌ never reported
 })
 ```
+
+**A value from the QUERY STRING is validated too — `uuidParam`, or a
+`FormReader` over a built `FormData`.** The Forms rule above exists because
+`required` and `type` vanish on a crafted POST; a query string never had them.
+`url.searchParams.get()` returns `""` for `?x=` and whatever was typed for
+`?x=garbage`, and either reaching a `::uuid` or `::date` parameter is an
+Internal Error, not an empty filter. `projects/+page.server.ts` and
+`receive-payment` build a `FormData` and read it through `FormReader` for this
+reason; `uuidParam` (`$lib/server/forms.ts`) is the one-field shorthand.
 
 **Never pass `''` to a parameter that is cast.** SQL does not short-circuit, so
 `(${x} = '' OR c = ${x}::date)` evaluates the cast anyway — and for `::date`
