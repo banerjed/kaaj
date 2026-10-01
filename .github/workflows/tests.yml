@@ -1,29 +1,44 @@
 name: Tests
 
-# The application suites, against a real database.
+# The application suites, against the real local Supabase stack.
 #
-# They need one. `test:security` covers `src/lib/server/auth`, `pii` and
+# They need a database. `test:security` covers `src/lib/server/auth`, `pii` and
 # `tenant.test.ts`, and `turbo run test` adds `row-visibility.test.ts` — all of
 # which connect on APP_DATABASE_URL as `app_user`, deliberately the NON-OWNER,
 # because a suite running as the owner bypasses FORCE ROW LEVEL SECURITY and
 # would pass straight over the policies it exists to check.
 #
-# This job previously had no database at all, so every run failed on
-# "APP_DATABASE_URL is not set" before a single assertion executed. The 357
-# security cases had never actually run in CI; the green ticks on other
-# workflows were format, lint and build.
+# Postgres alone is NOT enough, which is what this job got wrong from
+# 2026-09-24 until 2026-10-01: it ran a bare `postgres:17` service container,
+# so every run failed and two suites never executed at all —
+# `settings/company/logo.server.test.ts` (real sign-in through GoTrue, real
+# uploads to storage-api, and the Storage RLS policies that are the only thing
+# keeping one tenant's logo out of another's reach) and
+# `accounting/fx_rates.test.ts` (service-role writes over PostgREST). Four
+# other workflows were green throughout. The fake `PUBLIC_SUPABASE_ANON_KEY`
+# and `PRIVATE_SUPABASE_SERVICE_ROLE` this job used to set were a second,
+# independent reason the same two suites could not have passed: a truncated
+# JWT fails as an auth error that reads exactly like a missing service.
 #
-# The database is built by the same script `database.yml` uses, so the two
-# cannot drift from each other or from `supabase db reset`.
+# The stack is started the same way `e2e.yml` starts it and the same way
+# `supabase db reset` builds a developer's machine, so CI cannot drift from
+# what a contributor actually runs. `database.yml` keeps using
+# `packages/database/scripts/ci-database.sh`; that script is unchanged and is
+# still what proves a migration-only build works.
+#
+# Cost: this job goes from roughly 80s to roughly 250s, the price of the
+# Docker images. It buys the first CI run in which these suites have ever
+# executed.
 
 on: [push, pull_request]
 
 env:
-  # A browser Supabase client is constructed at import time in a few modules.
-  # These suites never contact it.
+  # The local Supabase stack's fixed demo values — see apps/web/.env.example.
+  # Not secrets: identical on every machine that runs `supabase start`, and
+  # copied verbatim from e2e.yml so the two jobs cannot disagree.
   PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
-  PUBLIC_SUPABASE_ANON_KEY: "fake_anon_key"
-  PRIVATE_SUPABASE_SERVICE_ROLE: "fake_service_role"
+  PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+  PRIVATE_SUPABASE_SERVICE_ROLE: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
   PRIVATE_STRIPE_API_KEY: "fake_strip_api_key"
   # NOT a fake. The PII suite opens sealed values in the committed fixture, so
   # it needs the key those values were sealed with — the dev KEK from
@@ -32,6 +47,10 @@ env:
   # the reason a fresh clone can decrypt the fixture at all. pii.test.ts reads
   # .env.example itself to assert the two agree.
   PRIVATE_PII_KEK: "1:xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
+  # The owner — harnesses and snapshots. 54322 is the CLI's own Postgres.
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+  # What the APPLICATION connects as. A non-owner, so RLS applies to it.
+  APP_DATABASE_URL: postgresql://app_user:app_user@127.0.0.1:54322/postgres
 
 jobs:
   build_and_test:
@@ -42,29 +61,6 @@ jobs:
       run:
         working-directory: .
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: postgres
-      # The owner — harnesses and snapshots.
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      # What the APPLICATION connects as. A non-owner, so RLS applies to it.
-      APP_DATABASE_URL: postgresql://app_user:app_user@localhost:5432/postgres
-
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +70,17 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.115.0 }
+
+      # Applies every migration and both fixtures per supabase/config.toml —
+      # the same path `supabase db reset` takes locally, so this cannot drift
+      # from what a developer runs. Brings up GoTrue, storage-api and PostgREST
+      # alongside Postgres, which is what the two suites above need.
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      # Matches the CLI's bundled Postgres 17, same as database.yml/e2e.yml.
       - name: Install psql 17
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt \
@@ -83,8 +90,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends postgresql-client-17
 
-      - name: Build the database
-        run: packages/database/scripts/ci-database.sh
+      # Set out of band, never in a migration (20260827000002 says so).
+      # `./setup` does this locally; CI has no ./setup. `supabase start` leaves
+      # the role with no password, exactly as `supabase db reset` does (L81).
+      - name: Set the app_user password (local/CI demo credential)
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
 
       # Listed separately although `turbo run test` also covers it: without the
       # line, 357 authorization, PII and tenant-isolation cases are invisible
