@@ -150,6 +150,13 @@ SELECT b.b, b.id AS employee_id, d::date AS day, k,
   CROSS JOIN LATERAL generate_series(1, 2) k
  WHERE extract(isodow FROM d) < 6;
 DELETE FROM _work WHERE k > per_day;
+-- The home project as a plain column: a join ON a function call cannot hash,
+-- and on unanalysed temp tables the planner nests ~280,000 x 1,700.
+ALTER TABLE _work ADD COLUMN hh int;
+UPDATE _work SET hh = _perf.ri('te:home', b * 100000 + (day - date '2000-01-01') * 2 + k, 1, 3);
+ANALYZE _billable;
+ANALYZE _home;
+ANALYZE _work;
 
 INSERT INTO time_tracking_timesheets (id, tenant_id, timesheet_number, employee_id, period_type,
                                       period_start, period_end, status, submitted_at, approved_at)
@@ -191,9 +198,16 @@ SELECT _perf.u('time', x.seq), _perf.tenant(), 'TE-' || _perf.pad(x.seq, 7),
                row_number() OVER (ORDER BY w.b, w.day, w.k) AS seq,
                CASE WHEN w.per_day = 1 THEN 7.5 ELSE 3.75 END::numeric(18,4) AS hours
           FROM _work w
-          JOIN _home h ON h.b = w.b AND h.h = _perf.ri('te:home', w.b * 100000 + (w.day - date '2000-01-01') * 2 + w.k, 1, 3)) x
+          JOIN _home h ON h.b = w.b AND h.h = w.hh) x
   JOIN _proj pj ON pj.p = x.p
   JOIN projects pr ON pr.id = pj.id;
+
+-- Statistics first: these tables were filled in this transaction, and on
+-- the planner's empty-table guess each UPDATE nests a re-aggregation of every time entry per row.
+ANALYZE tasks;
+ANALYZE projects;
+ANALYZE time_tracking_entries;
+ANALYZE time_tracking_timesheets;
 
 -- Counters, recomputed from the rows (L58).
 UPDATE tasks t SET actual_hours = s.total, billable_hours = s.billable,
