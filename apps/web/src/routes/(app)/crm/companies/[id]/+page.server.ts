@@ -66,10 +66,28 @@ export const actions: Actions = {
 
     const data = await request.formData()
     const f = new FormReader(data)
+
+    // `kind` says which SET OF FIELDS the browser sent — it is a fact about
+    // the rendered form. It never decides which write path runs: that comes
+    // from the stored `customer_type`, read inside the transaction below.
+    const kind = f.choice("kind", ["person", "business"], { required: true })
+
+    // Both branches' fields are read before the `!f.ok` gate (L33); only the
+    // branch that was actually submitted carries `required`.
+    const person = {
+      first_name: f.text("first_name", {
+        required: kind === "person",
+        max: 100,
+      }),
+      last_name: f.text("last_name", { required: kind === "person", max: 100 }),
+    }
     const input = {
-      customer_name: f.text("customer_name", { required: true, max: 255 }),
+      customer_name: f.text("customer_name", {
+        required: kind === "business",
+        max: 255,
+      }),
       customer_type: f.choice("customer_type", customers.CUSTOMER_TYPES, {
-        required: true,
+        required: kind === "business",
       }),
       relationship_status: f.choice(
         "relationship_status",
@@ -92,7 +110,40 @@ export const actions: Actions = {
         const fieldValues = readCustomFieldValues(f, data, fieldDefs)
         if (!f.ok) return fail(400, customFieldProblem(f, fieldDefs))
 
-        await customers.update(tx, params.id, input)
+        const current = await customers.getById(tx, params.id)
+        if (!current) error(404, "Client not found")
+        const isPerson = current.customer_type === "individual"
+        // A stale tab would otherwise run the business branch over a person,
+        // leaving `customer_name` no longer derived and the account's email
+        // out of step with the contact row's copy.
+        if (isPerson !== (kind === "person")) {
+          return fail(409, {
+            message:
+              "This client changed while the form was open. Reload the page and try again.",
+          })
+        }
+
+        if (isPerson) {
+          const updated = await customers.updateIndividual(tx, params.id, {
+            first_name: person.first_name!,
+            last_name: person.last_name!,
+            email: input.email,
+            phone: input.phone,
+            relationship_status: input.relationship_status!,
+            currency: input.currency!,
+            account_manager_id: input.account_manager_id,
+            notes: input.notes,
+          })
+          // A write that matched nothing must not report success (L68).
+          if (!updated) error(404, "Client not found")
+        } else {
+          // `required` is conditional above, so the reader's type is widened;
+          // the gate has already passed for the branch that was submitted.
+          await customers.update(tx, params.id, {
+            ...input,
+            customer_name: input.customer_name!,
+          })
+        }
         await customFields.saveValues(
           tx,
           locals.tenantId!,
@@ -125,7 +176,7 @@ export const actions: Actions = {
       customer_id: params.id,
       first_name: f.text("first_name", { required: true, max: 100 }),
       last_name: f.text("last_name", { required: true, max: 100 }),
-      email: f.text("email", { required: true, max: 255 }),
+      email: f.text("email", { max: 255 }),
       phone: f.text("phone", { max: 20 }),
       title: f.text("title", { max: 100 }),
       department: f.text("department", { max: 100 }),

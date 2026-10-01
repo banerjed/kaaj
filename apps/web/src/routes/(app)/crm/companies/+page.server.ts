@@ -50,6 +50,29 @@ function readForm(f: FormReader) {
   }
 }
 
+/**
+ * A person client, captured in one form. `createIndividual` writes the
+ * `customers` account and its single contact together — see the repo for why
+ * a person is still two rows.
+ */
+function readPerson(f: FormReader) {
+  return {
+    first_name: f.text("first_name", { required: true, max: 100 }),
+    last_name: f.text("last_name", { required: true, max: 100 }),
+    // Optional on purpose: a walk-in client often has only a phone.
+    email: f.text("email", { max: 255 }),
+    phone: f.text("phone", { max: 20 }),
+    relationship_status: f.choice(
+      "relationship_status",
+      customers.RELATIONSHIP_STATUSES,
+      { required: true },
+    ),
+    currency: f.currency("currency", { required: true }),
+    account_manager_id: f.uuid("account_manager_id"),
+    notes: null,
+  }
+}
+
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
@@ -58,7 +81,11 @@ export const actions: Actions = {
 
     const f = new FormReader(await request.formData())
     const id = f.uuid("id")
-    const input = readForm(f)
+    // Only the create form carries `kind`; an edit posts the business shape.
+    const isPerson =
+      !id && f.choice("kind", ["person", "business"]) === "person"
+    const person = isPerson ? readPerson(f) : null
+    const input = isPerson ? null : readForm(f)
     if (!f.ok) {
       return fail(400, {
         ...f.problem("Some fields need attention."),
@@ -68,8 +95,16 @@ export const actions: Actions = {
 
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
-        if (id) await customers.update(tx, id, input)
-        else await customers.create(tx, tenantId, input)
+        if (person) {
+          await customers.createIndividual(tx, tenantId, {
+            ...person,
+            first_name: person.first_name!,
+            last_name: person.last_name!,
+            relationship_status: person.relationship_status!,
+            currency: person.currency!,
+          })
+        } else if (id) await customers.update(tx, id, input!)
+        else await customers.create(tx, tenantId, input!)
         return { saved: true }
       })
     } catch (e) {

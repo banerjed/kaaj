@@ -428,7 +428,7 @@ customer_contacts	2	tenant_id	uuid	t
 customer_contacts	3	customer_id	uuid	t	
 customer_contacts	4	first_name	character varying(100)	t	
 customer_contacts	5	last_name	character varying(100)	t	
-customer_contacts	6	email	character varying(255)	t	
+customer_contacts	6	email	character varying(255)	f	
 customer_contacts	7	phone	character varying(20)	f	
 customer_contacts	8	title	character varying(100)	f	
 customer_contacts	9	is_primary	boolean	t	false

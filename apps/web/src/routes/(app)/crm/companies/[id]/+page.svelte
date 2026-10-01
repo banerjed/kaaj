@@ -18,6 +18,16 @@
   const c = $derived(data.company)
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
+  // A person account is one `customers` row plus its single contact. The
+  // contact count is part of the test: a row typed `individual` before this
+  // shape existed may have none or several, and the person layout would then
+  // hide contacts it has no other way to show.
+  const person = $derived(
+    c.customer_type === "individual" && data.contacts.length === 1
+      ? data.contacts[0]
+      : null,
+  )
+
   // Opened straight from the list's edit icon (`?edit=1`), the same
   // deep-link shape /time-tracking already uses. Seeded once on purpose: it
   // is this page's own draft state from here on, and must not snap shut when
@@ -73,7 +83,9 @@
         {#snippet heading()}
           <div class="flex items-start justify-between gap-2">
             <div>
-              <h2 class="text-base font-medium">Company details</h2>
+              <h2 class="text-base font-medium">
+                {person ? "Client details" : "Company details"}
+              </h2>
               <div class="mt-1 flex items-center gap-2">
                 <StatusBadge
                   tone={relationshipStatusTone(c.relationship_status)}
@@ -97,26 +109,39 @@
           </div>
         {/snippet}
         <dl class="grid gap-3 text-sm">
-          <div>
-            <dt class="text-base-content/70">Industry</dt>
-            <dd>{c.industry ?? "—"}</dd>
-          </div>
-          <div>
-            <dt class="text-base-content/70">Company size</dt>
-            <dd>{c.company_size ?? "—"}</dd>
-          </div>
-          <div>
-            <dt class="text-base-content/70">Website</dt>
-            <dd>{c.website ?? "—"}</dd>
-          </div>
+          {#if person}
+            <div>
+              <dt class="text-base-content/70">Email</dt>
+              <dd>{person.email ?? "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/70">Phone</dt>
+              <dd>{person.phone ?? "—"}</dd>
+            </div>
+          {:else}
+            <div>
+              <dt class="text-base-content/70">Industry</dt>
+              <dd>{c.industry ?? "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/70">Company size</dt>
+              <dd>{c.company_size ?? "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/70">Website</dt>
+              <dd>{c.website ?? "—"}</dd>
+            </div>
+          {/if}
           <div>
             <dt class="text-base-content/70">Account manager</dt>
             <dd>{c.account_manager_name ?? "Unassigned"}</dd>
           </div>
-          <div>
-            <dt class="text-base-content/70">Acquisition source</dt>
-            <dd>{c.acquisition_source ?? "—"}</dd>
-          </div>
+          {#if !person}
+            <div>
+              <dt class="text-base-content/70">Acquisition source</dt>
+              <dd>{c.acquisition_source ?? "—"}</dd>
+            </div>
+          {/if}
           <div>
             <dt class="text-base-content/70">Currency</dt>
             <dd>{c.currency}</dd>
@@ -143,52 +168,54 @@
     </div>
 
     <div class="flex flex-col gap-4 lg:col-span-2">
-      <SectionCard>
-        {#snippet heading()}
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-base font-medium">
-              Contacts
-              {#if data.contacts.length > 0}({data.contacts.length}){/if}
-            </h2>
-            <button
-              class="btn btn-ghost btn-sm gap-2"
-              onclick={() => (addingContact = true)}
-            >
-              <span class="iconify lucide--plus size-4"></span>
-              New contact
-            </button>
-          </div>
-        {/snippet}
-        {#if data.contacts.length === 0}
-          <div class="flex flex-col items-center gap-2 py-6 text-center">
-            <span class="iconify lucide--users text-base-content/30 size-8"
-            ></span>
-            <p class="text-base-content/70 text-sm">No contacts yet.</p>
-          </div>
-        {:else}
-          <ul class="flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
-            {#each data.contacts as p (p.id)}
-              <li>
-                <a
-                  href={`/crm/contacts/${p.id}`}
-                  class="link link-hover text-sm font-medium"
-                >
-                  {p.first_name}
-                  {p.last_name}
-                </a>
-                {#if p.is_primary}<span class="badge badge-sm ms-1"
-                    >Primary</span
-                  >{/if}
-                <p class="text-base-content/70 text-xs">
-                  {p.title ?? "—"}{#if p.department}
-                    · {p.department}{/if} ·
-                  {p.email}
-                </p>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </SectionCard>
+      {#if !person}
+        <SectionCard>
+          {#snippet heading()}
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-base font-medium">
+                Contacts
+                {#if data.contacts.length > 0}({data.contacts.length}){/if}
+              </h2>
+              <button
+                class="btn btn-ghost btn-sm gap-2"
+                onclick={() => (addingContact = true)}
+              >
+                <span class="iconify lucide--plus size-4"></span>
+                New contact
+              </button>
+            </div>
+          {/snippet}
+          {#if data.contacts.length === 0}
+            <div class="flex flex-col items-center gap-2 py-6 text-center">
+              <span class="iconify lucide--users text-base-content/30 size-8"
+              ></span>
+              <p class="text-base-content/70 text-sm">No contacts yet.</p>
+            </div>
+          {:else}
+            <ul class="flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
+              {#each data.contacts as p (p.id)}
+                <li>
+                  <a
+                    href={`/crm/contacts/${p.id}`}
+                    class="link link-hover text-sm font-medium"
+                  >
+                    {p.first_name}
+                    {p.last_name}
+                  </a>
+                  {#if p.is_primary}<span class="badge badge-sm ms-1"
+                      >Primary</span
+                    >{/if}
+                  <p class="text-base-content/70 text-xs">
+                    {p.title ?? "—"}{#if p.department}
+                      · {p.department}{/if}{#if p.email}
+                      · {p.email}{/if}
+                  </p>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </SectionCard>
+      {/if}
 
       <SectionCard>
         {#snippet heading()}
@@ -328,37 +355,95 @@
 </div>
 
 {#if editing}
-  <div class="modal modal-open" role="dialog" aria-label="Edit company">
+  <div
+    class="modal modal-open"
+    role="dialog"
+    aria-label={person ? "Edit client" : "Edit company"}
+  >
     <div class="modal-box max-w-xl">
-      <h3 class="text-lg font-medium">Edit company</h3>
+      <h3 class="text-lg font-medium">
+        {person ? "Edit client" : "Edit company"}
+      </h3>
       <form
         method="POST"
         action="?/save"
         class="mt-4 grid gap-4"
         use:enhance={closeOnSuccess(() => (editing = false))}
       >
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Company name</legend>
-            <input
-              name="customer_name"
-              aria-invalid={err.aria("customer_name")}
-              class={`input w-full ${err.input("customer_name")}`}
-              value={c.customer_name}
-              required
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Type</legend>
-            <select name="customer_type" class="select w-full">
-              {#each data.customerTypes as t (t)}
-                <option value={t} selected={t === c.customer_type}>
-                  {t.replaceAll("_", " ")}
-                </option>
-              {/each}
-            </select>
-          </fieldset>
-        </div>
+        <!-- Says which fields this form sent. The write path is chosen from
+             the stored `customer_type`, not from here. -->
+        <input
+          type="hidden"
+          name="kind"
+          value={person ? "person" : "business"}
+        />
+        {#if person}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">First name</legend>
+              <input
+                name="first_name"
+                aria-invalid={err.aria("first_name")}
+                class={`input w-full ${err.input("first_name")}`}
+                value={person.first_name}
+                required
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Last name</legend>
+              <input
+                name="last_name"
+                aria-invalid={err.aria("last_name")}
+                class={`input w-full ${err.input("last_name")}`}
+                value={person.last_name}
+                required
+              />
+            </fieldset>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Email</legend>
+              <input
+                name="email"
+                type="email"
+                aria-invalid={err.aria("email")}
+                class={`input w-full ${err.input("email")}`}
+                value={person.email ?? ""}
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Phone</legend>
+              <input
+                name="phone"
+                class="input w-full"
+                value={person.phone ?? ""}
+              />
+            </fieldset>
+          </div>
+        {:else}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Company name</legend>
+              <input
+                name="customer_name"
+                aria-invalid={err.aria("customer_name")}
+                class={`input w-full ${err.input("customer_name")}`}
+                value={c.customer_name}
+                required
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Type</legend>
+              <select name="customer_type" class="select w-full">
+                {#each data.customerTypes.filter((t) => t !== "individual") as t (t)}
+                  <option value={t} selected={t === c.customer_type}>
+                    {t.replaceAll("_", " ")}
+                  </option>
+                {/each}
+              </select>
+            </fieldset>
+          </div>
+        {/if}
         <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Status</legend>
@@ -381,25 +466,25 @@
             />
           </fieldset>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Industry</legend>
-            <input
-              name="industry"
-              class="input w-full"
-              value={c.industry ?? ""}
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Company size</legend>
-            <input
-              name="company_size"
-              class="input w-full"
-              value={c.company_size ?? ""}
-            />
-          </fieldset>
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
+        {#if !person}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Industry</legend>
+              <input
+                name="industry"
+                class="input w-full"
+                value={c.industry ?? ""}
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Company size</legend>
+              <input
+                name="company_size"
+                class="input w-full"
+                value={c.company_size ?? ""}
+              />
+            </fieldset>
+          </div>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Website</legend>
             <input
@@ -408,6 +493,8 @@
               value={c.website ?? ""}
             />
           </fieldset>
+        {/if}
+        <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Account manager</legend>
             <select name="account_manager_id" class="select w-full">
@@ -419,15 +506,17 @@
               {/each}
             </select>
           </fieldset>
+          {#if !person}
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Acquisition source</legend>
+              <input
+                name="acquisition_source"
+                class="input w-full"
+                value={c.acquisition_source ?? ""}
+              />
+            </fieldset>
+          {/if}
         </div>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Acquisition source</legend>
-          <input
-            name="acquisition_source"
-            class="input w-full"
-            value={c.acquisition_source ?? ""}
-          />
-        </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Notes</legend>
           <textarea name="notes" class="textarea w-full" rows="3"
@@ -489,7 +578,6 @@
               type="email"
               aria-invalid={err.aria("email")}
               class={`input w-full ${err.input("email")}`}
-              required
             />
           </fieldset>
           <fieldset class="fieldset">

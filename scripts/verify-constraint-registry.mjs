@@ -55,6 +55,10 @@ const FORM_WRITTEN = [
   "bank_transactions",
   "bank_accounts",
   "ticketing_tickets",
+  // CRM: the client list's save, and the person-account path that writes a
+  // customers row and its contact together.
+  "customers",
+  "customer_contacts",
 ]
 
 /**
@@ -98,6 +102,38 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "ticketing_tickets_tenant_id_ticket_number_key",
     "the number comes from the area's counter, incremented under a row lock; prefixes are unique per tenant",
+  ],
+
+  // CRM clients and their contacts.
+  ["customers_tenant_id_fkey", "tenant_id comes from the session"],
+  ["customer_contacts_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "customers_customer_type_check",
+    "f.choice gates it against CUSTOMER_TYPES before the insert; the person path sets 'individual' itself",
+  ],
+  [
+    "customers_relationship_status_check",
+    "f.choice gates it against RELATIONSHIP_STATUSES before the insert",
+  ],
+  [
+    "fk_customers_ar_account_id",
+    "no form writes ar_account_id — it is not in CustomerInput",
+  ],
+  [
+    "fk_customers_tax_rate_id",
+    "no form writes tax_rate_id — it is not in CustomerInput",
+  ],
+  [
+    "idx_customers_number",
+    "no form writes customer_number; customers.create omits it, and NULLs do not collide in a unique index",
+  ],
+  [
+    "uq_customers_tenant_id_id",
+    "a composite key for other tables' tenant-carrying FKs to target; id is a generated primary key, so the pair cannot collide",
+  ],
+  [
+    "uq_customer_contacts_tenant_id_id",
+    "a composite key for other tables' tenant-carrying FKs to target; id is a generated primary key, so the pair cannot collide",
   ],
 
   // `tenant_id` is set by the server from the session, never from the request,

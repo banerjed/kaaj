@@ -55,7 +55,7 @@ export const actions: Actions = {
         customer_id: current.customer_id,
         first_name: f.text("first_name", { required: true, max: 100 }),
         last_name: f.text("last_name", { required: true, max: 100 }),
-        email: f.text("email", { required: true, max: 255 }),
+        email: f.text("email", { max: 255 }),
         phone: f.text("phone", { max: 20 }),
         title: f.text("title", { max: 100 }),
         department: f.text("department", { max: 100 }),

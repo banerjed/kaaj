@@ -105,6 +105,25 @@ const REGISTRY: Record<string, Refusal> = {
       "One of the tax rates picked no longer exists. Reload the page and pick a current one.",
   },
 
+  // CRM. An individual client's contact row carries their email, so this is
+  // reachable from the ordinary "new client" path, not just from adding a
+  // second contact to a business — and the index has no `WHERE is_active`,
+  // so an archived person's address stays reserved.
+  customer_contacts_tenant_id_email_key: {
+    errorFields: ["email"],
+    message:
+      "Someone with this email address is already on file for this firm. Search for them, or leave the email blank.",
+  },
+  customer_contacts_customer_id_fkey: {
+    errorFields: ["customer_id"],
+    message: "That client no longer exists. Reload the page and try again.",
+  },
+  fk_customers_account_manager_id: {
+    errorFields: ["account_manager_id"],
+    message:
+      "The account manager picked no longer exists. Reload the page and pick a current one.",
+  },
+
   // A partial unique index rather than a constraint, so the name is the
   // INDEX name. One headquarters per firm.
   idx_firm_locations_hq: {

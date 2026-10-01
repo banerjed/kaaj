@@ -9,7 +9,7 @@ export type CustomerContact = {
   customer_name: string
   first_name: string
   last_name: string
-  email: string
+  email: string | null
   phone: string | null
   title: string | null
   department: string | null
@@ -113,7 +113,8 @@ export type CustomerContactInput = {
   customer_id: string
   first_name: string
   last_name: string
-  email: string
+  /** Optional since 20261001100000 — a walk-in client may have only a phone. */
+  email: string | null
   phone: string | null
   title: string | null
   department: string | null

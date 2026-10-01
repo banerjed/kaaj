@@ -284,7 +284,13 @@ INSERT INTO hr_emergency_contacts (id, tenant_id, employee_id, contact_name, rel
 INSERT INTO customers (id, tenant_id, customer_number, customer_name, display_name, email, currency, payment_terms, is_active, custom_fields, legal_entity_name, customer_type, relationship_status, industry, company_size, default_hourly_rate, account_manager_id, acquisition_date, acquisition_source) VALUES
     ('e40d0f18-1333-5cd1-a969-f5113df51e70', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ACME', 'Acme Manufacturing', 'Acme Manufacturing', 'ap@acme.example', 'USD', 'net_30', TRUE, '{}'::jsonb, 'Acme Manufacturing Inc.', 'corporate', 'active', 'manufacturing', '1000-5000', 225, 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2025-03-01', 'referral'),
     ('ac7a04b4-a28e-5a15-9993-596db32c8d4e', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'BRITCO', 'Britannia Retail Group', 'Britannia Retail Group', 'ap@britco.example', 'GBP', 'net_30', TRUE, '{}'::jsonb, 'Britannia Retail Group plc', 'enterprise', 'active', 'retail', '5000+', 195, 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2025-06-15', 'conference'),
-    ('df492f8b-55ce-504f-869d-52f5ffc6292d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'Helios Energy', 'ap@helios.example', 'USD', 'net_30', TRUE, '{}'::jsonb, 'Helios Energy LLC', 'small_business', 'prospect', 'energy', '50-200', 260, 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2026-02-10', 'inbound');
+    ('df492f8b-55ce-504f-869d-52f5ffc6292d', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'HELIOS', 'Helios Energy', 'Helios Energy', 'ap@helios.example', 'USD', 'net_30', TRUE, '{}'::jsonb, 'Helios Energy LLC', 'small_business', 'prospect', 'energy', '50-200', 260, 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', '2026-02-10', 'inbound'),
+    -- A person account: the client IS an individual, not a business. One
+    -- `customers` row whose `customer_name` is the person's name, plus the
+    -- single `customer_contacts` row below. `industry`, `company_size` and
+    -- `legal_entity_name` are meaningless here and stay NULL — the CRM pages
+    -- hide them for this `customer_type`.
+    ('5c6e1b74-0b48-5a3e-9a8a-6c1d2f8e4b11', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'OKONKWO', 'Priya Okonkwo', 'Priya Okonkwo', 'priya.okonkwo@example.com', 'USD', 'due_on_receipt', TRUE, '{}'::jsonb, NULL, 'individual', 'active', NULL, NULL, 150, 'e05fd53c-ebdf-5049-810a-28a63369f93a', '2026-04-02', 'referral');
 
 -- Company objective (links to hr_goals)
 INSERT INTO pm_objectives (id, tenant_id, objective_id, objective_number, objective_name, objective_type, fiscal_year, quarter, department_code, owner_employee_id, status, progress_percentage, target_revenue, actual_revenue, currency, start_date, target_end_date, created_at, updated_at, created_by) VALUES
@@ -675,7 +681,11 @@ INSERT INTO customer_contacts (id, tenant_id, customer_id, first_name, last_name
     ('da1d1f9e-9d10-4d13-a3d9-b90f49903a13', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Dana', 'Whitcombe', 'dana.whitcombe@acme.example', '+1-212-555-0201', 'Operations Director', 'Operations', TRUE, TRUE),
     ('a31f1ed7-22b2-4326-b309-204ce40919ca', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'e40d0f18-1333-5cd1-a969-f5113df51e70', 'Felix', 'Ndiaye', 'felix.ndiaye@acme.example', '+1-212-555-0202', 'IT Lead', 'IT', FALSE, TRUE),
     ('1561052e-6bd8-49a5-ae6b-2ed384cec0b6', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'ac7a04b4-a28e-5a15-9993-596db32c8d4e', 'Imogen', 'Faulkner', 'imogen.faulkner@britco.example', '+44-20-7946-0201', 'IT Manager', 'IT', TRUE, TRUE),
-    ('bd5b885a-62df-456c-8b71-af7baa246197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'Theo', 'Bakshi', 'theo.bakshi@helios.example', '+1-512-555-0201', 'Data Lead', 'Data', TRUE, TRUE);
+    ('bd5b885a-62df-456c-8b71-af7baa246197', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'df492f8b-55ce-504f-869d-52f5ffc6292d', 'Theo', 'Bakshi', 'theo.bakshi@helios.example', '+1-512-555-0201', 'Data Lead', 'Data', TRUE, TRUE),
+    -- The person account's single contact. `title`/`department` are a
+    -- business idea and stay NULL; the pair is created together by
+    -- `customers.repo.ts`'s `createIndividual` everywhere but here.
+    ('7a2c9d50-3e61-4f82-9b05-1c7e3a0d5f44', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '5c6e1b74-0b48-5a3e-9a8a-6c1d2f8e4b11', 'Priya', 'Okonkwo', 'priya.okonkwo@example.com', '+1-415-555-0310', NULL, NULL, TRUE, TRUE);
 
 -- Tier 2 customization for CRM contacts (docs/06-customization-model.md) —
 -- the customizable "other details" (alt phone/email, personal/family

@@ -832,8 +832,9 @@ describe("customer portal identity", () => {
     })
 
   it("shows staff every contact, whatever customer they belong to", async () => {
-    expect(await contactCount({ employeeId: MARCUS, role: "employee" })).toBe(4)
-    expect(await contactCount({ employeeId: SARAH, role: "owner" })).toBe(4)
+    // Four at the three businesses, plus the person account's own single one.
+    expect(await contactCount({ employeeId: MARCUS, role: "employee" })).toBe(5)
+    expect(await contactCount({ employeeId: SARAH, role: "owner" })).toBe(5)
   })
 
   it("shows a portal contact their own customer's contacts, and only those", async () => {
@@ -911,7 +912,8 @@ describe("customer portal identity", () => {
 
   it("still shows staff the whole CRM", async () => {
     expect(await crmCounts({ employeeId: MARCUS, role: "employee" })).toEqual({
-      customers: 3,
+      // Three businesses and one person account.
+      customers: 4,
       deals: 3,
       activities: 4,
       stages: 6,

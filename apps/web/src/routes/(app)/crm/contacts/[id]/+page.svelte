@@ -88,7 +88,7 @@
         </div>
         <div>
           <dt class="text-base-content/70">Email</dt>
-          <dd>{p.email}</dd>
+          <dd>{p.email ?? "—"}</dd>
         </div>
         <div>
           <dt class="text-base-content/70">Phone</dt>
@@ -211,8 +211,7 @@
               type="email"
               aria-invalid={err.aria("email")}
               class={`input w-full ${err.input("email")}`}
-              value={p.email}
-              required
+              value={p.email ?? ""}
             />
           </fieldset>
           <fieldset class="fieldset">

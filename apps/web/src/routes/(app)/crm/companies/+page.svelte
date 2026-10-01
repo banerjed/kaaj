@@ -18,6 +18,7 @@
   const canWrite = $derived(has(data.permissions, "crm.write"))
 
   let creating = $state(false)
+  let kind = $state<"person" | "business">("person")
 
   const rowActions = (c: (typeof data.companies)[number]): RowAction[] => [
     {
@@ -37,14 +38,14 @@
   ]
 </script>
 
-<PageHead title="Companies" />
+<PageHead title="Clients" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
-    title="Companies"
+    title="Clients"
     items={[
       { label: "CRM", path: "/crm/companies" },
-      { label: "Companies", active: true },
+      { label: "Clients", active: true },
     ]}
   />
 
@@ -77,7 +78,7 @@
       </select>
       <span class="text-base-content/70 text-sm">
         {data.companies.length}
-        {data.companies.length === 1 ? "company" : "companies"}
+        {data.companies.length === 1 ? "client" : "clients"}
       </span>
     </form>
 
@@ -86,15 +87,15 @@
       onclick={() => (creating = true)}
     >
       <span class="iconify lucide--plus size-4"></span>
-      New Company
+      New client
     </button>
   </div>
 
   {#if data.companies.length === 0}
     <EmptyState
-      icon="lucide--building-2"
-      title="No companies yet"
-      message="Every deal and contact hangs off a company — start by adding one, even a solo client counts as a company here."
+      icon="lucide--users"
+      title="No clients yet"
+      message="Add the people and businesses you work with — deals, activity and invoices all hang off a client."
     />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
@@ -102,7 +103,7 @@
         <table class="table">
           <thead>
             <tr>
-              <th>Company</th>
+              <th>Client</th>
               <th>Status</th>
               <th>Industry</th>
               <th>Account manager</th>
@@ -147,9 +148,9 @@
 </div>
 
 {#if creating}
-  <div class="modal modal-open" role="dialog" aria-label="New company">
+  <div class="modal modal-open" role="dialog" aria-label="New client">
     <div class="modal-box max-w-xl">
-      <h3 class="text-lg font-medium">New company</h3>
+      <h3 class="text-lg font-medium">New client</h3>
 
       <form
         method="POST"
@@ -157,29 +158,89 @@
         class="mt-4 grid gap-4"
         use:enhance={closeOnSuccess(() => (creating = false))}
       >
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Company name</legend>
-            <input
-              name="customer_name"
-              aria-invalid={err.aria("customer_name")}
-              class={`input w-full ${err.input("customer_name")}`}
-              required
-            />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Type</legend>
-            <select
-              name="customer_type"
-              aria-invalid={err.aria("customer_type")}
-              class={`select w-full ${err.select("customer_type")}`}
+        <!-- A client is a person or a business. The two capture different
+             things, so the form branches rather than showing one set of
+             fields half of which never apply. -->
+        <input type="hidden" name="kind" value={kind} />
+        <div role="tablist" class="tabs tabs-box self-start">
+          {#each [["person", "Person"], ["business", "Business"]] as const as [value, label] (value)}
+            <button
+              type="button"
+              role="tab"
+              class={`tab ${kind === value ? "tab-active" : ""}`}
+              aria-selected={kind === value}
+              onclick={() => (kind = value)}
             >
-              {#each data.customerTypes as t (t)}
-                <option value={t}>{t.replaceAll("_", " ")}</option>
-              {/each}
-            </select>
-          </fieldset>
+              {label}
+            </button>
+          {/each}
         </div>
+
+        {#if kind === "person"}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">First name</legend>
+              <input
+                name="first_name"
+                aria-invalid={err.aria("first_name")}
+                class={`input w-full ${err.input("first_name")}`}
+                required
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Last name</legend>
+              <input
+                name="last_name"
+                aria-invalid={err.aria("last_name")}
+                class={`input w-full ${err.input("last_name")}`}
+                required
+              />
+            </fieldset>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Email</legend>
+              <input
+                name="email"
+                type="email"
+                aria-invalid={err.aria("email")}
+                class={`input w-full ${err.input("email")}`}
+              />
+              <p class="label">
+                Optional — a phone number is often all you have.
+              </p>
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Phone</legend>
+              <input name="phone" class="input w-full" />
+            </fieldset>
+          </div>
+        {:else}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Business name</legend>
+              <input
+                name="customer_name"
+                aria-invalid={err.aria("customer_name")}
+                class={`input w-full ${err.input("customer_name")}`}
+                required
+              />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Type</legend>
+              <select
+                name="customer_type"
+                aria-invalid={err.aria("customer_type")}
+                class={`select w-full ${err.select("customer_type")}`}
+              >
+                {#each data.customerTypes.filter((t) => t !== "individual") as t (t)}
+                  <option value={t}>{t.replaceAll("_", " ")}</option>
+                {/each}
+              </select>
+            </fieldset>
+          </div>
+        {/if}
 
         <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
@@ -200,6 +261,7 @@
               name="currency"
               aria-invalid={err.aria("currency")}
               class={`input w-full uppercase ${err.input("currency")}`}
+              value={data.tenant?.default_currency ?? ""}
               placeholder="USD"
               maxlength="3"
               required
@@ -207,26 +269,29 @@
           </fieldset>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Industry</legend>
-            <input name="industry" class="input w-full" />
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Company size</legend>
-            <input
-              name="company_size"
-              class="input w-full"
-              placeholder="1-10"
-            />
-          </fieldset>
-        </div>
+        {#if kind === "business"}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Industry</legend>
+              <input name="industry" class="input w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Company size</legend>
+              <input
+                name="company_size"
+                class="input w-full"
+                placeholder="1-10"
+              />
+            </fieldset>
+          </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Website</legend>
             <input name="website" class="input w-full" />
           </fieldset>
+        {/if}
+
+        <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Account manager</legend>
             <select name="account_manager_id" class="select w-full">
@@ -236,16 +301,17 @@
               {/each}
             </select>
           </fieldset>
+          {#if kind === "business"}
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">Acquisition source</legend>
+              <input
+                name="acquisition_source"
+                class="input w-full"
+                placeholder="referral, inbound, conference…"
+              />
+            </fieldset>
+          {/if}
         </div>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Acquisition source</legend>
-          <input
-            name="acquisition_source"
-            class="input w-full"
-            placeholder="referral, inbound, conference…"
-          />
-        </fieldset>
 
         <ModalActions onCancel={() => (creating = false)} />
       </form>

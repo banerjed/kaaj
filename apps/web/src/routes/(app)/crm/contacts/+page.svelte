@@ -188,7 +188,7 @@
                 </td>
                 <td class="text-sm">{p.department ?? "—"}</td>
                 <td class="text-sm">{p.title ?? "—"}</td>
-                <td class="text-sm">{p.email}</td>
+                <td class="text-sm">{p.email ?? "—"}</td>
                 <td class="text-sm">{p.phone ?? "—"}</td>
                 <td><RowActions actions={rowActions(p)} /></td>
               </tr>
