@@ -152,9 +152,9 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
-### Custom fields — 24 tests
+### Custom fields — 26 tests
 
-- `lib/server/custom-fields/custom-fields.repo.test.ts` [24] — definitions
+- `lib/server/custom-fields/custom-fields.repo.test.ts` [26] — definitions
   ordered General first, then by category first use, then within the
   category; a ticket area sees only its own fields; move within a category;
   rename a category including archived fields; archive only within the
@@ -164,7 +164,8 @@ Beyond that, coverage is indirect: 8 RLS assertions inside
   field, and a value for a missing record. `saveValues` round-trips every
   type, reports only what changed, clears to an all-NULL row, and refuses
   an unknown or out-of-scope definition, another area's ticket field, an
-  unreadable record and an off-list option. Visibility (ticket values follow
+  unreadable record and an off-list option. Company and deal fields save and
+  list under their categories, and a company field is refused on a deal. Visibility (ticket values follow
   the ticket, for a portal contact and a private ticket) is in
   `row-visibility.test.ts`.
 
@@ -205,7 +206,7 @@ Cross-cutting by nature — asserts what every module's RLS policy actually
 does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 `packages/spec-tests`).
 
-- `lib/server/db/row-visibility.test.ts` [233] — staff directory, pay, RLS
+- `lib/server/db/row-visibility.test.ts` [236] — staff directory, pay, RLS
   vs. `can()` agreement, tenant isolation, "Tier 1: every role sees what it
   should" (80 tests spanning compensation, HR, projects, tickets and more),
   feedback visibility, accounting visibility (71 tests), customer portal,
@@ -221,6 +222,9 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
   table spec also covers `hr_benefits_enrollments`, `payroll_runs`,
   `payroll_tax_deposits` and the three time-tracking tables, and RLS/`can()`
   agreement covers `app.approves_time_entries()`.
+  A portal contact reads only their own company and none of the CRM —
+  deals, activities, stages, or contact, company and deal custom fields —
+  and cannot write a company; staff still read all of it.
 - `lib/server/db/tenant.test.ts` [7] — `withTenant`
 
 ### Auth & Authorization — 172 tests
@@ -303,7 +307,7 @@ these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
 
-- **`smoke.spec.ts` [63]** — every module page renders for a signed-in owner:
+- **`smoke.spec.ts` [67]** — every module page renders for a signed-in owner:
   its own heading, the nav shell, zero console errors. One entry per route
   (employees, time-off, attendance, performance, onboarding, compensation,
   objectives, projects, time-tracking, payroll, all 19 accounting pages,

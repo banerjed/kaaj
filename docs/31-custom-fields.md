@@ -1,6 +1,6 @@
 # Custom Fields — One Mechanism for Every Record
 
-**Status:** step 1 done (2026-09-30); steps 2 and 3 not started. Supersedes the per-module
+**Status:** steps 1 and 2 done (2026-09-30); step 3 not started. Supersedes the per-module
 arrangements in [docs/26](./26-project-management-custom-fields.md) and
 the ticketing custom-field notes in
 [06-customization-model.md](./06-customization-model.md) Tier 2.
@@ -103,13 +103,14 @@ policy has one arm per record column.
 
 ## Plan
 
-1. **Consolidate** (this change): the schema above; ticket values move
+1. ✅ **Consolidate**: the schema above; ticket values move
    from JSONB into `custom_field_values` and the column is dropped;
    ticketing's copy of the code is deleted; one settings editor and one
    set of display/form components across tickets, projects, tasks and
    contacts.
-2. **CRM:** fields on companies and deals; Settings → CRM gets a tab each
-   for Companies, Contacts and Pipeline.
+2. ✅ **CRM:** fields on companies and deals; Settings → CRM gets a tab each
+   for Companies, Contacts and Pipeline. Company, contact and deal values are
+   closed to portal contacts, as the CRM tables are (20260930110000).
 3. **Employees**, once it is decided who may read which employee field.
    The inert `custom_fields` JSONB columns on employees, customers,
    projects, tasks, vendors and objectives are removed then; employees'

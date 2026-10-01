@@ -109,6 +109,19 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/settings/payroll/schedules", heading: "Pay Schedules" },
   { path: "/settings/ticketing", heading: "Ticketing" },
   { path: "/settings/groups", heading: "Groups" },
+  { path: "/settings/crm", heading: "CRM Fields" },
+  {
+    path: "/settings/project-management",
+    heading: "Project Management Fields",
+  },
+  {
+    path: "/crm/companies/e40d0f18-1333-5cd1-a969-f5113df51e70",
+    heading: "Acme Manufacturing",
+  },
+  {
+    path: "/crm/deals/22222222-dea1-4000-8000-000000000002",
+    heading: "Acme Manufacturing — Q3 renewal",
+  },
 ]
 
 /** Console errors, minus the noise a dev server makes on every page. */

@@ -26,6 +26,8 @@ export const CUSTOM_FIELD_ENTITY_TYPES = [
   "task",
   "customer_contact",
   "ticket",
+  "company",
+  "deal",
 ] as const
 export type CustomFieldEntityType = (typeof CUSTOM_FIELD_ENTITY_TYPES)[number]
 
@@ -39,12 +41,16 @@ const RECORD_COLUMN: Record<CustomFieldEntityType, string> = {
   task: "task_id",
   customer_contact: "customer_contact_id",
   ticket: "ticket_id",
+  company: "company_id",
+  deal: "deal_id",
 }
 const RECORD_TABLE: Record<CustomFieldEntityType, string> = {
   project: "projects",
   task: "tasks",
   customer_contact: "customer_contacts",
   ticket: "ticketing_tickets",
+  company: "customers",
+  deal: "crm_deals",
 }
 
 /**

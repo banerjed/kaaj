@@ -10,6 +10,14 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
+import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
+import {
+  customFieldProblem,
+  readCustomFieldValues,
+} from "$lib/server/custom-fields/read-values"
+
+const SCOPE = { entityType: "company" } as const
 
 const ACTIVITY_PAGE_SIZE = 10
 
@@ -26,9 +34,12 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const company = await customers.getById(tx, params.id)
     if (!company) error(404, "Company not found")
+    const fieldValues = await customFields.valuesFor(tx, "company", [params.id])
 
     return {
       company,
+      fieldDefs: await customFields.definitionsFor(tx, SCOPE),
+      fieldValues: fieldValues[params.id] ?? [],
       contacts: await contacts.listForCustomer(tx, params.id),
       deals: await deals.listForCustomer(tx, params.id),
       activities: await activities.listForCustomer(
@@ -50,9 +61,11 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 export const actions: Actions = {
   save: async ({ request, params, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    requireCan(contextFrom(locals), "crm.write")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "crm.write")
 
-    const f = new FormReader(await request.formData())
+    const data = await request.formData()
+    const f = new FormReader(data)
     const input = {
       customer_name: f.text("customer_name", { required: true, max: 255 }),
       customer_type: f.choice("customer_type", customers.CUSTOMER_TYPES, {
@@ -73,14 +86,29 @@ export const actions: Actions = {
       account_manager_id: f.uuid("account_manager_id"),
       acquisition_source: f.text("acquisition_source", { max: 100 }),
     }
-    if (!f.ok) return fail(400, f.problem("Some fields need attention."))
-
     try {
       return await withTenant(actorFrom(locals), async (tx) => {
+        const fieldDefs = await customFields.definitionsFor(tx, SCOPE)
+        const fieldValues = readCustomFieldValues(f, data, fieldDefs)
+        if (!f.ok) return fail(400, customFieldProblem(f, fieldDefs))
+
         await customers.update(tx, params.id, input)
+        await customFields.saveValues(
+          tx,
+          locals.tenantId!,
+          SCOPE,
+          params.id,
+          fieldValues,
+          ctx!.employeeId ?? ctx!.userId,
+        )
         return { saved: true }
       })
     } catch (e) {
+      if (e instanceof CustomFieldWriteRefused) {
+        return fail(400, {
+          message: "Those fields could not be saved. Reload and try again.",
+        })
+      }
       const refused = constraintFailure(e)
       if (refused) return refused
       throw e

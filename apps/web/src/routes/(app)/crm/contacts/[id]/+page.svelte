@@ -93,6 +93,7 @@
       {#if data.fieldDefs.length > 0}
         <div class="border-base-200 mt-3 border-t pt-3">
           <CustomFieldValues
+            stacked
             definitions={data.fieldDefs}
             values={data.fieldValues}
             locale={tenantLocale}

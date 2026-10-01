@@ -4,6 +4,8 @@
   import SectionCard from "$lib/components/SectionCard.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
+  import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { relationshipStatusTone } from "$lib/components/status-tone"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
@@ -13,6 +15,7 @@
 
   const err = $derived(fieldErrors(form))
   const c = $derived(data.company)
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
 
   let editing = $state(false)
   let addingContact = $state(false)
@@ -120,6 +123,17 @@
             </div>
           {/if}
         </dl>
+        {#if data.fieldDefs.length > 0}
+          <div class="border-base-200 mt-3 border-t pt-3">
+            <CustomFieldValues
+              stacked
+              definitions={data.fieldDefs}
+              values={data.fieldValues}
+              locale={tenantLocale}
+              currency={c.currency}
+            />
+          </div>
+        {/if}
       </SectionCard>
     </div>
 
@@ -402,6 +416,12 @@
             >{c.notes ?? ""}</textarea
           >
         </fieldset>
+        <CustomFieldFormFields
+          definitions={data.fieldDefs}
+          values={data.fieldValues}
+          currency={c.currency}
+          errorFields={form?.errorFields ?? []}
+        />
         <ModalActions onCancel={() => (editing = false)} />
       </form>
     </div>

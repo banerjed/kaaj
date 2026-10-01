@@ -395,6 +395,14 @@ const CANNOT_BE_TRIPPED = new Map([
     "saveValues refuses a record the person cannot read (no_such_record) before inserting",
   ],
   [
+    "fk_custom_field_values_company",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
+    "fk_custom_field_values_deal",
+    "saveValues refuses a record the person cannot read (no_such_record) before inserting",
+  ],
+  [
     "fk_custom_field_values_ticket",
     "saveValues refuses a record the person cannot read (no_such_record) before inserting",
   ],

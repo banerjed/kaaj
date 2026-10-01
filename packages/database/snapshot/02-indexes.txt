@@ -98,6 +98,7 @@ crm_deals	crm_deals_pkey	CREATE UNIQUE INDEX crm_deals_pkey ON public.crm_deals 
 crm_deals	idx_crm_deals_tenant_customer	CREATE INDEX idx_crm_deals_tenant_customer ON public.crm_deals USING btree (tenant_id, customer_id)
 crm_deals	idx_crm_deals_tenant_owner	CREATE INDEX idx_crm_deals_tenant_owner ON public.crm_deals USING btree (tenant_id, owner_id)
 crm_deals	idx_crm_deals_tenant_stage	CREATE INDEX idx_crm_deals_tenant_stage ON public.crm_deals USING btree (tenant_id, stage_id)
+crm_deals	uq_crm_deals_tenant_id_id	CREATE UNIQUE INDEX uq_crm_deals_tenant_id_id ON public.crm_deals USING btree (tenant_id, id)
 crm_pipeline_stages	crm_pipeline_stages_pkey	CREATE UNIQUE INDEX crm_pipeline_stages_pkey ON public.crm_pipeline_stages USING btree (id)
 crm_pipeline_stages	idx_crm_pipeline_stages_tenant	CREATE INDEX idx_crm_pipeline_stages_tenant ON public.crm_pipeline_stages USING btree (tenant_id, sort_order)
 cross_module_links	cross_module_links_pkey	CREATE UNIQUE INDEX cross_module_links_pkey ON public.cross_module_links USING btree (id)
@@ -114,8 +115,10 @@ custom_field_definitions	idx_custom_field_definitions_is_active	CREATE INDEX idx
 custom_field_definitions	uq_custom_field_definitions_key	CREATE UNIQUE INDEX uq_custom_field_definitions_key ON public.custom_field_definitions USING btree (tenant_id, entity_type, business_area_id, field_key) NULLS NOT DISTINCT
 custom_field_definitions	uq_custom_field_definitions_tenant_id_id_entity_type	CREATE UNIQUE INDEX uq_custom_field_definitions_tenant_id_id_entity_type ON public.custom_field_definitions USING btree (tenant_id, id, entity_type)
 custom_field_values	custom_field_values_pkey	CREATE UNIQUE INDEX custom_field_values_pkey ON public.custom_field_values USING btree (id)
-custom_field_values	custom_field_values_unique	CREATE UNIQUE INDEX custom_field_values_unique ON public.custom_field_values USING btree (tenant_id, field_definition_id, project_id, task_id, customer_contact_id, ticket_id) NULLS NOT DISTINCT
+custom_field_values	custom_field_values_unique	CREATE UNIQUE INDEX custom_field_values_unique ON public.custom_field_values USING btree (tenant_id, field_definition_id, project_id, task_id, customer_contact_id, ticket_id, company_id, deal_id) NULLS NOT DISTINCT
+custom_field_values	idx_custom_field_values_company	CREATE INDEX idx_custom_field_values_company ON public.custom_field_values USING btree (tenant_id, company_id) WHERE (company_id IS NOT NULL)
 custom_field_values	idx_custom_field_values_customer_contact	CREATE INDEX idx_custom_field_values_customer_contact ON public.custom_field_values USING btree (tenant_id, customer_contact_id) WHERE (customer_contact_id IS NOT NULL)
+custom_field_values	idx_custom_field_values_deal	CREATE INDEX idx_custom_field_values_deal ON public.custom_field_values USING btree (tenant_id, deal_id) WHERE (deal_id IS NOT NULL)
 custom_field_values	idx_custom_field_values_definition	CREATE INDEX idx_custom_field_values_definition ON public.custom_field_values USING btree (tenant_id, field_definition_id)
 custom_field_values	idx_custom_field_values_project	CREATE INDEX idx_custom_field_values_project ON public.custom_field_values USING btree (tenant_id, project_id) WHERE (project_id IS NOT NULL)
 custom_field_values	idx_custom_field_values_task	CREATE INDEX idx_custom_field_values_task ON public.custom_field_values USING btree (tenant_id, task_id) WHERE (task_id IS NOT NULL)
@@ -129,6 +132,7 @@ customers	idx_customers_created	CREATE INDEX idx_customers_created ON public.cus
 customers	idx_customers_is_active	CREATE INDEX idx_customers_is_active ON public.customers USING btree (tenant_id, is_active)
 customers	idx_customers_number	CREATE UNIQUE INDEX idx_customers_number ON public.customers USING btree (tenant_id, customer_number)
 customers	idx_customers_tax_rate_id	CREATE INDEX idx_customers_tax_rate_id ON public.customers USING btree (tenant_id, tax_rate_id)
+customers	uq_customers_tenant_id_id	CREATE UNIQUE INDEX uq_customers_tenant_id_id ON public.customers USING btree (tenant_id, id)
 document_folder_shares	document_folder_shares_pkey	CREATE UNIQUE INDEX document_folder_shares_pkey ON public.document_folder_shares USING btree (id)
 document_folder_shares	document_folder_shares_unique_share	CREATE UNIQUE INDEX document_folder_shares_unique_share ON public.document_folder_shares USING btree (tenant_id, folder_id, shared_with_employee_id, shared_with_role)
 document_folder_shares	idx_document_folder_shares_employee	CREATE INDEX idx_document_folder_shares_employee ON public.document_folder_shares USING btree (tenant_id, shared_with_employee_id) WHERE (shared_with_employee_id IS NOT NULL)

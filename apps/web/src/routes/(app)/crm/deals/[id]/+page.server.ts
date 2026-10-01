@@ -9,6 +9,14 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
+import { CustomFieldWriteRefused } from "$lib/server/custom-fields/custom-fields.repo"
+import {
+  customFieldProblem,
+  readCustomFieldValues,
+} from "$lib/server/custom-fields/read-values"
+
+const SCOPE = { entityType: "deal" } as const
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -17,9 +25,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     const deal = await deals.getById(tx, params.id)
     if (!deal) error(404, "Deal not found")
+    const fieldValues = await customFields.valuesFor(tx, "deal", [params.id])
 
     return {
       deal,
+      fieldDefs: await customFields.definitionsFor(tx, SCOPE),
+      fieldValues: fieldValues[params.id] ?? [],
       stages: await pipelineStages.list(tx),
       contacts: await contacts.listForCustomer(tx, deal.customer_id),
       owners: await managerOptions(tx),
@@ -32,13 +43,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 export const actions: Actions = {
   save: async ({ request, params, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
-    requireCan(contextFrom(locals), "crm.write")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "crm.write")
 
     return withTenant(actorFrom(locals), async (tx) => {
       const current = await deals.getById(tx, params.id)
       if (!current) error(404, "Deal not found")
 
-      const f = new FormReader(await request.formData())
+      const data = await request.formData()
+      const f = new FormReader(data)
       const input = {
         customer_id: current.customer_id,
         customer_contact_id: f.uuid("customer_contact_id"),
@@ -53,12 +66,27 @@ export const actions: Actions = {
         expected_close_date: f.date("expected_close_date"),
         owner_id: f.uuid("owner_id", { required: true }),
       }
-      if (!f.ok) return fail(400, f.problem("Some fields need attention."))
+      const fieldDefs = await customFields.definitionsFor(tx, SCOPE)
+      const fieldValues = readCustomFieldValues(f, data, fieldDefs)
+      if (!f.ok) return fail(400, customFieldProblem(f, fieldDefs))
 
       try {
         await deals.update(tx, params.id, input)
+        await customFields.saveValues(
+          tx,
+          locals.tenantId!,
+          SCOPE,
+          params.id,
+          fieldValues,
+          ctx!.employeeId ?? ctx!.userId,
+        )
         return { saved: true }
       } catch (e) {
+        if (e instanceof CustomFieldWriteRefused) {
+          return fail(400, {
+            message: "Those fields could not be saved. Reload and try again.",
+          })
+        }
         const refused = constraintFailure(e)
         if (refused) return refused
         throw e

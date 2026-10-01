@@ -4,6 +4,8 @@
   import SectionCard from "$lib/components/SectionCard.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
+  import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
+  import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { dealStageTone } from "$lib/components/status-tone"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
@@ -13,6 +15,10 @@
 
   const err = $derived(fieldErrors(form))
   const d = $derived(data.deal)
+  const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
+  const dealCurrency = $derived(
+    d.currency ?? data.tenant?.default_currency ?? "USD",
+  )
 
   let editing = $state(false)
 
@@ -111,6 +117,17 @@
           <dd>{d.owner_name}</dd>
         </div>
       </dl>
+      {#if data.fieldDefs.length > 0}
+        <div class="border-base-200 mt-3 border-t pt-3">
+          <CustomFieldValues
+            stacked
+            definitions={data.fieldDefs}
+            values={data.fieldValues}
+            locale={tenantLocale}
+            currency={dealCurrency}
+          />
+        </div>
+      {/if}
     </SectionCard>
 
     <SectionCard title="Activity" class="lg:col-span-2">
@@ -275,6 +292,12 @@
             </select>
           </fieldset>
         {/if}
+        <CustomFieldFormFields
+          definitions={data.fieldDefs}
+          values={data.fieldValues}
+          currency={dealCurrency}
+          errorFields={form?.errorFields ?? []}
+        />
         <ModalActions onCancel={() => (editing = false)} />
       </form>
     </div>

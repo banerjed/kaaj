@@ -508,6 +508,76 @@ describe("custom field values", () => {
     )
   })
 
+  it("saves and lists company and deal fields under their categories", async () => {
+    const ACME = "e40d0f18-1333-5cd1-a969-f5113df51e70"
+    const ACME_RENEWAL = "22222222-dea1-4000-8000-000000000002"
+    const COMPANY: FieldScope = { entityType: "company" }
+    const DEAL: FieldScope = { entityType: "deal" }
+    const { companyCategories, dealCategories, changes, seats } =
+      await inRollback(async (tx) => {
+        const companyDefs = await customFields.definitionsFor(tx, COMPANY)
+        const dealDefs = await customFields.definitionsFor(tx, DEAL)
+        const tier = companyDefs.find((d) => d.field_key === "account_tier")!
+        const seatsDef = dealDefs.find((d) => d.field_key === "seats")!
+        const changes = await customFields.saveValues(
+          tx,
+          NORTHWIND,
+          COMPANY,
+          ACME,
+          [{ definitionId: tier.id, value: "growth" }],
+          ACTOR,
+        )
+        await customFields.saveValues(
+          tx,
+          NORTHWIND,
+          DEAL,
+          ACME_RENEWAL,
+          [{ definitionId: seatsDef.id, value: "300" }],
+          ACTOR,
+        )
+        const seats = (
+          await customFields.valuesFor(tx, "deal", [ACME_RENEWAL])
+        )[ACME_RENEWAL].find(
+          (v) => v.field_definition_id === seatsDef.id,
+        )?.value_number
+        return {
+          companyCategories: [...new Set(companyDefs.map((d) => d.category))],
+          dealCategories: [...new Set(dealDefs.map((d) => d.category))],
+          changes,
+          seats,
+        }
+      })
+    expect(companyCategories).toEqual(["Account", "Compliance"])
+    // Created in one statement, so they tie on first use and sort by name.
+    expect(dealCategories).toEqual(["Competition", "Qualification"])
+    expect(changes).toEqual({
+      account_tier: { from: "strategic", to: "growth" },
+    })
+    expect(seats).toBe("300.0000")
+  })
+
+  it("refuses a company field posted against a deal", async () => {
+    await expect(
+      inRollback(async (tx) => {
+        const [tier] = await customFields.definitionsFor(tx, {
+          entityType: "company",
+        })
+        return customFields.saveValues(
+          tx,
+          NORTHWIND,
+          { entityType: "deal" },
+          "22222222-dea1-4000-8000-000000000002",
+          [{ definitionId: tier.id, value: "growth" }],
+          ACTOR,
+        )
+      }),
+    ).rejects.toSatisfy(
+      (e) =>
+        e instanceof CustomFieldWriteRefused &&
+        e.reason === "no_such_definition",
+    )
+  })
+
   it("reads a set of records in one call, grouped by record", async () => {
     const values = await inRollback((tx) =>
       customFields.valuesFor(tx, "task", [T1, T2]),

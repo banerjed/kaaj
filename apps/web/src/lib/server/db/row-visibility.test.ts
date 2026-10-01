@@ -505,7 +505,9 @@ describe("a child row is visible exactly when its parent is", () => {
         const [r] = await tx<{ all: number; restricted: number }[]>`
           SELECT count(*)::int AS all,
                  (count(*) FILTER (WHERE project_id = ${PRJ_004_RESTRICTED}::uuid))::int AS restricted
-            FROM custom_field_values WHERE ticket_id IS NULL
+            FROM custom_field_values
+           WHERE project_id IS NOT NULL OR task_id IS NOT NULL
+              OR customer_contact_id IS NOT NULL
         `
         return r
       })
@@ -871,6 +873,8 @@ describe("customer portal identity", () => {
           activities: number
           stages: number
           contactValues: number
+          companyValues: number
+          dealValues: number
         }[]
       >`
         SELECT (SELECT count(*)::int FROM customers) AS customers,
@@ -878,7 +882,11 @@ describe("customer portal identity", () => {
                (SELECT count(*)::int FROM crm_activities) AS activities,
                (SELECT count(*)::int FROM crm_pipeline_stages) AS stages,
                (SELECT count(*)::int FROM custom_field_values
-                 WHERE customer_contact_id IS NOT NULL) AS "contactValues"
+                 WHERE customer_contact_id IS NOT NULL) AS "contactValues",
+               (SELECT count(*)::int FROM custom_field_values
+                 WHERE company_id IS NOT NULL) AS "companyValues",
+               (SELECT count(*)::int FROM custom_field_values
+                 WHERE deal_id IS NOT NULL) AS "dealValues"
       `
       return r
     })
@@ -896,6 +904,8 @@ describe("customer portal identity", () => {
       activities: 0,
       stages: 0,
       contactValues: 0,
+      companyValues: 0,
+      dealValues: 0,
     })
   })
 
@@ -906,6 +916,8 @@ describe("customer portal identity", () => {
       activities: 4,
       stages: 6,
       contactValues: 1,
+      companyValues: 5,
+      dealValues: 5,
     })
   })
 

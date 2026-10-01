@@ -4,23 +4,35 @@
   import CustomFieldSettings from "$lib/components/CustomFieldSettings.svelte"
 
   let { data, form } = $props()
+
+  const TABS = [
+    { key: "company", label: "Companies", title: "Company fields" },
+    { key: "customer_contact", label: "Contacts", title: "Contact fields" },
+    { key: "deal", label: "Pipeline", title: "Deal fields" },
+  ] as const
+  let tab = $state<(typeof TABS)[number]["key"]>("company")
+
+  const fieldsOf = $derived({
+    company: data.companyFields,
+    customer_contact: data.contactFields,
+    deal: data.dealFields,
+  })
 </script>
 
-<PageHead title="Contact Fields" />
+<PageHead title="CRM Fields" />
 
 <div class="p-4 lg:p-6">
   <PageTitle
-    title="Contact Fields"
+    title="CRM Fields"
     items={[
       { label: "Settings", path: "/settings/company" },
-      { label: "Contact Fields", active: true },
+      { label: "CRM Fields", active: true },
     ]}
   />
   <p class="text-base-content/70 mt-1 text-sm">
-    Custom fields you can add to a contact — alternate phone numbers, an
-    alternate email, personal or family details, or anything else specific to
-    how your business tracks the people you deal with. Group them under
-    categories you name.
+    The details your team tracks on each company, contact and deal, grouped
+    under categories you name. Every company shows the company fields, every
+    contact the contact fields, and every deal the pipeline fields.
   </p>
 
   {#if form?.fieldAdded || form?.fieldArchived || form?.categoryRenamed}
@@ -41,10 +53,29 @@
     </div>
   {/if}
 
-  <CustomFieldSettings
-    id="contact-fields"
-    title="Contact fields"
-    fields={data.contactFields}
-    {form}
-  />
+  <div role="tablist" class="tabs tabs-border mt-4">
+    {#each TABS as t (t.key)}
+      <button
+        role="tab"
+        class={`tab ${tab === t.key ? "tab-active" : ""}`}
+        aria-selected={tab === t.key}
+        onclick={() => (tab = t.key)}
+      >
+        {t.label}
+        <span class="badge badge-sm ms-2">{fieldsOf[t.key].length}</span>
+      </button>
+    {/each}
+  </div>
+
+  {#each TABS as t (t.key)}
+    <div role="tabpanel" hidden={tab !== t.key}>
+      <CustomFieldSettings
+        id={`${t.key}-fields`}
+        title={t.title}
+        fields={fieldsOf[t.key]}
+        {form}
+        hidden={{ entity_type: t.key }}
+      />
+    </div>
+  {/each}
 </div>

@@ -411,12 +411,16 @@ custom_field_values	15	project_id	uuid	f
 custom_field_values	16	task_id	uuid	f	
 custom_field_values	17	customer_contact_id	uuid	f	
 custom_field_values	18	ticket_id	uuid	f	
-custom_field_values	19	entity_type	text	f	
+custom_field_values	20	company_id	uuid	f	
+custom_field_values	21	deal_id	uuid	f	
+custom_field_values	22	entity_type	text	f	
 CASE
     WHEN (project_id IS NOT NULL) THEN 'project'::text
     WHEN (task_id IS NOT NULL) THEN 'task'::text
     WHEN (customer_contact_id IS NOT NULL) THEN 'customer_contact'::text
     WHEN (ticket_id IS NOT NULL) THEN 'ticket'::text
+    WHEN (company_id IS NOT NULL) THEN 'company'::text
+    WHEN (deal_id IS NOT NULL) THEN 'deal'::text
     ELSE NULL::text
 END
 customer_contacts	1	id	uuid	t	gen_random_uuid()

@@ -393,7 +393,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
       },
       {
         id: "settings-crm",
-        label: "Contact Fields",
+        label: "CRM Fields",
         url: "/settings/crm",
       },
       {
