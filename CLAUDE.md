@@ -74,7 +74,7 @@ directory in the repo.
 | dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
 | security | authorization, PII and tenant isolation, both suites | 558 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,399 tests |
-| front-page load | signs in for real, loads `/employees`, fails over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
+| front-page load | signs in for real, loads `/employees` 5×, fails if the MEDIAN is over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
@@ -750,7 +750,14 @@ already-served instance — it reads the `server-timing` response header
 DevTools network panel shows.
 
 **The initial app load — signed in, `/employees` fully loaded — targets under
-50ms, and `./check` fails the build over it.** A bigger number than the 20ms
+50ms, and `./check` fails the build over it.** It is the MEDIAN of five
+samples, after a discarded warm-up load: a single latency sample is not a
+measurement. Isolated this page loads in 21.8-25.4ms; with the machine busy —
+which is exactly where this step runs, straight after `build` and the unit
+suites — the same page measures 25.9-46.0ms and the occasional sample lands
+over budget. A real regression moves every sample, so the median still fails
+on one; what it removes is the scheduler hiccup that was failing roughly one
+run in four. If it fails, the error prints all five. A bigger number than the 20ms
 server target on purpose: it's Navigation Timing's `load` event, covering
 network transfer, CSS, JS and hydration, not just server work — the server
 alone was ~3ms even when the *page* took over 100ms, because a render-blocking

@@ -22,6 +22,16 @@ const APP_DIR = new URL("..", import.meta.url).pathname
 const PORT = 5177 // distinct from e2e's 5175 and a developer's own `pnpm dev`
 const BASE_URL = `http://localhost:${PORT}`
 const THRESHOLD_MS = Number(process.env.FRONT_PAGE_THRESHOLD_MS ?? 50)
+/**
+ * A single latency sample is not a measurement. Isolated, this page loads in
+ * 21.8-25.4ms; with the machine busy — which is exactly where this step runs,
+ * straight after `build` and the unit suites — the same page measures
+ * 25.9-46.0ms, and an occasional sample lands over the budget. The MEDIAN of
+ * several is robust to one scheduler hiccup and still fails on a real
+ * regression, because anything that actually slows the page moves every
+ * sample.
+ */
+const SAMPLES = Number(process.env.FRONT_PAGE_SAMPLES ?? 5)
 const EMAIL = process.env.E2E_EMAIL ?? "sarah.johnson@northwind.example"
 const PASSWORD = process.env.E2E_PASSWORD ?? "devpassword"
 
@@ -72,35 +82,60 @@ try {
   await waitForServer(`${BASE_URL}/login/sign_in`)
 
   const browser = await chromium.launch()
-  const page = await (await browser.newContext()).newPage()
 
-  await page.goto(`${BASE_URL}/login/sign_in`)
-  await page.locator('input[name="email"]').waitFor({ timeout: 15_000 })
-  await page.locator('input[name="email"]').fill(EMAIL)
-  await page.locator('input[name="password"]').fill(PASSWORD)
-  await page.getByRole("button", { name: "Sign in", exact: true }).click()
-  await page.waitForURL("**/employees", { timeout: 30_000 })
-  await page
-    .getByRole("heading", { name: "Employees" })
-    .first()
-    .waitFor({ state: "visible" })
-  await page.waitForLoadState("load")
+  /**
+   * One sign-in and page load, in a fresh context so nothing is cached
+   * between samples. Returns Navigation Timing's `loadEventEnd`.
+   */
+  async function sampleOnce() {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    try {
+      await page.goto(`${BASE_URL}/login/sign_in`)
+      await page.locator('input[name="email"]').waitFor({ timeout: 15_000 })
+      await page.locator('input[name="email"]').fill(EMAIL)
+      await page.locator('input[name="password"]').fill(PASSWORD)
+      await page.getByRole("button", { name: "Sign in", exact: true }).click()
+      await page.waitForURL("**/employees", { timeout: 30_000 })
+      await page
+        .getByRole("heading", { name: "Employees" })
+        .first()
+        .waitFor({ state: "visible" })
+      await page.waitForLoadState("load")
+      return await page.evaluate(
+        () => performance.getEntriesByType("navigation")[0].loadEventEnd,
+      )
+    } finally {
+      await context.close()
+    }
+  }
 
-  const loadMs = await page.evaluate(
-    () => performance.getEntriesByType("navigation")[0].loadEventEnd,
-  )
+  // The first load of a just-started `vite preview` pays one-time server
+  // warm-up (module graph, the postgres.js pool, the Supabase client) that no
+  // user ever pays on a running server. Measured at ~2-3ms; discarded.
+  await sampleOnce()
+
+  const samples = []
+  for (let i = 0; i < SAMPLES; i++) samples.push(await sampleOnce())
+  const sorted = [...samples].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const fmt = (n) => n.toFixed(1)
 
   await browser.close()
 
   console.log(
-    `  /employees full load: ${loadMs.toFixed(1)}ms (threshold ${THRESHOLD_MS}ms)`,
+    `  /employees full load: median ${fmt(median)}ms ` +
+      `(min ${fmt(sorted[0])}, max ${fmt(sorted[sorted.length - 1])}, ` +
+      `n=${SAMPLES}, threshold ${THRESHOLD_MS}ms)`,
   )
-  if (loadMs > THRESHOLD_MS) {
+  if (median > THRESHOLD_MS) {
     console.error(
-      `\n  Front-page load exceeded ${THRESHOLD_MS}ms: ${loadMs.toFixed(1)}ms.` +
-        `\n  See CLAUDE.md's Performance section — check for a new` +
+      `\n  Front-page load exceeded ${THRESHOLD_MS}ms: median ${fmt(median)}ms` +
+        `\n  across ${SAMPLES} samples — ${samples.map(fmt).join(", ")}.` +
+        `\n  A real regression moves every sample, so this is not scheduler` +
+        `\n  noise. See CLAUDE.md's Performance section — check for a new` +
         `\n  render-blocking request (an external font/script/stylesheet) or a` +
-        `\n  bundle size regression before assuming this is noise.\n`,
+        `\n  bundle size regression.\n`,
     )
     exitCode = 1
   }
