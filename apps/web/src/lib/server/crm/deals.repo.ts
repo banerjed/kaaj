@@ -51,16 +51,17 @@ export async function list(tx: Tx): Promise<Deal[]> {
  * each stage — never a query per stage, which is the N+1 shape
  * `verify-no-loop-queries.mjs` exists to catch on a `SCALE_SENSITIVE` table.
  *
- * `expand` raises the limit for ONE column, so "show more" costs the same
- * single query.
+ * `pageStageId` pages ONE column — its `stagePage`-th group of `perStage`
+ * cards — so moving through a column costs the same single query, and the
+ * board never holds more than `perStage` cards per column.
  */
 export async function listForBoard(
   tx: Tx,
   {
     perStage,
-    expandStageId = null,
-    expandLimit = perStage,
-  }: { perStage: number; expandStageId?: string | null; expandLimit?: number },
+    pageStageId = null,
+    stagePage = 1,
+  }: { perStage: number; pageStageId?: string | null; stagePage?: number },
 ): Promise<Deal[]> {
   // The CTE ranks over the base table alone — no joins, and no extra column
   // on the rows that reach the page, so `Deal` stays exactly what comes back.
@@ -77,10 +78,16 @@ export async function listForBoard(
     ${tx.unsafe(SELECT)}
      WHERE d.id IN (
              SELECT id FROM ranked
-              WHERE rn <= CASE
-                            WHEN ${expandStageId}::uuid IS NOT NULL
-                             AND stage_id = ${expandStageId}::uuid
-                            THEN ${expandLimit}::int
+              WHERE rn > CASE
+                           WHEN ${pageStageId}::uuid IS NOT NULL
+                            AND stage_id = ${pageStageId}::uuid
+                           THEN (${stagePage}::int - 1) * ${perStage}::int
+                           ELSE 0
+                         END
+                AND rn <= CASE
+                            WHEN ${pageStageId}::uuid IS NOT NULL
+                             AND stage_id = ${pageStageId}::uuid
+                            THEN ${stagePage}::int * ${perStage}::int
                             ELSE ${perStage}::int
                           END
            )

@@ -25,6 +25,7 @@ import { homedir, loadavg } from "node:os"
 import { join } from "node:path"
 import postgres from "postgres"
 import { chromium } from "@playwright/test"
+import { unflatten } from "devalue"
 import { pagePaths, rank, signIn, timePages } from "../../../apps/web/scripts/page-timing.mjs"
 import { perfKek } from "./kek.mjs"
 
@@ -238,7 +239,11 @@ function report({ actors, results, queries, byActor, unresolved, extraPaths, loa
   return lines.join("\n")
 }
 
-export async function measure({ perfUrl, tenantId, repeats, only, top }) {
+/**
+ * Registers the tenant, serves the build, and hands `fn` everything a sweep
+ * needs; always unregisters and stops the server afterwards.
+ */
+async function session({ perfUrl, tenantId, only }, fn) {
   const perf = postgres(perfUrl, { types: {}, onnotice: () => {}, max: 1 })
   const shared = postgres(SHARED_URL, { types: {}, onnotice: () => {}, max: 1 })
   const appUserPerfUrl = perfUrl.replace(/\/\/[^@]+@/, "//app_user:app_user@")
@@ -288,50 +293,12 @@ export async function measure({ perfUrl, tenantId, repeats, only, top }) {
     })
     await waitForServer(`${BASE_URL}/login/sign_in`)
 
-    const load = { start: loadavg()[0], end: null }
-    const started = Date.now()
     const browser = await chromium.launch()
-    const results = {}
-    const byActor = {}
     try {
-      for (const a of actors) {
-        const context = await browser.newContext()
-        try {
-          const page = await context.newPage()
-          const cdp = await context.newCDPSession(page)
-          await cdp.send("Network.setCacheDisabled", { cacheDisabled: true })
-          await perf`SELECT pg_stat_statements_reset()`
-          await signIn(page, BASE_URL, a.email, PASSWORD)
-          const t = Date.now()
-          results[a.actor] = rank(await timePages(page, BASE_URL, paths, repeats))
-          byActor[a.actor] = await statements(perf)
-          // Routing that silently fell back to the shared database, where this
-          // tenant has no rows, would time fast empty pages and look like a win.
-          if (!byActor[a.actor].length)
-            throw new Error(
-              `no app_user statements reached the perf cluster as ${a.actor} (signed in at ${page.url()}) — ` +
-                `the app is not routed to it; see ${join(OUT_DIR, "preview.log")}`,
-            )
-          console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages × ${repeats} in ${((Date.now() - t) / 1000).toFixed(0)}s`)
-        } catch (e) {
-          if (e.message.startsWith("no app_user statements")) throw e
-          console.error(`  ${a.actor}: ${e.message.split("\n")[0]} — skipped`)
-        } finally {
-          await context.close()
-        }
-      }
+      return await fn({ perf, actors, ids, as_of, paths, unresolved, extraPaths, browser })
     } finally {
       await browser.close()
     }
-    load.end = loadavg()[0]
-    const queries = rankQueries(byActor, top)
-
-    const text = report({ actors, results, queries, byActor, unresolved, extraPaths, load })
-    console.log(`\n${text}`)
-
-    const file = join(OUT_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`)
-    writeFileSync(file, JSON.stringify({ as_of, repeats, load, ids, actors, results, byActor, unresolved }, null, 2))
-    console.log(`\n  ${((Date.now() - started) / 1000).toFixed(0)}s; raw results in ${file}`)
   } finally {
     if (server) {
       try {
@@ -344,4 +311,110 @@ export async function measure({ perfUrl, tenantId, repeats, only, top }) {
     await perf.end()
     await shared.end()
   }
+}
+
+/** Signed in as `actor`, with the browser cache off; closes the context after. */
+async function asActor(browser, actor, fn) {
+  const context = await browser.newContext()
+  try {
+    const page = await context.newPage()
+    const cdp = await context.newCDPSession(page)
+    await cdp.send("Network.setCacheDisabled", { cacheDisabled: true })
+    await signIn(page, BASE_URL, actor.email, PASSWORD)
+    return await fn(page)
+  } finally {
+    await context.close()
+  }
+}
+
+export async function measure({ perfUrl, tenantId, repeats, only, top }) {
+  return session({ perfUrl, tenantId, only }, async ({ perf, actors, ids, as_of, paths, unresolved, extraPaths, browser }) => {
+    const load = { start: loadavg()[0], end: null }
+    const started = Date.now()
+    const results = {}
+    const byActor = {}
+    for (const a of actors) {
+      try {
+        await perf`SELECT pg_stat_statements_reset()`
+        await asActor(browser, a, async (page) => {
+          const t = Date.now()
+          results[a.actor] = rank(await timePages(page, BASE_URL, paths, repeats))
+          byActor[a.actor] = await statements(perf)
+          // Routing that silently fell back to the shared database, where this
+          // tenant has no rows, would time fast empty pages and look like a win.
+          if (!byActor[a.actor].length)
+            throw new Error(
+              `no app_user statements reached the perf cluster as ${a.actor} (signed in at ${page.url()}) — ` +
+                `the app is not routed to it; see ${join(OUT_DIR, "preview.log")}`,
+            )
+          console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages × ${repeats} in ${((Date.now() - t) / 1000).toFixed(0)}s`)
+        })
+      } catch (e) {
+        if (e.message.startsWith("no app_user statements")) throw e
+        console.error(`  ${a.actor}: ${e.message.split("\n")[0]} — skipped`)
+      }
+    }
+    load.end = loadavg()[0]
+    const queries = rankQueries(byActor, top)
+
+    const text = report({ actors, results, queries, byActor, unresolved, extraPaths, load })
+    console.log(`\n${text}`)
+
+    const file = join(OUT_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`)
+    writeFileSync(file, JSON.stringify({ as_of, repeats, load, ids, actors, results, byActor, unresolved }, null, 2))
+    console.log(`\n  ${((Date.now() - started) / 1000).toFixed(0)}s; raw results in ${file}`)
+  })
+}
+
+/** Every array in a page's load data longer than `max`, by its key path. */
+function longArrays(value, max, path = "", out = []) {
+  if (Array.isArray(value)) {
+    if (value.length > max) out.push({ path: path || "(root)", length: value.length })
+    value.forEach((v) => longArrays(v, max, `${path}[]`, out))
+  } else if (value && typeof value === "object" && !(value instanceof Date)) {
+    for (const [k, v] of Object.entries(value)) longArrays(v, max, path ? `${path}.${k}` : k, out)
+  }
+  return out
+}
+
+/**
+ * `pnpm db:perf rows` — no page sends the browser more than `max` rows of
+ * anything, for any actor: CLAUDE.md's paging rule, checked at the size of a
+ * real tenant. Reads each page's load data (`__data.json`), not the DOM, so a
+ * picker inside a closed modal counts as much as a table on screen.
+ */
+export async function rows({ perfUrl, tenantId, only, max }) {
+  return session({ perfUrl, tenantId, only }, async ({ actors, paths, browser }) => {
+    const found = new Map() // "path  key" -> { actors, length }
+    for (const a of actors) {
+      await asActor(browser, a, async (page) => {
+        for (const path of paths) {
+          const [pathname, query] = path.split("?")
+          const url = `${BASE_URL}${pathname === "/" ? "" : pathname}/__data.json${query ? `?${query}` : ""}`
+          const res = await page.request.get(url)
+          if (!res.ok()) continue
+          const body = await res.json()
+          for (const node of body.nodes ?? []) {
+            if (node?.type !== "data") continue
+            for (const hit of longArrays(unflatten(node.data), max)) {
+              const key = `${path}  ${hit.path}`
+              const f = found.get(key) ?? { actors: new Set(), length: 0 }
+              f.actors.add(a.actor)
+              f.length = Math.max(f.length, hit.length)
+              found.set(key, f)
+            }
+          }
+        }
+      })
+      console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages checked`)
+    }
+    if (!found.size) {
+      console.log(`\n  no page sends more than ${max} rows of anything, for any actor`)
+      return
+    }
+    console.log(`\n  ${found.size} list(s) over ${max} rows:\n`)
+    for (const [key, f] of [...found].sort((x, y) => y[1].length - x[1].length))
+      console.log(`  ${String(f.length).padStart(6)}  ${key}  (${[...f.actors].join(", ")})`)
+    process.exitCode = 1
+  })
 }

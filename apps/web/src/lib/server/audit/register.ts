@@ -672,6 +672,21 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the company-filter autocomplete picker.",
   },
   {
+    route: "crm/companies",
+    action: "searchPeople",
+    why: "A read, not a write — backs the account-manager picker.",
+  },
+  {
+    route: "crm/pipeline",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the new-deal client picker.",
+  },
+  {
+    route: "crm/pipeline",
+    action: "searchPeople",
+    why: "A read, not a write — backs the new-deal owner picker.",
+  },
+  {
     route: "ticketing/[id]",
     action: "setCustomFields",
     why: "Ticket attributes (asset tag, account tier, ...) — the same category as severity/priority, which already change with no audit entry via addUpdate's status-change path.",

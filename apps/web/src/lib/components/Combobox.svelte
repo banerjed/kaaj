@@ -3,6 +3,8 @@
     id: string
     label: string
     sublabel?: string
+    /** What the page needs back about a pick (a customer's currency) — never rendered. */
+    meta?: Record<string, string>
   }
 </script>
 
@@ -33,6 +35,7 @@
     disabled = false,
     max,
     form,
+    onchange,
   }: {
     name: string
     multiple?: boolean
@@ -47,6 +50,8 @@
     max?: number
     /** Associates the hidden inputs with a `<form>` elsewhere in the DOM — for a picker that lives outside the form it submits with (native `form` attribute, same mechanism as `<button form="...">`). */
     form?: string
+    /** Called with the whole selection after each pick, removal or clear. */
+    onchange?: (selected: ComboboxOption[]) => void
   } = $props()
 
   // Seeded once from the prop, then a locally-owned list — same shape as
@@ -116,6 +121,12 @@
   function onInput() {
     open = true
     activeIndex = -1
+    // Emptying a single-select's text is how an optional field is cleared;
+    // otherwise the hidden input would still post the old pick.
+    if (!multiple && query === "" && selectedItems.length) {
+      selectedItems = []
+      onchange?.(selectedItems)
+    }
     if (debounceTimer) clearTimeout(debounceTimer)
     if (options) {
       runSearch(query)
@@ -142,11 +153,13 @@
     results = results.filter((r) => r.id !== opt.id)
     activeIndex = -1
     inputEl?.focus()
+    onchange?.(selectedItems)
   }
 
   function remove(id: string) {
     selectedItems = selectedItems.filter((s) => s.id !== id)
     if (!multiple) query = ""
+    onchange?.(selectedItems)
   }
 
   function onKeydown(e: KeyboardEvent) {

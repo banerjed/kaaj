@@ -4,6 +4,9 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { relationshipStatusTone } from "$lib/components/status-tone"
@@ -20,7 +23,17 @@
   let creating = $state(false)
   let kind = $state<"person" | "business">("person")
 
-  const secondaryLine = (c: (typeof data.companies)[number]): string | null =>
+  const searchPeople = actionSearch("searchPeople")
+
+  function pageHref(n: number): string {
+    const params = new URLSearchParams()
+    if (data.selectedStatus) params.set("status", data.selectedStatus)
+    if (n > 1) params.set("page", String(n))
+    const qs = params.toString()
+    return qs ? `?${qs}` : "?"
+  }
+
+  const secondaryLine =(c: (typeof data.companies)[number]): string | null =>
     c.customer_type === "individual" ? (c.email ?? c.phone) : c.website
 
   const rowActions = (c: (typeof data.companies)[number]): RowAction[] => [
@@ -80,8 +93,8 @@
         {/each}
       </select>
       <span class="text-base-content/70 text-sm">
-        {data.companies.length}
-        {data.companies.length === 1 ? "client" : "clients"}
+        {data.total}
+        {data.total === 1 ? "client" : "clients"}
       </span>
     </form>
 
@@ -150,6 +163,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageHref}
+      />
     </div>
   {/if}
 </div>
@@ -301,12 +320,12 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Account manager</legend>
-            <select name="account_manager_id" class="select w-full">
-              <option value="">Unassigned</option>
-              {#each data.accountManagers as m (m.id)}
-                <option value={m.id}>{m.name}</option>
-              {/each}
-            </select>
+            <Combobox
+              name="account_manager_id"
+              search={searchPeople}
+              placeholder="Unassigned"
+              emptyText="No matching person"
+            />
           </fieldset>
           {#if kind === "business"}
             <fieldset class="fieldset">

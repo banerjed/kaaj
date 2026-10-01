@@ -47,34 +47,47 @@ export type Customer = {
   created_at: string
 }
 
+/** One page of the client list; `total` counts every match. */
 export async function list(
   tx: Tx,
   {
     relationshipStatus,
     search = "",
     limit,
+    offset,
   }: {
     relationshipStatus?: RelationshipStatus
-    /** Name search — backs the contacts page's company-filter autocomplete, which can't enumerate a `<select>` at thousands of companies. */
     search?: string
-    limit?: number
-  } = {},
-): Promise<Customer[]> {
-  return tx<Customer[]>`
+    limit: number
+    offset: number
+  },
+): Promise<{ rows: Customer[]; total: number }> {
+  // The page first, so the per-client contact count runs for these rows only.
+  const rows = await tx<(Customer & { total: string })[]>`
+    WITH page AS (
+      SELECT c.*, count(*) OVER ()::text AS total
+        FROM customers c
+       WHERE (${relationshipStatus ?? null}::text IS NULL OR c.relationship_status = ${relationshipStatus ?? null})
+         AND (${search} = '' OR c.customer_name ILIKE ${"%" + search + "%"})
+       ORDER BY c.customer_name ASC, c.id
+       LIMIT ${limit} OFFSET ${offset}
+    )
     SELECT c.id, c.customer_name, c.customer_type, c.relationship_status,
            c.industry, c.company_size, c.website, c.phone, c.email, c.notes,
            c.currency, c.account_manager_id,
            m.first_name || ' ' || m.last_name AS account_manager_name,
            c.acquisition_source, c.acquisition_date, c.created_at,
            (SELECT count(*)::int FROM customer_contacts cc
-             WHERE cc.customer_id = c.id AND cc.is_active) AS contact_count
-      FROM customers c
+             WHERE cc.customer_id = c.id AND cc.is_active) AS contact_count,
+           c.total
+      FROM page c
       LEFT JOIN employees m ON m.id = c.account_manager_id
-     WHERE (${relationshipStatus ?? null}::text IS NULL OR c.relationship_status = ${relationshipStatus ?? null})
-       AND (${search} = '' OR c.customer_name ILIKE ${"%" + search + "%"})
-     ORDER BY c.customer_name ASC
-     ${limit === undefined ? tx`` : tx`LIMIT ${limit}`}
+     ORDER BY c.customer_name ASC, c.id
   `
+  return {
+    rows: rows.map(({ total: _total, ...row }) => row),
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+  }
 }
 
 export async function getById(tx: Tx, id: string): Promise<Customer | null> {

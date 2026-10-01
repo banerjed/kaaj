@@ -1,12 +1,14 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as customers from "$lib/server/customers/customers.repo"
-import { managerOptions } from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import type { RelationshipStatus } from "$lib/server/customers/customers.repo"
+
+const PAGE_SIZE = 50
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -18,13 +20,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       ? status
       : undefined
 
-  return withTenant(actorFrom(locals), async (tx) => ({
-    companies: await customers.list(tx, { relationshipStatus }),
-    accountManagers: await managerOptions(tx),
-    relationshipStatuses: customers.RELATIONSHIP_STATUSES,
-    customerTypes: customers.CUSTOMER_TYPES,
-    selectedStatus: relationshipStatus ?? "",
-  }))
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+
+  return withTenant(actorFrom(locals), async (tx) => {
+    const { rows, total } = await customers.list(tx, {
+      relationshipStatus,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    })
+    return {
+      companies: rows,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
+      relationshipStatuses: customers.RELATIONSHIP_STATUSES,
+      customerTypes: customers.CUSTOMER_TYPES,
+      selectedStatus: relationshipStatus ?? "",
+    }
+  })
 }
 
 function readForm(f: FormReader) {
@@ -74,6 +87,16 @@ function readPerson(f: FormReader) {
 }
 
 export const actions: Actions = {
+  /** Backs the account-manager picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "crm.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
   save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "crm.write")

@@ -2,47 +2,68 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as deals from "$lib/server/crm/deals.repo"
 import * as pipelineStages from "$lib/server/crm/pipeline-stages.repo"
-import * as customers from "$lib/server/customers/customers.repo"
-import { managerOptions } from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchCustomers, searchEmployees } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
 /**
- * Cards per column before "show more". `crm_deals` is SCALE_SENSITIVE — one
- * row per potential sale, forever — so the board reads a page of each stage,
- * never the whole table. A card is heavier than a table row, hence the low
- * end of the 20-50 band.
+ * `crm_deals` is SCALE_SENSITIVE — one row per potential sale, forever — so
+ * the board reads a page of each stage, never the whole table. The whole
+ * board holds at most BOARD_CARDS cards, split evenly across however many
+ * stages the tenant configured, and at most MAX_PER_STAGE per column: a card
+ * is heavier than a table row.
  */
-const PER_STAGE = 20
+const BOARD_CARDS = 100
+const MAX_PER_STAGE = 20
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
 
-  // One column at a time, the same shape the company page's activity feed
-  // uses: the URL carries which stage is expanded and how far.
-  const expandStageId = url.searchParams.get("stage")
-  const expandPages = Math.max(1, Number(url.searchParams.get("pages")) || 1)
+  // One column paged at a time: the URL carries which stage, and which page.
+  const pageStageId = url.searchParams.get("stage")
+  const stagePage = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
-  return withTenant(actorFrom(locals), async (tx) => ({
-    deals: await deals.listForBoard(tx, {
-      perStage: PER_STAGE,
-      expandStageId,
-      expandLimit: expandPages * PER_STAGE,
-    }),
-    stageSummary: await deals.stageSummary(tx),
-    stages: await pipelineStages.list(tx),
-    companies: await customers.list(tx),
-    owners: await managerOptions(tx),
-    expandStageId,
-    expandPages,
-    perStage: PER_STAGE,
-  }))
+  return withTenant(actorFrom(locals), async (tx) => {
+    const stages = await pipelineStages.list(tx)
+    const perStage = Math.max(
+      1,
+      Math.min(MAX_PER_STAGE, Math.floor(BOARD_CARDS / Math.max(1, stages.length))),
+    )
+    return {
+      deals: await deals.listForBoard(tx, { perStage, pageStageId, stagePage }),
+      stageSummary: await deals.stageSummary(tx),
+      stages,
+      pageStageId,
+      stagePage,
+      perStage,
+    }
+  })
 }
 
 export const actions: Actions = {
+  /** Backs the new-deal client picker. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "crm.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchCustomers(tx, q),
+    }))
+  },
+
+  /** Backs the new-deal owner picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "crm.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
   /** The board's single write path — moving a card. */
   moveStage: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")

@@ -4,7 +4,8 @@ import * as contacts from "$lib/server/customers/customer-contacts.repo"
 import * as customers from "$lib/server/customers/customers.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { formString } from "$lib/server/forms"
+import { FormReader } from "$lib/server/forms"
+import { pickerQuery, searchCustomers } from "$lib/server/pickers"
 
 const PAGE_SIZE = 20
 
@@ -52,14 +53,9 @@ export const actions: Actions = {
   searchCompanies: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "crm.read")
-    const data = await request.formData()
-    const q = formString(data, "q")
-
-    return withTenant(actorFrom(locals), async (tx) => {
-      const rows = await customers.list(tx, { search: q, limit: 20 })
-      return {
-        results: rows.map((c) => ({ id: c.id, label: c.customer_name })),
-      }
-    })
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchCustomers(tx, q),
+    }))
   },
 }

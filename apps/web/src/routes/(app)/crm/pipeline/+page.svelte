@@ -9,6 +9,8 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { money } from "$lib/format"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -48,14 +50,21 @@
   const summaryOf = $derived(
     new Map(data.stageSummary.map((s) => [s.stage_id, s])),
   )
-  const loadedCount = (stageId: string) =>
-    dealsByStage.get(stageId)?.length ?? 0
   const totalCount = (stageId: string) =>
     summaryOf.get(stageId)?.deal_count ?? 0
+  const boardTotal = $derived(
+    data.stageSummary.reduce((n, s) => n + s.deal_count, 0),
+  )
 
-  /** `?stage=<id>&pages=<n>` — one column at a time, so the query stays one query. */
-  const showMoreHref = (stageId: string) =>
-    `?stage=${stageId}&pages=${(data.expandStageId === stageId ? data.expandPages : 1) + 1}`
+  /** Which page of its column a stage is showing. */
+  const pageOf = (stageId: string) =>
+    data.pageStageId === stageId ? data.stagePage : 1
+  /** `?stage=<id>&page=<n>` — one column paged at a time, so the query stays one query. */
+  const columnHref = (stageId: string, page: number) =>
+    page <= 1 ? "?" : `?stage=${stageId}&page=${page}`
+
+  const searchCustomers = actionSearch("searchCustomers")
+  const searchPeople = actionSearch("searchPeople")
 </script>
 
 <PageHead title="Pipeline" />
@@ -78,8 +87,8 @@
 
   <div class="mt-4 flex items-center justify-between gap-3">
     <p class="text-base-content/70 text-sm">
-      {data.deals.length}
-      {data.deals.length === 1 ? "deal" : "deals"}
+      {boardTotal}
+      {boardTotal === 1 ? "deal" : "deals"}
     </p>
     <button
       class="btn btn-primary btn-sm gap-2"
@@ -158,10 +167,33 @@
               </div>
             {/each}
           </div>
-          {#if loadedCount(s.id) < totalCount(s.id)}
-            <a href={showMoreHref(s.id)} class="btn btn-ghost btn-xs mt-2">
-              Show more ({totalCount(s.id) - loadedCount(s.id)} more)
-            </a>
+          {#if totalCount(s.id) > data.perStage}
+            {@const page = pageOf(s.id)}
+            {@const pages = Math.ceil(totalCount(s.id) / data.perStage)}
+            <div class="mt-2 flex items-center justify-between px-1">
+              <span class="text-base-content/70 text-xs tabular-nums">
+                {(page - 1) * data.perStage + 1}–{Math.min(
+                  totalCount(s.id),
+                  page * data.perStage,
+                )} of {totalCount(s.id)}
+              </span>
+              <div class="join">
+                <a
+                  href={columnHref(s.id, page - 1)}
+                  class="btn btn-ghost btn-xs join-item"
+                  class:btn-disabled={page <= 1}
+                  aria-disabled={page <= 1}
+                  aria-label={`Previous ${s.name} deals`}>Prev</a
+                >
+                <a
+                  href={columnHref(s.id, page + 1)}
+                  class="btn btn-ghost btn-xs join-item"
+                  class:btn-disabled={page >= pages}
+                  aria-disabled={page >= pages}
+                  aria-label={`Next ${s.name} deals`}>Next</a
+                >
+              </div>
+            </div>
           {/if}
         </div>
       {/each}
@@ -190,16 +222,13 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client</legend>
-          <select
+          <Combobox
             name="customer_id"
-            aria-invalid={err.aria("customer_id")}
-            class={`select w-full ${err.select("customer_id")}`}
-            required
-          >
-            {#each data.companies as co (co.id)}
-              <option value={co.id}>{co.customer_name}</option>
-            {/each}
-          </select>
+            search={searchCustomers}
+            invalid={!!err.aria("customer_id")}
+            placeholder="Search clients…"
+            emptyText="No matching client"
+          />
         </fieldset>
         <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
@@ -212,11 +241,13 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Owner</legend>
-            <select name="owner_id" class="select w-full" required>
-              {#each data.owners as m (m.id)}
-                <option value={m.id}>{m.name}</option>
-              {/each}
-            </select>
+            <Combobox
+              name="owner_id"
+              search={searchPeople}
+              invalid={!!err.aria("owner_id")}
+              placeholder="Search people…"
+              emptyText="No matching person"
+            />
           </fieldset>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">

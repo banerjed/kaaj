@@ -9,6 +9,7 @@
  *   pnpm db:perf verify                                   check it: sealed values open, books balance
  *   pnpm db:perf drop                                     remove the tenant
  *   pnpm db:perf measure [--repeats=3] [--actors=a,b]     pages × actors, slowest queries (measure.mjs)
+ *   pnpm db:perf rows [--max=100] [--actors=a,b]          fails on any page sending more than max rows
  *
  * `seed` removes any previous perf tenant first, so it is always a clean,
  * deterministic build: the same scale and as-of date give the same rows.
@@ -279,6 +280,7 @@ const { positionals, values } = parseArgs({
     repeats: { type: "string", default: "3" },
     actors: { type: "string" },
     top: { type: "string", default: "25" },
+    max: { type: "string", default: "100" },
   },
 })
 
@@ -312,8 +314,18 @@ try {
       })
       break
     }
+    case "rows": {
+      const { rows } = await import("./measure.mjs")
+      await rows({
+        perfUrl: DB_URL,
+        tenantId: PERF_TENANT_ID,
+        only: values.actors?.split(","),
+        max: Number(values.max),
+      })
+      break
+    }
     default:
-      console.error("usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25]")
+      console.error("usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25] | rows [--max=100] [--actors=a,b]")
       process.exitCode = 2
   }
 } catch (e) {

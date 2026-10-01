@@ -74,18 +74,22 @@ describe("listForBoard", () => {
     })
   })
 
-  it("expands only the named column", async () => {
+  it("pages only the named column, never more than perStage cards in it", async () => {
     await inRollback(async (tx) => {
       await seed(QUALIFIED, 5)(tx)
       await seed(NEW_INQUIRY, 5)(tx)
 
-      const rows = await deals.listForBoard(tx, {
+      const first = await deals.listForBoard(tx, { perStage: 2 })
+      const second = await deals.listForBoard(tx, {
         perStage: 2,
-        expandStageId: QUALIFIED,
-        expandLimit: 4,
+        pageStageId: QUALIFIED,
+        stagePage: 2,
       })
-      expect(rows.filter((r) => r.stage_id === QUALIFIED)).toHaveLength(4)
-      expect(rows.filter((r) => r.stage_id === NEW_INQUIRY)).toHaveLength(2)
+      const q1 = first.filter((r) => r.stage_id === QUALIFIED).map((r) => r.id)
+      const q2 = second.filter((r) => r.stage_id === QUALIFIED).map((r) => r.id)
+      expect(q2).toHaveLength(2)
+      expect(q2.some((id) => q1.includes(id))).toBe(false)
+      expect(second.filter((r) => r.stage_id === NEW_INQUIRY)).toHaveLength(2)
     })
   })
 
@@ -105,7 +109,7 @@ describe("listForBoard", () => {
   it("asks for no stage without passing '' to a cast (L37)", async () => {
     await inRollback(async (tx) => {
       await expect(
-        deals.listForBoard(tx, { perStage: 20, expandStageId: null }),
+        deals.listForBoard(tx, { perStage: 20, pageStageId: null }),
       ).resolves.toBeInstanceOf(Array)
     })
   })
