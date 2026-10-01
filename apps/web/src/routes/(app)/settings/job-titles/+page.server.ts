@@ -12,24 +12,45 @@ import { constraintFailure } from "$lib/server/db/constraints"
 import { allEnumerations } from "@kaaj/enums"
 
 /** /settings/job-titles — module-firm-profile.md § Job Titles Page. */
-export const load: PageServerLoad = async ({ locals }) => {
+/** Titles per page; each title's own levels come with it. */
+const PAGE_SIZE = 20
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "firm.settings.read")
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
-  const { jobTitles, jobLevels, locations } = await withTenant(
+  const { jobTitles, total, jobLevels, locations } = await withTenant(
     actorFrom(locals),
-    async (tx) => ({
-      jobTitles: await titles.list(tx),
-      jobLevels: await levels.listByTitle(tx),
-      // For per-market number formatting; see localeForCurrency.
-      locations: await locationsRepo.list(tx),
-    }),
+    async (tx) => {
+      const { rows, total } = await titles.listPage(tx, {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      })
+      return {
+        jobTitles: rows,
+        total,
+        jobLevels: await levels.listByTitle(tx, {
+          titleIds: rows.map((t) => t.id),
+        }),
+        // For per-market number formatting; see localeForCurrency.
+        locations: await locationsRepo.list(tx),
+      }
+    },
   )
 
   // From the enum package, kept in step with the Postgres type by ./check.
   const eeoc = allEnumerations().get("eeoc_category") ?? []
 
-  return { jobTitles, jobLevels, locations, eeocCategories: eeoc }
+  return {
+    jobTitles,
+    total,
+    page,
+    pageSize: PAGE_SIZE,
+    jobLevels,
+    locations,
+    eeocCategories: eeoc,
+  }
 }
 
 /**
@@ -149,7 +170,7 @@ export const actions: Actions = {
       await withTenant(actorFrom(locals), async (tx) => {
         // Read what it was BEFORE writing, so the entry says what changed.
         const before = id
-          ? ((await levels.listByTitle(tx)).find((r) => r.id === id) ?? null)
+          ? ((await levels.listByTitle(tx, { id }))[0] ?? null)
           : null
 
         if (id) await levels.update(tx, id, input)

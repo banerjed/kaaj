@@ -14,8 +14,23 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { has } from "$lib/permissions"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+
+  const searchCustomers = actionSearch("searchCustomers")
+  const searchPeople = actionSearch("searchPeople")
+
+  function pageHref(n: number): string {
+    const params = new URLSearchParams()
+    if (data.filters.status) params.set("status", data.filters.status)
+    if (data.filters.health) params.set("health", data.filters.health)
+    if (n > 1) params.set("page", String(n))
+    const qs = params.toString()
+    return qs ? `?${qs}` : "?"
+  }
 
   const err = $derived(fieldErrors(form))
   const canWrite = $derived(has(data.permissions, "projects.write"))
@@ -207,6 +222,12 @@
         </div>
       {/each}
     </div>
+    <Pagination
+      page={data.page}
+      pageSize={data.pageSize}
+      total={data.total}
+      hrefFor={pageHref}
+    />
   {/if}
 </div>
 
@@ -241,30 +262,24 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client</legend>
-          <select
+          <Combobox
             name="customer_id"
-            aria-invalid={err.aria("customer_id")}
-            class={`select w-full ${err.select("customer_id")}`}
-          >
-            <option value="">Internal — no client</option>
-            {#each data.customers as c (c.id)}
-              <option value={c.id}>{c.customer_name}</option>
-            {/each}
-          </select>
+            search={searchCustomers}
+            invalid={!!err.aria("customer_id")}
+            placeholder="Internal — no client"
+            emptyText="No matching client"
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Project manager</legend>
-          <select
+          <Combobox
             name="project_manager_id"
-            aria-invalid={err.aria("project_manager_id")}
-            class={`select w-full ${err.select("project_manager_id")}`}
-          >
-            <option value="">Unassigned</option>
-            {#each data.managers as m (m.id)}
-              <option value={m.id}>{m.name}</option>
-            {/each}
-          </select>
+            search={searchPeople}
+            invalid={!!err.aria("project_manager_id")}
+            placeholder="Unassigned"
+            emptyText="No matching person"
+          />
         </fieldset>
 
         <fieldset class="fieldset">

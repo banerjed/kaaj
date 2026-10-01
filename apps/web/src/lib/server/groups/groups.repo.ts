@@ -64,45 +64,67 @@ export async function archiveGroup(tx: Tx, id: string): Promise<boolean> {
   return !!row
 }
 
+/** One page of a group's current members, by name; `total` counts all of them. */
 export async function membersFor(
   tx: Tx,
   groupId: string,
-): Promise<GroupMemberRow[]> {
-  return tx<GroupMemberRow[]>`
-    SELECT m.employee_id, e.first_name || ' ' || e.last_name AS name
+  { limit, offset }: { limit: number; offset: number },
+): Promise<{ rows: GroupMemberRow[]; total: number }> {
+  const rows = await tx<(GroupMemberRow & { total: string })[]>`
+    SELECT m.employee_id, e.first_name || ' ' || e.last_name AS name,
+           count(*) OVER ()::text AS total
       FROM employee_group_members m
       JOIN employees e ON e.id = m.employee_id
      WHERE m.group_id = ${groupId}::uuid AND m.is_active
-     ORDER BY name
+     ORDER BY name, m.employee_id
+     LIMIT ${limit} OFFSET ${offset}
   `
+  return {
+    rows: rows.map(({ total: _total, ...row }) => row),
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+  }
 }
 
 /**
- * Replaces the whole membership list in one go — the settings page submits
- * a checkbox list, not one grant at a time. No DELETE
- * (20260830120000_append_only.sql): anyone dropped from the list is
- * deactivated, anyone re-added reactivates their existing row. Same shape
- * as ticketing.repo.ts's setBusinessAreaMembers.
+ * One person into a group — or back into it: no DELETE
+ * (20260830120000_append_only.sql), so a former member's row is reactivated.
+ * The employee is read under RLS, never trusted from the request (a foreign
+ * key does not check the tenant). False when nothing changed: unknown
+ * person, or already a member.
  */
-export async function setMembers(
+export async function addMember(
   tx: Tx,
   tenantId: string,
   groupId: string,
-  employeeIds: string[],
+  employeeId: string,
   actorId: string,
-): Promise<void> {
-  await tx`
+): Promise<boolean> {
+  const rows = await tx<{ id: string }[]>`
+    INSERT INTO employee_group_members (tenant_id, group_id, employee_id, joined_at, joined_by)
+    SELECT ${tenantId}::uuid, ${groupId}::uuid, e.id, now(), ${actorId}
+      FROM employees e
+     WHERE e.id = ${employeeId}::uuid
+    ON CONFLICT (tenant_id, group_id, employee_id)
+    DO UPDATE SET is_active = TRUE, joined_at = now(), joined_by = EXCLUDED.joined_by
+     WHERE NOT employee_group_members.is_active
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
+/** Deactivates one membership. False when there was none to end. */
+export async function removeMember(
+  tx: Tx,
+  groupId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const rows = await tx<{ id: string }[]>`
     UPDATE employee_group_members
        SET is_active = FALSE
      WHERE group_id = ${groupId}::uuid
+       AND employee_id = ${employeeId}::uuid
        AND is_active
-       AND NOT (employee_id = ANY(${employeeIds}::uuid[]))
+    RETURNING id
   `
-  if (employeeIds.length === 0) return
-  await tx`
-    INSERT INTO employee_group_members (tenant_id, group_id, employee_id, joined_at, joined_by)
-    SELECT ${tenantId}::uuid, ${groupId}::uuid, unnest(${employeeIds}::uuid[]), now(), ${actorId}
-    ON CONFLICT (tenant_id, group_id, employee_id)
-    DO UPDATE SET is_active = TRUE, joined_at = now(), joined_by = EXCLUDED.joined_by
-  `
+  return rows.length > 0
 }

@@ -5,8 +5,12 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { fieldErrors, type FormResult } from "$lib/form-errors"
   import type { SubmitFunction } from "@sveltejs/kit"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, children } = $props()
+  // The layout serves every /chat/* page, so it names /chat's own action.
+  const searchPeople = actionSearch("/chat?/searchPeople")
 
   let creatingChannel = $state(false)
   let startingDm = $state(false)
@@ -221,16 +225,13 @@
       >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">To</legend>
-          <select
+          <Combobox
             name="employee_id"
-            required
-            class={`select w-full ${dmErr.select("employee_id")}`}
-          >
-            <option value="" disabled selected>Pick someone</option>
-            {#each data.people as p (p.id)}
-              <option value={p.id}>{p.name}</option>
-            {/each}
-          </select>
+            search={searchPeople}
+            invalid={!!dmErr.aria("employee_id")}
+            placeholder="Pick someone"
+            emptyText="No matching person"
+          />
         </fieldset>
         {#if dmForm?.message}<p class="text-error text-sm">
             {dmForm.message}

@@ -3,8 +3,17 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import { money, calendarDate, localeForCurrency } from "$lib/format"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
+
+  function pageHref(n: number): string {
+    const params = new URLSearchParams()
+    if (data.filters.asOf) params.set("as_of", data.filters.asOf)
+    params.set("within_days", String(data.filters.withinDays))
+    if (n > 1) params.set("page", String(n))
+    return `?${params}`
+  }
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   /** A bill is read in its own currency, never converted. */
@@ -86,6 +95,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageHref}
+      />
       <p class="text-base-content/70 p-4 text-xs">
         Each row is in the bill's own currency and is not summed across
         currencies.

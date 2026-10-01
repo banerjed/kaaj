@@ -23,8 +23,13 @@
   import { formatBytes } from "$lib/documents/format-bytes"
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+
+  const searchPeople = actionSearch("searchPeople")
 
   const err = $derived(fieldErrors(form))
 
@@ -631,11 +636,6 @@
           </tbody>
         </table>
       </div>
-      {#if data.tasksTotal > data.tasks.length}
-        <p class="text-base-content/70 border-base-200 border-t p-3 text-xs">
-          Showing the first {data.tasks.length} of {data.tasksTotal} tasks.
-        </p>
-      {/if}
     </div>
   {:else if view === "kanban"}
     <!-- Kanban: one column per status, top-level tasks only — a subtask does
@@ -814,6 +814,16 @@
       </div>
     </div>
   {/if}
+
+  <!-- Every view shows the same page of tasks. -->
+  {#if data.tasksTotal > data.pageSize}
+    <Pagination
+      page={data.page}
+      pageSize={data.pageSize}
+      total={data.tasksTotal}
+      hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+    />
+  {/if}
 </div>
 
 <!-- Add a task ----------------------------------------------------------- -->
@@ -891,16 +901,13 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Assignee</legend>
-          <select
+          <Combobox
             name="assigned_to"
-            aria-invalid={err.aria("assigned_to")}
-            class={`select w-full ${err.select("assigned_to")}`}
-          >
-            <option value="">Unassigned</option>
-            {#each data.assignees as a (a.id)}
-              <option value={a.id}>{a.name}</option>
-            {/each}
-          </select>
+            search={searchPeople}
+            invalid={!!err.aria("assigned_to")}
+            placeholder="Unassigned"
+            emptyText="No matching person"
+          />
         </fieldset>
 
         <fieldset class="fieldset">

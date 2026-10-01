@@ -10,8 +10,13 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import { folderVisibilityTone } from "$lib/components/status-tone"
   import { formatBytes } from "$lib/documents/format-bytes"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+  const searchPeople = actionSearch("searchPeople")
+  const searchFolders = actionSearch("searchFolders")
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const err = $derived(fieldErrors(form))
 
@@ -31,6 +36,14 @@
     const params = new URLSearchParams({ q, owner })
     for (const [k, v] of [...params]) if (v === "") params.delete(k)
     if (page > 1) params.set("page", String(page))
+    const qs = params.toString()
+    return qs ? `?${qs}` : "?"
+  }
+
+  /** The folder cards page independently of the file search below them. */
+  function folderPageUrl(n: number): string {
+    const params = new URLSearchParams(pageUrl(data.page).slice(1))
+    if (n > 1) params.set("fpage", String(n))
     const qs = params.toString()
     return qs ? `?${qs}` : "?"
   }
@@ -119,6 +132,14 @@
     </div>
   {/each}
 </div>
+{#if data.folderTotal > data.folderPageSize}
+  <Pagination
+    page={data.folderPage}
+    pageSize={data.folderPageSize}
+    total={data.folderTotal}
+    hrefFor={folderPageUrl}
+  />
+{/if}
 
 <h2 class="mt-8 font-medium">Search files</h2>
 <div class="card card-border bg-base-100 mt-3">
@@ -134,12 +155,18 @@
           placeholder="Search file names"
         />
       </label>
-      <select name="owner" bind:value={owner} class="select select-sm w-48">
-        <option value="">Any owner</option>
-        {#each data.people as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
+      <div class="w-48">
+        {#key data.filters.owner}
+          <Combobox
+            name="owner"
+            search={searchPeople}
+            selected={data.selectedOwner ? [data.selectedOwner] : []}
+            placeholder="Any owner"
+            emptyText="No matching person"
+            onchange={(picked) => (owner = picked[0]?.id ?? "")}
+          />
+        {/key}
+      </div>
       <button type="submit" class="btn btn-sm">Search</button>
     </form>
 
@@ -275,12 +302,12 @@
       >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Folder</legend>
-          <select name="folder_id" class="select w-full">
-            <option value="">My Files (default)</option>
-            {#each data.folders as f (f.id)}
-              <option value={f.id}>{f.name}</option>
-            {/each}
-          </select>
+          <Combobox
+            name="folder_id"
+            search={searchFolders}
+            placeholder="My Files (default)"
+            emptyText="No matching folder"
+          />
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">File</legend>

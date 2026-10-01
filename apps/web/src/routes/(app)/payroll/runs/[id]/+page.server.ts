@@ -7,21 +7,31 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 
-/** /payroll/runs/[id] — the run, and every payslip in it. */
-export const load: PageServerLoad = async ({ locals, params }) => {
+/** Payslip cards per page — a card is heavier than a table row. */
+const PAGE_SIZE = 24
+
+/** /payroll/runs/[id] — the run, and its payslips a page at a time. */
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
   if (!can(ctx, "compensation.read.all")) {
     error(403, "Only payroll or HR can see pay runs.")
   }
 
+  const page = pageParam(url)
+
   return withTenant(actorFrom(locals), async (tx) => {
     const run = await runs.byId(tx, params.id)
     if (!run) error(404, "No such pay run")
+    const lines = await runs.linesPage(tx, run.id, pageOf(page, PAGE_SIZE))
     return {
       run,
-      lines: await runs.linesFor(tx, run.id),
+      lines: lines.rows,
+      lineCount: lines.total,
+      page,
+      pageSize: PAGE_SIZE,
       // Calculator and approver are separate permissions (DB-enforced too).
       mayRun: can(ctx, "payroll.run"),
       mayApprove: can(ctx, "payroll.approve"),

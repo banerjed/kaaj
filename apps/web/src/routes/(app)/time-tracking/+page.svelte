@@ -10,6 +10,8 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
   import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -23,16 +25,20 @@
   // choices (closing the modal, picking a different project), which must NOT
   // snap back to the query param on every reactive update.
   // svelte-ignore state_referenced_locally
-  let creating = $state(data.defaultProjectId !== "")
+  let creating = $state(data.defaultProject !== null)
+  // Only the modal the link opened starts on the link's picks.
+  // svelte-ignore state_referenced_locally
+  let fromLink = $state(data.defaultProject !== null)
   let rejecting = $state<TimeEntryRow | null>(null)
 
-  // Cascades the task picker to the chosen project — plain reactive state,
-  // no `use:enhance` involved.
+  // Scopes the task search to the chosen project, and re-keys the task
+  // picker so a pick from the previous project cannot be posted.
   // svelte-ignore state_referenced_locally
-  let creatingProjectId = $state(data.defaultProjectId)
-  const tasksForSelected = $derived(
-    data.tasks.filter((t) => t.project_id === creatingProjectId),
-  )
+  let creatingProjectId = $state(data.defaultProject?.id ?? "")
+  const searchProjects = actionSearch("searchProjects")
+  const searchTasks = actionSearch("searchTasks", () => ({
+    project_id: creatingProjectId,
+  }))
 
   const awaitingDecision = $derived(
     data.entries.filter((e) => e.status === "submitted"),
@@ -115,6 +121,7 @@
       class="btn btn-primary btn-sm"
       onclick={() => {
         creating = true
+        fromLink = false
         creatingProjectId = ""
       }}
     >
@@ -300,35 +307,36 @@
       >
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Project</legend>
-          <select
+          <Combobox
             name="project_id"
-            aria-invalid={err.aria("project_id")}
-            class={`select w-full ${err.select("project_id")}`}
-            required
-            bind:value={creatingProjectId}
-          >
-            <option value="">Select a project</option>
-            {#each data.activeProjects as p (p.id)}
-              <option value={p.id}>{p.project_name}</option>
-            {/each}
-          </select>
+            search={searchProjects}
+            selected={fromLink && data.defaultProject
+              ? [data.defaultProject]
+              : []}
+            invalid={!!err.aria("project_id")}
+            placeholder="Select a project"
+            emptyText="No matching project"
+            onchange={(picked) => (creatingProjectId = picked[0]?.id ?? "")}
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Task (optional)</legend>
-          <select
-            name="task_id"
-            aria-invalid={err.aria("task_id")}
-            class={`select w-full ${err.select("task_id")}`}
-            disabled={!creatingProjectId}
-          >
-            <option value="">No specific task</option>
-            {#each tasksForSelected as t (t.id)}
-              <option value={t.id} selected={t.id === data.defaultTaskId}>
-                {t.task_name}
-              </option>
-            {/each}
-          </select>
+          {#key creatingProjectId}
+            <Combobox
+              name="task_id"
+              search={searchTasks}
+              selected={fromLink &&
+              data.defaultTask &&
+              creatingProjectId === data.defaultProject?.id
+                ? [data.defaultTask]
+                : []}
+              invalid={!!err.aria("task_id")}
+              disabled={!creatingProjectId}
+              placeholder="No specific task"
+              emptyText="No matching open task"
+            />
+          {/key}
         </fieldset>
 
         <fieldset class="fieldset">

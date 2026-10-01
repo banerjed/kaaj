@@ -9,6 +9,7 @@ import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import { compareDecimal } from "$lib/decimal"
+import { pickerQuery, searchCustomers, withCurrency } from "$lib/server/pickers"
 
 /** The `payment_method` enum, which `enumValue` reads from @kaaj/enums. */
 const METHODS = [
@@ -35,7 +36,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (!f.ok) error(400, "That is not a valid customer.")
 
   return withTenant(actorFrom(locals), async (tx) => ({
-    customers: await acc.listCustomersForPicker(tx),
+    selectedCustomer: customerId
+      ? ((
+          await tx<{ id: string; label: string; sublabel: string }[]>`
+            SELECT id, customer_name AS label, currency AS sublabel
+              FROM customers WHERE id = ${customerId}
+          `
+        )[0] ?? null)
+      : null,
     openInvoices: customerId
       ? await acc.openInvoicesForCustomer(tx, customerId)
       : [],
@@ -108,6 +116,16 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the customer picker: active customers, with their currency. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: withCurrency(await searchCustomers(tx, q, { activeOnly: true })),
+    }))
+  },
+
   allocate: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

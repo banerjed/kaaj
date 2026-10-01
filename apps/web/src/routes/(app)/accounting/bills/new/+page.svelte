@@ -5,10 +5,12 @@
   import Combobox from "$lib/components/Combobox.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
   const err = $derived(fieldErrors(form))
+  const searchVendors = actionSearch("searchVendors")
 
   type LineRow = {
     key: number
@@ -87,11 +89,7 @@
               name="vendor_id"
               placeholder="Search vendors…"
               invalid={err.has("vendor_id")}
-              options={data.vendors.map((v) => ({
-                id: v.id,
-                label: v.vendor_name,
-                sublabel: v.currency,
-              }))}
+              search={searchVendors}
             />
             <p class="text-base-content/70 mt-1 text-xs">
               The bill is entered in this vendor's own currency.

@@ -4,6 +4,7 @@
   import { money, localeForCurrency } from "$lib/format"
   import { compareDecimal } from "$lib/decimal"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
@@ -88,6 +89,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+      />
       <p class="text-base-content/70 p-4 text-xs">
         Each row is in the customer's own currency and is not summed across
         currencies. Balance due shown in red is over that customer's credit

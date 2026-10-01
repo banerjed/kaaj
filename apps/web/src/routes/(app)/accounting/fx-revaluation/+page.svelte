@@ -3,6 +3,7 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import { money, localeForCurrency } from "$lib/format"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
@@ -11,8 +12,30 @@
     localeForCurrency(data.locations, c, tenantLocale)
   const usdLocale = $derived(localeFor("USD"))
 
-  const receivables = $derived(data.rows.filter((r) => r.kind === "receivable"))
-  const payables = $derived(data.rows.filter((r) => r.kind === "payable"))
+  /** Each section pages on its own; the other's page is carried along. */
+  function pageHref(param: "ar_page" | "ap_page", n: number): string {
+    const params = new URLSearchParams()
+    if (data.filters.asOf) params.set("as_of", data.filters.asOf)
+    const pages = { ar_page: data.arPage, ap_page: data.apPage, [param]: n }
+    for (const [k, v] of Object.entries(pages))
+      if (v > 1) params.set(k, String(v))
+    return `?${params}`
+  }
+
+  const sections = $derived([
+    {
+      title: "Receivables",
+      section: data.receivables,
+      page: data.arPage,
+      param: "ar_page" as const,
+    },
+    {
+      title: "Payables",
+      section: data.payables,
+      page: data.apPage,
+      param: "ap_page" as const,
+    },
+  ])
 </script>
 
 <PageHead title="FX Revaluation" />
@@ -50,14 +73,14 @@
     </a>
   </form>
 
-  {#if data.rows.length === 0}
+  {#if data.receivables.total === 0 && data.payables.total === 0}
     <EmptyState
       icon="lucide--arrow-left-right"
       message="No open foreign-currency invoices or bills."
     />
   {:else}
-    {#each [{ title: "Receivables", rows: receivables }, { title: "Payables", rows: payables }] as section (section.title)}
-      {#if section.rows.length > 0}
+    {#each sections as section (section.title)}
+      {#if section.section.total > 0}
         <div class="card bg-base-100 mt-4 shadow">
           <div class="card-body pb-2">
             <h2 class="card-title text-base">{section.title}</h2>
@@ -81,7 +104,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each section.rows as r (r.kind + r.documentNumber)}
+                {#each section.section.rows as r (r.kind + r.documentNumber)}
                   {@const locale = localeFor(r.currency)}
                   <tr class="hover:bg-base-200/40">
                     <td>{r.documentNumber}</td>
@@ -118,6 +141,12 @@
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={section.page}
+            pageSize={data.pageSize}
+            total={section.section.total}
+            hrefFor={(n) => pageHref(section.param, n)}
+          />
         </div>
       {/if}
     {/each}

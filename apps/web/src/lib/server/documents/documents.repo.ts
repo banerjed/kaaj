@@ -131,15 +131,31 @@ const FOLDER_COLUMNS = `
     WHERE d.folder_id = f.id AND d.archived_at IS NULL) AS document_count
 `
 
-/** Top-level folders (no parent) — the root view's folder cards. */
-export async function topFolders(tx: Tx): Promise<FolderRow[]> {
-  return tx<FolderRow[]>`
-    SELECT ${tx.unsafe(FOLDER_COLUMNS)}
-      FROM document_folders f
+/** One page of top-level folders (no parent) — the root view's folder cards. */
+export async function topFolders(
+  tx: Tx,
+  { limit, offset }: { limit: number; offset: number },
+): Promise<{ rows: FolderRow[]; total: number }> {
+  // The page first, so the per-folder counts run for these rows only.
+  const rows = await tx<(FolderRow & { total: string })[]>`
+    WITH page AS (
+      SELECT f.id, count(*) OVER ()::text AS total
+        FROM document_folders f
+        JOIN employees o ON o.id = f.owner_employee_id
+       WHERE f.parent_folder_id IS NULL AND f.archived_at IS NULL
+       ORDER BY f.name, f.id
+       LIMIT ${limit} OFFSET ${offset}
+    )
+    SELECT ${tx.unsafe(FOLDER_COLUMNS)}, page.total
+      FROM page
+      JOIN document_folders f ON f.id = page.id
       JOIN employees o ON o.id = f.owner_employee_id
-     WHERE f.parent_folder_id IS NULL AND f.archived_at IS NULL
-     ORDER BY f.name
+     ORDER BY f.name, f.id
   `
+  return {
+    rows: rows.map(({ total: _total, ...row }) => row),
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+  }
 }
 
 /** Subfolders of one folder. */

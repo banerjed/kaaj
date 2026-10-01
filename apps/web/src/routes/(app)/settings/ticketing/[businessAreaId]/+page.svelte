@@ -9,6 +9,8 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { has } from "$lib/permissions"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -43,7 +45,7 @@
         ]
       : []
 
-  const memberIds = $derived(new Set(data.members.map((m) => m.employee_id)))
+  const searchPeople = actionSearch("searchPeople")
   const grantedGroupIds = $derived(
     new Set(data.groupGrants.map((g) => g.group_id)),
   )
@@ -167,22 +169,19 @@
       class="mt-4"
     >
       <form method="POST" action="?/saveMembers" use:enhance class="mt-2">
-        <div
-          class="max-h-72 overflow-y-auto rounded-box border border-base-300 p-2"
-        >
-          {#each data.employees as e (e.id)}
-            <label class="flex cursor-pointer items-center gap-2 py-1">
-              <input
-                type="checkbox"
-                name="member_ids"
-                value={e.id}
-                class="checkbox checkbox-sm"
-                checked={memberIds.has(e.id)}
-              />
-              <span class="text-sm">{e.name}</span>
-            </label>
-          {/each}
-        </div>
+        {#key data.members}
+          <Combobox
+            name="member_ids"
+            multiple
+            search={searchPeople}
+            selected={data.members.map((m) => ({
+              id: m.employee_id,
+              label: m.name,
+            }))}
+            placeholder="Add a person…"
+            emptyText="No matching person"
+          />
+        {/key}
         <button class="btn btn-primary btn-sm mt-3">Save default viewers</button
         >
       </form>

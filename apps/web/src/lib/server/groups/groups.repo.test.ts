@@ -87,12 +87,18 @@ describe("groups", () => {
     expect(archived).toBe(false)
   })
 
+  const ALL = { limit: 50, offset: 0 }
+  const ids = (page: { rows: { employee_id: string }[] }) =>
+    page.rows.map((m) => m.employee_id).sort()
+
   it("the fixture's own membership is real coverage", async () => {
-    const members = await inRollback((tx) => groups.membersFor(tx, ENGINEERING))
-    expect(members.map((m) => m.employee_id).sort()).toContain(SARAH)
+    const members = await inRollback((tx) =>
+      groups.membersFor(tx, ENGINEERING, ALL),
+    )
+    expect(ids(members)).toContain(SARAH)
   })
 
-  it("setMembers replaces the whole list, deactivating rather than deleting", async () => {
+  it("members are added and removed one at a time, deactivating rather than deleting", async () => {
     const result = await inRollback(async (tx) => {
       const { id } = await groups.createGroup(
         tx,
@@ -100,41 +106,70 @@ describe("groups", () => {
         { displayName: "Rotating", description: null },
         ACTOR,
       )
-      await groups.setMembers(tx, NORTHWIND, id, [SARAH, MARCUS], ACTOR)
-      const withBoth = await groups.membersFor(tx, id)
+      await groups.addMember(tx, NORTHWIND, id, SARAH, ACTOR)
+      await groups.addMember(tx, NORTHWIND, id, MARCUS, ACTOR)
+      const withBoth = await groups.membersFor(tx, id, ALL)
 
-      await groups.setMembers(tx, NORTHWIND, id, [SARAH], ACTOR)
-      const withOne = await groups.membersFor(tx, id)
+      const removed = await groups.removeMember(tx, id, MARCUS)
+      const withOne = await groups.membersFor(tx, id, ALL)
 
       // Re-adding Marcus reactivates his existing row via ON CONFLICT, not a
       // fresh insert — ensured by the UNIQUE(tenant_id, group_id, employee_id)
       // constraint the migration added.
-      await groups.setMembers(tx, NORTHWIND, id, [SARAH, MARCUS], ACTOR)
-      const withBothAgain = await groups.membersFor(tx, id)
+      const readded = await groups.addMember(tx, NORTHWIND, id, MARCUS, ACTOR)
+      const withBothAgain = await groups.membersFor(tx, id, ALL)
 
-      return { withBoth, withOne, withBothAgain }
+      return { withBoth, removed, withOne, readded, withBothAgain }
     })
-    expect(result.withBoth.map((m) => m.employee_id).sort()).toEqual(
-      [SARAH, MARCUS].sort(),
-    )
-    expect(result.withOne.map((m) => m.employee_id)).toEqual([SARAH])
-    expect(result.withBothAgain.map((m) => m.employee_id).sort()).toEqual(
-      [SARAH, MARCUS].sort(),
-    )
+    expect(ids(result.withBoth)).toEqual([SARAH, MARCUS].sort())
+    expect(result.removed).toBe(true)
+    expect(ids(result.withOne)).toEqual([SARAH])
+    expect(result.readded).toBe(true)
+    expect(ids(result.withBothAgain)).toEqual([SARAH, MARCUS].sort())
+    expect(result.withBothAgain.total).toBe(2)
   })
 
-  it("setMembers with an empty list clears membership without erroring", async () => {
-    const after = await inRollback(async (tx) => {
+  it("a change that did nothing says so (L68)", async () => {
+    const result = await inRollback(async (tx) => {
       const { id } = await groups.createGroup(
         tx,
         NORTHWIND,
         { displayName: "Solo", description: null },
         ACTOR,
       )
-      await groups.setMembers(tx, NORTHWIND, id, [SARAH], ACTOR)
-      await groups.setMembers(tx, NORTHWIND, id, [], ACTOR)
-      return groups.membersFor(tx, id)
+      await groups.addMember(tx, NORTHWIND, id, SARAH, ACTOR)
+      return {
+        addedTwice: await groups.addMember(tx, NORTHWIND, id, SARAH, ACTOR),
+        removedNonMember: await groups.removeMember(tx, id, MARCUS),
+        addedNobody: await groups.addMember(
+          tx,
+          NORTHWIND,
+          id,
+          "00000000-0000-0000-0000-000000000000",
+          ACTOR,
+        ),
+      }
     })
-    expect(after).toEqual([])
+    expect(result).toEqual({
+      addedTwice: false,
+      removedNonMember: false,
+      addedNobody: false,
+    })
+  })
+
+  it("pages the member list, counting every member", async () => {
+    const page = await inRollback(async (tx) => {
+      const { id } = await groups.createGroup(
+        tx,
+        NORTHWIND,
+        { displayName: "Paged", description: null },
+        ACTOR,
+      )
+      await groups.addMember(tx, NORTHWIND, id, SARAH, ACTOR)
+      await groups.addMember(tx, NORTHWIND, id, MARCUS, ACTOR)
+      return groups.membersFor(tx, id, { limit: 1, offset: 1 })
+    })
+    expect(page.rows).toHaveLength(1)
+    expect(page.total).toBe(2)
   })
 })

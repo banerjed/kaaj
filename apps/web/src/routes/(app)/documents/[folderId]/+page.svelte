@@ -10,9 +10,12 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { folderVisibilityTone } from "$lib/components/status-tone"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
   import { formatBytes } from "$lib/documents/format-bytes"
 
   let { data, form } = $props()
+  const searchPeople = actionSearch("searchPeople")
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const err = $derived(fieldErrors(form))
 
@@ -396,15 +399,13 @@
         {#if shareTargetType === "employee"}
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Person</legend>
-            <select
+            <Combobox
               name="target_employee_id"
-              class="select w-full"
-              aria-invalid={err.aria("target_employee_id")}
-            >
-              {#each data.people as p (p.id)}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
+              search={searchPeople}
+              invalid={!!err.aria("target_employee_id")}
+              placeholder="Search people…"
+              emptyText="No matching person"
+            />
           </fieldset>
         {:else}
           <fieldset class="fieldset">

@@ -11,6 +11,10 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
+  import { money } from "$lib/format"
 
   let { data, form } = $props()
 
@@ -30,12 +34,17 @@
   let addingContact = $state(false)
   let addingDeal = $state(false)
 
-  const dealsTotal = $derived(
-    data.deals.reduce((sum, d) => sum + Number(d.value_amount ?? 0), 0),
-  )
-  const loadMoreActivitiesHref = $derived(
-    `?activities=${data.activityPages + 1}`,
-  )
+  const searchPeople = actionSearch("searchPeople")
+
+  /** This page's URL with one list's page changed, the other's kept. */
+  function pageHref(list: "deals" | "activities", n: number): string {
+    const params = new URLSearchParams(page.url.searchParams)
+    params.delete("edit")
+    if (n > 1) params.set(list, String(n))
+    else params.delete(list)
+    const qs = params.toString()
+    return qs ? `?${qs}` : "?"
+  }
 
   const activityIcon = (t: string) =>
     t === "call"
@@ -217,14 +226,13 @@
             <div>
               <h2 class="text-base font-medium">
                 Deals
-                {#if data.deals.length > 0}({data.deals.length}){/if}
+                {#if data.deals.total > 0}({data.deals.total}){/if}
               </h2>
-              {#if dealsTotal}
-                <p class="text-base-content/70 text-xs">
-                  {c.currency}
-                  {dealsTotal.toLocaleString()} total
+              {#each data.dealValue as v (v.currency)}
+                <p class="text-base-content/70 text-xs tabular-nums">
+                  {money(v.amount, v.currency, tenantLocale)} total
                 </p>
-              {/if}
+              {/each}
             </div>
             <button
               class="btn btn-ghost btn-sm gap-2"
@@ -235,7 +243,7 @@
             </button>
           </div>
         {/snippet}
-        {#if data.deals.length === 0}
+        {#if data.deals.total === 0}
           <div class="flex flex-col items-center gap-2 py-6 text-center">
             <span class="iconify lucide--handshake text-base-content/30 size-8"
             ></span>
@@ -243,7 +251,7 @@
           </div>
         {:else}
           <ul class="flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
-            {#each data.deals as d (d.id)}
+            {#each data.deals.rows as d (d.id)}
               <li>
                 <a
                   href={`/crm/deals/${d.id}`}
@@ -258,6 +266,14 @@
               </li>
             {/each}
           </ul>
+          {#if data.deals.total > data.dealPageSize}
+            <Pagination
+              page={data.dealPage}
+              pageSize={data.dealPageSize}
+              total={data.deals.total}
+              hrefFor={(n) => pageHref("deals", n)}
+            />
+          {/if}
         {/if}
       </SectionCard>
 
@@ -302,11 +318,11 @@
           </select>
         </form>
 
-        {#if data.activities.length === 0}
+        {#if data.activities.total === 0}
           <p class="text-base-content/70 mt-3 text-sm">Nothing logged yet.</p>
         {:else}
           <ul class="mt-3 flex flex-col gap-2">
-            {#each data.activities as a (a.id)}
+            {#each data.activities.rows as a (a.id)}
               <li class="border-base-200 border-t pt-2">
                 <div class="flex items-start gap-2">
                   <span
@@ -332,16 +348,14 @@
               </li>
             {/each}
           </ul>
-          <div class="mt-3 flex items-center justify-between gap-2">
-            <p class="text-base-content/70 text-xs">
-              Showing the most recent {data.activities.length} of {data.activityTotal}
-            </p>
-            {#if data.activities.length < data.activityTotal}
-              <a href={loadMoreActivitiesHref} class="btn btn-ghost btn-xs">
-                Load more
-              </a>
-            {/if}
-          </div>
+          {#if data.activities.total > data.activityPageSize}
+            <Pagination
+              page={data.activityPage}
+              pageSize={data.activityPageSize}
+              total={data.activities.total}
+              hrefFor={(n) => pageHref("activities", n)}
+            />
+          {/if}
         {/if}
       </SectionCard>
     </div>
@@ -491,14 +505,22 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Account manager</legend>
-            <select name="account_manager_id" class="select w-full">
-              <option value="">Unassigned</option>
-              {#each data.accountManagers as m (m.id)}
-                <option value={m.id} selected={m.id === c.account_manager_id}
-                  >{m.name}</option
-                >
-              {/each}
-            </select>
+            {#key c.id}
+              <Combobox
+                name="account_manager_id"
+                search={searchPeople}
+                selected={c.account_manager_id && c.account_manager_name
+                  ? [
+                      {
+                        id: c.account_manager_id,
+                        label: c.account_manager_name,
+                      },
+                    ]
+                  : []}
+                placeholder="Unassigned"
+                emptyText="No matching person"
+              />
+            {/key}
           </fieldset>
           {#if !person}
             <fieldset class="fieldset">
@@ -638,11 +660,13 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Owner</legend>
-            <select name="owner_id" class="select w-full" required>
-              {#each data.accountManagers as m (m.id)}
-                <option value={m.id}>{m.name}</option>
-              {/each}
-            </select>
+            <Combobox
+              name="owner_id"
+              search={searchPeople}
+              invalid={!!err.aria("owner_id")}
+              placeholder="Search people…"
+              emptyText="No matching person"
+            />
           </fieldset>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">

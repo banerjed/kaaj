@@ -1,7 +1,7 @@
 import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as ticketing from "$lib/server/ticketing/ticketing.repo"
-import * as employees from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
@@ -31,7 +31,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       categories,
       subcategories,
       members: await ticketing.businessAreaMembers(tx, params.businessAreaId),
-      employees: await employees.managerOptions(tx),
       customFields: await customFields.definitionsFor(tx, {
         entityType: "ticket",
         businessAreaId: params.businessAreaId,
@@ -54,6 +53,16 @@ const fields = customFieldSettingsHandlers(({ params }) =>
 )
 
 export const actions: Actions = {
+  /** Backs the default-viewers picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
   addCategory: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "firm.settings.write")

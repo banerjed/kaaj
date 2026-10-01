@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 
 /**
  * payroll_runs — a pay period, and what each person was paid in it. Every
@@ -126,6 +127,20 @@ export async function linesFor(tx: Tx, runId: string): Promise<PayslipLine[]> {
      WHERE pe.payroll_run_id = ${runId}
      ORDER BY employee_name ASC
   `
+}
+
+/** One page of `linesFor()`. The run's totals are on the run itself, never summed from a page. */
+export function linesPage(
+  tx: Tx,
+  runId: string,
+  page: Page,
+): Promise<Paged<PayslipLine>> {
+  return paged(
+    tx,
+    tx`${tx.unsafe(LINE_SELECT)} WHERE pe.payroll_run_id = ${runId}`,
+    tx`q.employee_name ASC, q.id`,
+    page,
+  )
 }
 
 /** A line plus the run context a payslip has to show on its own. */

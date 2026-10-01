@@ -2,10 +2,10 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as entries from "$lib/server/time-tracking/time_tracking_entries.repo"
 import { TimeEntryWriteRefused } from "$lib/server/time-tracking/time_tracking_entries.repo"
-import * as projects from "$lib/server/projects/projects.repo"
 import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
+import { pickerQuery, searchProjects, searchTasks } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 /**
@@ -38,8 +38,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Arriving from a project's "Log time" link — pre-fills the create modal,
   // never trusted beyond that: the create action re-validates both as real
   // uuids the same as any other submission.
-  const defaultProjectId = url.searchParams.get("project_id") ?? ""
-  const defaultTaskId = url.searchParams.get("task_id") ?? ""
+  const deepLink = new FormData()
+  deepLink.set("project_id", url.searchParams.get("project_id") ?? "")
+  deepLink.set("task_id", url.searchParams.get("task_id") ?? "")
+  const linkReader = new FormReader(deepLink)
+  const defaultProjectId = linkReader.uuid("project_id") ?? ""
+  const defaultTaskId = linkReader.uuid("task_id") ?? ""
 
   const myEmployeeId = await resolveEmployeeId(locals, userId)
 
@@ -61,13 +65,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       total,
       page,
       pageSize: PAGE_SIZE,
-      activeProjects: await projects.list(tx),
-      tasks: await entries.tasksForActiveProjects(tx),
       myEmployeeId,
       mayApprove: can(ctx, "time_entries.approve"),
       filters: { status, mine: mineOnly },
-      defaultProjectId,
-      defaultTaskId,
+      // The pickers search; a deep link only needs the names of its picks.
+      ...(await entries.pickLabels(tx, defaultProjectId, defaultTaskId)),
     }
   })
 }
@@ -107,6 +109,29 @@ function refusal(e: TimeEntryWriteRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the log-time project picker; the form is `time_entries.write`'s. */
+  searchProjects: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "time_entries.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchProjects(tx, q),
+    }))
+  },
+
+  /** Backs the log-time task picker, within the project already picked. */
+  searchTasks: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "time_entries.write")
+    const f = new FormReader(await request.formData())
+    const q = pickerQuery(f)
+    const projectId = f.uuid("project_id")
+    if (!projectId) return { results: [] }
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchTasks(tx, q, projectId),
+    }))
+  },
+
   /** Log time as a draft. NOT audited, same reasoning as `addTask` — nothing billed until `decide` snapshots an amount. */
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")

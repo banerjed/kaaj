@@ -9,6 +9,11 @@ import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
+import {
+  pickerQuery,
+  searchCustomers,
+  searchEmployees,
+} from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 // Vocabulary comes from the repository — two copies of a text-column list would drift (L57).
@@ -22,6 +27,9 @@ const {
  * /projects — the project list. No read gate: the board is firm-wide. Client
  * visibility is a separate boundary (`clientVisibleOnly`); creating is gated on `projects.write`.
  */
+/** A project is a card, the heavier end of the 20-50 band. */
+const PAGE_SIZE = 24
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
@@ -33,25 +41,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", STATUSES) ?? ""
   const health = f.choice("health", HEALTHS) ?? ""
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => ({
-    projects: await projects.list(tx, { status, health }),
+    projects: await projects.list(
+      tx,
+      { status, health },
+      { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE },
+    ),
+    total: await projects.count(tx, { status, health }),
+    page,
+    pageSize: PAGE_SIZE,
     statuses: STATUSES,
     healths: HEALTHS,
     priorities: PRIORITIES,
     filters: { status, health },
     // UI convenience only — the action re-enforces this gate.
     mayCreate: can(ctx, "projects.write"),
-    // Options for the create form; firm-wide reference data.
-    customers: await tx<{ id: string; customer_name: string }[]>`
-      SELECT id, customer_name FROM customers ORDER BY customer_name
-    `,
-    managers: await tx<{ id: string; name: string }[]>`
-      SELECT id, first_name || ' ' || last_name AS name
-        FROM employees
-       WHERE employment_status = 'active'
-       ORDER BY first_name, last_name
-    `,
     objectives: await objectives.list(tx),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
@@ -60,6 +66,26 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 }
 
 export const actions: Actions = {
+  /** Backs the create form's client picker; the form is `projects.write`'s. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchCustomers(tx, q),
+    }))
+  },
+
+  /** Backs the create form's project-manager picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { set: "employed" }),
+    }))
+  },
+
   /** Create a project. Audited (billing fields) in the same transaction as the INSERT (L40). */
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")

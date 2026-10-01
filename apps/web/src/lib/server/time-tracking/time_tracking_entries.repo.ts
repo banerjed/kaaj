@@ -144,30 +144,31 @@ export async function byId(tx: Tx, id: string): Promise<TimeEntryRow | null> {
   return row ?? null
 }
 
-/** For the create form's project -> task cascade. Not a `projects.repo.ts`
- * concern — this is time tracking's own view (id/name/project only, no
- * board fields), across every open project rather than one at a time. */
-/**
- * A time-entry picker for open work, not the project's whole history —
- * `tasks` grows without bound across every project ever run (SCALE_SENSITIVE),
- * so this excludes finished tasks (nobody logs a NEW entry against one) and
- * caps the rest defensively, the same reasoning as `DOCUMENT_CHILD_CAP`
- * elsewhere in this session's fixes.
- */
-const OPEN_TASK_PICKER_CAP = 2000
+type Pick = { id: string; label: string }
 
-export async function tasksForActiveProjects(
+/**
+ * The names behind a "Log time" deep link's project and task, so the
+ * create form's pickers open showing them. A task counts only if it belongs
+ * to that project; either may simply not be found.
+ */
+export async function pickLabels(
   tx: Tx,
-): Promise<{ id: string; task_name: string; project_id: string }[]> {
-  return tx`
-    SELECT t.id, t.task_name, t.project_id
-      FROM tasks t
-      JOIN projects p ON p.id = t.project_id
-     WHERE p.archived_at IS NULL
-       AND t.status <> 'done'
-     ORDER BY t.task_name
-     LIMIT ${OPEN_TASK_PICKER_CAP}
-  ` as never
+  projectId: string,
+  taskId: string,
+): Promise<{ defaultProject: Pick | null; defaultTask: Pick | null }> {
+  if (!projectId) return { defaultProject: null, defaultTask: null }
+  const [row] = await tx<{ project_name: string; task_name: string | null }[]>`
+    SELECT p.project_name,
+           (SELECT t.task_name FROM tasks t
+             WHERE t.id = ${taskId || null}::uuid AND t.project_id = p.id) AS task_name
+      FROM projects p
+     WHERE p.id = ${projectId}::uuid
+  `
+  if (!row) return { defaultProject: null, defaultTask: null }
+  return {
+    defaultProject: { id: projectId, label: row.project_name },
+    defaultTask: row.task_name ? { id: taskId, label: row.task_name } : null,
+  }
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 import {
   postJournal,
   AccountingRefused,
@@ -229,8 +230,32 @@ export async function apDueSoon(
   tx: Tx,
   filters: { asOf?: string; withinDays: number },
 ): Promise<ApDueSoonRow[]> {
-  const asOf = filters.asOf || null
   return tx<ApDueSoonRow[]>`
+    SELECT q.* FROM (${apDueSoonQuery(tx, filters)}) q
+     ORDER BY q.due_date ASC, q.vendor_name ASC, q.bill_id
+  `
+}
+
+/** One page of `apDueSoon()`, in the same order. */
+export function apDueSoonPage(
+  tx: Tx,
+  filters: { asOf?: string; withinDays: number },
+  page: Page,
+): Promise<Paged<ApDueSoonRow>> {
+  return paged(
+    tx,
+    apDueSoonQuery(tx, filters),
+    tx`q.due_date ASC, q.vendor_name ASC, q.bill_id`,
+    page,
+  )
+}
+
+function apDueSoonQuery(
+  tx: Tx,
+  filters: { asOf?: string; withinDays: number },
+) {
+  const asOf = filters.asOf || null
+  return tx`
     SELECT b.id AS bill_id, b.bill_number, v.vendor_name, b.currency,
            to_char(b.due_date, 'YYYY-MM-DD') AS due_date,
            (b.due_date - COALESCE(${asOf}::date, CURRENT_DATE))::int
@@ -243,7 +268,6 @@ export async function apDueSoon(
        AND b.due_date >= COALESCE(${asOf}::date, CURRENT_DATE)
        AND b.due_date <= COALESCE(${asOf}::date, CURRENT_DATE)
                           + (${filters.withinDays}::int * INTERVAL '1 day')
-     ORDER BY b.due_date ASC, v.vendor_name ASC
   `
 }
 
@@ -1630,17 +1654,6 @@ export async function applyReconciliationRules(
 // ---------------------------------------------------------------------------
 // Writes — entering a vendor bill as a draft
 // ---------------------------------------------------------------------------
-
-export type VendorOption = { id: string; vendor_name: string; currency: string }
-
-export async function listVendorsForPicker(tx: Tx): Promise<VendorOption[]> {
-  return tx<VendorOption[]>`
-    SELECT id, vendor_name, currency
-      FROM vendors
-     WHERE is_active
-     ORDER BY vendor_name
-  `
-}
 
 export type ExpenseAccountOption = {
   id: string

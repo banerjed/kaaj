@@ -8,6 +8,7 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
   import RowActions from "$lib/components/RowActions.svelte"
@@ -114,7 +115,8 @@
 
   <div class="mt-4 flex items-center justify-between gap-3">
     <p class="text-base-content/70 text-sm">
-      {data.jobTitles.length} titles · {data.jobLevels.length} levels
+      {data.total}
+      {data.total === 1 ? "title" : "titles"}
     </p>
     <button
       class="btn btn-primary btn-sm gap-2"
@@ -216,6 +218,16 @@
         </SectionCard>
       {/each}
     </div>
+    {#if data.total > data.pageSize}
+      <div class="card bg-base-100 mt-4 shadow">
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+        />
+      </div>
+    {/if}
   {/if}
 </div>
 

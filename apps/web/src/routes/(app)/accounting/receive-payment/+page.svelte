@@ -6,8 +6,12 @@
   import { money, calendarDate, localeForCurrency } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+
+  const searchCustomers = actionSearch("searchCustomers")
 
   const err = $derived(fieldErrors(form))
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
@@ -48,14 +52,15 @@
   <form method="GET" class="mt-4 flex flex-wrap items-end gap-3">
     <fieldset class="fieldset">
       <legend class="fieldset-legend text-xs">Customer</legend>
-      <select name="customer_id" class="select">
-        <option value="">Choose a customer…</option>
-        {#each data.customers as c (c.id)}
-          <option value={c.id} selected={data.filters.customerId === c.id}>
-            {c.customer_name} ({c.currency})
-          </option>
-        {/each}
-      </select>
+      <div class="w-72">
+        <Combobox
+          name="customer_id"
+          search={searchCustomers}
+          selected={data.selectedCustomer ? [data.selectedCustomer] : []}
+          placeholder="Choose a customer…"
+          emptyText="No matching customer"
+        />
+      </div>
     </fieldset>
     <button class="btn btn-primary">Show open invoices</button>
   </form>

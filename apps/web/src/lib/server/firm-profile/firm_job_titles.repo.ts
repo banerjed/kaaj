@@ -29,6 +29,35 @@ export async function list(
   `
 }
 
+/** One page of active titles, for the settings page; `total` counts them all. */
+export async function listPage(
+  tx: Tx,
+  { limit, offset }: { limit: number; offset: number },
+): Promise<{ rows: FirmJobTitle[]; total: number }> {
+  // The page first, so the per-title head count runs for these rows only.
+  const rows = await tx<(FirmJobTitle & { total: string })[]>`
+    WITH page AS (
+      SELECT t.id, count(*) OVER ()::text AS total
+        FROM firm_job_titles t
+       WHERE t.is_active
+       ORDER BY t.title ASC, t.id
+       LIMIT ${limit} OFFSET ${offset}
+    )
+    SELECT t.id, t.title, t.title_i18n, t.description, t.is_exempt,
+           t.eeoc_category::text AS eeoc_category, t.isco_code, t.is_active,
+           (SELECT count(*)::int FROM employees e
+             WHERE e.job_title = t.title AND e.is_active) AS employee_count,
+           page.total
+      FROM page
+      JOIN firm_job_titles t ON t.id = page.id
+     ORDER BY t.title ASC, t.id
+  `
+  return {
+    rows: rows.map(({ total: _total, ...row }) => row),
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+  }
+}
+
 export type JobTitleInput = {
   title: string
   title_i18n: Record<string, string> | null

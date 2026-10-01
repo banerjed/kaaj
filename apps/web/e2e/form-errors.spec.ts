@@ -224,13 +224,21 @@ test("logging time without a description is refused, hours survive", async ({
   page,
 }) => {
   await page.goto("/time-tracking")
-  await openModal(page, /log time/i, 'select[name="project_id"]')
+  await openModal(page, /log time/i, 'input[name="hours"]')
 
-  const project = page.locator('select[name="project_id"]')
   const hours = page.locator('input[name="hours"]')
   const description = page.locator('textarea[name="description"]')
 
-  await project.selectOption({ index: 1 }) // first real project, after the placeholder
+  // The project picker searches: focusing it lists the first matches.
+  await page.locator(".modal").getByRole("combobox").first().click()
+  // Scoped to the listbox: the page's filter <select>s have options too.
+  await page
+    .getByRole("listbox")
+    .getByRole("option")
+    .first()
+    .locator("button")
+    .click()
+  await expect(page.locator('input[name="project_id"]')).not.toHaveValue("")
   await hours.fill("7.5")
   // description left blank — required
   await submitPastTheBrowser(page, "?/create")
@@ -866,7 +874,7 @@ async function actionStatus(response: { text(): Promise<string> }) {
 test("a syntactically-valid but nonexistent birth date is refused, not rolled to a real one", async ({
   page,
 }) => {
-  const response = await page.request.post("/employees/new", {
+  const response = await page.request.post("/employees/new?/save", {
     form: employeeProbe({
       employee_id: "ADVPROBE05",
       birth_date: "2026-02-30",
@@ -885,7 +893,7 @@ test("a syntactically-valid but nonexistent birth date is refused, not rolled to
 test("a duplicate employee ID is refused with a named message, not a crash", async ({
   page,
 }) => {
-  const response = await page.request.post("/employees/new", {
+  const response = await page.request.post("/employees/new?/save", {
     // E001 is Sarah Johnson's real employee_id in the fixture.
     form: employeeProbe({ employee_id: "E001" }),
   })
@@ -897,7 +905,7 @@ test("a duplicate employee ID is refused with a named message, not a crash", asy
 test("SQL-special characters in the employee ID are refused by format, never reach a query", async ({
   page,
 }) => {
-  const response = await page.request.post("/employees/new", {
+  const response = await page.request.post("/employees/new?/save", {
     form: employeeProbe({ employee_id: "E999`--" }),
   })
   const result = await actionStatus(response)
@@ -907,7 +915,7 @@ test("SQL-special characters in the employee ID are refused by format, never rea
 test("an employment_status outside the enum is refused, never stored as free text", async ({
   page,
 }) => {
-  const response = await page.request.post("/employees/new", {
+  const response = await page.request.post("/employees/new?/save", {
     form: employeeProbe({
       employee_id: "ADVPROBE07",
       employment_status: "vibing",

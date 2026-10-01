@@ -5,7 +5,7 @@ import * as contacts from "$lib/server/customers/customer-contacts.repo"
 import * as deals from "$lib/server/crm/deals.repo"
 import * as activities from "$lib/server/crm/activities.repo"
 import * as pipelineStages from "$lib/server/crm/pipeline-stages.repo"
-import { managerOptions } from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -20,16 +20,16 @@ import {
 const SCOPE = { entityType: "company" } as const
 
 const ACTIVITY_PAGE_SIZE = 10
+const DEAL_PAGE_SIZE = 20
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
 
-  const activityPages = Math.max(
-    1,
-    Number(url.searchParams.get("activities")) || 1,
-  )
-  const activityLimit = activityPages * ACTIVITY_PAGE_SIZE
+  const pageParam = (name: string) =>
+    Math.max(1, Number(url.searchParams.get(name)) || 1)
+  const activityPage = pageParam("activities")
+  const dealPage = pageParam("deals")
 
   return withTenant(actorFrom(locals), async (tx) => {
     const company = await customers.getById(tx, params.id)
@@ -46,15 +46,19 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       fieldDefs: await customFields.definitionsFor(tx, SCOPE),
       fieldValues: fieldValues[params.id] ?? [],
       contacts: people,
-      deals: await deals.listForCustomer(tx, params.id),
-      activities: await activities.listForCustomer(
-        tx,
-        params.id,
-        activityLimit,
-      ),
-      activityTotal: await activities.countForCustomer(tx, params.id),
-      activityPages,
-      accountManagers: await managerOptions(tx),
+      deals: await deals.listForCustomer(tx, params.id, {
+        limit: DEAL_PAGE_SIZE,
+        offset: (dealPage - 1) * DEAL_PAGE_SIZE,
+      }),
+      dealPage,
+      dealPageSize: DEAL_PAGE_SIZE,
+      dealValue: await deals.valueByCurrencyForCustomer(tx, params.id),
+      activities: await activities.listForCustomer(tx, params.id, {
+        limit: ACTIVITY_PAGE_SIZE,
+        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
+      }),
+      activityPage,
+      activityPageSize: ACTIVITY_PAGE_SIZE,
       pipelineStages: await pipelineStages.list(tx),
       relationshipStatuses: customers.RELATIONSHIP_STATUSES,
       customerTypes: customers.CUSTOMER_TYPES,
@@ -64,6 +68,16 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 }
 
 export const actions: Actions = {
+  /** Backs the account-manager and deal-owner pickers. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "crm.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
   save: async ({ request, params, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

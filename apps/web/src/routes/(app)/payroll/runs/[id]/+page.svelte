@@ -6,6 +6,7 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { payrollRunStatusTone as statusTone } from "$lib/components/status-tone"
 
   let { data, form } = $props()
@@ -154,7 +155,7 @@
 
   <h2 class="mt-6 text-base font-medium">
     Payslips
-    <span class="badge badge-sm ms-1">{data.lines.length}</span>
+    <span class="badge badge-sm ms-1">{data.lineCount}</span>
   </h2>
 
   <div class="mt-2 grid gap-3 lg:grid-cols-2">
@@ -255,6 +256,16 @@
       </div>
     {/each}
   </div>
+  {#if data.lineCount > data.pageSize}
+    <div class="card bg-base-100 mt-3 shadow">
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.lineCount}
+        hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+      />
+    </div>
+  {/if}
 </div>
 
 <!-- Cancel a run ---------------------------------------------------------- -->

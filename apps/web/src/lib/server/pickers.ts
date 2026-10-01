@@ -50,7 +50,9 @@ export async function searchCustomers(
   q: string,
   { activeOnly = false }: { activeOnly?: boolean } = {},
 ): Promise<ComboboxOption[]> {
-  const rows = await tx<{ id: string; customer_name: string; currency: string }[]>`
+  const rows = await tx<
+    { id: string; customer_name: string; currency: string }[]
+  >`
     SELECT id, customer_name, currency
       FROM customers
      WHERE (NOT ${activeOnly} OR is_active)
@@ -58,12 +60,21 @@ export async function searchCustomers(
      ORDER BY customer_name
      LIMIT ${PICKER_LIMIT}
   `
-  return rows.map((r) => ({ id: r.id, label: r.customer_name, meta: { currency: r.currency } }))
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.customer_name,
+    meta: { currency: r.currency },
+  }))
 }
 
 /** Projects that are not archived — time tracking's set. */
-export async function searchProjects(tx: Tx, q: string): Promise<ComboboxOption[]> {
-  const rows = await tx<{ id: string; project_number: string; project_name: string }[]>`
+export async function searchProjects(
+  tx: Tx,
+  q: string,
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; project_number: string; project_name: string }[]
+  >`
     SELECT id, project_number, project_name
       FROM projects
      WHERE archived_at IS NULL
@@ -71,11 +82,19 @@ export async function searchProjects(tx: Tx, q: string): Promise<ComboboxOption[
      ORDER BY project_name
      LIMIT ${PICKER_LIMIT}
   `
-  return rows.map((r) => ({ id: r.id, label: r.project_name, sublabel: r.project_number }))
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.project_name,
+    sublabel: r.project_number,
+  }))
 }
 
 /** Open tasks of one project — time tracking's set, scoped to the chosen project. */
-export async function searchTasks(tx: Tx, q: string, projectId: string): Promise<ComboboxOption[]> {
+export async function searchTasks(
+  tx: Tx,
+  q: string,
+  projectId: string,
+): Promise<ComboboxOption[]> {
   const rows = await tx<{ id: string; task_name: string }[]>`
     SELECT t.id, t.task_name
       FROM tasks t
@@ -91,8 +110,13 @@ export async function searchTasks(tx: Tx, q: string, projectId: string): Promise
 }
 
 /** Active vendors — the bill form's set. Carries the default currency in `meta`. */
-export async function searchVendors(tx: Tx, q: string): Promise<ComboboxOption[]> {
-  const rows = await tx<{ id: string; vendor_name: string; currency: string }[]>`
+export async function searchVendors(
+  tx: Tx,
+  q: string,
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; vendor_name: string; currency: string }[]
+  >`
     SELECT id, vendor_name, currency
       FROM vendors
      WHERE is_active
@@ -100,5 +124,53 @@ export async function searchVendors(tx: Tx, q: string): Promise<ComboboxOption[]
      ORDER BY vendor_name
      LIMIT ${PICKER_LIMIT}
   `
-  return rows.map((r) => ({ id: r.id, label: r.vendor_name, meta: { currency: r.currency } }))
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.vendor_name,
+    meta: { currency: r.currency },
+  }))
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** The current picks of people pickers (a filter in the URL), as `selected` options. */
+export async function employeeLabels(
+  tx: Tx,
+  ids: (string | null | undefined)[],
+): Promise<Record<string, ComboboxOption>> {
+  // Ids come from the URL: a malformed one is simply not a pick, never a 500 on the cast.
+  const wanted = [
+    ...new Set(ids.filter((id): id is string => !!id && UUID.test(id))),
+  ]
+  if (!wanted.length) return {}
+  const rows = await tx<{ id: string; name: string }[]>`
+    SELECT id, first_name || ' ' || last_name AS name
+      FROM employees
+     WHERE id = ANY(${wanted}::uuid[])
+  `
+  return Object.fromEntries(
+    rows.map((r) => [r.id, { id: r.id, label: r.name }]),
+  )
+}
+
+/** Top-level folders that are not archived — the root upload form's set. */
+export async function searchTopFolders(
+  tx: Tx,
+  q: string,
+): Promise<ComboboxOption[]> {
+  const rows = await tx<{ id: string; name: string }[]>`
+    SELECT f.id, f.name
+      FROM document_folders f
+      JOIN employees o ON o.id = f.owner_employee_id
+     WHERE f.parent_folder_id IS NULL AND f.archived_at IS NULL
+       AND f.name ILIKE ${like(q)}
+     ORDER BY f.name, f.id
+     LIMIT ${PICKER_LIMIT}
+  `
+  return rows.map((r) => ({ id: r.id, label: r.name }))
+}
+
+/** Shows each option's `meta.currency` as its sublabel — accounting pickers name the currency a document will be raised in. */
+export function withCurrency(options: ComboboxOption[]): ComboboxOption[] {
+  return options.map((o) => ({ ...o, sublabel: o.meta?.currency }))
 }

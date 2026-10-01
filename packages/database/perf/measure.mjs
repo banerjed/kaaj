@@ -386,14 +386,28 @@ function longArrays(value, max, path = "", out = []) {
 export async function rows({ perfUrl, tenantId, only, max }) {
   return session({ perfUrl, tenantId, only }, async ({ actors, paths, browser }) => {
     const found = new Map() // "path  key" -> { actors, length }
+    // A page that errors sends no data, so it would read as clean: say so.
+    const failed = []
     for (const a of actors) {
+      let read = 0
+      let refused = 0
       await asActor(browser, a, async (page) => {
         for (const path of paths) {
           const [pathname, query] = path.split("?")
           const url = `${BASE_URL}${pathname === "/" ? "" : pathname}/__data.json${query ? `?${query}` : ""}`
           const res = await page.request.get(url)
-          if (!res.ok()) continue
-          const body = await res.json()
+          const body = res.ok() ? await res.json() : null
+          const error = body?.nodes?.find((n) => n?.type === "error")
+          const status = res.ok() ? (error?.status ?? 200) : res.status()
+          if (status === 403 || status === 404) {
+            refused++
+            continue
+          }
+          if (status !== 200 || !body) {
+            failed.push(`${a.actor} ${path}: ${status}`)
+            continue
+          }
+          read++
           for (const node of body.nodes ?? []) {
             if (node?.type !== "data") continue
             for (const hit of longArrays(unflatten(node.data), max)) {
@@ -406,10 +420,14 @@ export async function rows({ perfUrl, tenantId, only, max }) {
           }
         }
       })
-      console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages checked`)
+      console.log(`  ${a.actor.padEnd(9)} ${read} pages read, ${refused} refused`)
+    }
+    if (failed.length) {
+      console.log(`\n  ${failed.length} page(s) failed, so were not checked:\n    ${failed.join("\n    ")}`)
+      process.exitCode = 1
     }
     if (!found.size) {
-      console.log(`\n  no page sends more than ${max} rows of anything, for any actor`)
+      console.log(`\n  no page read sends more than ${max} rows of anything, for any actor`)
       return
     }
     console.log(`\n  ${found.size} list(s) over ${max} rows:\n`)

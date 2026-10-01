@@ -33,7 +33,7 @@
     return qs ? `?${qs}` : "?"
   }
 
-  const secondaryLine =(c: (typeof data.companies)[number]): string | null =>
+  const secondaryLine = (c: (typeof data.companies)[number]): string | null =>
     c.customer_type === "individual" ? (c.email ?? c.phone) : c.website
 
   const rowActions = (c: (typeof data.companies)[number]): RowAction[] => [

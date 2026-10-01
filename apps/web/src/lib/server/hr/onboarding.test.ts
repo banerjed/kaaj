@@ -166,6 +166,23 @@ describe("a hire's actual tasks", () => {
     expect(rows[0].employee_name).toContain("Oliver")
   })
 
+  it("lists a person's own tasks and those assigned to them as one paged set", async () => {
+    const [own, assigned, involving, counted] = await withTenant(
+      AS_OWNER,
+      (tx) =>
+        Promise.all([
+          onboarding.tasks(tx, { employeeId: SARAH }),
+          onboarding.tasks(tx, { assignedTo: SARAH }),
+          onboarding.tasks(tx, { involving: SARAH }),
+          onboarding.countTasks(tx, { involving: SARAH }),
+        ]),
+    )
+    const union = new Set([...own, ...assigned].map((t) => t.id))
+    expect(union.size).toBeGreaterThan(0)
+    expect(new Set(involving.map((t) => t.id))).toEqual(union)
+    expect(counted).toBe(union.size)
+  })
+
   it("does not raise on empty filters", async () => {
     // '' is not a uuid and SQL does not short-circuit (L37).
     const rows = await withTenant(AS_OWNER, (tx) =>

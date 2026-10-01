@@ -7,14 +7,6 @@ import { can, contextFrom } from "$lib/server/auth/can"
 const PAGE_SIZE = 20
 
 /**
- * Everyone else's own tasks are bounded by their own onboarding, not by
- * tenure — a hard cap here is defense against a pathological row (a bad
- * import, a bug elsewhere), not a real business limit. No page control:
- * tripping this is not an expected case, unlike the HR-wide list below.
- */
-const OWN_TASKS_CAP = 500
-
-/**
  * /onboarding — module-hr.md § Onboarding. Read-only for now; generating a plan
  * is a future write and must record which template was chosen.
  */
@@ -46,22 +38,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     }
 
     // Everyone else sees their own tasks and the ones they have been asked
-    // to do — no HR-wide fan-out, so no page control.
-    const tasks = [
-      ...(await onboarding.tasks(tx, {
-        employeeId: me ?? undefined,
-        limit: OWN_TASKS_CAP,
-      })),
-      ...(await onboarding.tasks(tx, {
-        assignedTo: me ?? undefined,
-        limit: OWN_TASKS_CAP,
-      })),
-    ].filter((t, i, all) => all.findIndex((o) => o.id === t.id) === i)
+    // to do — paged too: a manager onboarding a team is assigned many.
+    if (!me) {
+      return {
+        tasks: [],
+        total: 0,
+        page: 1,
+        pageSize: PAGE_SIZE,
+        templates: [],
+        readsAll,
+        me,
+      }
+    }
+    const [tasks, total] = await Promise.all([
+      onboarding.tasks(tx, {
+        involving: me,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      onboarding.countTasks(tx, { involving: me }),
+    ])
     return {
       tasks,
-      total: tasks.length,
-      page: 1,
-      pageSize: tasks.length,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
       templates: [],
       readsAll,
       me,

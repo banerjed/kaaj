@@ -82,7 +82,7 @@ const MATRIX: {
     load: async () =>
       (await import("../../../routes/(app)/employees/new/+page.server"))
         .actions,
-    actions: ["default"],
+    actions: ["save"],
     denied: [
       ["employee", []],
       ["contractor", []],
@@ -98,7 +98,7 @@ const MATRIX: {
     load: async () =>
       (await import("../../../routes/(app)/employees/[id]/edit/+page.server"))
         .actions,
-    actions: ["default"],
+    actions: ["save"],
     denied: [
       ["employee", []],
       ["contractor", []],

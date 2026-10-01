@@ -12,8 +12,7 @@
   const locale = $derived(data.tenant?.default_locale ?? "en-US")
 
   // Bucketed client-side, same accepted tradeoff as attendance/time-off:
-  // for the HR-wide list this only reflects the current PAGE of tasks, not
-  // every task ever created.
+  // this only reflects the current PAGE of tasks, not every task ever created.
   const open = $derived(data.tasks.filter((t) => t.status !== "completed"))
   const done = $derived(data.tasks.filter((t) => t.status === "completed"))
 
@@ -130,7 +129,7 @@
     />
   {/if}
 
-  {#if data.readsAll}
+  {#if data.total > 0}
     <div class="card bg-base-100 mt-6 shadow">
       <Pagination
         page={data.page}

@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 import { compareDecimal } from "$lib/decimal"
 import { rateAsOf } from "./exchange_rates.repo"
 import { log } from "$lib/server/log"
@@ -462,8 +463,29 @@ export async function arAging(
   tx: Tx,
   filters: { asOf?: string } = {},
 ): Promise<ArAgingRow[]> {
-  const asOf = filters.asOf || null
   return tx<ArAgingRow[]>`
+    SELECT q.* FROM (${arAgingQuery(tx, filters)}) q
+     ORDER BY q.customer_name, q.currency, q.customer_id
+  `
+}
+
+/** One page of `arAging()`, in the same order. */
+export function arAgingPage(
+  tx: Tx,
+  filters: { asOf?: string },
+  page: Page,
+): Promise<Paged<ArAgingRow>> {
+  return paged(
+    tx,
+    arAgingQuery(tx, filters),
+    tx`q.customer_name, q.currency, q.customer_id`,
+    page,
+  )
+}
+
+function arAgingQuery(tx: Tx, filters: { asOf?: string }) {
+  const asOf = filters.asOf || null
+  return tx`
     WITH open_invoices AS (
       SELECT i.customer_id, i.currency, i.amount_due,
              (COALESCE(${asOf}::date, CURRENT_DATE) - i.due_date) AS days_overdue
@@ -493,7 +515,6 @@ export async function arAging(
       FROM open_invoices i
       JOIN customers c ON c.id = i.customer_id
      GROUP BY c.id, c.customer_name, i.currency
-     ORDER BY c.customer_name, i.currency
   `
 }
 
@@ -522,6 +543,26 @@ export type CustomerBalanceRow = {
  */
 export async function customerBalances(tx: Tx): Promise<CustomerBalanceRow[]> {
   return tx<CustomerBalanceRow[]>`
+    SELECT q.* FROM (${customerBalancesQuery(tx)}) q
+     ORDER BY q.customer_name, q.currency, q.customer_id
+  `
+}
+
+/** One page of `customerBalances()`, in the same order. */
+export function customerBalancesPage(
+  tx: Tx,
+  page: Page,
+): Promise<Paged<CustomerBalanceRow>> {
+  return paged(
+    tx,
+    customerBalancesQuery(tx),
+    tx`q.customer_name, q.currency, q.customer_id`,
+    page,
+  )
+}
+
+function customerBalancesQuery(tx: Tx) {
+  return tx`
     SELECT c.id AS customer_id, c.customer_name, i.currency,
            c.credit_limit::text AS credit_limit,
            count(*)::int AS invoice_count,
@@ -534,7 +575,6 @@ export async function customerBalances(tx: Tx): Promise<CustomerBalanceRow[]> {
      WHERE i.amount_due > 0
        AND i.status NOT IN ('draft', 'void')
      GROUP BY c.id, c.customer_name, i.currency, c.credit_limit
-     ORDER BY c.customer_name, i.currency
   `
 }
 
@@ -2412,24 +2452,6 @@ async function invoiceState(tx: Tx, id: string): Promise<InvoiceState> {
   `
   if (!row) throw new AccountingRefused("no_such_invoice")
   return row
-}
-
-export type CustomerOption = {
-  id: string
-  customer_name: string
-  currency: string
-}
-
-/** For the invoice-create picker — active customers only. */
-export async function listCustomersForPicker(
-  tx: Tx,
-): Promise<CustomerOption[]> {
-  return tx<CustomerOption[]>`
-    SELECT id, customer_name, currency
-      FROM customers
-     WHERE is_active
-     ORDER BY customer_name
-  `
 }
 
 /** One line as submitted on the create form, before it is priced. */

@@ -11,6 +11,10 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
+
+  const searchPeople = actionSearch("searchPeople")
 
   let { data, form } = $props()
 
@@ -247,13 +251,16 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Owner</legend>
-            <select name="owner_id" class="select w-full" required>
-              {#each data.owners as m (m.id)}
-                <option value={m.id} selected={m.id === d.owner_id}
-                  >{m.name}</option
-                >
-              {/each}
-            </select>
+            {#key d.id}
+              <Combobox
+                name="owner_id"
+                search={searchPeople}
+                selected={[{ id: d.owner_id, label: d.owner_name }]}
+                invalid={!!err.aria("owner_id")}
+                placeholder="Search people…"
+                emptyText="No matching person"
+              />
+            {/key}
           </fieldset>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">

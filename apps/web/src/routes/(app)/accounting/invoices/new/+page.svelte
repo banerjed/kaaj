@@ -5,8 +5,11 @@
   import Combobox from "$lib/components/Combobox.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+
+  const searchCustomers = actionSearch("searchCustomers")
 
   const err = $derived(fieldErrors(form))
 
@@ -81,11 +84,7 @@
               name="customer_id"
               placeholder="Search customers…"
               invalid={err.has("customer_id")}
-              options={data.customers.map((c) => ({
-                id: c.id,
-                label: c.customer_name,
-                sublabel: c.currency,
-              }))}
+              search={searchCustomers}
             />
             <p class="text-base-content/70 mt-1 text-xs">
               The invoice is raised in this customer's own currency.

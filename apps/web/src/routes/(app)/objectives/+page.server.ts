@@ -6,6 +6,11 @@ import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
+import {
+  pickerQuery,
+  searchCustomers,
+  searchEmployees,
+} from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 const { OBJECTIVE_TYPES, OBJECTIVE_STATUSES } = objectives
@@ -24,20 +29,31 @@ export const load: PageServerLoad = async ({ locals }) => {
     statuses: OBJECTIVE_STATUSES,
     // UI convenience only — the action re-enforces this gate.
     mayCreate: can(ctx, "projects.write"),
-    customers: await tx<{ id: string; customer_name: string }[]>`
-      SELECT id, customer_name FROM customers ORDER BY customer_name
-    `,
-    owners: await tx<{ id: string; name: string }[]>`
-      SELECT id, first_name || ' ' || last_name AS name
-        FROM employees
-       WHERE employment_status = 'active'
-       ORDER BY first_name, last_name
-    `,
     locations: await locationsRepo.list(tx),
   }))
 }
 
 export const actions: Actions = {
+  /** Backs the create form's client picker; the form is `projects.write`'s. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchCustomers(tx, q),
+    }))
+  },
+
+  /** Backs the create form's owner picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { set: "employed" }),
+    }))
+  },
+
   /** Create an objective. Audited — target/actual revenue are figures an executive reads. */
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")

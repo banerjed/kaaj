@@ -7,8 +7,14 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { hasAny } from "$lib/permissions"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data } = $props()
+
+  const searchPeople = actionSearch("searchPeople")
+  /** A filter's current pick, named, for its picker to show. */
+  const picked = (id: string) => (data.people[id] ? [data.people[id]] : [])
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   // No single office owns a ticket, so this falls back to the tenant's own
@@ -157,42 +163,39 @@
     </fieldset>
     <fieldset class="fieldset w-48">
       <legend class="fieldset-legend text-xs">Logger</legend>
-      <select
-        name="logger"
-        class="select select-sm w-full"
-        value={data.filters.loggerId}
-      >
-        <option value="">Anyone</option>
-        {#each data.people as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
+      {#key data.filters.loggerId}
+        <Combobox
+          name="logger"
+          search={searchPeople}
+          selected={picked(data.filters.loggerId)}
+          placeholder="Anyone"
+          emptyText="No matching person"
+        />
+      {/key}
     </fieldset>
     <fieldset class="fieldset w-48">
       <legend class="fieldset-legend text-xs">Assignee</legend>
-      <select
-        name="assignee"
-        class="select select-sm w-full"
-        value={data.filters.assigneeId}
-      >
-        <option value="">Anyone</option>
-        {#each data.people as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
+      {#key data.filters.assigneeId}
+        <Combobox
+          name="assignee"
+          search={searchPeople}
+          selected={picked(data.filters.assigneeId)}
+          placeholder="Anyone"
+          emptyText="No matching person"
+        />
+      {/key}
     </fieldset>
     <fieldset class="fieldset w-48">
       <legend class="fieldset-legend text-xs">Subscriber</legend>
-      <select
-        name="subscriber"
-        class="select select-sm w-full"
-        value={data.filters.subscriberId}
-      >
-        <option value="">Anyone</option>
-        {#each data.people as p (p.id)}
-          <option value={p.id}>{p.name}</option>
-        {/each}
-      </select>
+      {#key data.filters.subscriberId}
+        <Combobox
+          name="subscriber"
+          search={searchPeople}
+          selected={picked(data.filters.subscriberId)}
+          placeholder="Anyone"
+          emptyText="No matching person"
+        />
+      {/key}
     </fieldset>
     <fieldset class="fieldset w-56">
       <legend class="fieldset-legend text-xs">Search</legend>

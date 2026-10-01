@@ -2,6 +2,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import EmployeeForm from "$lib/components/EmployeeForm.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -28,7 +29,7 @@
       departments={data.departments}
       locations={data.locations}
       jobTitles={data.jobTitles}
-      managers={data.managers}
+      searchManagers={actionSearch("searchPeople")}
       enums={data.enums}
       {form}
       submitLabel="Save changes"

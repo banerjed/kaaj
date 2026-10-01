@@ -1,11 +1,15 @@
 import { error } from "@sveltejs/kit"
-import type { PageServerLoad } from "./$types"
+import type { Actions, PageServerLoad } from "./$types"
 import * as ticketing from "$lib/server/ticketing/ticketing.repo"
 import { TICKET_STATUSES } from "$lib/server/ticketing/ticketing.repo"
-import * as employees from "$lib/server/employee-profile/employees.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
+import {
+  employeeLabels,
+  pickerQuery,
+  searchEmployees,
+} from "$lib/server/pickers"
 
 const PAGE_SIZE = 20
 
@@ -88,7 +92,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     return {
       businessAreas,
       categoriesByArea,
-      people: await employees.managerOptions(tx),
+      // The filters' current picks only; the pickers search for the rest.
+      people: await employeeLabels(tx, [loggerId, assigneeId, subscriberId]),
       tickets,
       total,
       page,
@@ -108,4 +113,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       readsAll,
     }
   })
+}
+
+export const actions: Actions = {
+  /** Backs the logger, assignee and subscriber filters. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    if (!can(ctx, "ticketing.read.own") && !can(ctx, "ticketing.read.all")) {
+      error(403, "You cannot see tickets.")
+    }
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
 }

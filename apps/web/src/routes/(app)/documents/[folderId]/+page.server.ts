@@ -7,7 +7,7 @@ import {
   SHARE_PERMISSIONS,
   atLeast,
 } from "$lib/server/documents/documents.repo"
-import * as employees from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { FUNCTIONAL_ROLES } from "@kaaj/authz"
 import { withTenant, actorFrom, type Tx } from "$lib/server/db/tenant"
 import { contextFrom, requireCan, type AuthContext } from "$lib/server/auth/can"
@@ -51,9 +51,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       canEdit: atLeast(permission, "edit"),
       canManage: atLeast(permission, "owner"),
       shares: shareRows,
-      people: atLeast(permission, "owner")
-        ? await employees.managerOptions(tx)
-        : [],
       functionalRoles: FUNCTIONAL_ROLES,
       visibilities: FOLDER_VISIBILITIES,
       sharePermissions: SHARE_PERMISSIONS,
@@ -75,6 +72,18 @@ async function requireFolderPermission(
 }
 
 export const actions: Actions = {
+  /** Backs the share panel's person picker — the folder's owner only, as the panel is. */
+  searchPeople: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    const ctx = contextFrom(locals)
+    requireCan(ctx, "document.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => {
+      await requireFolderPermission(tx, params.folderId, ctx!, "owner")
+      return { results: await searchEmployees(tx, q) }
+    })
+  },
+
   createFolder: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

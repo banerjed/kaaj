@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 
 /** /chat — empty state when nothing is selected. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -15,6 +16,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 }
 
 export const actions: Actions = {
+  /** Backs the layout's new-DM picker: everyone active but yourself. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "team_chat.read")
+    if (!locals.employeeId)
+      error(403, "Chat is for employees, not this kind of account.")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { excludeId: locals.employeeId }),
+    }))
+  },
+
   createChannel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

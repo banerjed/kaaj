@@ -2896,6 +2896,28 @@ customer may read it, treat `tenant_isolation` alone as readable by customers.
 The portal was switched off the same day (20260930130000): a contact's
 sign-in no longer carries a tenant, so none of this is reachable meanwhile.
 
+### L112 — "bounded" was read as "small", and pickers were never counted
+
+The paging rule covered lists over `SCALE_SENSITIVE` tables, and those
+lists were paged. Measured against the 1,000-person perf tenant
+(docs/32-perf-tenant.md), 40 places still sent more than 100 rows, and
+most were not lists at all: a `<select>` of every employee (1,000) for an
+account manager, every client (3,000) for a new deal, every open task
+(2,000) for a time entry. `employees` and `customers` are rightly
+NOT_SCALE_SENSITIVE — they grow with the firm, not with time — but a
+firm-sized table is still far too many rows to ship to a dropdown. The
+Northwind fixture has a dozen of each, so every page looked fine, and most
+of these pickers sit in a closed modal, so even a DOM count on the big
+tenant missed them.
+
+`/crm/companies` showed the other half: an unpaged list whose per-row
+`count(*)` of contacts had no index on `customer_id`, so 3,000 rows cost
+29 million row checks — 4.7 seconds — while Northwind rendered in 20ms.
+
+Rule: anything a page loads is bounded by a page size or a picker's 20
+matches, whatever its table's scale class; and `pnpm db:perf rows`, which
+reads each page's load data rather than its DOM, is what says so.
+
 ---
 
 ## Conventions

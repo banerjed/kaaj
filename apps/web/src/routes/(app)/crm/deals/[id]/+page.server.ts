@@ -4,7 +4,7 @@ import * as deals from "$lib/server/crm/deals.repo"
 import * as pipelineStages from "$lib/server/crm/pipeline-stages.repo"
 import * as contacts from "$lib/server/customers/customer-contacts.repo"
 import * as activities from "$lib/server/crm/activities.repo"
-import { managerOptions } from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -33,7 +33,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       fieldValues: fieldValues[params.id] ?? [],
       stages: await pipelineStages.list(tx),
       contacts: await contacts.listForCustomer(tx, deal.customer_id),
-      owners: await managerOptions(tx),
       activities: await activities.listForDeal(tx, params.id),
       activityTypes: activities.ACTIVITY_TYPES,
     }
@@ -41,6 +40,16 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 }
 
 export const actions: Actions = {
+  /** Backs the owner picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "crm.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
   save: async ({ request, params, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

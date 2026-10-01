@@ -11,8 +11,13 @@
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
   import { has } from "$lib/permissions"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
+
+  const searchCustomers = actionSearch("searchCustomers")
+  const searchPeople = actionSearch("searchPeople")
 
   const err = $derived(fieldErrors(form))
   const canWrite = $derived(has(data.permissions, "projects.write"))
@@ -219,30 +224,24 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Client (optional)</legend>
-          <select
+          <Combobox
             name="customer_id"
-            aria-invalid={err.aria("customer_id")}
-            class={`select w-full ${err.select("customer_id")}`}
-          >
-            <option value="">Not client-specific</option>
-            {#each data.customers as c (c.id)}
-              <option value={c.id}>{c.customer_name}</option>
-            {/each}
-          </select>
+            search={searchCustomers}
+            invalid={!!err.aria("customer_id")}
+            placeholder="Not client-specific"
+            emptyText="No matching client"
+          />
         </fieldset>
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Owner</legend>
-          <select
+          <Combobox
             name="owner_employee_id"
-            aria-invalid={err.aria("owner_employee_id")}
-            class={`select w-full ${err.select("owner_employee_id")}`}
-          >
-            <option value="">Unassigned</option>
-            {#each data.owners as owner (owner.id)}
-              <option value={owner.id}>{owner.name}</option>
-            {/each}
-          </select>
+            search={searchPeople}
+            invalid={!!err.aria("owner_employee_id")}
+            placeholder="Unassigned"
+            emptyText="No matching person"
+          />
         </fieldset>
 
         <fieldset class="fieldset">

@@ -42,12 +42,12 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   },
   {
     route: "employees/new",
-    action: "default",
+    action: "save",
     why: "The start of an employment relationship, and the creation of a person's record under GDPR.",
   },
   {
     route: "employees/[id]/edit",
-    action: "default",
+    action: "save",
     why: "Job title, manager, department and status are employment history. 'Who moved me under this manager, and when' is a real question.",
   },
 
@@ -385,8 +385,13 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   // (docs/28-user-groups.md)
   {
     route: "settings/groups/[groupId]",
-    action: "saveMembers",
+    action: "addMember",
     why: "This group is used to permission ticketing business areas and restricted projects — changing membership changes what its members can see everywhere it's granted, not just here.",
+  },
+  {
+    route: "settings/groups/[groupId]",
+    action: "removeMember",
+    why: "Same as addMember: membership is what this group's grants reach.",
   },
   {
     route: "projects/[id]",
@@ -672,6 +677,81 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the company-filter autocomplete picker.",
   },
   {
+    route: "accounting/invoices/new",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the customer picker.",
+  },
+  {
+    route: "accounting/receive-payment",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the customer picker.",
+  },
+  {
+    route: "accounting/recurring-invoices",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the customer picker.",
+  },
+  {
+    route: "accounting/bills/new",
+    action: "searchVendors",
+    why: "A read, not a write — backs the vendor picker.",
+  },
+  {
+    route: "crm/companies/[id]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the account-manager and deal-owner pickers.",
+  },
+  {
+    route: "crm/deals/[id]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the owner picker.",
+  },
+  {
+    route: "ticketing",
+    action: "searchPeople",
+    why: "A read, not a write — backs the logger, assignee and subscriber filters.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the default-viewers picker.",
+  },
+  {
+    route: "settings/groups/[groupId]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the add-a-member picker.",
+  },
+  {
+    route: "employees/new",
+    action: "searchPeople",
+    why: "A read, not a write — backs the manager picker.",
+  },
+  {
+    route: "employees/[id]/edit",
+    action: "searchPeople",
+    why: "A read, not a write — backs the manager picker.",
+  },
+  {
+    route: "documents",
+    action: "searchPeople",
+    why: "A read, not a write — backs the file search's owner filter.",
+  },
+  {
+    route: "documents",
+    action: "searchFolders",
+    why: "A read, not a write — backs the upload form's folder picker.",
+  },
+  {
+    route: "documents/[folderId]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the share panel's person picker.",
+  },
+  {
+    route: "chat",
+    action: "searchPeople",
+    why: "A read, not a write — backs the new-DM person picker.",
+  },
+  {
     route: "crm/companies",
     action: "searchPeople",
     why: "A read, not a write — backs the account-manager picker.",
@@ -685,6 +765,41 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "crm/pipeline",
     action: "searchPeople",
     why: "A read, not a write — backs the new-deal owner picker.",
+  },
+  {
+    route: "projects",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the new-project client picker.",
+  },
+  {
+    route: "projects",
+    action: "searchPeople",
+    why: "A read, not a write — backs the new-project manager picker.",
+  },
+  {
+    route: "objectives",
+    action: "searchCustomers",
+    why: "A read, not a write — backs the new-objective client picker.",
+  },
+  {
+    route: "objectives",
+    action: "searchPeople",
+    why: "A read, not a write — backs the new-objective owner picker.",
+  },
+  {
+    route: "projects/[id]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the add-task assignee picker.",
+  },
+  {
+    route: "time-tracking",
+    action: "searchProjects",
+    why: "A read, not a write — backs the log-time project picker.",
+  },
+  {
+    route: "time-tracking",
+    action: "searchTasks",
+    why: "A read, not a write — backs the log-time task picker.",
   },
   {
     route: "ticketing/[id]",

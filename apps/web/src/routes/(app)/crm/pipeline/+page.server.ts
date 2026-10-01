@@ -2,7 +2,11 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as deals from "$lib/server/crm/deals.repo"
 import * as pipelineStages from "$lib/server/crm/pipeline-stages.repo"
-import { pickerQuery, searchCustomers, searchEmployees } from "$lib/server/pickers"
+import {
+  pickerQuery,
+  searchCustomers,
+  searchEmployees,
+} from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
@@ -30,7 +34,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const stages = await pipelineStages.list(tx)
     const perStage = Math.max(
       1,
-      Math.min(MAX_PER_STAGE, Math.floor(BOARD_CARDS / Math.max(1, stages.length))),
+      Math.min(
+        MAX_PER_STAGE,
+        Math.floor(BOARD_CARDS / Math.max(1, stages.length)),
+      ),
     )
     return {
       deals: await deals.listForBoard(tx, { perStage, pageStageId, stagePage }),

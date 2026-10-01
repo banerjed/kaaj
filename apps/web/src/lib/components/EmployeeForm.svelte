@@ -1,6 +1,9 @@
 <script lang="ts">
   import { timezoneOptions } from "$lib/firm-profile/regional"
   import { fieldErrors } from "$lib/form-errors"
+  import Combobox, {
+    type ComboboxOption,
+  } from "$lib/components/Combobox.svelte"
 
   /** One form for creating and editing, so the two paths cannot drift apart field by field. */
   let {
@@ -8,7 +11,7 @@
     departments,
     locations,
     jobTitles,
-    managers,
+    searchManagers,
     enums,
     form = null,
     submitLabel = "Save",
@@ -23,7 +26,8 @@
       timezone: string
     }[]
     jobTitles: { id: string; title: string }[]
-    managers: { id: string; name: string }[]
+    /** The page's own `searchPeople` action, via `actionSearch`. */
+    searchManagers: (q: string) => Promise<ComboboxOption[]>
     enums: Record<string, string[]>
     form: { errorFields?: string[]; message?: string } | null
     submitLabel?: string
@@ -56,7 +60,7 @@
   </div>
 {/if}
 
-<form method="POST" class="grid gap-4">
+<form method="POST" action="?/save" class="grid gap-4">
   <div class="card bg-base-100 shadow">
     <div class="card-body gap-4">
       <h2 class="card-title text-base">Identity</h2>
@@ -269,17 +273,16 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Manager</legend>
-          <select
+          <Combobox
             name="manager_id"
-            aria-invalid={err.aria("manager_id")}
-            class={`select w-full ${err.select("manager_id")}`}
-            value={value("manager_id")}
-          >
-            <option value="">None</option>
-            {#each managers as m (m.id)}
-              <option value={m.id}>{m.name}</option>
-            {/each}
-          </select>
+            search={searchManagers}
+            selected={value("manager_id")
+              ? [{ id: value("manager_id"), label: value("manager_name") }]
+              : []}
+            invalid={!!err.aria("manager_id")}
+            placeholder="None"
+            emptyText="No matching person"
+          />
         </fieldset>
       </div>
 

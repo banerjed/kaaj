@@ -9,6 +9,7 @@
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
 
@@ -137,11 +138,11 @@
         />
       </form>
 
-      {#if data.activities.length === 0}
+      {#if data.activities.total === 0}
         <p class="text-base-content/70 mt-3 text-sm">Nothing logged yet.</p>
       {:else}
         <ul class="mt-3 flex flex-col gap-2">
-          {#each data.activities as a (a.id)}
+          {#each data.activities.rows as a (a.id)}
             <li class="border-base-200 border-t pt-2">
               <div class="flex items-start gap-2">
                 <span
@@ -166,6 +167,14 @@
             </li>
           {/each}
         </ul>
+        {#if data.activities.total > data.activityPageSize}
+          <Pagination
+            page={data.activityPage}
+            pageSize={data.activityPageSize}
+            total={data.activities.total}
+            hrefFor={(n) => (n > 1 ? `?activities=${n}` : "?")}
+          />
+        {/if}
       {/if}
     </SectionCard>
   </div>

@@ -11,6 +11,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pickerQuery, searchCustomers, withCurrency } from "$lib/server/pickers"
 
 const MAX_LINES = 50
 
@@ -25,7 +26,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   return withTenant(actorFrom(locals), async (tx) => ({
     schedules: await acc.listRecurringSchedules(tx),
-    customers: await acc.listCustomersForPicker(tx),
     taxRates: (await taxRates.listTaxRates(tx)).filter((r) => r.is_active),
     frequencies: RECURRING_FREQUENCIES,
     mayWrite: can(ctx, "accounting.write"),
@@ -68,6 +68,16 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the customer picker: active customers, with their currency. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: withCurrency(await searchCustomers(tx, q, { activeOnly: true })),
+    }))
+  },
+
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

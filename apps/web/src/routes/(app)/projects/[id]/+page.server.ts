@@ -21,6 +21,7 @@ import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList } from "$lib/server/forms"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 const {
@@ -32,15 +33,20 @@ const {
 } = projects
 
 /** /projects/[id] — a project and its tasks. */
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const pageSize = projects.TASK_PAGE_SIZE
 
   return withTenant(actorFrom(locals), async (tx) => {
     const project = await projects.byId(tx, params.id)
     if (!project) error(404, "No such project")
     const [tasks, tasksTotal] = await Promise.all([
-      projects.tasksFor(tx, project.id),
+      projects.tasksFor(tx, project.id, {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
       projects.countTasksFor(tx, project.id),
     ])
     const taskIds = tasks.map((t) => t.id)
@@ -48,18 +54,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       project,
       tasks,
       tasksTotal,
+      page,
+      pageSize,
       taskStatuses: TASK_STATUSES,
       taskPriorities: TASK_PRIORITIES,
       projectStatuses: PROJECT_STATUSES,
       projectHealths: PROJECT_HEALTHS,
       projectPriorities: PROJECT_PRIORITIES,
       mayWrite: can(ctx, "projects.write"),
-      assignees: await tx<{ id: string; name: string }[]>`
-        SELECT id, first_name || ' ' || last_name AS name
-          FROM employees
-         WHERE employment_status = 'active'
-         ORDER BY first_name, last_name
-      `,
       objectives: await objectives.list(tx),
       // For per-market number formatting; see localeForCurrency.
       locations: await locationsRepo.list(tx),
@@ -140,6 +142,16 @@ function refusal(e: ProjectWriteRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the add-task assignee picker; the form is `projects.write`'s. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { set: "employed" }),
+    }))
+  },
+
   /**
    * Add a task. NOT audited — a task move doesn't touch money, employment or
    * rights, and a row per move would bury the entries that matter. `createTask`

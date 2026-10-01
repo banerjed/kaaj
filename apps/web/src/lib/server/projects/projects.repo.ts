@@ -168,13 +168,27 @@ async function taskCountsFor(
   return out
 }
 
-export async function list(
-  tx: Tx,
-  filters: { status?: string; health?: string; customerId?: string } = {},
-): Promise<ProjectRow[]> {
+type ListFilters = { status?: string; health?: string; customerId?: string }
+
+/** The one WHERE `list` and `count` share, so a page's total counts what it lists. */
+function listWhere(tx: Tx, filters: ListFilters) {
   const { status = "", health = "" } = filters
   // NULL rather than '' for the uuid cast (L37).
   const customerId = filters.customerId || null
+  return tx`
+     WHERE p.archived_at IS NULL
+       AND (${status} = '' OR p.status = ${status})
+       AND (${health} = '' OR p.health_status = ${health})
+       AND (${customerId}::uuid IS NULL OR p.customer_id = ${customerId}::uuid)
+  `
+}
+
+/** `page` bounds it for a screen; without one it is every matching project. */
+export async function list(
+  tx: Tx,
+  filters: ListFilters = {},
+  page?: { limit: number; offset: number },
+): Promise<ProjectRow[]> {
   const rows = await tx<
     Omit<
       ProjectRow,
@@ -182,11 +196,9 @@ export async function list(
     >[]
   >`
     ${tx.unsafe(LIST_SELECT)}
-     WHERE p.archived_at IS NULL
-       AND (${status} = '' OR p.status = ${status})
-       AND (${health} = '' OR p.health_status = ${health})
-       AND (${customerId}::uuid IS NULL OR p.customer_id = ${customerId}::uuid)
-     ORDER BY p.project_number
+    ${listWhere(tx, filters)}
+     ORDER BY p.project_number, p.id
+     ${page ? tx`LIMIT ${page.limit} OFFSET ${page.offset}` : tx``}
   `
   const counts = await taskCountsFor(
     tx,
@@ -198,6 +210,17 @@ export async function list(
     actual_completed_count: counts[r.id]?.actual_completed_count ?? 0,
     overdue_task_count: counts[r.id]?.overdue_task_count ?? 0,
   }))
+}
+
+/** How many projects `list` would return without a page. */
+export async function count(
+  tx: Tx,
+  filters: ListFilters = {},
+): Promise<number> {
+  const [{ n }] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM projects p ${listWhere(tx, filters)}
+  `
+  return n
 }
 
 export async function byId(tx: Tx, id: string): Promise<ProjectRow | null> {
@@ -254,15 +277,20 @@ export type TaskRow = {
 }
 
 /**
- * A board's task count is bounded by what a team actually manages at once,
- * not by tenure — unlike `tasks`'s own SCALE_SENSITIVE classification, which
- * is about the table as a whole across every project. A cap here is defense
- * against one pathological project (a bad import, a bug elsewhere), not a
- * real business limit.
+ * One page of a project's tasks, in board order — a subtask sorts beside its
+ * parent, so a page splits a family only at its edge. Every view of the
+ * project (list, Kanban, Gantt, calendar, workload) shows the same page.
  */
-const BOARD_TASK_CAP = 500
+export const TASK_PAGE_SIZE = 50
 
-export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
+export async function tasksFor(
+  tx: Tx,
+  projectId: string,
+  { limit, offset }: { limit: number; offset: number } = {
+    limit: TASK_PAGE_SIZE,
+    offset: 0,
+  },
+): Promise<TaskRow[]> {
   return tx<TaskRow[]>`
     SELECT t.id, t.task_number, t.task_name, t.status, t.priority,
            e.first_name || ' ' || e.last_name AS assignee_name,
@@ -310,12 +338,13 @@ export async function tasksFor(tx: Tx, projectId: string): Promise<TaskRow[]> {
               COALESCE(pt.due_date, t.due_date) NULLS LAST,
               COALESCE(pt.task_number, t.task_number),
               t.depth_level,
-              t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number
-     LIMIT ${BOARD_TASK_CAP}
+              t.board_position NULLS LAST, t.due_date NULLS LAST, t.task_number,
+              t.id
+     LIMIT ${limit} OFFSET ${offset}
   `
 }
 
-/** The true count behind `tasksFor`'s capped list, so a truncated board can say so. */
+/** Every task of the project, counted — the total behind `tasksFor`'s pages. */
 export async function countTasksFor(
   tx: Tx,
   projectId: string,

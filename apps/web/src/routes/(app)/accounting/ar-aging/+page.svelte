@@ -3,8 +3,16 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import { money, localeForCurrency } from "$lib/format"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
+
+  function pageHref(n: number): string {
+    const params = new URLSearchParams()
+    if (data.filters.asOf) params.set("as_of", data.filters.asOf)
+    if (n > 1) params.set("page", String(n))
+    return `?${params}`
+  }
 
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   /** A customer's balance is read in their own currency, never converted. */
@@ -89,6 +97,12 @@
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={pageHref}
+      />
       <p class="text-base-content/70 p-4 text-xs">
         Each row is in the customer's own billing currency and is not summed
         across currencies.

@@ -734,6 +734,18 @@ tenant has been a customer for a year — the same failure mode
 `verify-no-loop-queries.mjs` and the scale-sensitive register exist to
 catch.
 
+**No page sends the browser more than 100 rows of anything — and that
+includes pickers.** A `<select>` of every employee or every client is a
+full-table read too: bounded by the firm's size is not small (1,000 people,
+3,000 clients). A picker over such a table is a `Combobox` with `search`,
+backed by the page's own `search*` action and a function in
+`$lib/server/pickers.ts` that returns 20 matches with the same filter the
+old list had. A total shown beside a paged list is computed in SQL over
+every row, never summed from the page ([L112](docs/10-lessons-learned.md)).
+`pnpm db:perf rows` reads every page's load data as every perf-tenant actor
+and fails on any array over 100, so a picker inside a closed modal counts;
+run it after touching any page's `load()`.
+
 ---
 
 ## Svelte

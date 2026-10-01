@@ -15,9 +15,16 @@ import { constraintFailure } from "$lib/server/db/constraints"
 
 const SCOPE = { entityType: "customer_contact" } as const
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+const ACTIVITY_PAGE_SIZE = 20
+
+export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
+
+  const activityPage = Math.max(
+    1,
+    Number(url.searchParams.get("activities")) || 1,
+  )
 
   return withTenant(actorFrom(locals), async (tx) => {
     const contact = await contacts.getById(tx, params.id)
@@ -30,7 +37,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     return {
       contact,
-      activities: await activities.listForContact(tx, params.id),
+      activities: await activities.listForContact(tx, params.id, {
+        limit: ACTIVITY_PAGE_SIZE,
+        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
+      }),
+      activityPage,
+      activityPageSize: ACTIVITY_PAGE_SIZE,
       activityTypes: activities.ACTIVITY_TYPES,
       fieldDefs,
       fieldValues: fieldValues[params.id] ?? [],

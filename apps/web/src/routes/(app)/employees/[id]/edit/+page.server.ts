@@ -12,6 +12,8 @@ import {
   parseEmployeeForm,
 } from "$lib/server/employee-profile/employee-form"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { FormReader } from "$lib/server/forms"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -24,9 +26,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       departments: await departments.list(tx),
       locations: await locationsRepo.list(tx),
       jobTitles: await titles.list(tx),
-      // Excluding self from the manager list removes the trivial cycle from
-      // the UI; wouldReportToSelf catches the indirect ones.
-      managers: await employees.managerOptions(tx, params.id),
       enums: employeeEnums,
     }
   })
@@ -50,7 +49,20 @@ const EMPLOYMENT_FIELDS = [
 ]
 
 export const actions: Actions = {
-  default: async ({ request, locals, params }) => {
+  /**
+   * Backs the manager picker. Excluding the employee removes the trivial
+   * cycle from the UI; wouldReportToSelf catches the indirect ones.
+   */
+  searchPeople: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "employee.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { excludeId: params.id }),
+    }))
+  },
+
+  save: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "employee.write")
 

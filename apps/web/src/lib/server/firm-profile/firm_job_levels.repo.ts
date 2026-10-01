@@ -24,12 +24,21 @@ export type FirmJobLevel = {
   sort_order: number
 }
 
-export async function listByTitle(tx: Tx): Promise<FirmJobLevel[]> {
+/** Active levels of the given titles — the titles on one settings page — or the one level `id`. */
+export async function listByTitle(
+  tx: Tx,
+  {
+    titleIds = null,
+    id = null,
+  }: { titleIds?: string[] | null; id?: string | null },
+): Promise<FirmJobLevel[]> {
   return tx<FirmJobLevel[]>`
     SELECT id, job_title_id, level_name, level_name_i18n,
            salary_ranges, sort_order
       FROM firm_job_levels
      WHERE is_active
+       AND (${titleIds}::uuid[] IS NULL OR job_title_id = ANY(${titleIds}::uuid[]))
+       AND (${id}::uuid IS NULL OR id = ${id}::uuid)
      ORDER BY job_title_id, sort_order ASC, level_name ASC
   `
 }

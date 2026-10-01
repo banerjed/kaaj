@@ -7,6 +7,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pickerQuery, searchCustomers, withCurrency } from "$lib/server/pickers"
 
 const MAX_LINES = 50
 
@@ -18,7 +19,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     error(403, "Only finance can see invoices.")
   }
   return withTenant(actorFrom(locals), async (tx) => ({
-    customers: await acc.listCustomersForPicker(tx),
     taxRates: (await taxRates.listTaxRates(tx)).filter((r) => r.is_active),
   }))
 }
@@ -62,6 +62,16 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the customer picker: active customers, with their currency. */
+  searchCustomers: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: withCurrency(await searchCustomers(tx, q, { activeOnly: true })),
+    }))
+  },
+
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

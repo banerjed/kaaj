@@ -23,8 +23,8 @@ export type Activity = {
   contact_name: string | null
 }
 
-const SELECT = `
-  SELECT a.id, a.customer_id, a.customer_contact_id, a.deal_id, a.activity_type,
+const COLUMNS_AND_FROM = `
+         a.id, a.customer_id, a.customer_contact_id, a.deal_id, a.activity_type,
          a.subject, a.body, a.occurred_at, a.created_by,
          e.first_name || ' ' || e.last_name AS created_by_name,
          cc.first_name || ' ' || cc.last_name AS contact_name
@@ -32,40 +32,49 @@ const SELECT = `
     JOIN employees e ON e.id = a.created_by
     LEFT JOIN customer_contacts cc ON cc.id = a.customer_contact_id
 `
+const SELECT = `SELECT ${COLUMNS_AND_FROM}`
+/** The same, with every match counted alongside one page of them. */
+const SELECT_COUNTED = `SELECT count(*) OVER ()::text AS total, ${COLUMNS_AND_FROM}`
 
-/** `crm_activities` is SCALE_SENSITIVE (grows continuously) — the company page shows the most recent `limit`, not the whole history. */
+type Paged = { limit: number; offset: number }
+
+/** `crm_activities` is SCALE_SENSITIVE (grows continuously) — a page of the history, newest first, never the whole of it. */
 export async function listForCustomer(
   tx: Tx,
   customerId: string,
-  limit = 10,
-): Promise<Activity[]> {
-  return tx<Activity[]>`
-    ${tx.unsafe(SELECT)}
+  { limit, offset }: Paged,
+): Promise<{ rows: Activity[]; total: number }> {
+  const rows = await tx<(Activity & { total: string })[]>`
+    ${tx.unsafe(SELECT_COUNTED)}
      WHERE a.customer_id = ${customerId}
-     ORDER BY a.occurred_at DESC
-     LIMIT ${limit}
+     ORDER BY a.occurred_at DESC, a.id
+     LIMIT ${limit} OFFSET ${offset}
   `
-}
-
-export async function countForCustomer(
-  tx: Tx,
-  customerId: string,
-): Promise<number> {
-  const [{ n }] = await tx<{ n: number }[]>`
-    SELECT count(*)::int AS n FROM crm_activities WHERE customer_id = ${customerId}
-  `
-  return n
+  return paged(rows)
 }
 
 export async function listForContact(
   tx: Tx,
   contactId: string,
-): Promise<Activity[]> {
-  return tx<Activity[]>`
-    ${tx.unsafe(SELECT)}
+  { limit, offset }: Paged,
+): Promise<{ rows: Activity[]; total: number }> {
+  const rows = await tx<(Activity & { total: string })[]>`
+    ${tx.unsafe(SELECT_COUNTED)}
      WHERE a.customer_contact_id = ${contactId}
-     ORDER BY a.occurred_at DESC
+     ORDER BY a.occurred_at DESC, a.id
+     LIMIT ${limit} OFFSET ${offset}
   `
+  return paged(rows)
+}
+
+function paged(rows: (Activity & { total: string })[]): {
+  rows: Activity[]
+  total: number
+} {
+  return {
+    rows: rows.map(({ total: _total, ...row }) => row),
+    total: rows.length > 0 ? Number(rows[0].total) : 0,
+  }
 }
 
 export async function listForDeal(tx: Tx, dealId: string): Promise<Activity[]> {

@@ -12,6 +12,8 @@ import {
   parseEmployeeForm,
 } from "$lib/server/employee-profile/employee-form"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { FormReader } from "$lib/server/forms"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 
 /** /employees/new — module-employee-profile.md § Use Case 1: Onboarding. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -22,7 +24,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     departments: await departments.list(tx),
     locations: await locationsRepo.list(tx),
     jobTitles: await titles.list(tx),
-    managers: await employees.managerOptions(tx),
     enums: employeeEnums,
   }))
 }
@@ -43,7 +44,17 @@ const HIRE_FIELDS = [
 ]
 
 export const actions: Actions = {
-  default: async ({ request, locals }) => {
+  /** Backs the manager picker. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "employee.create")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q),
+    }))
+  },
+
+  save: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "employee.create")
     const tenantId = locals.tenantId

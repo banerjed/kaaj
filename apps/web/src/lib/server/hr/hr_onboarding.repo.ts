@@ -161,12 +161,15 @@ export async function tasks(
   filters: {
     employeeId?: string
     assignedTo?: string
+    /** Tasks either ABOUT this employee or assigned TO them. */
+    involving?: string
     limit?: number
     offset?: number
   } = {},
 ): Promise<OnboardingTask[]> {
   const employee = filters.employeeId || null
   const assignee = filters.assignedTo || null
+  const involving = filters.involving || null
   const limit = filters.limit ?? null
   const offset = filters.offset ?? 0
   return tx<OnboardingTask[]>`
@@ -174,6 +177,9 @@ export async function tasks(
      WHERE (${employee}::uuid IS NULL OR o.employee_id = ${employee}::uuid)
        AND (${assignee}::uuid IS NULL
             OR o.assigned_to_employee_id = ${assignee}::uuid)
+       AND (${involving}::uuid IS NULL
+            OR o.employee_id = ${involving}::uuid
+            OR o.assigned_to_employee_id = ${involving}::uuid)
      ORDER BY o.due_date ASC NULLS LAST, o.task_id ASC
      ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
@@ -182,16 +188,24 @@ export async function tasks(
 /** The total matching a filter set — same predicates as `tasks`, for the list page's pagination controls. */
 export async function countTasks(
   tx: Tx,
-  filters: { employeeId?: string; assignedTo?: string } = {},
+  filters: {
+    employeeId?: string
+    assignedTo?: string
+    involving?: string
+  } = {},
 ): Promise<number> {
   const employee = filters.employeeId || null
   const assignee = filters.assignedTo || null
+  const involving = filters.involving || null
   const [{ n }] = await tx<{ n: number }[]>`
     SELECT count(*)::int AS n
       FROM hr_onboarding_tasks o
      WHERE (${employee}::uuid IS NULL OR o.employee_id = ${employee}::uuid)
        AND (${assignee}::uuid IS NULL
             OR o.assigned_to_employee_id = ${assignee}::uuid)
+       AND (${involving}::uuid IS NULL
+            OR o.employee_id = ${involving}::uuid
+            OR o.assigned_to_employee_id = ${involving}::uuid)
   `
   return n
 }
