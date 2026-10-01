@@ -1,7 +1,7 @@
 # Performance Tenant — a Large, Realistic Second Tenant
 
-**Status:** phase 1 built (2026-10-01): generator, cluster, organisation,
-actors, CRM, projects and time, ticketing, accounting. Phases 2–3 not started.
+**Status:** phases 1 and 2 built (2026-10-01): every `SCALE_SENSITIVE` table
+has rows. Phase 3 (measurement) not started.
 
 **Goal:** a permanent, reproducible second tenant the size of a real
 1,000-person firm two years into using the product, loaded on demand into the

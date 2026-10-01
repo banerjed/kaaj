@@ -11,11 +11,12 @@
  * deliberately read-only for the same reason, after doing exactly that once
  * left stray rows in the shared fixture.
  *
- * Routes are discovered from `src/routes/(app)` at run time, not hand-copied,
- * so a new page is covered automatically. A `[param]` segment needs a real
- * id to render meaningfully; ROUTE_PARAM (below) is the only part of this
- * file that goes stale as routes change, and an unmapped dynamic route is
- * reported rather than silently skipped.
+ * Routes are discovered from `src/routes/(app)` at run time, not hand-copied
+ * (page-timing.mjs), so a new page is covered automatically; one whose
+ * `[param]` has no id below is reported rather than silently skipped.
+ *
+ * Against the Northwind fixture. For the large perf tenant, as several kinds
+ * of user, use `pnpm db:perf measure` (docs/32-perf-tenant.md).
  *
  * Requires the app already built and served — this does not build or start
  * anything. Point BASE_URL at a `vite preview` / `node build` instance for
@@ -25,9 +26,8 @@
  *   BASE_URL=http://localhost:5176 node scripts/measure-render-times.mjs
  *   BASE_URL=... E2E_EMAIL=... E2E_PASSWORD=... THRESHOLD_MS=20 REPEATS=5 node scripts/measure-render-times.mjs
  */
-import { readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
 import { chromium } from "@playwright/test"
+import { pagePaths, rank, signIn, timePages } from "./page-timing.mjs"
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:5176"
 const EMAIL = process.env.E2E_EMAIL ?? "sarah.johnson@northwind.example"
@@ -35,13 +35,7 @@ const PASSWORD = process.env.E2E_PASSWORD ?? "devpassword"
 const THRESHOLD_MS = Number(process.env.THRESHOLD_MS ?? 20)
 const REPEATS = Number(process.env.REPEATS ?? 5)
 
-const ROUTES_DIR = new URL("../src/routes/(app)", import.meta.url).pathname
-
-/**
- * Seeded Northwind dev-fixture ids (packages/database/fixtures) — only
- * meaningful against that fixture. A route whose `[param]` isn't listed
- * here is reported as unfillable rather than guessed.
- */
+/** Seeded Northwind dev-fixture ids (packages/database/fixtures) — only meaningful against that fixture. */
 const IDS = {
   employeeId: "bf17b1af-963b-53ef-9083-21506fb34e9c",
   ticketId: "16a68eb5-4d61-5548-8e17-8f1ac4c2f5c9",
@@ -54,23 +48,10 @@ const IDS = {
   folderId: "a0000000-0000-4000-8000-000000000001",
   objectiveId: "66574016-b971-406d-aac5-3574ae392437",
   groupId: "0158d8de-be1c-565f-a3c4-78624d177e7f",
+  companyId: "e40d0f18-1333-5cd1-a969-f5113df51e70",
+  contactId: "da1d1f9e-9d10-4d13-a3d9-b90f49903a13",
+  dealId: "22222222-dea1-4000-8000-000000000002",
 }
-
-/** Route-pattern prefix -> filler, since `[id]` alone is ambiguous (employees, tickets, projects... each use that same param name for a different entity). */
-const ROUTE_PARAM = [
-  ["/employees/[id]", IDS.employeeId],
-  ["/ticketing/[id]", IDS.ticketId],
-  ["/projects/[id]", IDS.projectId],
-  ["/payroll/runs/[id]", IDS.payrollRunId],
-  ["/chat/[conversationId]", IDS.conversationId],
-  ["/documents/[folderId]", IDS.folderId],
-  ["/objectives/[id]", IDS.objectiveId],
-  ["/settings/groups/[groupId]", IDS.groupId],
-  ["/accounting/bills/[id]", IDS.billId],
-  ["/accounting/invoices/[id]", IDS.invoiceId],
-  ["/compensation/[employeeId]", IDS.employeeId],
-  ["/settings/ticketing/[businessAreaId]", IDS.businessAreaId],
-]
 
 /** A handful of report pages render meaningfully differently with a date range set — cover both, the same pair `smoke.spec.ts` already curated. */
 const EXTRA_QUERY_VARIANTS = [
@@ -80,101 +61,18 @@ const EXTRA_QUERY_VARIANTS = [
   "/accounting/balance-sheet?as_of=2026-12-31&compare_as_of=2026-01-21",
 ]
 
-function discoverRoutes(dir, prefix = "") {
-  const routes = []
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    if (statSync(full).isDirectory()) {
-      routes.push(...discoverRoutes(full, `${prefix}/${name}`))
-    } else if (name === "+page.svelte") {
-      routes.push(prefix || "/")
-    }
-  }
-  return routes
-}
-
-/** Fill every `[param]` in a discovered route pattern, or return null if some segment has no known filler. */
-function resolveRoute(pattern) {
-  if (!pattern.includes("[")) return pattern
-  const match = ROUTE_PARAM.find(([prefix]) => pattern.startsWith(prefix))
-  if (!match) return null
-  const [prefix, id] = match
-  return pattern.replace(prefix, prefix.replace(/\[[^\]]+\]/, id))
-}
-
-function serverTimingMs(response) {
-  const header = response?.headers()["server-timing"]
-  const m = header?.match(/dur=([\d.]+)/)
-  return m ? parseFloat(m[1]) : null
-}
-
-const patterns = discoverRoutes(ROUTES_DIR)
-const unresolved = []
-const resolved = []
-for (const p of patterns) {
-  const r = resolveRoute(p)
-  if (r === null) unresolved.push(p)
-  else resolved.push(r)
-}
-const paths = [...new Set([...resolved, ...EXTRA_QUERY_VARIANTS])].sort()
+const { paths, unresolved } = pagePaths(IDS, EXTRA_QUERY_VARIANTS)
 
 const browser = await chromium.launch()
 const context = await browser.newContext()
 const page = await context.newPage()
-// Otherwise a repeated navigation to the same URL can be served from the
-// browser's HTTP cache, which returns the FIRST request's timing header on
-// every later "measurement" — indistinguishable from a real, fast repeat.
 const cdp = await context.newCDPSession(page)
 await cdp.send("Network.setCacheDisabled", { cacheDisabled: true })
 
-await page.goto(`${BASE_URL}/login/sign_in`)
-await page.locator('input[name="email"]').waitFor({ timeout: 15_000 })
-await page.locator('input[name="email"]').fill(EMAIL)
-await page.locator('input[name="password"]').fill(PASSWORD)
-await page.getByRole("button", { name: "Sign in", exact: true }).click()
-await page.waitForURL("**/employees", { timeout: 30_000 })
-
-const results = []
-for (const path of paths) {
-  const timings = []
-  let status = null
-  let failure = null
-  // One page that never resolves (an unbounded query, a hung render) must
-  // not take the rest of the sweep down with it — recorded as its own
-  // result instead.
-  for (let i = 0; i < REPEATS; i++) {
-    try {
-      const response = await page.goto(`${BASE_URL}${path}`, {
-        timeout: 30_000,
-      })
-      status = response?.status() ?? status
-      const ms = serverTimingMs(response)
-      if (ms !== null) timings.push(ms)
-    } catch (e) {
-      failure = e instanceof Error ? e.message.split("\n")[0] : String(e)
-      break
-    }
-  }
-  timings.sort((a, b) => a - b)
-  results.push({
-    path,
-    status,
-    failure,
-    min: timings[0] ?? null,
-    median: timings.length ? timings[Math.floor(timings.length / 2)] : null,
-    max: timings.at(-1) ?? null,
-  })
-}
-
+await signIn(page, BASE_URL, EMAIL, PASSWORD)
+const results = rank(await timePages(page, BASE_URL, paths, REPEATS))
 await browser.close()
 
-// A failure ranks above every measured time — it is worse than any number,
-// not merely unmeasured.
-results.sort((a, b) => {
-  if (a.failure && !b.failure) return -1
-  if (b.failure && !a.failure) return 1
-  return (b.median ?? -1) - (a.median ?? -1)
-})
 console.log(`\n${"path".padEnd(65)}min      median   max      status`)
 console.log("-".repeat(100))
 for (const r of results) {
@@ -192,8 +90,6 @@ console.log(
 )
 
 if (unresolved.length) {
-  console.log(
-    `\n${unresolved.length} route(s) skipped — no sample id mapped in ROUTE_PARAM:`,
-  )
+  console.log(`\n${unresolved.length} route(s) skipped — no sample id for:`)
   for (const p of unresolved) console.log(`    ${p}`)
 }
