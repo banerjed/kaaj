@@ -260,7 +260,12 @@ attribute handling.
 
 ## SvelteKit application foundation
 
-### L24 — Never serialize cookies or auth internals into page data
+### L115 — Never serialize cookies or auth internals into page data
+
+> **Renumbered.** This entry shared a number with a later, unrelated
+> lesson, and every `L24` reference in the codebase meant that other
+> one (L24, locale). Nothing referenced this entry, so it moved rather than
+> the one in use.
 
 `cookies.getAll()` belongs inside the server-side Supabase client adapter only.
 Returning it from `+layout.server.ts` sends authentication material through the
@@ -272,7 +277,12 @@ similar shaped values. Universal/client loads should create browser-only clients
 behind `browser` checks. If a browser component cannot safely construct its
 client during SSR, render the dependent UI only after the client exists.
 
-### L25 — Authenticate once per request, in `hooks.server.ts`
+### L116 — Authenticate once per request, in `hooks.server.ts`
+
+> **Renumbered.** This entry shared a number with a later, unrelated
+> lesson, and every `L25` reference in the codebase meant that other
+> one (L25, money scale). Nothing referenced this entry, so it moved rather than
+> the one in use.
 
 `safeGetSession()` is deliberately expensive: it validates the session with
 `getUser()` and may fetch MFA assurance data. Calling it again from every
@@ -1710,21 +1720,6 @@ database bakes local experiments into the baseline. Already happened once: a
 manual `ALTER` left `invoices.total` as `numeric(18,2)` when the migration says
 `numeric(15,2)`.
 
-### L26 — `supabase db reset` drops the `app_user` password
-
-The migration deliberately creates `app_user` with `LOGIN` and no password
-("set out of band — never in a migration"), and `./setup` sets it. A bare
-`supabase db reset` therefore leaves the role unable to authenticate, and every
-database-backed test fails at once with `password authentication failed`.
-
-It reads like the tests broke. They did not; the credential went away.
-
-```bash
-psql "$DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
-```
-
-or just re-run `./setup`, which does it and re-verifies RLS.
-
 ### L21 — A page that renders empty is the default failure mode here
 
 Multi-tenancy fails closed by design: no tenant means no rows, not an error
@@ -1968,7 +1963,8 @@ psql "$DATABASE_URL" -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
 ```
 
 `supabase db reset` runs only the migrations and the fixture seed — never
-`./setup` — so it silently undoes that password every time. A machine that
+`./setup` — so it silently undoes that password every time. Re-running
+`./setup` fixes it too, and re-verifies RLS while it is there. A machine that
 ran `./setup` once and has been fine ever since will still hit this the
 first time anything in the session calls `db reset` directly (a policy
 change, a schema experiment, this Tier), because the reset undoes a step the
