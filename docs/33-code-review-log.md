@@ -60,6 +60,12 @@ maintainer's call.
   time-off, the four employee pages, payroll payslips. All pre-date this
   review window and several are plausibly deliberate (every employee may read
   the directory). Worth confirming one by one rather than assuming either way.
+- **CI itself is in scope for a review.** `tests.yml` had never passed —
+  thirty runs, none green — while four other workflows were. Two suites,
+  including five Storage RLS tenant-isolation assertions, had never executed.
+  Fixed in `b1908bb`; recorded as L114. When reviewing a range, check
+  `gh run list --workflow=<file> --limit 30` for every workflow, not the
+  latest run: "failing" and "has never passed" look identical on one red tick.
 - **`customer-contacts.departments()`** does a `SELECT DISTINCT` over a
   SCALE_SENSITIVE table to populate a filter. Bounded in output, unbounded in
   work; fixing it is a different design (a lookup table or a cap), not a

@@ -2950,6 +2950,49 @@ for a `text` column lives in the repository (L57).
 Ask of any such guard: **what happens to a row that is already in the shape
 the invariant forbids?** It exists; the invariant is new.
 
+---
+
+### L114 — a CI job that has never been green is not a test suite, it is a decoration
+
+`tests.yml` failed every run from 2026-09-24 to 2026-10-01 — thirty in a
+row, none successful. Nobody noticed, because `build`, `linting`, `format`,
+`database` and `e2e` were all green on the same commits, and a wall of ticks
+with one cross reads as "something flaky over there".
+
+What it was hiding: the job ran a bare `postgres:17` service container, and
+two suites need the rest of the Supabase stack. `logo.server.test.ts` signs
+in through GoTrue and uploads to storage-api for real — five of its
+assertions are Storage RLS tenant isolation, the only thing keeping one
+tenant's logo out of another's reach — and `fx_rates.test.ts` writes through
+the service role over PostgREST. Both died on `fetch failed`. Eight real
+assertions had never executed in CI.
+
+**It had two independent causes, and fixing either alone would still have
+failed.** The services were absent, *and* the job set
+`PUBLIC_SUPABASE_ANON_KEY: "fake_anon_key"` and
+`PRIVATE_SUPABASE_SERVICE_ROLE: "fake_service_role"`. A truncated JWT fails
+as an auth error that reads exactly like a missing service, so the second
+cause was invisible behind the first.
+
+This is the second time in this file's history for the same job: its own
+header already records that it once had no database at all, so 357 security
+cases "had never actually run in CI". The fix then was to add Postgres. The
+fix should have been to ask **which services the suites actually reach**.
+
+Two habits fall out of it:
+
+- **A new suite that talks to anything over HTTP needs its workflow checked,
+  not just `./check`.** Locally `supabase start` is running, so a developer
+  cannot tell the difference between a suite that needs Postgres and one
+  that needs GoTrue, Storage or PostgREST. CI is the only place that
+  distinction exists, which is precisely where nobody looks.
+- **Read the run count, not the last run.** "Failing" and "has never passed"
+  look identical on a single red tick and mean completely different things.
+  `gh run list --workflow=<file> --limit 30` answers it in one command.
+
+The repo already states the general rule — a guard never observed failing is
+not evidence. A CI job nobody has seen green is that, one level up.
+
 The portal was switched off the same day (20260930130000): a contact's
 sign-in no longer carries a tenant, so none of this is reachable meanwhile.
 
