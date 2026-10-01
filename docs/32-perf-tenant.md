@@ -249,8 +249,8 @@ in the ticket, project and custom-field policies. Perf-tenant logins
 
 Scale 1 (2,804,997 rows, built in 193s), as of 2026-10-01; 78 pages × 8
 actors × 3 repeats in 247s; load average 2.2 at the start, 3.0 at the end.
-Median server time in ms (the `server-timing` header). A blank is a refusal
-(403) or a record the actor may not see (404), as intended.
+Median server time in ms (the `server-timing` header). A blank is a page
+that refused the actor (403) or a record it could not see (404).
 
 | Page | owner | finance | hr | it | auditor | sales | manager | employee | HTML |
 |---|---|---|---|---|---|---|---|---|---|
@@ -270,7 +270,15 @@ Median server time in ms (the `server-timing` header). A blank is a refusal
 
 Every other page renders in under 85ms for every actor (the slowest,
 `/time-off` as sales, 82ms). Of the 348 page × actor renders that returned
-200, 187 met the 20ms target; for the owner, 41 of 77. Database time per actor across the
+200, 187 met the 20ms target; for the owner, 41 of 77. Some of those are
+fast only because they are empty: the generator fills every
+`SCALE_SENSITIVE` table but not every bounded one, and these have no rows —
+`compensation_*` and `employment_terms` (so `/compensation` and the salary
+read paths are unmeasured), `firm_holidays`, the benefits tables,
+`firm_payroll_policies` and `payroll_pay_schedules`, `recurring_schedules`,
+`amortization_schedules`, `bank_reconciliation_rules`,
+`payment_gateway_settings`, `pm_objectives`, `tenant_settings`. Filling
+them is the next generator step. Database time per actor across the
 whole sweep: owner 36.1s, auditor 37.0s, sales 30.5s, finance 8.0s, IT
 3.7s, employee 2.5s, manager 2.4s, HR 1.9s — the first three are almost
 entirely the CRM lists.
@@ -281,7 +289,9 @@ What each needs, slowest first:
    `customers.list` counts each company's contacts in a correlated
    subquery, and `customer_contacts` has no index on `customer_id`: each of
    3,000 companies scans the tenant's 9,693 contacts, 29 million row
-   checks. Needs an index on `customer_contacts (tenant_id, customer_id)`.
+   checks. Needs an index on `customer_contacts (tenant_id, customer_id)`:
+   tried in a rolled-back transaction as the owner, the query went from
+   4,608ms to 23ms.
    Then paging: the companies list renders all 3,000 (4.5 MB), and the
    pipeline loads every company for a picker, which wants a search
    combobox.

@@ -16,8 +16,8 @@
  * variable's name. The app needs a build (`pnpm --filter @kaaj/web build`)
  * and nothing else.
  *
- * GET only. Pages run as app_user against the perf cluster, so a page that
- * writes on read would change the data; none is known to.
+ * GET only, but as app_user against the perf cluster: a page that wrote on
+ * read would change the data. Check with fingerprint.sql before and after.
  */
 import { spawn } from "node:child_process"
 import { mkdirSync, openSync, readdirSync, writeFileSync } from "node:fs"
