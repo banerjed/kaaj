@@ -171,6 +171,47 @@ const INVARIANTS = [
     SELECT count(*) FROM ticketing_business_areas b WHERE b.tenant_id = $1
        AND b.current_sequence <> (SELECT count(*) FROM ticketing_tickets t
                                    WHERE t.business_area_id = b.id)`],
+  ["leave balances: used and pending equal the requests, and the formula holds", `
+    SELECT count(*) FROM hr_time_off_balances b
+      JOIN hr_time_off_policies p ON p.id = b.policy_id
+     WHERE b.tenant_id = $1 AND (
+       b.used <> coalesce((SELECT sum(r.total_hours) / 8 FROM hr_time_off_requests r
+                            WHERE r.employee_id = b.employee_id AND r.policy_code = p.policy_code
+                              AND r.status = 'approved' AND extract(year FROM r.start_date) = b.accrual_year), 0)
+       OR b.pending <> coalesce((SELECT sum(r.total_hours) / 8 FROM hr_time_off_requests r
+                            WHERE r.employee_id = b.employee_id AND r.policy_code = p.policy_code
+                              AND r.status = 'pending' AND extract(year FROM r.start_date) = b.accrual_year), 0)
+       OR b.current_balance <> b.opening_balance + b.accrued + b.adjusted - b.used - b.pending - b.forfeited)`],
+  ["nobody is clocked in on a day of approved leave", `
+    SELECT count(*) FROM hr_attendance a
+      JOIN hr_time_off_requests r ON r.employee_id = a.employee_id AND r.status = 'approved'
+       AND a.attendance_date BETWEEN r.start_date AND r.end_date
+     WHERE a.tenant_id = $1`],
+  ["payroll run totals equal their lines", `
+    SELECT count(*) FROM payroll_runs p
+      JOIN (SELECT payroll_run_id, count(*) n, sum(gross_pay) g, sum(net_pay) net
+              FROM payroll_run_employees GROUP BY 1) l ON l.payroll_run_id = p.id
+     WHERE p.tenant_id = $1 AND (p.employee_count <> l.n OR p.total_gross_pay <> l.g OR p.total_net_pay <> l.net)`],
+  ["money in payroll JSONB is a string, never a JSON number (L41)", `
+    SELECT count(*) FROM payroll_run_employees r
+     CROSS JOIN LATERAL (SELECT value FROM jsonb_each(r.earnings) UNION ALL
+                         SELECT value FROM jsonb_each(r.taxes)) v
+     WHERE r.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`],
+  ["each statement import's counts equal the lines it owns", `
+    SELECT count(*) FROM bank_statement_imports i
+     WHERE i.tenant_id = $1
+       AND i.transactions_imported <> (SELECT count(*) FROM bank_transactions t WHERE t.import_id = i.id)`],
+  ["a chat's member_ids equal its current members", `
+    SELECT count(*) FROM team_chat_conversations c
+     WHERE c.tenant_id = $1
+       AND (SELECT coalesce(array_agg(employee_id ORDER BY employee_id), '{}') FROM team_chat_members m
+             WHERE m.conversation_id = c.id AND m.left_at IS NULL)
+           <> (SELECT coalesce(array_agg(x ORDER BY x), '{}') FROM unnest(c.member_ids) x)`],
+  ["audit changes hold strings only", `
+    SELECT count(*) FROM audit_log a
+     CROSS JOIN LATERAL jsonb_each(a.changes) c
+     CROSS JOIN LATERAL jsonb_each(c.value) v
+     WHERE a.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`],
   ["nothing is dated after as_of", `
     SELECT (SELECT count(*) FROM invoices WHERE tenant_id = $1 AND invoice_date > (SELECT as_of FROM _perf.params))
          + (SELECT count(*) FROM time_tracking_entries WHERE tenant_id = $1 AND entry_date > (SELECT as_of FROM _perf.params))
