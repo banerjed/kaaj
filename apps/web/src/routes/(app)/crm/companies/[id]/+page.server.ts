@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
   return withTenant(actorFrom(locals), async (tx) => {
     const company = await customers.getById(tx, params.id)
-    if (!company) error(404, "Company not found")
+    if (!company) error(404, "Client not found")
     const fieldValues = await customFields.valuesFor(tx, "company", [params.id])
 
     return {

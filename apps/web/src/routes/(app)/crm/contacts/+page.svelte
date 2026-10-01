@@ -64,7 +64,7 @@
       : [],
   )
 
-  // Company count can run into the thousands — the picker searches on
+  // Client count can run into the thousands — the picker searches on
   // demand rather than choosing from a preloaded list.
   async function searchCompanies(q: string): Promise<ComboboxOption[]> {
     const body = new FormData()
@@ -89,8 +89,8 @@
     ]}
   />
   <p class="text-base-content/70 mt-1 text-sm">
-    Every person across every company — the shared contact database. Add a new
-    contact from their company's own page.
+    Every person across every client — the shared contact database. Add a new
+    contact from the client's own page.
   </p>
 
   <!-- Filters post as GET so the URL carries the state. -->
@@ -108,13 +108,13 @@
     </fieldset>
 
     <fieldset class="fieldset w-48">
-      <legend class="fieldset-legend text-xs">Company</legend>
+      <legend class="fieldset-legend text-xs">Client</legend>
       <Combobox
         name="company"
         selected={companySelected}
         search={searchCompanies}
-        placeholder="Any company"
-        emptyText="No matching company"
+        placeholder="Any client"
+        emptyText="No matching client"
       />
     </fieldset>
 
@@ -146,7 +146,7 @@
       title="No contacts found"
       message={hasFilters
         ? "No contacts match these filters."
-        : "Contacts live on their company's page — open a company and add one there."}
+        : "Contacts live on their client's page — open a client and add one there."}
     />
   {:else}
     <div class="card bg-base-100 mt-4 shadow">
@@ -155,7 +155,7 @@
           <thead>
             <tr>
               <th>Name</th>
-              <th>Company</th>
+              <th>Client</th>
               <th>Department</th>
               <th>Title</th>
               <th>Email</th>

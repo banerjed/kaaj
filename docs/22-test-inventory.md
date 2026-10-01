@@ -152,6 +152,24 @@ financial statements, payment processing, exports.
 Beyond that, coverage is indirect: 8 RLS assertions inside
 `db/row-visibility.test.ts` (below), plus e2e (§2).
 
+### CRM — 10 tests
+
+- `lib/server/customers/customers.writes.test.ts` [10] — person accounts, the
+  shape where a client is an individual rather than a business.
+  `personName` joins, trims, and handles a mononym without a dangling space.
+  `createIndividual` writes the `customers` row and its single
+  `customer_contacts` row together with the account name derived, invents no
+  industry/size/website, accepts a client with **no email at all** (the case
+  `20261001100000` exists for), lets two such clients coexist because NULLs
+  are distinct under `UNIQUE (tenant_id, email)`, and is refused by name on
+  an address already on file. `updateIndividual` renames both rows so the
+  derived name cannot drift, keeps the account's email in step with the
+  contact's copy, and returns `false` rather than claiming success for a
+  client that does not exist (L68).
+
+Beyond that, coverage is indirect: the CRM RLS assertions inside
+`db/row-visibility.test.ts` (below), plus e2e (§2).
+
 ### Custom fields — 26 tests
 
 - `lib/server/custom-fields/custom-fields.repo.test.ts` [26] — definitions
@@ -302,16 +320,18 @@ goes through these.
 
 ## 2. End-to-end tests (Playwright) — grouped by purpose
 
-139 tests across 7 spec files plus one setup project. Unlike the unit suite,
+152 tests across 7 spec files plus one setup project. Unlike the unit suite,
 these files are organized by TESTING PURPOSE rather than by module — each
 spans many modules. Real browser, real login, no mocks; the fixture is
 shared and read-only except where a file's own header says otherwise.
 
-- **`smoke.spec.ts` [67]** — every module page renders for a signed-in owner:
+- **`smoke.spec.ts` [72]** — every module page renders for a signed-in owner:
   its own heading, the nav shell, zero console errors. One entry per route
   (employees, time-off, attendance, performance, onboarding, compensation,
   objectives, projects, time-tracking, payroll, all 19 accounting pages,
-  ticketing, documents, chat, all 9 settings pages), plus the
+  ticketing, documents, chat, all 9 settings pages, and all 6 CRM pages —
+  including a business client and a person account, whose detail pages render
+  different layouts off the same route), plus the
   unauthenticated-redirect check, the directory-has-real-rows check, the
   assistant panel, the tax-rate Type select population check, and three
   project-management checks (the Add-task Parent select is scoped to the

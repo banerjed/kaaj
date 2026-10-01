@@ -71,7 +71,7 @@
       {/snippet}
       <dl class="grid gap-3 text-sm">
         <div>
-          <dt class="text-base-content/70">Company</dt>
+          <dt class="text-base-content/70">Client</dt>
           <dd>
             <a href={`/crm/companies/${p.customer_id}`} class="link link-hover">
               {p.customer_name}

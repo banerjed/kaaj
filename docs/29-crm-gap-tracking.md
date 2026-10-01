@@ -41,15 +41,48 @@ activities, pipeline stages). Nav and `crm.read`/`crm.write` permissions were
 already reserved in `packages/authz` — unconsumed until this shipped.
 
 **The modeling decision worth restating:** `customer_contacts.customer_id` is
-`NOT NULL` — a contact cannot exist without a company. Rather than relax
-that (it would ripple into the portal-identity JWT claims and the
-`UNIQUE(tenant_id, email)` login semantics), every new lead gets **both** a
-`customers` row (`relationship_status = 'prospect'`, `customer_type =
-'individual'` for a solo contact with no real company) **and** a
-`customer_contacts` row, created together. In the UI this is enforced by
-construction: contacts can only be created from a company's own detail page,
-never from a bare "new contact" form — there is no combobox-with-inline-create
-anywhere in this module on purpose.
+`NOT NULL` — a contact cannot exist without a client. Rather than relax that,
+a client who is a *person* is both rows: a `customers` row carrying
+`customer_type = 'individual'` and the single `customer_contacts` row that is
+them. In the UI this is enforced by construction: contacts can only be
+created from a client's own detail page, never from a bare "new contact"
+form — there is no combobox-with-inline-create anywhere in this module on
+purpose.
+
+> **Corrected 2026-10-01.** Phase 1 claimed those two rows were "created
+> together". They were not: `customers.create` was called only from the list
+> page's `save`, `contacts.create` only from the detail page's `addContact`,
+> and no transaction anywhere wrote both. Capturing a person meant typing
+> their name as a *company*, opening it, and typing the same name again as a
+> contact. `customers.repo.ts`'s `createIndividual` now does what the
+> paragraph above always described — one action, one transaction, with
+> `customer_name` derived from the person's name so the two cannot drift,
+> and `updateIndividual` keeping them in step on a rename.
+>
+> Two consequences worth stating, because neither is visible in the schema:
+>
+> - **`customer_contacts.email` is nullable** since
+>   `20261001100000_contact_email_optional.sql`. A walk-in client often has a
+>   phone and no email; the column was `NOT NULL` only because a contact used
+>   to be a portal sign-in identity, and the portal is off
+>   (`20260930130000`). `UNIQUE (tenant_id, email)` is untouched — Postgres
+>   treats NULLs as distinct.
+> - **"An individual has exactly one contact" is held by construction, not by
+>   the schema.** `createIndividual` is the only code that makes one and an
+>   individual's page offers no "New contact". Enforcing it in Postgres would
+>   mean denormalising `customer_type` into `customer_contacts` to make a
+>   partial unique index possible (the composite-FK idiom in
+>   `20260928030000_ticketing_area_integrity.sql`) — disproportionate for one
+>   caller. Because the invariant is not enforced, the detail page gates the
+>   person layout on `customer_type === 'individual' && contacts.length === 1`
+>   and falls back to the company layout otherwise, so a row typed individual
+>   before this shape existed cannot hide contacts it has no other way to
+>   show.
+>
+> The nav, headings and prose say **Clients**, not Companies: the product is
+> sold to SMBs whose own clients are usually people. The `customers` table and
+> every identifier on it are deliberately unchanged — that is a different
+> layer and a much larger question.
 
 **Deliberately not built in Phase 1:** attachments on `crm_activities`, and
 any merge between CRM's activity log and ticketing's conversation thread —

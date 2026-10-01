@@ -166,7 +166,7 @@
           />
         </fieldset>
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Company</legend>
+          <legend class="fieldset-legend">Client</legend>
           <select
             name="customer_id"
             aria-invalid={err.aria("customer_id")}

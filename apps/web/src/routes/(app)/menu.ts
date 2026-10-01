@@ -130,7 +130,7 @@ export const appMenuItems: ISidebarMenuItem[] = [
     label: "CRM",
     permission: "crm.read",
     children: [
-      { id: "crm-companies", label: "Companies", url: "/crm/companies" },
+      { id: "crm-companies", label: "Clients", url: "/crm/companies" },
       { id: "crm-contacts", label: "Contacts", url: "/crm/contacts" },
       { id: "crm-pipeline", label: "Pipeline", url: "/crm/pipeline" },
     ],

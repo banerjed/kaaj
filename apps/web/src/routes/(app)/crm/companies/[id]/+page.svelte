@@ -60,7 +60,7 @@
     title={c.customer_name}
     items={[
       { label: "CRM", path: "/crm/companies" },
-      { label: "Companies", path: "/crm/companies" },
+      { label: "Clients", path: "/crm/companies" },
       { label: c.customer_name, active: true },
     ]}
   />

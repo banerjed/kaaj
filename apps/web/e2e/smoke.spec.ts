@@ -114,10 +114,23 @@ const PAGES: { path: string; heading: string }[] = [
     path: "/settings/project-management",
     heading: "Project Management Fields",
   },
+  { path: "/crm/companies", heading: "Clients" },
   {
     path: "/crm/companies/e40d0f18-1333-5cd1-a969-f5113df51e70",
     heading: "Acme Manufacturing",
   },
+  // A person account — one `customers` row plus its single contact, rendered
+  // with the person layout rather than the company one.
+  {
+    path: "/crm/companies/5c6e1b74-0b48-5a3e-9a8a-6c1d2f8e4b11",
+    heading: "Priya Okonkwo",
+  },
+  { path: "/crm/contacts", heading: "Contacts" },
+  {
+    path: "/crm/contacts/da1d1f9e-9d10-4d13-a3d9-b90f49903a13",
+    heading: "Dana Whitcombe",
+  },
+  { path: "/crm/pipeline", heading: "Pipeline" },
   {
     path: "/crm/deals/22222222-dea1-4000-8000-000000000002",
     heading: "Acme Manufacturing — Q3 renewal",

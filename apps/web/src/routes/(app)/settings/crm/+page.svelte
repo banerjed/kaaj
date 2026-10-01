@@ -6,7 +6,7 @@
   let { data, form } = $props()
 
   const TABS = [
-    { key: "company", label: "Companies", title: "Company fields" },
+    { key: "company", label: "Clients", title: "Client fields" },
     { key: "customer_contact", label: "Contacts", title: "Contact fields" },
     { key: "deal", label: "Pipeline", title: "Deal fields" },
   ] as const
@@ -30,9 +30,9 @@
     ]}
   />
   <p class="text-base-content/70 mt-1 text-sm">
-    The details your team tracks on each company, contact and deal, grouped
-    under categories you name. Every company shows the company fields, every
-    contact the contact fields, and every deal the pipeline fields.
+    The details your team tracks on each client, contact and deal, grouped under
+    categories you name. Every client shows the client fields, every contact the
+    contact fields, and every deal the pipeline fields.
   </p>
 
   {#if form?.fieldAdded || form?.fieldArchived || form?.categoryRenamed}

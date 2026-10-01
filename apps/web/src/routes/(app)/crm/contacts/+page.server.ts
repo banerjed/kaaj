@@ -8,7 +8,7 @@ import { formString } from "$lib/server/forms"
 
 const PAGE_SIZE = 20
 
-/** The "shared contact database" view — every contact, across every company. */
+/** The "shared contact database" view — every contact, across every client. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
@@ -45,8 +45,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
   /**
-   * Backs the company-filter `Combobox` — a tenant can have thousands of
-   * companies, so the picker searches on demand rather than choosing from a
+   * Backs the client-filter `Combobox` — a tenant can have thousands of
+   * clients, so the picker searches on demand rather than choosing from a
    * preloaded list, same shape as ticketing's `searchTickets`.
    */
   searchCompanies: async ({ request, locals }) => {
