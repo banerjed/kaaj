@@ -20,6 +20,7 @@
  * read would change the data. Check with fingerprint.sql before and after.
  */
 import { execFileSync, spawn } from "node:child_process"
+import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir, loadavg } from "node:os"
 import { join } from "node:path"
@@ -28,6 +29,7 @@ import { chromium } from "@playwright/test"
 import { unflatten } from "devalue"
 import { pagePaths, rank, signIn, timePages } from "../../../apps/web/scripts/page-timing.mjs"
 import { perfKek } from "./kek.mjs"
+import { holdPerfLock } from "./lock.mjs"
 
 const SHARED_URL =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
@@ -38,7 +40,6 @@ const BASE_URL = `http://localhost:${PORT}`
 const PASSWORD = "devpassword"
 const SECRET_REF = "PERF_TENANT_MEASURE_RUN_IN_PROGRESS_DATABASE_URL"
 const OUT_DIR = join(homedir(), ".kaaj", "perf-measurements")
-const PERF_RUN_LOCK = 7_317_455_201 // any fixed key; held by whichever perf run is live
 const CLUSTER = new URL("./cluster.sh", import.meta.url).pathname
 const BUDGETS = new URL("./budgets.tsv", import.meta.url).pathname
 const LOCAL_TIMINGS = join(homedir(), ".kaaj", "perf-timings.tsv")
@@ -260,27 +261,32 @@ async function session({ perfUrl, tenantId, only }, fn) {
 
   let server = null
   let actors = []
-  // One run at a time on the shared perf cluster: every session's push runs
-  // one, and two would delete each other's registration, fight over the
-  // preview port and reset each other's query statistics. A session-level
-  // lock on its own connection dies with the process, so a crashed run never
-  // leaves it held.
-  const lock = postgres(perfUrl, { onnotice: () => {}, max: 1 })
+  let release = null
   try {
     execFileSync(CLUSTER, ["start"], { stdio: ["ignore", "ignore", "inherit"] })
-    const [held] = await lock`SELECT pg_try_advisory_lock(${PERF_RUN_LOCK}) AS ok`.catch(() => {
-      throw new Error(
-        "the perf cluster has no database — run `pnpm db:perf:cluster up` and " +
-          "`pnpm db:perf seed`; docs/32-perf-tenant.md",
-      )
-    })
-    if (!held.ok) {
-      console.log("  another perf run is in progress — waiting for it to finish…")
-      await lock`SELECT pg_advisory_lock(${PERF_RUN_LOCK})`
-    }
+    release = await holdPerfLock(
+      perfUrl,
+      "the perf cluster has no database — run `pnpm db:perf:cluster up` and " +
+        "`pnpm db:perf seed`; docs/32-perf-tenant.md",
+    )
     // Under the lock, so two runs never apply the same migration: a cluster
     // left behind the repo's schema would measure a schema nobody ships.
     execFileSync(CLUSTER, ["up"], { stdio: ["ignore", "ignore", "inherit"] })
+    // Ahead of it is as wrong: another checkout's unmerged migration — an
+    // index, say — would be in every run from this one.
+    const files = new Set(readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).map((f) => f.slice(0, -4)))
+    const extra = (await perf`SELECT name FROM _cluster.applied ORDER BY name`).map((r) => r.name).filter((n) => !files.has(n))
+    if (extra.length)
+      throw new Error(
+        `the perf cluster has migrations this checkout does not (${extra.join(", ")}) — ` +
+          "another branch's; rebuild it: `pnpm db:perf:cluster rebuild && pnpm db:perf seed`",
+      )
+    // Held only by a seed, which holds this lock too: off here means a seed died.
+    const [{ autovacuum }] = await perf`SELECT current_setting('autovacuum') AS autovacuum`
+    if (autovacuum !== "on") {
+      await perf`ALTER SYSTEM RESET autovacuum`
+      await perf`SELECT pg_reload_conf()`
+    }
     const [ready] = await perf`SELECT to_regclass('_perf.actors') IS NOT NULL AS seeded`
     if (!ready.seeded)
       throw new Error("the perf cluster has no perf tenant — run `pnpm db:perf seed`")
@@ -346,7 +352,7 @@ async function session({ perfUrl, tenantId, only }, fn) {
     if (actors.length) await unregister(shared, tenantId, actors.map((a) => a.user_id))
     await perf.end()
     await shared.end()
-    await lock.end()
+    await release?.()
   }
 }
 
@@ -593,13 +599,17 @@ export async function regress({ perfUrl, tenantId, update }) {
       console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages in ${((Date.now() - t) / 1000).toFixed(0)}s`)
     }
 
+    // Kept against one version of the budget: a budget someone else updated
+    // and committed is a deliberate change, and timings from before it would
+    // keep flagging the page it was about.
+    const budgetHash = () => createHash("md5").update(readFileSync(BUDGETS)).digest("hex")
     const timings = readTsv(LOCAL_TIMINGS)
-    const timingsUsable = timings && timings.header.fingerprint === fingerprint
+    const timingsUsable = timings && existsSync(BUDGETS) && timings.header.budget === budgetHash()
     const writeTimings = () => {
       mkdirSync(join(homedir(), ".kaaj"), { recursive: true })
-      writeTsv(LOCAL_TIMINGS, header, ["ms"],
+      writeTsv(LOCAL_TIMINGS, { ...header, budget: budgetHash() }, ["ms"],
         [...measured].filter(([, r]) => r.ms != null).map(([k, r]) => [k, [r.ms.toFixed(1)]]),
-        ["# this machine's server times, kept until the next `regress --update`; not committed (measure.mjs)"])
+        ["# this machine's server times, kept while budgets.tsv is unchanged; not committed (measure.mjs)"])
     }
 
     if (update) {

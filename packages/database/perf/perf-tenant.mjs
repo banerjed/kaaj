@@ -21,6 +21,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { parseArgs } from "node:util"
 import postgres from "postgres"
+import { holdPerfLock } from "./lock.mjs"
 import { sealEncryptedColumns } from "./seal.mjs"
 import { verifySealed } from "./verify-sealed.mjs"
 
@@ -336,6 +337,11 @@ const { positionals, values } = parseArgs({
   },
 })
 
+// The commands that rewrite the tenant wait for any perf run, and make one wait.
+const release = ["seed", "drop"].includes(positionals[0])
+  ? await holdPerfLock(DB_URL, "the perf cluster is not running — `pnpm db:perf:cluster up`")
+  : null
+
 try {
   switch (positionals[0]) {
     case "seed": {
@@ -392,4 +398,5 @@ try {
   process.exitCode = 1
 } finally {
   await sql.end()
+  await release?.()
 }

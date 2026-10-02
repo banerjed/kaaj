@@ -394,8 +394,10 @@ see its rows. `./check --all` — which the pre-push hook runs on every push —
 ends with `pnpm db:perf rows` and `pnpm db:perf regress`, and fails with a
 sentence saying what to run when the tenant is missing — never a skip. Both
 start the cluster if it is stopped and apply any migration it has not had
-(`cluster.sh up` records what it applied in `_cluster.applied`). Two runs at
-once, from two sessions, take turns on an advisory lock.
+(`cluster.sh up` records what it applied in `_cluster.applied`), and refuse a
+cluster holding a migration this checkout lacks — another branch's, which
+would otherwise be in every run from here. Runs, seeds and drops from any
+session take turns on one advisory lock (`lock.mjs`).
 
 ### The page budget
 
@@ -439,10 +441,10 @@ the budget records the Postgres major version and refuses another. With all
 of that, across a full reseed queries moved by at most 1 and data pages by at
 most 141.
 
-Time is compared only against this machine's own first run
-(`~/.kaaj/perf-timings.tsv`, not committed), and only after five
-re-measurements agree: over 2× and over +25ms. `--update` rewrites both
-files. Where the time went: `pnpm db:perf measure --actors=<actor>`.
+Time is compared only against this machine's own first run against the
+current `budgets.tsv` (`~/.kaaj/perf-timings.tsv`, not committed; a budget
+someone else changed starts it over), and only after five re-measurements
+agree: over 2× and over +25ms. This branch has never been watched failing. Where the time went: `pnpm db:perf measure --actors=<actor>`.
 
 ### The registry overlap
 
