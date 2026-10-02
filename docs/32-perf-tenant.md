@@ -134,9 +134,10 @@ Germany) and 4 currencies, 24 months in.
 | payroll_run_employees | 24,000 | 24 monthly runs |
 | documents | 20,000 | metadata only |
 | team_chat_messages | 200,000 | |
+| messaging_conversations / messaging_messages | ~3,000 / ~120,000 | one thread per third contact, on their channel |
 | audit_log | 150,000 | |
 
-About **2.6 million rows**. Every `SCALE_SENSITIVE` table gets rows:
+About **2.9 million rows**. Every `SCALE_SENSITIVE` table gets rows:
 `pnpm db:perf status` lists any left empty, because an empty table renders an
 empty page and an empty page is an unmeasured page.
 

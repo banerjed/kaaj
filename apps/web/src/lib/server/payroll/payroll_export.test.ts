@@ -216,6 +216,28 @@ describe("payroll export: hours for a period", () => {
     ])
   })
 
+  it("exports the fixture's own hourly employee from committed rows, with nothing inserted", async () => {
+    // Aisha is hourly in the fixture, with four approved January entries
+    // (7.5 + 8 + 6.5 + 4): under the daily 8 and the weekly 40, so every hour
+    // is regular. This is the one case that reaches the worked-hours path
+    // on the data every other suite also runs against (L50).
+    const lines = await inRollback((tx) =>
+      exp.periodLines(tx, "adp_run", {
+        from: "2026-01-05",
+        to: "2026-01-18",
+        frequency: null,
+      }),
+    )
+    expect(byEmployee(lines, AISHA)).toEqual({ regular: "26.00" })
+    // The salaried colleagues with approved January entries contribute no
+    // worked hours; their approved leave still exports, as it should.
+    expect(
+      lines.filter(
+        (l) => l.employee_id !== AISHA && !l.source.startsWith("time_off"),
+      ),
+    ).toEqual([])
+  })
+
   it("filters by pay frequency", async () => {
     const lines = await inRollback(async (tx) => {
       await payHourly(tx, AISHA, true)

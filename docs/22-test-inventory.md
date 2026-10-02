@@ -93,7 +93,7 @@ financial statements, payment processing, exports.
   separately) stitch back, page by page, into exactly the unpaged report,
   and every page's total is the full row count
 
-### Payroll & Compensation — 39 tests
+### Payroll & Compensation — 40 tests
 
 - `lib/server/payroll/payroll_export.visibility.test.ts` [2] — the export
   tables' RESTRICTIVE write policies watched failing as `app_user`: an
@@ -105,7 +105,7 @@ financial statements, payment processing, exports.
   byte for byte (ADP RUN, ADP Workforce Now, Gusto, Paychex Flex), blanks
   never zeros, the Workforce Now character set and second record, a name a
   spreadsheet would run as a formula
-- `lib/server/payroll/payroll_export.test.ts` [8] — daily, weekly and double
+- `lib/server/payroll/payroll_export.test.ts` [9] — daily, weekly and double
   time against a written-out oracle, a workweek that starts before the
   period, ineligible and salaried employees, unapproved hours, prorated time
   off, what refuses the file

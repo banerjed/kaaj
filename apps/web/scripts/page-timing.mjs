@@ -20,6 +20,7 @@ const ROUTE_PARAM = [
   ["/ticketing/[id]", "ticketId"],
   ["/projects/[id]", "projectId"],
   ["/chat/[conversationId]", "conversationId"],
+  ["/messaging/[id]", "messagingConversationId"],
   ["/documents/[folderId]", "folderId"],
   ["/objectives/[id]", "objectiveId"],
   ["/settings/groups/[groupId]", "groupId"],

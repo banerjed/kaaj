@@ -103,6 +103,9 @@ async function pickIds(perf, tenantId) {
     conversationId: await one(perf`
       SELECT conversation_id AS id FROM team_chat_messages WHERE tenant_id = ${tenantId}
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
+    messagingConversationId: await one(perf`
+      SELECT conversation_id AS id FROM messaging_messages WHERE tenant_id = ${tenantId}
+       GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
     folderId: await one(perf`
       SELECT folder_id AS id FROM documents WHERE tenant_id = ${tenantId} AND folder_id IS NOT NULL
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),

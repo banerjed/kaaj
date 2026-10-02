@@ -63,10 +63,12 @@ idempotency key, the contact lookup indexes (`20261003110000`), the
 test, the merge itself (with the design doc renumbered to 38 and budgets
 recorded for the new pages), and the check-step counts. The `/payroll/export`
 whole-period read is now a named exception in performance.md rather than
-redesigned. **Still open:** the fixture has no hourly employee — adding one
-moves row counts that dozens of tests assert exactly, so it is its own
-change; and `/messaging/[id]` has no perf budget because the perf tenant
-has no messaging rows to open (a generator step for `messaging_*`).
+redesigned. The last two closed in the following commit: Aisha Okafor's
+current pay record is hourly and overtime-eligible (her four approved
+January entries now reach the worked-hours export on the committed
+fixture, asserted in `payroll_export.test.ts`), and the perf tenant has a
+messaging step (`75_messaging.sql`), so `/messaging/[id]` has a budget.
+Nothing from this review is open.
 
 High:
 

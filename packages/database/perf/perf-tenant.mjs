@@ -59,6 +59,7 @@ const MODEL = {
   invoice_lines: 120000,
   journal_entries: 70000,
   journal_entry_lines: 210000,
+  messaging_messages: 120000,
 }
 
 const sql = postgres(DB_URL, { types: {}, onnotice: () => {}, max: 1 })
