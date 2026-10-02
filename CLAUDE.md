@@ -1,6 +1,8 @@
 # Kaaj
 
-Unified workplace management software for SMBs. Multi-tenant SaaS
+Kaaj is workplace management software for small and medium businesses
+(SMBs). It puts all of these functions in one product. It is multi-tenant
+SaaS.
 
 ---
 
@@ -10,10 +12,17 @@ Unified workplace management software for SMBs. Multi-tenant SaaS
 git clone <repo> && cd kaaj && ./setup
 ```
 
-Installs anything missing, starts the local Supabase stack, applies migrations,
-seeds the fixture, and runs the full verification. About 30 seconds on a machine
-that already has the tools; longer on the first run, which pulls Docker images.
-Idempotent — safe to re-run.
+`./setup` does these steps:
+
+1. It installs the tools that are not on the machine.
+2. It starts the local Supabase stack.
+3. It applies the migrations.
+4. It loads the fixture.
+5. It runs the full verification.
+
+On a machine that has the tools, `./setup` takes approximately 30 seconds.
+The first run takes longer, because it pulls the Docker images. The script is
+idempotent. You can run it again safely.
 
 ```
 ./setup              install what is missing, start everything, verify
@@ -22,9 +31,12 @@ Idempotent — safe to re-run.
 ./setup --reset      rebuild the database from migrations and reseed
 ```
 
-**`./setup` is a developer bootstrap, not an on-premise installer.** It creates
-a stack with well-known demo credentials and seeds the Northwind *test* fixture.
-Never point it at a customer's infrastructure.
+**`./setup` prepares a developer machine. It is not an on-premise
+installer.** It creates a stack with well-known demo credentials. It loads the
+Northwind *test* fixture.
+
+**WARNING:** Do not run `./setup` against the infrastructure of an
+organization.
 
 ---
 
@@ -34,11 +46,24 @@ Never point it at a customer's infrastructure.
 ./check
 ```
 
-**Everything must pass before you push, and always before deploying to
-production.** 25 steps, about 25 seconds; `./check --all` adds the
-browser suite and the 100-row page check against the perf tenant (about a
-minute more; needs `pnpm db:perf:cluster up`). Non-zero exit means do not
-push.
+**All steps must pass before you push. All steps must also pass before you
+deploy to production.** `./check` has 25 steps and takes approximately 25
+seconds. `./check --all` adds the browser test suite and two steps against the
+perf tenant:
+
+- the 100-row check
+- the budget of each page.
+
+These two steps take approximately one minute more. They need
+`pnpm db:perf seed` one time on each machine.
+
+**A pre-push hook runs `./check --all` on each push.** The hook is
+`.githooks/pre-push`, and `./setup` enables it. The hook refuses tracked
+changes that you did not commit. Otherwise, the hook tests these changes, but
+the push does not include them. `git push --no-verify` skips the hook. CI does
+not run the perf steps.
+
+If `./check` exits with a non-zero code, do not push.
 
 ```
 ./check          everything — run this before pushing
@@ -47,128 +72,71 @@ push.
 ./check --quick  skip the build (fastest useful signal)
 ```
 
-Needs the local stack running (`supabase start`). It finds `psql` and resolves
-`DATABASE_URL` on its own — no shell setup required, and it works from any
-directory in the repo.
+`./check` needs the local stack. Start the local stack with `supabase start`.
+`./check` finds `psql` and resolves `DATABASE_URL` itself. You do not need to
+set up the shell. You can run `./check` from any directory in the repository.
 
 ### What it runs
 
-| Step | Proves | Count |
-|---|---|---|
-| tenant isolation | every RLS policy actually filters, per table | 672 |
-| specification | the schema answers the module specs | 173 |
-| schema invariants | ADR design rules hold, and a bad claim fails closed | 157 |
-| structure snapshot | the schema is exactly what was committed | 4,290 lines |
-| enum fixture | `expected-enums.sql` is current with `enumerations.json` | — |
-| authorization | every form action authorizes; no DELETE in app code | 99 |
-| actor | every `withTenant` carries the actor, not a bare tenant id | — |
-| no backtick in SQL | no `--` comment inside a `tx\`...\`` template holds a backtick | — |
-| no query inside a loop | no `tx`...`` /`tx.unsafe` call sits inside a loop or iteration callback (N+1 at scale) | 5 exempt |
-| tables classified by scale | every table is `SCALE_SENSITIVE` or `NOT_SCALE_SENSITIVE`, with a reason | 40 + 87 |
-| no unprotected fallback | no protected column `COALESCE`s to an open one | — |
-| every table classified | every table is row-scoped (verified against its policies), per-column, tenant-wide, or exposed-pending; every per-column table's columns are classified | 130 tables, 0 exposed |
-| writes are audited | every action is in the audit register, either list | 59 + 29 |
-| refusals have a message | every constraint a form can trip answers with a sentence | 52 |
-| service role quarantined | nothing outside a committed list bypasses RLS, and every table it may reach is actually granted, not just RLS-exempt | 7 files |
-| product name not hardcoded | the product name is spelled once, in config.ts | — |
-| fixtures are complete | no base-table column is empty in the fixture | — |
-| dedicated targets | every `tenant_registry` dedicated-tier row resolves to a real, reachable, correctly-migrated database (ADR-009) | — |
-| security | authorization, PII and tenant isolation, both suites | 558 |
-| format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,399 tests |
-| front-page load | signs in for real, loads `/employees` 5×, fails if the MEDIAN is over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
-
-**These counts go stale.** They are here because a number nobody can check is a
-claim nobody can challenge — so correct them when they move, or delete the
-column. They were last verified 2026-10-01.
-
-These are complementary and none substitutes for another:
-
-- **Isolation** proves policies work, but only where fixture rows reach — which
-  is why it *fails* when a table has no fixture rather than passing vacuously.
-- **Specification** proves the schema can answer the module specs. Its RLS
-  checks are metadata-only; a policy of `USING(true)` passes them.
-- **Invariants** prove rules hold, but say nothing about drift.
-- **Snapshot** proves nothing changed, but cannot say whether it was right.
+[docs/35-check-steps.md](docs/35-check-steps.md) lists each step, what it
+proves, and its count. Correct the counts in that file when they change.
 
 ### Deploying to production
 
-```bash
-./check                              # must be green
-supabase db push                     # apply migrations to the hosted project
-packages/database/tests/verify-remote.sh             # read-only verification against production
-```
+The steps and the production-only tools are in the `deploy-production` skill
+([.claude/skills/deploy-production/SKILL.md](.claude/skills/deploy-production/SKILL.md)).
+**WARNING:** Read that file before you run any command against production.
 
-`supabase db push` is not reversible. Migrations are forward-only: a mistake is
-corrected by writing another migration, never by rolling back.
+**`vite dev` refuses to start against an address other than
+`127.0.0.1`/`localhost`, and nothing can override this.** A real environment
+variable has priority over a `.env` file. For example, a user copies a
+one-line command that points development at production for one run. The user
+leaves the export of `PUBLIC_SUPABASE_URL` in a shell profile. That value then
+has priority over `apps/web/.env.local` for each later `pnpm dev` on that
+machine. This occurs with no error, and the UI does not show it
+([L75](docs/10-lessons-learned.md)).
 
-**Never run `verify-rls.sql` against production** — it seeds a second tenant and
-writes probe rows. `packages/database/tests/verify-remote.sh` is the only harness safe to point
-at a live database; it forces a read-only transaction and aborts if that did not
-take effect.
-
-**Three more production-only tools, same tier as `verify-remote.sh`, none wired into `./check`** (a local dev database has no production error volume to check against):
-
-- `packages/database/tests/check-error-rates.mjs` — read-only, forces the same
-  read-only connection guard, exits non-zero if `app_error_log`'s trailing-window
-  error count breaches a threshold in its committed `THRESHOLDS` registry. Point
-  a host cron at it; wiring a real paging channel is a one-function change
-  (`notifyOncall`), not done yet.
-- `packages/database/tests/error-report.mjs` — read-only, the human-facing
-  counterpart: `routes`/`tenants`/`trend` (each takes `--days`, default 7) and
-  `lookup <error_id>` for the one row behind an id a customer quoted you. For
-  a weekly look, not a threshold check.
-- `scripts/prune-error-log.mjs` — the one script here that writes to
-  production: deletes `app_error_log` rows older than `--days` (default 30).
-  Dry-run by default (prints the count only); needs `--execute` to actually
-  delete, since a delete is not reversible. Connects as the database owner —
-  `app_user` has no DELETE grant on this table.
-
-**`vite dev` refuses to start against anything but `127.0.0.1`/`localhost`, with
-no override.** A real environment variable beats a `.env` file, so a
-`PUBLIC_SUPABASE_URL` exported in a shell profile — copied out of a one-line
-"point dev at prod for one run" command and left there — silently outranks
-`apps/web/.env.local` for every future `pnpm dev` on that machine, with nothing
-in the UI to say so ([L75](docs/10-lessons-learned.md)). There is deliberately
-no opt-out env var for this check: that would just be the same footgun one
-level up. `pnpm build` against `.env.prod` — the actual deploy path — is
-unaffected: the guard only fires on `command === "serve"`, which is `vite dev`
-and anything that starts one, including the vitest runner and the e2e
-`webServer`.
+This guard intentionally has no environment variable that turns it off. Such
+a variable would cause the same problem at a higher level. The guard has no
+effect on `pnpm build` against `.env.prod`, which is the real deployment path.
+The guard operates only when `command === "serve"`. That is `vite dev` and all
+tools that start it, which include the vitest runner and the e2e `webServer`.
 
 ---
 
 ## Architecture in one paragraph
 
-A **modular monolith**: SvelteKit is both frontend and backend
-([ADR-004](docs/05-architecture-decisions.md)), modules are directories rather
-than services ([ADR-001](docs/05-architecture-decisions.md)), and PostgreSQL is
-the only datastore — search, job queue and cache included
-([ADR-002](docs/05-architecture-decisions.md)). Supabase provides Postgres, Auth
-and Storage ([ADR-008](docs/05-architecture-decisions.md)). Tenancy is shared
-schema with `tenant_id`, isolated by row-level security
+Kaaj is a **modular monolith**. SvelteKit is both the frontend and the backend
+([ADR-004](docs/05-architecture-decisions.md)). Modules are directories, not
+services ([ADR-001](docs/05-architecture-decisions.md)). PostgreSQL is the only
+datastore, also for search, the job queue and the cache
+([ADR-002](docs/05-architecture-decisions.md)). Supabase supplies Postgres, Auth
+and Storage ([ADR-008](docs/05-architecture-decisions.md)). For tenancy, all
+tenants share one schema with `tenant_id`, and row-level security isolates them
 ([ADR-003](docs/05-architecture-decisions.md)).
 
-Full reasoning, including what was rejected and why, is in
-[docs/05-architecture-decisions.md](docs/05-architecture-decisions.md).
+[docs/05-architecture-decisions.md](docs/05-architecture-decisions.md) gives the
+full reasons. It also tells which alternatives we rejected, and why.
 
-**The customer portal is switched off.** A customer contact's sign-in carries
-no tenant (`20260930130000_customer_portal_off.sql`), and the `/portal` pages
-are gone. Portal contacts were `app_user` with a tenant claim, so every table
-with only `tenant_isolation` was readable to them
-([L111](docs/10-lessons-learned.md)); close every staff table to them before
-turning it back on.
+**The customer portal is switched off.** The sign-in of a customer contact
+carries no tenant (`20260930130000_customer_portal_off.sql`). The `/portal`
+pages are gone. Portal contacts were `app_user` with a tenant claim. Thus they
+could read every table that had only `tenant_isolation`
+([L111](docs/10-lessons-learned.md)). Before you switch the portal on again,
+close every staff table to portal contacts.
 
 **Payroll and expense tracking are NOT YET IMPLEMENTED.**
 - **Payroll** has a run lifecycle and nothing more. `/payroll/runs` moves a
-  run through draft, calculate, approve and finalize, audited, but nothing
-  computes anyone's pay: every gross, tax and net figure comes from the
-  fixture.
-- **Expense tracking** has no module. `expenses` exists and accounting
-  reports read it, but nothing submits, approves or reimburses an expense.
+  run through draft, calculate, approve and finalize, with an audit entry for
+  each step. But no code calculates the pay of an employee. Every gross, tax
+  and net amount comes from the fixture.
+- **Expense tracking** has no module. `expenses` exists, and accounting
+  reports read it. But no code submits, approves or reimburses an expense.
   - Billable expenses are columns on `expenses`: `is_billable`,
     `customer_id`, `project_id` and `billable_amount`.
-  - `expenses` is finance-only under RLS. An employee submitting their own
-    expense will need a policy that lets them read it back.
+  - Under RLS, only the finance function can read `expenses`. If an employee
+    submits their own expense, the employee will need an RLS policy that lets
+    them read it back.
 
 See [docs/11-module-roadmap.md](docs/11-module-roadmap.md).
 
@@ -176,7 +144,7 @@ See [docs/11-module-roadmap.md](docs/11-module-roadmap.md).
 
 ## Layout
 
-Turborepo monorepo, pnpm workspaces.
+The repository is a Turborepo monorepo with pnpm workspaces.
 
 ```
 kaaj/
@@ -200,1031 +168,282 @@ kaaj/
 ```
 
 **Two test suites assert authorization. Keep them independent, and keep the
-bridge.** `apps/web/src/**/*.test.ts` asserts the DEPLOYED enforcement — real
-`can()`, real actions, real database. `packages/spec-tests` asserts the
-SPEC-DERIVED requirement matrix, with traceability IDs. They are separate
-implementations on purpose: two catch each other's errors, one cannot.
+bridge.**
+- `apps/web/src/**/*.test.ts` asserts the DEPLOYED enforcement: the real
+  `can()`, the real actions and the real database.
+- `packages/spec-tests` asserts the SPEC-DERIVED requirement matrix, with
+  traceability IDs.
 
-Independence only pays off if something compares them — both were green for
-weeks while contradicting each other on whether a payroll admin sees a full bank
-number. `packages/spec-tests/tests/authz-conformance.spec.test.ts` is that
-comparison. It asserts **outcomes**, never internals, and a failure means
-"decide which is right", not "make one match the other".
+The two are separate implementations on purpose. Two implementations find the
+errors of each other. One implementation cannot do that.
 
-**Do not make either suite call the other's authorizer.** That leaves one
-implementation wearing two hats. `@kaaj/authz` is the product's vocabulary,
-consumed by `apps/web` and the bridge; `spec-tests` keeps its own.
+The independence has value only if a test compares the two suites. For weeks,
+both suites passed, but they did not agree on one question: can a payroll
+admin see a full bank number? `packages/spec-tests/tests/authz-conformance.spec.test.ts`
+is that comparison. It asserts **outcomes**, never internals. If it fails,
+decide which suite is correct. Do not simply make one suite agree with the
+other.
 
-**Packages stay framework-agnostic.** Plain TS/JS, no Svelte imports, so a
-future mobile app can consume them whatever it is built with. `@kaaj/validation`
-is the reason: maintaining 33 country-specific validators in two languages would
-produce a wrong tax identifier on a payslip, not a cosmetic bug.
+**Do not make one suite call the authorizer of the other suite.** Then one
+implementation does the work of two, and the comparison has no value.
+`@kaaj/authz` is the permission vocabulary of the product. `apps/web` and the
+bridge use it. `spec-tests` keeps its own vocabulary.
 
-**No `packages/ui` yet.** Every `.svelte` file is under `routes/`; building a
-shared UI package before a second consumer exists would shape it around one
-caller.
+**Packages stay framework-agnostic.** Write them in plain TS/JS, with no Svelte
+imports. Then a future mobile app can use them, whatever framework it uses.
+`@kaaj/validation` is the reason. If we kept 33 country-specific validators in
+two languages, a payslip could show a wrong tax identifier. That is not a
+cosmetic bug.
+
+**There is no `packages/ui` yet.** Every `.svelte` file is under `routes/`. If
+we make a shared UI package before a second consumer exists, the package will
+fit only its first caller.
 
 ---
 
 ## The UI reference
 
-**<https://nexus.daisyui.com/dashboards/ecommerce> is the canonical example.**
-Compare every screen against it before calling UI work done — spacing, card and
-table treatment, type scale, density, empty and loading states, and how the
-shell behaves at each breakpoint.
+The rules for this section are in [.claude/rules/svelte-ui.md](.claude/rules/svelte-ui.md).
 
-It is the live version of the template in `nexus-sveltekit-ref`, so it is also
-the fastest way to answer "is this how Nexus does it, or did we invent it?" —
-the question behind most of the UI entries in
-[docs/10-lessons-learned.md](docs/10-lessons-learned.md).
-
-What we deliberately diverge on, and why, is recorded in
-[docs/07-app-provenance.md](docs/07-app-provenance.md): the information
-architecture, the URLs, the accessibility floor, and any demo feature with
-nothing behind it. Divergence is fine — *undocumented* divergence is drift.
-
-**A status badge goes through `StatusBadge` (`$lib/components/`).** Eleven
-pages each held their own ternary returning `badge-success`/`badge-error`/…;
-the vocabularies differ and should — "paid" belongs to invoices and "present"
-to attendance — but the daisyUI spelling was copied eleven times. A page now
-names a *tone* (`positive` · `caution` · `critical` · `progress` · `neutral`)
-and the component holds the ten complete class strings, so restyling every
-status badge is one edit ([L72](docs/10-lessons-learned.md)).
-
-**They are SOLID, not `badge-soft`, against both Nexus and daisyUI's own
-preference.** `badge-soft` failed AA in the light theme when it was `nord` —
-1.32:1 to 3.27:1, against solid's 4.97 to 12.24. It passes in dark, but a badge
-style cannot be theme-dependent. The light theme is now `corporate`, and this
-has **not been re-measured**: `corporate` pairs pure-white content colours with
-several mid-bright backgrounds, the same shape that failed before
-([L73](docs/10-lessons-learned.md)) — treat solid vs. soft as unverified there
-until it is. The accessibility floor outranks template fidelity and the
-divergence is recorded in
-[docs/07-app-provenance.md](docs/07-app-provenance.md).
-
-**Never assemble a class name.** `badge-${size}` is invisible to Tailwind,
-which reads source text and cannot evaluate an expression — the class is simply
-never generated, the element renders unstyled, and nothing errors. Map each
-state to a COMPLETE class string, as `StatusBadge`'s `BADGE` table does —
-daisyUI's own audit flags an assembled one for the same reason.
-
-**The palettes are daisyUI's built-in `corporate` (light) and `night` (dark),
-and the app never owns a copy of them.** `data-theme` carries those names; the
-labels a person reads are still Light and Dark, and `TopbarProfileMenu` keeps
-value and label separate on purpose. `system` removes `data-theme` entirely,
-which is what `--prefersdark` on `night` is for — daisyUI warns against
-combining `--prefersdark` with a controller, and that warning is about
-controllers WITHOUT a system option. The two themes used to be ~98 hand-written
-lines, and owning that copy is how 3 of 4 solid badges came to fail AA
-([L73](docs/10-lessons-learned.md)).
-
-**Measure a colour pair by letting the BROWSER convert it** — paint it to a
-canvas and read the pixel. Hand-parsing a computed colour string was wrong
-three times in one session: `oklab()` components read as RGB, an alpha colour
-composited over white rather than its backdrop, and a `/\d+/g` channel regex
-over `oklch(0.20768 …)` scoring a near-black surface at brightness 20788.
-
-**One face, in BOTH themes: `--font-sans` and `--font-display` both resolve to
-Roboto Variable**, matching Nexus's own single-family approach — the two
-tokens stay separate so display text can be sized/weighted differently from
-body text without a second font file. daisyUI themes carry no font slot and
-Tailwind `@theme` tokens are global, so a per-theme typeface would mean
-redefining tokens under `[data-theme]` and reflowing every heading on a
-toggle. A theme switch changes colour, not type. Roboto Variable covers
-weight 100–900, so `font-bold`/`font-medium` on `font-display` text renders a
-real weight, not a synthesised one — unlike the Instrument Serif it replaced.
-
-**Secondary text stops at `base-content/70`.** Below that it fails WCAG AA on a
-light background (`/60` is 4.26:1 against 4.5 required), and it passes in dark
-mode either way — so the failure is invisible if you only check one theme. Any
-new colour pair needs measuring in BOTH — and the light one is the half that
-fails; see [L22](docs/10-lessons-learned.md). The light theme is now
-`corporate`, and `/70` has not been re-measured against it — re-check before
-relying on this floor.
-
-**Customization is data, never code.** Customers customize through rows, custom
-field definitions and settings — never per-tenant schema changes or per-tenant
-code. See [docs/06-customization-model.md](docs/06-customization-model.md).
+**Customization is data, never code.** Customers customize through rows,
+custom field definitions and settings. They never customize through schema
+changes for one tenant or code for one tenant. See
+[docs/06-customization-model.md](docs/06-customization-model.md).
 
 ---
 
 ## Before building a module
 
-Read **[CODING_GUIDELINES.md](CODING_GUIDELINES.md)** — the patterns for
-authorizing a new API call, RLS on a new table, money, timezones, locale,
-audit logging, error handling, UI code and form validation, each with a real
-GOOD/BAD example. It teaches the pattern; this file and `./check` are still
-the authority on the specifics.
+Read **[CODING_GUIDELINES.md](CODING_GUIDELINES.md)**. It gives the patterns
+for these tasks, each with a real GOOD/BAD example:
+- authorize a new API call
+- RLS on a new table
+- money, timezones and locale
+- audit logging and error handling
+- UI code and form validation.
 
-Read **[docs/10-lessons-learned.md](docs/10-lessons-learned.md)**. It is a
-running list of the traps in this codebase, each of which failed *silently* —
-an empty page, an unstyled component, a control no keyboard can reach. Comments
-in the app code reference it by number (`L4`, `L11`) rather than restating it.
+That file teaches the pattern. This file, the files in `.claude/rules/` and
+`./check` are still the authority on the details.
 
-Append to it when something bites. Do not rewrite past entries.
+Read **[docs/10-lessons-learned.md](docs/10-lessons-learned.md)**. It is a list
+of the traps in this codebase, and the list continues to grow. Each trap failed
+*with no error*: an empty page, a component with no style, a control that a
+keyboard cannot reach. Comments in the application code refer to the entries by
+number (`L4`, `L11`). The comments do not repeat the text.
+
+When a trap causes a problem, add an entry to that file. Do not write past
+entries again.
 
 ### Keep this file and the lessons file current
 
-**When a salient bug is found in generated code, write the rule down before
-moving on.** A bug that is fixed but not recorded gets regenerated — by the next
-contributor, or by the next model, from the same plausible-looking assumption
-that produced it the first time. The fix costs an hour; the rule costs a line.
+**When you find a salient bug in generated code, write the rule before you
+continue.** If somebody fixes a bug but does not record it, the bug comes back.
+The next contributor or the next model makes the same plausible assumption that
+caused it the first time. The fix costs an hour. The rule costs a line.
 
-Where it goes:
+Put the finding here:
 
 | Kind of finding | Goes in |
 |---|---|
-| A trap in *this* codebase — a thing that fails silently, a stale doc, a library behaviour that surprises | `docs/10-lessons-learned.md`, as a new `Lnn` |
-| A rule that changes how code should be *written* here — a convention, a forbidden pattern, a required check | **this file**, under `Rules that are easy to get wrong` |
-| Both | Both. The lesson explains; the rule constrains |
+| A trap in *this* codebase: a thing that fails with no error, a document that is out of date, a library behaviour that you did not expect | `docs/10-lessons-learned.md`, as a new `Lnn` |
+| A rule that changes how you *write* code here: a convention, a prohibited pattern, a step that `./check` must have | the file in **`.claude/rules/`** for its area (see `Rules that are easy to get wrong`). If the rule applies to each area, also add one line to `Rules that apply everywhere` in this file |
+| Both | Both. The lesson explains. The rule sets the limit |
 
-A finding qualifies as salient if any of these hold:
+A finding is salient if one or more of these conditions is true:
 
-- it produced **no error** — an empty page, a silently unstyled component, a
-  control no keyboard can reach, a check that passed vacuously
-- it would be **repeated by someone reasonable** working from the docs as they
-  stand, which usually means a doc is stale and should be corrected too
-- it was **found by looking rather than by testing**, which means the test suite
-  has a blind spot worth naming
-- fixing it required **reading a dependency's source** to discover the real
-  behaviour
+- It caused **no error**. Examples: an empty page, a component with no style,
+  or a control that a keyboard cannot reach. Another example is a test that
+  passed because it had nothing to test.
+- **A reasonable person would make it again** from the documents as they are
+  now. Usually this means that a document is out of date. Then correct the
+  document also.
+- Somebody **found it when they looked at the code or the page, not with a
+  test**. This means that the test suite has a blind spot. Record that blind
+  spot.
+- To fix it, somebody had to **read the source of a dependency** to find the
+  real behaviour.
 
-Do not record ordinary bugs, one-off typos, or anything the code already makes
-obvious. This file is read in full on every session; every line added is a line
-everyone pays for. If an entry stops being true, delete it.
+Do not record ordinary bugs, single typos, or a thing that the code already
+makes clear. Each session reads this file fully. Each line that you add is a
+line that every session must read. A file in `.claude/rules/` loads only for
+its `paths`, so put a rule there if it belongs to one area. If an entry is not
+true now, delete it.
 
 ---
 
 ## Security: how the breaches actually happened
 
-Every disclosure found here was a *correct-looking number in the right-looking
-column*. None raised an error, none failed a test, and several sat behind
-guards that were passing. The concrete rules are below; these are the lenses
-that let you spot the **next** one. Each links the case that produced it.
+Each disclosure that we found here was *a number that looked correct, in a
+column that looked right*. None of them caused an error, and none of them made
+a test fail. Several of them were behind guards that passed. The specific rules
+are below. The items in this list help you find the **next** disclosure. Each
+item links to the case that caused it.
 
-- **A protected value has more than one home.** Protection is applied per
-  MECHANISM; disclosure happens per VALUE. List every place the value exists —
-  caches, JSONB, audit entries, exports, indexes, logs (L47, L55).
-- **Ask who can READ what you write.** A new write is designed as a write and
-  its read side is examined by nobody. The highest-yield question here (L55).
-- **A guard never observed failing is not evidence.** Reintroduce the bug and
-  watch it fail (L48).
-- **An empty column is an unchecked column.** A test whose subject is NULL
-  reports the absence of data as the absence of a problem (L50, L51).
-- **Test as the actor meant to be REFUSED.** Suites run as an owner, which
-  makes the refused branch unreachable. Assert both halves (L47).
-- **A rule written only in prose is applied unevenly.** Make it a committed
-  register plus a `./check` step that fails on anything unclassified (L48, L54).
-- **`any` forbids nothing.** An untyped row is unexaminable downstream (L53).
-- **Make the classification visible in the name.** `_pvt`, `_ct` — so a
-  reviewer sees it in the diff, enforced both ways (L49).
+- **A protected value is in more than one place.** A protection applies per
+  MECHANISM. A disclosure occurs per VALUE. Make a list of each place that
+  holds the value: caches, JSONB, audit entries, exports, indexes and logs
+  (L47, L55).
+- **Ask who can READ what you write.** People design a new write as a write,
+  and nobody examines its read side. Here, this question finds the most
+  disclosures (L55).
+- **A guard that you did not see fail is not evidence.** Put the bug back in
+  the code, and watch the guard fail (L48).
+- **An empty column is a column that no test examines.** If the subject of a
+  test is NULL, the test reports "no data" as "no problem" (L50, L51).
+- **Do the test as the actor that the guard must REFUSE.** The test suites run
+  as an owner, thus they cannot reach the branch that refuses. Assert both
+  halves (L47).
+- **Different people apply a rule that is only in prose in different ways.**
+  Make the rule a committed register. Add a `./check` step that fails on each
+  item that is not classified (L48, L54).
+- **`any` forbids nothing.** Code downstream cannot examine an untyped row
+  (L53).
+- **Make the classification visible in the name.** Use a suffix such as
+  `_pvt` or `_ct`, so that a reviewer sees the classification in the diff.
+  `./check` enforces the name in both directions (L49).
 
-The planned mechanisation — an exhaustive taint check over every read path ×
-every actor — is in
-[docs/16-disclosure-verification.md](docs/16-disclosure-verification.md),
-including what it deliberately will **not** catch.
+[docs/16-disclosure-verification.md](docs/16-disclosure-verification.md)
+describes the planned mechanisation: a full taint check over each read path ×
+each actor. That document also tells what the check deliberately will **not**
+find.
 
 ### Before shipping anything touching personal or financial data
 
-1. **Where else does this value live?** Each home needs its own defence.
-2. **Run the read as a refused actor**, against the live database, not in your
-   head — an employee, and a `finance_admin` or `it_admin`. The roles powerful
-   somewhere else are the ones whose limits nobody tests.
-3. **Watch the guard fail.** If nothing failed, you have not tested it.
-4. **Check the fixture has data.** A green assertion over NULL is not a pass.
-5. **Confirm it is classified** — disclosure matrix, audit register, or a
-   committed exemption with a reason.
+1. **Where else is this value?** Each place needs its own defence.
+2. **Run the read as an actor that the guard must refuse.** Run it against a
+   real database, not in your head. Use an employee, and also a
+   `finance_admin` or an `it_admin`. Nobody tests the limits of the roles that
+   are powerful in other areas.
+3. **Watch the guard fail.** If nothing failed, then your test did not examine
+   the guard.
+4. **Make sure that the fixture has data.** An assertion that is green on NULL
+   is not a pass.
+5. **Make sure that the value is classified**: in the disclosure matrix, in the
+   audit register, or as a committed exemption with a reason.
 
-Answering "who may write this" is half the work. The breaches were all in the
-other half.
+The question "who may write this?" is half of the work. All of the breaches
+were in the other half.
 
 ---
 
 ## Rules that are easy to get wrong
 
-**Migrations, not `schema.sql`.** `packages/database/reference/schema.sql` is the design
-document: it issues no `GRANT`s, so no role can read anything, and it defines
-`app.set_updated_at()` without wiring it to a trigger. Only
-`supabase/migrations/` produces a working database. Build and test from there.
+These rules are in separate files. Claude Code loads each file when it reads a
+file that matches the `paths` of that file. If a task is in one of these areas,
+read the file before you start, also if no matching file is open yet.
 
-**`config.toml` and `migrations/` must be siblings, at the repo root.** The CLI
-resolves `migrations/` relative to `config.toml` and searches only *upward* for
-it. At the root, `supabase start` works from any directory. When the two were
-split, `supabase db reset` applied **zero** migrations and reported success.
+| File | Area |
+|---|---|
+| [.claude/rules/database.md](.claude/rules/database.md) | migrations, the snapshot, RLS policies, foreign keys, counters, `gl_daily_balances`, the disclosure matrix, registers and exemptions, the fixture |
+| [.claude/rules/server.md](.claude/rules/server.md) | `load()` guards, form actions, typed `tx` queries, errors, shared predicates and vocabularies |
+| [.claude/rules/performance.md](.claude/rules/performance.md) | render targets, pagination, the 100-row rule, query shape, the page budget, scale classification |
+| [.claude/rules/svelte-ui.md](.claude/rules/svelte-ui.md) | the UI reference, badges, themes, contrast, Svelte 5 runes |
+| [.claude/rules/forms.md](.claude/rules/forms.md) | `FormReader`, query strings, constraint refusals, marked fields |
+| [.claude/rules/money-time.md](.claude/rules/money-time.md) | money, timestamps, dates, durations, `Date.now()` |
+| [.claude/rules/tenancy-audit-pii.md](.claude/rules/tenancy-audit-pii.md) | `withTenant`, the audit log, disclosure flags, PII, the service role, accounting RLS |
+| [.claude/rules/testing.md](.claude/rules/testing.md) | tests as the refused actor, e2e specs, CI workflows, the test inventory |
 
-**`config.toml` points at the fixture by relative path.** A wrong
-`[db.seed] sql_paths` makes `db reset` report success against an empty database.
-After any move, check `SELECT count(*) FROM employees` returns 12, not 0.
+### Rules that apply everywhere
 
-**Regenerate the snapshot only from a migration-built database.**
+These rules have their full text in the files above. They are here because
+they apply to each area:
 
-```bash
-supabase db reset && pnpm db:snapshot
-```
+- Money is a `string` from the database to the browser and back. Do arithmetic
+  on money in SQL, never in JavaScript.
+- Render a `timestamptz` in the timezone of the office. Format a `DATE` in UTC.
+- Every `withTenant` takes `actorFrom(locals)`, never `locals.tenantId`.
+- A protected column NEVER falls back to an unprotected one.
+- Every field that an action writes goes through `FormReader`.
+- Every write is classified in the audit register. An audit entry goes in the
+  SAME transaction as the write.
+- Encrypt PII only through `$lib/server/pii`.
+- On a request path, a query must not read more rows than it returns, apart
+  from a capped count.
+- After each change to an RLS policy, run `./check --db` immediately.
 
-Generating from a hand-modified database bakes local experiments into the
-baseline. This has already happened once: a manual `ALTER` left `invoices.total`
-as `numeric(18,2)` when the migration says `numeric(15,2)`.
-
-**`supabase db reset` leaves `app_user` unable to log in.** The role is
-created with no password (`20260827000002_auth_and_grants.sql`); `./setup`
-sets one as its own step afterward, which `db reset` alone never runs. Every
-test then fails with `password authentication failed`, which reads like a
-broken test rather than environment state ([L81](docs/10-lessons-learned.md)).
-After any `db reset` not run via `./setup`:
-
-```bash
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-  -X -q -c "ALTER ROLE app_user WITH PASSWORD 'app_user'"
-```
-
-**A restricted column on `employees` is named `_pvt`; ciphertext is named
-`_ct`.** A column on that table carrying neither is directory data, by
-construction. The disclosure matrix decides and the name must AGREE with it —
-`./check` fails both a restricted column without the suffix and a suffixed
-column nobody classified. This asserts the classification; it never infers it
-([L49](docs/10-lessons-learned.md)). Only `employees` needs this: elsewhere a
-row policy scopes the whole row.
-
-**No column anywhere may be empty in the fixture.** A test whose subject is
-NULL does not fail — it reports the absence of data as the absence of a problem
-([L50](docs/10-lessons-learned.md), [L51](docs/10-lessons-learned.md)).
-`./check` enforces it across every base table, with a committed sparse list;
-"not got round to it" is not a reason — the only accepted one so far is "the
-table it references does not exist yet". Generate ciphertext through
-`sealField`, never by hand: `pii.test.ts` opens every sealed fixture value,
-because a copied envelope still looks populated.
-
-**Every table, and every sensitive column, is classified before it ships.**
-`apps/web/src/lib/server/security/matrix.ts` records, per value, who may read
-it and **which mechanism holds it** — `rls`, `encrypted`, `projection` or
-`open`. `scripts/verify-matrix-complete.mjs` starts from the SCHEMA, not the
-matrix, and fails on any table outside exactly one class: row-scoped (the
-matrix's whole-row tables or `ROW_SCOPED`, each checked against
-`pg_policies`), per column, `TENANT_WIDE`, or `EXPOSED_PENDING`. It started
-from the matrix until the check was widened, which is how
-`customers.tax_number` stayed readable by every employee with this step
-green ([L103](docs/10-lessons-learned.md)). A new table needs a class, and
-every disclosure bug here so far was an *unclassified* value rather than a
-mis-classified one ([L48](docs/10-lessons-learned.md)). `TENANT_WIDE` is
-classified by table, not column: **a column added to a tenant-wide table is
-not checked** — ask of it whether its table still belongs there.
-
-**`EXPOSED_PENDING` is a list of known leaks, not an exemption.** Each of
-its entries would be readable by the whole tenant although another committed
-rule says it should not be, and each reason names that rule. It is empty
-today. Fixing one
-means adding a RESTRICTIVE policy and moving the table to `ROW_SCOPED`; the
-check fails while a narrowed table is still listed as exposed. A table
-deliberately left tenant-wide, such as a
-[docs/15](docs/15-row-level-visibility.md) Tier 2 table, goes in
-`TENANT_WIDE` citing that decision. Never add a table to `EXPOSED_PENDING`
-to get a new feature green.
-
-**A foreign key does not check the tenant.** Postgres validates an FK with
-its own internal query, which bypasses RLS, so another tenant's id passes.
-Where the id comes from a request, `SELECT` it under RLS first, as
-`assertCustomerExists` in `projects.repo.ts` does
-([L103](docs/10-lessons-learned.md)).
-
-**When a row holds both a parent and a child of it, the foreign key is
-composite.** `ticketing_tickets` holds an area, a category and a
-subcategory; three separate keys let each exist while belonging to different
-parents. Reference `(tenant_id, child_id, parent_id)` against a matching
-`UNIQUE` on the child table, which also makes Postgres check the tenant
-([L109](docs/10-lessons-learned.md)).
-
-**Before adding a table, look for one that already models the concept** — by
-meaning, not name. `clients`/`customers` and
-`time_tracking_billable_expenses`/`expenses` each held the same rows twice
-and were merged; protection applied to one copy never reached the other
-([L103](docs/10-lessons-learned.md)).
-
-**Test a data migration against a populated database, in a rolled-back
-transaction, and write it as one `DO` block.** `supabase db reset` seeds the
-fixture AFTER migrations, so the data-moving half runs on empty tables and
-proves nothing. `ci-database.sh` applies files in autocommit, where
-`SET LOCAL` does nothing and `ON COMMIT DROP` temp tables vanish at once
-([L104](docs/10-lessons-learned.md)).
-
-Two rules for using it: **`defense` is the spine, not audience** — on a
-broadly-visible row RLS cannot hide a column, so a NULL in the fixture is not
-evidence of anything. And **declare per column only where the row is broadly
-visible**; where a row policy scopes the whole row, one table-level
-declaration covers every column on it.
-
-**A protected column NEVER falls back to an unprotected one.** RLS hides the
-row; a `COALESCE` puts the value back. `compensation_base` is policy-protected
-and `employees.base_amount` is an unprotected cache of the same figure, so
-`COALESCE(cp.amount, e.base_amount)` disclosed every salary in the firm to
-every employee — correct-looking number, no error, no failing test
-([L47](docs/10-lessons-learned.md)). Read the protected column alone and let it
-be NULL: a blank figure is the right answer for someone who may not see it.
-`./check` fails on this shape.
-
-**Write every form action out in the page's own `actions` object.** Shared
-action code is a handler the page calls after its own `requireCan`; never
-spread actions in (`{ ...sharedActions() }`). `./check`'s authorization
-and audit steps read each page's `actions` object, so a spread action has no
-guard check and no audit classification, and both steps still pass
-([L110](docs/10-lessons-learned.md)).
-
-**A test for an access rule runs as the actor who is meant to be REFUSED.**
-Repository suites deliberately run as an owner, so a policy cannot silently
-narrow what they see — which means the restricted branch of every query is
-unreachable from them. Assert both halves: the refused actor gets NULL, *and*
-the permitted one still gets the figure. Test a child table's policy by reading the
-child table alone: joining its parent applies the parent's policy and hides
-a broken one on the child ([L110](docs/10-lessons-learned.md)). A policy that blanks everything reads
-as a broken page, not as a rule.
-
-**Type every `tx` query that crosses into a page.** An untyped row is `any`
-downstream, and `any` satisfies every parameter — so a wrong-shaped argument is
-not merely allowed, it is unexaminable. `data.tenant` was untyped and a
-`FormatContext` argument received a bare string, rendering a timestamp with no
-date and passing `svelte-check`
-([L53](docs/10-lessons-learned.md)).
-
-**Never compare a database value to `Date.now()`.** The app and Postgres are on
-different machines, and a Docker VM's clock drifts across a host sleep. Compare
-against `clock_timestamp()` in the same query, or assert `col = now()` to prove
-a column default was used ([L43](docs/10-lessons-learned.md)).
-
-**A row policy is `AS RESTRICTIVE` unless it is deliberately an alternative,
-and recreating one means restating every modifier.** Postgres defaults to
-PERMISSIVE and OR-s permissive policies together, so a table with
-`tenant_isolation` plus a visibility policy needs the second to be RESTRICTIVE
-or the two become *either* rather than *both*. A `DROP`/`CREATE` pair is not a
-diff: `AS RESTRICTIVE`, `FOR`, `TO` and `WITH CHECK` are all lost by omission,
-the statement succeeds, and nothing looks wrong. This has already caused a
-12-row cross-tenant leak, caught only by `./check`
-([L63](docs/10-lessons-learned.md)). **Run `./check --db` immediately after any
-policy change.**
-
-**Never parse `request.jwt.claims` inside a policy expression — call an `app.*`
-function.** The `::jsonb` cast raises on a malformed claim, and a policy
-expression cannot carry an `EXCEPTION` handler, so the request becomes a 500
-rather than an empty page — intermittently, because it depends on whether the
-planner evaluates that arm ([L62](docs/10-lessons-learned.md)). Every such
-function returns the closed answer (`NULL`, `false`) on a bad claim;
-`./check` calls each one with `not-json` and fails if it raises.
-
-**A table's own RLS policy must never call a helper that re-queries that SAME
-table, even via `SECURITY DEFINER`.** `INSERT/UPDATE ... RETURNING` checks
-the new row against `SELECT` policies using values already in hand,
-mid-statement — a nested query can't yet see that row
-([L92](docs/10-lessons-learned.md)). Check same-table conditions (ownership,
-a status column) inline against the row's own values; only delegate to a
-helper for a check that reads a *different* table. `verify-rls.sql` only
-ever `SELECT`s, so it passing is not evidence a self-referential policy
-survives `RETURNING`.
-
-**A denormalised counter is RECOMPUTED in the same transaction, never
-incremented.** `SET n = n + 1` is correct only if every writer remembers it and
-no write ever fails partway; `SET n = (SELECT count(*) ...)` is correct whatever
-happened before it, so a row that is already wrong is repaired by the next write
-instead of carrying the error forward. The read path counts the real rows
-alongside the stored figure so a disagreement is visible, and a test asserts
-they agree AFTER a write ([L58](docs/10-lessons-learned.md)). A wrong counter
-feeds a progress bar, and a wrong progress bar looks exactly like a right one.
-The recompute runs under the WRITER's row policies, so **before narrowing a
-table, find every recompute that reads it**. Otherwise the sum silently covers
-only the rows the writer can see ([L106](docs/10-lessons-learned.md)).
-
-**`gl_daily_balances` is the one figure whose read path does not count the
-rows beside it** — the ledger reports read it precisely so as not to sum
-every line. It is recomputed by triggers on every write that can move a
-posted figure (as the table owner, under an advisory lock per account), and
-its agreement with the lines is asserted instead by `./check`'s
-`ledger/daily-balances-agree` invariant, `gl_daily_balances.test.ts` (after
-each kind of write, and two concurrent posts), and the perf tenant's
-`verify`. A new path that writes posted journal lines needs nothing extra;
-one that bypasses triggers (`session_replication_role = replica`) must
-rebuild the table for what it touched.
-
-**When a page's layout and an action's write path turn on the same question,
-the predicate is one exported function both call.** `crm/companies/[id]` asked
-`customer_type === 'individual' && contacts.length === 1` in the template and
-`customer_type === 'individual'` in the action; a row in the shape the second
-matched but the first did not could never be saved, and nothing caught it
-because both halves typecheck and the fixture had no such row
-([L113](docs/10-lessons-learned.md)). Same reason a `text` column's vocabulary
-lives in one place, below.
-
-**A vocabulary for a plain `text` column lives in the repository, and the pages
-import it.** These columns have no enum and no CHECK behind them, so the list IS
-the constraint — and two copies of a constraint are one constraint that will
-disagree. `/projects` filtered on a status list that omitted `draft`, the column
-default, so the first project anyone created would have been written correctly
-and then been invisible under every filter ([L57](docs/10-lessons-learned.md)).
-Ask of any new write: **can the thing this creates be found again by the page
-that lists it?**
-
-**A new page under `(app)` gets a line in `apps/web/e2e/smoke.spec.ts`; a new
-FORM gets a case in `apps/web/e2e/form-errors.spec.ts`.** They are the only
-checks that load a URL — nothing else in `./check` renders anything. Headings
-are asked for BY ROLE, which is how it found that no page in the product had an
-`<h1>` ([L64](docs/10-lessons-learned.md)). Both are read-only: the fixture is
-shared with the unit suites, so a spec that writes needs its own serial project
-and a reseed. Run with `pnpm --filter @kaaj/web e2e` — deliberately NOT in
-`./check`, which is 24 seconds and worth keeping that way.
-
-**A code review records how far it got in
-[docs/33-code-review-log.md](docs/33-code-review-log.md), by COMMIT SHA.**
-Several sessions commit here concurrently, so "everything since Tuesday" is a
-moving window that both re-covers work and skips it. The log carries the next
-run's `git diff <sha> HEAD` command and the list of rules a review is FOR —
-the ones CLAUDE.md states and `./check` cannot see, since `./check` is green
-on every commit and re-running it is not a review.
-
-**A workflow you have not seen green is not running.** `tests.yml` failed
-every run for five weeks while `build`, `linting`, `format`, `database` and
-`e2e` were green on the same commits — a wall of ticks with one cross reads as
-"something flaky over there". It was hiding two suites that never executed at
-all, five of whose assertions are Storage RLS tenant isolation. Check the run
-COUNT, not the last run: `gh run list --workflow=<file> --limit 30` separates
-"failing" from "has never passed", which look identical on one red tick
-([L114](docs/10-lessons-learned.md)). A suite that talks to anything over HTTP
-needs its workflow checked specifically — locally `supabase start` is always
-running, so the difference between "needs Postgres" and "needs GoTrue" does not
-exist on a dev machine.
-
-**A new test file, or a new top-level `describe` in an existing one, gets a
-line in [docs/22-test-inventory.md](docs/22-test-inventory.md).** Nothing
-enforces this — there is no check to fail, the same as the `testplan-*.md`
-set — so it only stays true if it's kept true on the same PR that adds the
-test, not after. The doc is grouped by module for unit tests
-(`pnpm --filter @kaaj/web run test`) and by purpose for e2e
-(`pnpm --filter @kaaj/web e2e`); add to whichever section already covers the
-area, or start a new one if nothing does — a module with no section is
-exactly the kind of gap the doc exists to surface (it already found two:
-documents and ticketing had none).
-
-**A page's `load()` checks its own read permission — a `requireCan` in that
-page's `actions`, or a guard in a parent layout, covers neither.** Eight
-`/settings/*` pages had `requireCan(ctx, "firm.settings.write")` in their
-write action and nothing but `if (!locals.tenantId)` in `load()`, so any
-signed-in staff member — no admin hat required — could read all eight; the
-sidebar simply didn't link there, which is not a permission (L44). The
-shared `(app)/+layout.server.ts` gate is for coarse identity (a signed-in
-session, staff vs. portal contact), not a page's specific permission, and a
-write check protects only the POST. Add `requireCan(contextFrom(locals),
-"<module>.<thing>.read")` as the first line of `load()`, right after the
-tenant check — the read and write permission are deliberately different
-strings in `@kaaj/authz` ([L79](docs/10-lessons-learned.md)).
-
-**An error is never logged raw — it goes through `safeError`
-(`$lib/errors.ts`), and unexpected ones through `handleError`.** A
-`PostgresError` carries the offending row in `detail`, and `where`, `query`
-and the bound parameters alongside it. Postgres withholds `detail` from
-`app_user`, so the request path is already covered — but the table owner sees
-it, and that is what `./check`, the migrations, `verify-remote.sh` and anything
-on the service role connect as ([L69](docs/10-lessons-learned.md)). The
-allowlist is defence in depth there and the only defence everywhere else.
-`message` echoes the submitted value whatever the role — `invalid input syntax
-for type date: "1985-03-12"` is a date of birth — which is why these lines stay
-in infrastructure we control.
-
-**Every unexpected error gets an id, and the id is on the page.** `handleError`
-in both hooks mints one, logs the error against it as JSON on stdout with the
-actor from `locals`, and returns `{ id, message }`. SvelteKit replaces the real
-message with "Internal Error" before it reaches the browser, so without the id
-a bug report has nothing to quote and we have nothing to search.
-
-**Every table is classified by whether it will get large.** The app is still
-being built out, and a table added today looks exactly like a small config
-table until the day a tenant has been using it for two years. `SCALE_SENSITIVE`
-/ `NOT_SCALE_SENSITIVE` in `scripts/verify-query-scale.mjs` covers every table
-in the schema snapshot, each with a reason, and `./check` fails on a new one
-that is neither — the same shape as the sensitive-column matrix and the audit
-register, and for the same reason: a rule that says "remember to check" gets
-forgotten the moment the table looks routine. Classify by whether a row
-accumulates per EVENT that keeps happening for as long as the tenant stays a
-customer (a ticket, a journal entry, a clock-in) — unbounded — versus per
-DIMENSION capped by the organization's own size or setup (an employee, a
-policy, a department) — bounded, however long the tenant has been a customer.
-A `SCALE_SENSITIVE` table is where `scripts/verify-no-loop-queries.mjs` and a
-missing index actually bite; that is what the classification is FOR, not an
-end in itself.
-
-**Every exemption is a committed literal, never a filter.** The harnesses list
-exempt tables and indexes by name with reasons. A new violation fails, and so
-does removing a justified one — both require a reviewed edit. A `NOT IN` pattern
-silently absorbs future violations, which is how a suite quietly stops testing
-anything.
-
-**And the literal is confirmed against the schema.** `verify-constraint-registry.mjs`
-listed `"projects_tasks"`, a table that has never existed, so every constraint
-on the real `tasks` went unchecked for months with `./check` green: a name that
-matches nothing returns an empty result, and an empty result is
-indistinguishable from "nothing to report"
-([L100](docs/10-lessons-learned.md)). Any list that names a schema object by
-string — `FORM_WRITTEN`, `SCALE_SENSITIVE`, the audit register, the disclosure
-matrix — fails if the name is absent from the schema.
+**A code review records the last COMMIT SHA that it examined, in
+[docs/33-code-review-log.md](docs/33-code-review-log.md).** Several sessions
+commit here at the same time. Thus, "everything since Tuesday" is a range
+that moves: it covers some work again, and it skips other work. The log holds
+the `git diff <sha> HEAD` command for the next run. It also holds the list of
+rules that a review is FOR. These are the rules that CLAUDE.md states and
+that `./check` cannot see. `./check` is green on each commit, so if you run it
+again, that is not a review.
 
 ---
 
 ## Comments
 
-**Default to none. Add one only when it explains a nuance the code itself
-cannot** — a hidden constraint, an invariant that would break silently, a
-reason a plausible-looking alternative is wrong. If a competent reader loses
-nothing when the comment is deleted, delete it.
+**Do not write a comment by default. Write a comment only if it gives
+information that the code cannot give.** Examples are:
 
-**Never narrate how the decision was reached.** No "changed from X because Y
-suggested it", no ticket numbers, no "tried three approaches, this one
-works" — that belongs in the commit message, not the code. History narrated
-in a comment rots the moment the reasoning it describes stops mattering, and
-nothing then updates it. A comment describes the code as it stands today,
-never the path that produced it.
+- a constraint that the code does not show
+- an invariant that can become false with no error
+- the reason why an alternative that looks correct is wrong.
 
-**Never restate what the code already says.** A well-named identifier is
-already documentation; a comment repeating it is a second copy of the same
-fact, and the two *will* drift once only one of them gets updated.
+If a skilled reader loses no information when you remove the comment, remove
+it.
 
-**Fewer is better, and a wrong comment is worse than none.** An incorrect
-comment doesn't just fail to help — it actively misleads, and it costs
-trust in every other comment near it. When it's unclear whether a comment
-earns its place, leave it out.
+**Do not write the history of a decision in a comment.** Do not write
+"changed from X because Y suggested it". Do not write ticket numbers. Do not
+write "tried three approaches, this one works". Put this information in the
+commit message, not in the code. A history in a comment becomes incorrect
+when its reason is not important any more, and nothing then updates it.
+
+A comment describes the code as it is today. It does not describe the steps
+that made the code.
+
+**Do not write in a comment what the code already says.** An identifier with
+a good name is already documentation. A comment that repeats it is a second
+copy of the same fact. If a person updates only one of the two, the two
+*will* become different.
+
+**Fewer comments are better, and a wrong comment is worse than no comment.**
+An incorrect comment does more than give no help. It gives the reader
+incorrect information, and it makes the reader trust each other comment near
+it less. If you are not sure that a comment is necessary, do not write it.
 
 ---
 
 ## Performance
 
-**Every page render targets under 20ms, server-side.** That's the `handle`
-chain end to end: auth verification, every `load()`, SSR to HTML — not full
-browser paint, and not `vite dev`, whose per-request transform cost is much
-larger than a production build's and gives a misleading number. Measure with
-`pnpm --filter @kaaj/web measure-render-times`
-(`scripts/measure-render-times.mjs`) against an already-built,
-already-served instance — it reads the `server-timing` response header
-`hooks.server.ts` sets on every request, the same one a browser's own
-DevTools network panel shows.
-
-**The initial app load — signed in, `/employees` fully loaded — targets under
-50ms, and `./check` fails the build over it.** It is the MEDIAN of five
-samples, after a discarded warm-up load: a single latency sample is not a
-measurement. Isolated this page loads in 21.8-25.4ms; with the machine busy —
-which is exactly where this step runs, straight after `build` and the unit
-suites — the same page measures 25.9-46.0ms and the occasional sample lands
-over budget. A real regression moves every sample, so the median still fails
-on one; what it removes is the scheduler hiccup that was failing roughly one
-run in four. If it fails, the error prints all five. A bigger number than the 20ms
-server target on purpose: it's Navigation Timing's `load` event, covering
-network transfer, CSS, JS and hydration, not just server work — the server
-alone was ~3ms even when the *page* took over 100ms, because a render-blocking
-external font request doesn't show up in server timing at all
-(`docs/10-lessons-learned.md` L18). `apps/web/scripts/verify-front-page-load.mjs`
-signs in for real, starts its own `vite preview` against the build the
-`build` step already produced, and only runs when that step does — not under
-`./check --quick`.
-
-**Every query against a table in `SCALE_SENSITIVE`
-(`scripts/verify-query-scale.mjs`) that can return an unbounded number of
-rows is paged — 20 to 50 rows per page, picked by what's actually on
-screen.** `ticketing`'s list page (`PAGE_SIZE = 20`) is the existing
-pattern: `limit`/`offset` in the query, a page number in the URL, never
-"fetch everything and slice in the template." A dense table can hold the
-higher end; a card-per-row or otherwise heavier list wants the lower end.
-Unpaged is fine on the fixture's dozen rows and a full-table read once a
-tenant has been a customer for a year — the same failure mode
-`verify-no-loop-queries.mjs` and the scale-sensitive register exist to
-catch.
-
-**A `LIMIT` with no count beside it is a silent truncation.** Ten of four
-hundred looks exactly like all ten. Every paged read returns a `count(*)`
-alongside, and the page says which it is showing — `crm/companies/[id]`'s
-"Showing the most recent N of M" is the pattern. The register classifies the
-TABLE; nothing reads the query, so a correctly-classified table can still be
-fetched whole with that step green ([L112](docs/10-lessons-learned.md)).
-
-**No page sends the browser more than 100 rows of anything — and that
-includes pickers.** A `<select>` of every employee or every client is a
-full-table read too: bounded by the firm's size is not small (1,000 people,
-3,000 clients). A picker over such a table is a `Combobox` with `search`,
-backed by the page's own `search*` action and a function in
-`$lib/server/pickers.ts` that returns 20 matches with the same filter the
-old list had. A total shown beside a paged list is computed in SQL over
-every row, never summed from the page ([L117](docs/10-lessons-learned.md)).
-`pnpm db:perf rows` reads every page's load data as every perf-tenant actor
-and fails on any array over 100, so a picker inside a closed modal counts.
-`./check --all` runs it; run that after touching any page's `load()`. It is
-not in plain `./check` because it needs the perf cluster, and a step that
-skipped whenever the cluster was down would pass silently.
+The rules for this section are in [.claude/rules/performance.md](.claude/rules/performance.md).
 
 ---
 
 ## Svelte
 
-Svelte 5, runes only. These are the ones worth stating as rules — from
-[svelte.dev/docs/svelte/best-practices](https://svelte.dev/docs/svelte/best-practices)
-— because a reasonable-looking alternative compiles, runs, and is wrong.
-
-**`$state` is for a value a template, `$effect` or `$derived` reads
-reactively — not every local variable.** `$state({...})`/`$state([...])`
-deep-proxies the whole object graph. An object or class instance that is only
-ever REPLACED, never mutated through Svelte (a fetch response, a third-party
-library instance held for its methods), wants `$state.raw` instead — no
-proxy, no per-field overhead, and no risk of a library's own internal state
-being wrapped in a Proxy it never expected.
-
-**Prefer `$derived` to `$effect` for anything computed from other state.**
-`$derived` takes an expression (`$derived.by` for a multi-statement body) and
-recomputes when its inputs change; it cannot itself write to state, so it
-cannot start the state→effect→state loop an `$effect` can. `$effect` is for
-syncing OUT to something outside Svelte's reactivity — the DOM directly
-(`{@attach ...}` or an `$effect` for a `contenteditable`, a chart library,
-`localStorage`) — never for deriving one piece of state from another that
-could just be `$derived`.
-
-**A value derived from a prop is `$derived`, never a `let` seeded from the
-prop once.** Props are reactive; `let color = $state(type === "danger" ?
-"red" : "green")` freezes at mount and stops tracking `type`. When a
-component genuinely needs its OWN copy that then diverges from the prop (a
-draft the user edits, a DOM mirror), seed it explicitly with
-`// svelte-ignore state_referenced_locally` and a comment saying why —
-`RichTextEditor.svelte` and `Combobox.svelte` do this for exactly that reason.
-When the copy instead needs to keep tracking the prop (a URL-driven filter, a
-`load()` result), use an `$effect` that reassigns it, not the `$state`
-initializer — `ticketing/+page.svelte` and `ticketing/new/+page.svelte` do
-this deliberately, with the pitfall spelled out in a comment.
-
-**A `window`/`document` listener is `<svelte:window on... />` /
-`<svelte:document on... />`, not `onMount` + `addEventListener`.** The
-element owns its own cleanup; a manual listener needs a manual
-`removeEventListener` returned from the same `onMount` callback, and a
-forgotten one leaks. Reserve `onMount` for work that genuinely only happens
-once at mount (an initial focus, an initial fetch) — a listener that lives
-for the component's lifetime belongs on the element.
-
-**Keyed `{#each}` for anything that can reorder, insert or remove — and the
-key is never the loop index.** `{#each rows as row (row.id)}`. An index key
-makes Svelte patch the WRONG element in place when a row leaves the middle of
-the list, which stays invisible until a `bind:` or a transition attaches to
-the wrong row. A `{#each}` over a small, static, never-reordered literal
-(marketing copy, a fixed feature list) is the one place this is cosmetic
-rather than a bug — still worth a real key, never worth a rewrite on its own.
-
-**Reach for `{@attach}` over `use:` on new code** that syncs a DOM node to an
-external library — it composes with `{#if}`/`{#each}` the way an action
-cannot. Existing `use:` actions are not being migrated for the sake of it.
-
-**Module-scope `$state` is shared across every request the server handles.**
-SvelteKit runs one Node process for many tenants; a `let cache = $state(...)`
-at the top level of a `.svelte.ts` file is server-wide, not per-request —
-exactly the shape of a cross-tenant leak this codebase spends a whole section
-on preventing at the database layer. Request- or user-scoped reactive state
-belongs in Svelte context (`setContext`/`getContext`, ideally wrapping a
-runes class the way `ConfigProvider.svelte` does), never a shared module.
-
-**No `svelte/store` in new code — a class with `$state` fields instead.** A
-store needs `get()`/`.subscribe()`/`$store` auto-subscription to read
-reactively and `.update()` to write; a runes class reads and writes as plain
-field access, which is also what makes it safe to destructure a bound method
-off it (`const { toggleTheme } = useConfig()` in `ThemeToggle.svelte`) without
-losing `this`. `svelte/store` is legacy Svelte 4 API kept only for
-interop; do not reach for it going forward.
-
-**Legacy patterns stay out of new code**, even though `svelte-check` and
-`./check` don't fail on them: `export let` / `$$props` / `$$restProps`
-instead of `$props()`, `on:click` instead of `onclick`, `<slot>` instead of
-`{#snippet}`/`{@render}`, and a bare `$:` instead of `$derived`/`$effect`.
-None of these currently appear in `apps/web/src` — keep it that way rather
-than letting one in as a copy-paste starting point for the next component.
+The rules for this section are in [.claude/rules/svelte-ui.md](.claude/rules/svelte-ui.md).
 
 ---
 
 ## Forms
 
-**Every field an action writes goes through `FormReader`
-(`$lib/server/forms.ts`). No exceptions, and no `formString` for a value that
-reaches a column.** `required`, `maxlength` and `type` are browser UX and vanish
-on a crafted POST; `varchar(n)`, `uuid` and Postgres enums are the *last* line
-of defence and their failure mode is an unhandled 500, not a field error
-([L34](docs/10-lessons-learned.md)).
-
-| Column | Reader | What it stops |
-|---|---|---|
-| `varchar(n)`, `text` | `text(name, { max: n })` | `value too long` — a 500. `max` **must** match the column; count is in code points, as Postgres counts |
-| `uuid` | `uuid(name)` | `invalid input syntax for type uuid` from any hidden `id` |
-| a Postgres enum | `enumValue(name, "<type>")` | `invalid input value for enum`; values come from `@kaaj/enums`, which `./check` keeps in step |
-| a fixed set on `varchar` | `choice(name, ALLOWED)` | anything off-list reaching display code |
-| `date` | `date(name)` | `2026-13-45` — well-shaped, not real, and a 500 on the cast |
-| money and rates | `decimal(name, { scale })` | a float64 round trip, and a third decimal the column would round away in silence |
-| `int4` | `integer(name, { min, max })` | out-of-range — also a 500 |
-| a locale / zone / currency | `locale` / `timezone` / `currency` | `en_US` and friends: `RangeError` inside `Intl`, on every page that formats a figure for that office ([L24](docs/10-lessons-learned.md)) |
-
-Country-specific formats still come from `@kaaj/validation` — never a regex at
-the call site — and the result is length-checked before it is stored.
-
-**An optional field has three outcomes, not two.** Blank, valid, and
-*rejected*. Collapsing invalid into the same return as blank deletes the field
-and reports success: an overtime multiplier vanished exactly this way and
-overtime then computed at 1x ([L33](docs/10-lessons-learned.md)). `FormReader`
-is built around this; a hand-rolled `Number(x) || 0` is not.
-
-**Read every field BEFORE `if (!f.ok)`, never inside the object built after
-it.** A reader called in the argument to `create`/`update` runs after the gate
-has already passed, so its rejection is raised too late to be reported — and a
-non-required field returns `null` on rejection, so the column saves as NULL and
-the action answers `saved: true`. This has bitten once, in the same commit that
-documented L33. Assign to a local above the gate and reference the local:
-
-```ts
-const middleName = f.text("middle_name", { max: 100 })   // ✅ before
-if (!f.ok) return fail(400, f.problem())
-await repo.update(tx, id, { middle_name: middleName })
-
-await repo.update(tx, id, {
-  middle_name: f.text("middle_name", { max: 100 }),      // ❌ never reported
-})
-```
-
-**A value from the QUERY STRING is validated too — `uuidParam`, or a
-`FormReader` over a built `FormData`.** The Forms rule above exists because
-`required` and `type` vanish on a crafted POST; a query string never had them.
-`url.searchParams.get()` returns `""` for `?x=` and whatever was typed for
-`?x=garbage`, and either reaching a `::uuid` or `::date` parameter is an
-Internal Error, not an empty filter. `projects/+page.server.ts` and
-`receive-payment` build a `FormData` and read it through `FormReader` for this
-reason; `uuidParam` (`$lib/server/forms.ts`) is the one-field shorthand.
-
-**Never pass `''` to a parameter that is cast.** SQL does not short-circuit, so
-`(${x} = '' OR c = ${x}::date)` evaluates the cast anyway — and for `::date`
-postgres.js serialises it in the driver and throws `RangeError: Invalid time
-value` before the query is sent. Pass `null` and test `IS NULL`
-([L37](docs/10-lessons-learned.md)).
-
-**A rule the reader cannot express calls `f.reject("field")`** — a cycle, a
-date clash, an inverted band — so every failure arrives through one path and
-the page can put the cursor on the field.
-
-**A write the database can refuse is caught and answers with a sentence.**
-`FormReader` validates the shape of a value; it cannot know the code is already
-taken or the row was archived a minute ago. Uncaught, every such refusal —
-UNIQUE, CHECK, FK — was an "Internal Error" page with the form's contents gone
-([L66](docs/10-lessons-learned.md)).
-
-```ts
-try {
-  return await withTenant(actorFrom(locals), async (tx) => { … })
-} catch (e) {
-  const refused = constraintFailure(e)   // $lib/server/db/constraints
-  if (refused) return refused
-  throw e
-}
-```
-
-The registry keys on **`constraint_name`, never the message text** — the name
-is in the migration, and SQLSTATE `23505` alone cannot say which field to mark.
-An unregistered constraint keeps crashing loudly, which is what gets it
-registered rather than hidden behind "something went wrong". `./check`'s
-`refusals have a message` step fails on any constraint on a form-written table
-that is neither registered nor exempted with a reason.
-
-**A shape regex is not a date check.** `/^\d{4}-\d{2}-\d{2}$/` accepts
-`2026-02-31`; postgres.js then rolls it through a JS `Date` and stores
-`2026-03-03`, with no error and `saved: true`
-([L67](docs/10-lessons-learned.md)). Use `f.date()`, which round-trips the
-parse. The same goes for anything the driver serialises — validate in the units
-the column stores.
-
-**A write reports what it DID, not that the request arrived.** An `UPDATE …
-WHERE id = $1` matching nothing still succeeds, so all eight `archive` actions
-answered `{ archived: true }` for rows that did not exist — and audited it
-([L68](docs/10-lessons-learned.md)). Return `RETURNING id` and check it. Ask of
-any write: **if this silently did nothing, would the page look different?**
-
-**A refused field is MARKED, and the form is still there to mark.** Three parts,
-each of which failed separately ([L68](docs/10-lessons-learned.md)):
-
-- the message NAMES the field — `f.problem()` does this by default ("Check
-  Anchor date."), so never pass a bare "Some fields need attention."
-- the control carries the daisyUI modifier AND `aria-invalid`, via
-  `fieldErrors(form)` in `$lib/form-errors`. A red border does not reach a
-  screen reader.
-- a modal form uses `use:enhance={closeOnSuccess(() => (editing = null))}` from
-  `$lib/form-enhance`; a plain POST reloads and resets the `$state` holding it
-  open. **`update({ reset: false })` is not optional** — the default resets the
-  form and discards the work the person is being asked to fix. Non-modal forms
-  use `keepValues` for the same reason.
-
-`apps/web/e2e/form-errors.spec.ts` asserts all three, and stays read-only by
-only ever submitting what the action refuses.
-
-`src/lib/server/forms.test.ts` is the regression guard. Every case in it
-returned a 500, or a silent `saved: true`, against the running app before the
-reader existed. Add to it when a new reader is added.
+The rules for this section are in [.claude/rules/forms.md](.claude/rules/forms.md).
 
 ---
 
 ## Time
 
-**A `timestamptz` is an instant. Render it in the OFFICE's timezone** —
-`firm_locations.timezone` — never the viewer's and never UTC. The same instant
-is a 09:00 start in Bangalore and a 22:30 finish in New York, and only one of
-those is a workday. `instant()` in `$lib/format.ts` takes the zone; nothing
-formats a time itself.
-
-**A local date is not derivable from a `timestamptz`.** `hr_attendance.attendance_date`
-is the date in the office, and a shift ending 23:00 in New York is 04:00 UTC the
-next day. A `::date` cast on a timestamp column is the bug — `AT TIME ZONE`
-first ([L35](docs/10-lessons-learned.md)).
-
-**`DATE` columns carry no zone and are formatted in UTC** — a hire date is that
-day everywhere. That is `calendarDate()`, and it is a different function from
-`instant()` for exactly this reason.
-
-**postgres.js returns `timestamptz` as a `Date` and `NUMERIC` as a string.**
-`types: {}` registers custom handlers, it does not remove built-in ones
-([L36](docs/10-lessons-learned.md)). Declare repository types from what the
-driver returns, not from the column type.
-
-**Durations go through `hours()`**, which renders `7h 45m`. Printing decimal
-hours lets `Intl`'s default three-digit cap turn a stored `6.9333` into
-`6.933` — neither the stored value nor a number anyone recognises.
+The rules for this section are in [.claude/rules/money-time.md](.claude/rules/money-time.md).
 
 ---
 
 ## Money
 
-**`NUMERIC`, never `real`/`double precision`/`float`.** Postgres `NUMERIC` is
-exact base-10; the float types are binary and lose digits before any code sees
-them. Measured against this database: `99999.99` stored as `real` returns
-`100000`, and `1234567.89` returns `1234570`. No downstream rounding recovers
-that. `./check` fails on a monetary column declared as a float — see the
-`money/numeric-not-float` invariant.
-
-**Two scales, chosen deliberately:**
-
-| Kind | Type | Why |
-|---|---|---|
-| Money — salaries, invoices, premiums | `numeric(15,2)` | Ten trillion minor units; covers INR at crore scale |
-| Rates and quantities — hourly rates, hours, FTE | `numeric(18,4)` | A rate of 12.3456/hour is meaningful, and rounding it before multiplying compounds across a timesheet |
-
-**Money is a `string` in TypeScript, end to end.** This is the rule people get
-wrong, and it is where money actually dies — not in the database.
-
-- postgres.js returns `NUMERIC` as a **string**, and `client.ts` sets
-  `types: {}` so it stays one. Do not "helpfully" parse it.
-- `Number("9007199254740993.00")` is `9007199254740992`. Silently.
-- Repository types declare money as `string`. `$lib/format.ts` `money()` takes a
-  string and converts only inside `Intl.NumberFormat`.
-- Form fields use `inputmode="decimal"`, never `type="number"` — the latter
-  round-trips through a float in the browser.
-
-**Money inside JSONB is a string too.** `salary_ranges`, `costs_by_currency`,
-`overtime_rules` — a JSON *number* is stored exactly by Postgres and then handed
-to JavaScript as a float64 on the way back out, so the loss happens on read
-where nothing looks wrong. Store `"95000"`, not `95000`. Ordering checks go
-through `compareDecimal` in `$lib/decimal.ts`, which compares without parsing;
-`./check` cannot see inside a JSONB column, so this rule is the only guard.
-
-**A guard that reads `information_schema.columns` cannot see inside JSONB.**
-`money/numeric-not-float` never could, which is how payroll held every earning
-and tax as a JSON number ([L41](docs/10-lessons-learned.md)).
-`money/jsonb-is-text` walks a registered list of paths instead — add a new JSONB
-money column to it, deliberately, the way every other list here works.
-
-**Arithmetic happens in SQL, not in JavaScript.** Summing invoice lines,
-computing gross pay, prorating: all `NUMERIC` in Postgres, where it is exact.
-Adding two money strings in JS is silent *concatenation*, with no type error.
-
-**Currency travels with the amount, always,** and is never converted for
-display (BR-FP-003). A figure is shown in its currency of record, formatted in
-the locale of the market it belongs to — see `localeForCurrency` and
-[L24](docs/10-lessons-learned.md).
-
-**Postgres ROUNDS to scale, silently — it does not truncate.**
-`12345678.9052::numeric(12,2)` is `12345678.91`. When the same value is stored
-in two columns of different scale, round to the authoritative one before
-writing the other, and pick a test value that distinguishes rounding from
-truncation — `.9052`, not `.9012` ([L25](docs/10-lessons-learned.md)).
-
-**Display goes through `$lib/format.ts`. Nothing formats money itself.**
-`money()`, `approxMoney()`, `number()`, `hours()`, `calendarDate()`, `instant()`
-and `localised()` are the only places `Intl` is constructed for display. A component that reaches for
-`Intl.NumberFormat` or `toLocaleString()` is a bug — it will drift from the rest
-of the app, and it will pick up the *browser's* locale rather than the market's.
-
-**Two functions, and the choice is visible at the call site:** `money()` is
-exact and is the default; `approxMoney()` abbreviates. It follows the locale's
-own convention — there is no lakh/crore code anywhere,
-because `Intl` already knows:
-
-```
-en-US  18,123,432  ->  $18.12M
-en-IN  18,123,432  ->  ₹1.81Cr      (crore; en-IN 1,423,323 -> ₹14.23L)
-```
-
-Decimals are capped at 2, not forced, so `950` stays `$950` rather than
-`$950.00`.
-
-`approxMoney` is a separate function rather than an option so a reviewer sees
-the choice — `approxMoney` on a payslip line reads wrong; a `compact: true`
-buried in an options object does not.
-
-**Abbreviated money is for scale, never for action.** `approxMoney()` belongs
-on dashboards, chart axes and summary tiles — figures a person reads to get a
-sense of size. It must never appear on a payslip, an invoice line, a salary
-band, a tax figure, or anything reconciled against a bank statement. `₹14.23L`
-is not a number you can pay someone, and the abbreviation is lossy on purpose.
-When in doubt, use `money()`: being exact where approximation would have done
-is a cosmetic problem, and the reverse is a financial one.
-
-**Custom fields must never feed payroll or accounting calculations.** They are
-untyped and untested. A customer needing a custom allowance on a payslip is a
-modelling gap to fix in the product, not a custom field.
-
-Integer minor units were the rejected alternative; the reasoning is in
-[docs/05-architecture-decisions.md](docs/05-architecture-decisions.md).
+The rules for this section are in [.claude/rules/money-time.md](.claude/rules/money-time.md).
 
 ---
 
 ## Tenancy, audit and disclosure
 
-**Every `withTenant` takes `actorFrom(locals)`, never `locals.tenantId`.** Row
-visibility keys on the role and the person, so a bare tenant id returns zero
-rows — silently, as a wrong number rather than an error
-([L42](docs/10-lessons-learned.md)). `./check` enforces it.
-
-**Auditing a value copies it — protect the copy the same way.** `audit_log`
-had no row policy, so once pay changes were audited every employee could read
-every pay change in the firm ([L55](docs/10-lessons-learned.md)). It now carries
-row-level visibility: HR, payroll, an auditor and the owner see everything;
-everyone else sees only entries about themselves or recording what they did.
-Ask of any new write: **who can read what this writes?**
-
-**Every write is classified in `apps/web/src/lib/server/audit/register.ts`,
-and `./check` fails on one that is not.** The rule below was prose for months
-and 3 of 26 actions followed it ([L54](docs/10-lessons-learned.md)). `changes`
-is `Record<string, {from, to}>` with STRING values — a JSON number returns as a
-float64 and this table cannot be corrected — `action` comes from a closed set,
-`entityType` names the table, and prose goes in `reason`, never mixed with
-values, because redaction matches field NAMES. `audit.diff()` records only the
-fields that moved: burying the one that changed among twenty that did not, in a
-table nobody can prune, is the same as not recording it.
-
-**A write that someone may later be asked to justify records an audit entry in
-the SAME transaction.** `$lib/server/audit` — approvals, pay changes, role
-grants, erasures. Written afterwards or best-effort, the trail records what the
-application believed happened, and the two diverge exactly when it matters
-([L40](docs/10-lessons-learned.md)). `audit_log` holds INSERT and SELECT only;
-a correction is a new row. Pass the fields that changed, never a row dump: the
-table cannot be deleted from, so anything written there is written forever.
-
-**A flag that governs disclosure is enforced where the data is READ, and the
-governed value stays out of the returned type.** `is_anonymous`,
-a review's `status`, `pii.reveal` — in every case the value sits in the row
-next to the flag, so a page that renders it breaks the promise silently
-([L39](docs/10-lessons-learned.md)). Resolve it in SQL (`CASE WHEN ... THEN
-NULL`), not after the query: a repository that fetches and drops has still put
-it in a result set, a log line and a heap dump. And add the fixture row that
-triggers the rule, or nobody is testing it.
+The rules for this section are in [.claude/rules/tenancy-audit-pii.md](.claude/rules/tenancy-audit-pii.md).
 
 ---
 
 ## PII and secrets
 
-**PII is encrypted in the application, never in SQL, and always through
-`$lib/server/pii`.** `sealField`/`openField` are the only write and read paths.
-They bind every ciphertext to `tenant | table | column | row`, so a value cannot
-be moved between rows or tenants, and a call site that assembles that binding by
-hand will eventually get it wrong.
-
-- **Never add a plaintext PII column.** `./check` has four `pii/*` rules and
-  they fail on exactly this. A new PII column is either encrypted or added to
-  `_pii_pending` in `verify-invariants.sql` with a reason — a committed literal,
-  like every other exemption here.
-- **Never index a PII column.** A btree keeps every value readable in its pages,
-  and dropping the column does not scrub them.
-- **Keys are per EMPLOYEE.** GDPR Art. 17 is an individual right; a tenant-wide
-  key cannot answer it. Erasure destroys the key, which reaches backups that
-  `UPDATE ... SET NULL` never will.
-- **The spec's `DERIVE_KEY(org_prefix + org_4digit_code)` must not be
-  implemented** — it is ~13 bits, and both inputs live in the database it
-  protects. It is a key *label*. See
-  [docs/13-pii-encryption.md](docs/13-pii-encryption.md).
-- **`PRIVATE_PII_KEK` is backed up separately from the database.** Losing it
-  destroys every encrypted field, by design.
-
-**`PRIVATE_SUPABASE_SERVICE_ROLE` bypasses RLS entirely** — every policy,
-every tenant predicate, every row-visibility rule. It is **imported**, never
-handed out on `locals`: it used to sit on `event.locals` for every request,
-which put it one destructure from any handler and made it read as ordinary
-request state. `./check`'s `service role quarantined` step holds a committed
-list of the five files allowed to import it — none under `(app)` — and fails on
-a new importer, on a removed justification, and on any `.svelte` file touching
-it at all, which would ship the key to the browser. Never in a `PUBLIC_`
-variable, which SvelteKit ships to the browser by design.
-
-**Accounting rows are visible to the finance function only.** `invoices`,
-`payments`, `bank_accounts` and twelve more carry RESTRICTIVE policies keyed to
-the role — `finance_admin`, `auditor` and the base admins read; `auditor` does
-not write. The application already refused, but RLS did not, so one missed
-`requireCan` was the firm's whole ledger. Both halves are asserted in
-`row-visibility.test.ts`: the refused actor gets zero rows AND the permitted one
-still gets rows.
+The rules for this section are in [.claude/rules/tenancy-audit-pii.md](.claude/rules/tenancy-audit-pii.md).
 
 ---
 
@@ -1248,11 +467,11 @@ pnpm --filter @kaaj/web dev          # one package only
 supabase status                      # URLs and keys
 ```
 
-Studio is at http://127.0.0.1:54323 and all outbound mail is captured at
-http://127.0.0.1:54324.
+Studio is at http://127.0.0.1:54323. The local stack captures all outbound
+mail at http://127.0.0.1:54324.
 
-Local environment values live in `apps/web/.env.local` and are loaded automatically.
-Production values live in `apps/web/.env.prod`, which is deliberately **not**
-auto-loaded so a stray `npm run dev` cannot write to production. Both are
-gitignored.
+Local environment values are in `apps/web/.env.local`, and the application
+loads them automatically. Production values are in `apps/web/.env.prod`. The
+application does **not** load this file automatically, on purpose. Thus an
+accidental `npm run dev` cannot write to production. Git ignores both files.
 

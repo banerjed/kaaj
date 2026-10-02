@@ -14,18 +14,12 @@ export type FirmJobTitle = {
   employee_count: number
 }
 
-export async function list(
+/** Active titles for the employee form's dropdown — the title alone, no head count to compute per title. */
+export async function options(
   tx: Tx,
-  { includeArchived = false }: { includeArchived?: boolean } = {},
-): Promise<FirmJobTitle[]> {
-  return tx<FirmJobTitle[]>`
-    SELECT t.id, t.title, t.title_i18n, t.description, t.is_exempt,
-           t.eeoc_category::text AS eeoc_category, t.isco_code, t.is_active,
-           (SELECT count(*)::int FROM employees e
-             WHERE e.job_title = t.title AND e.is_active) AS employee_count
-      FROM firm_job_titles t
-     WHERE (${includeArchived} OR t.is_active)
-     ORDER BY t.title ASC
+): Promise<{ id: string; title: string }[]> {
+  return tx<{ id: string; title: string }[]>`
+    SELECT id, title FROM firm_job_titles WHERE is_active ORDER BY title ASC
   `
 }
 

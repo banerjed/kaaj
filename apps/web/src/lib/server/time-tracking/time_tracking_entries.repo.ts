@@ -137,20 +137,28 @@ export async function ownEntriesOnly(tx: Tx): Promise<string | null> {
   return row?.own ?? null
 }
 
-/** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
+/**
+ * The total matching a filter set — same predicates as `list`, for the list
+ * page's pagination controls. `cap` (see `countCap`) stops counting there:
+ * a result equal to it means "at least this many".
+ */
 export async function count(
   tx: Tx,
   filters: { employeeId?: string; projectId?: string; status?: string } = {},
+  cap: number | null = null,
 ): Promise<number> {
   const { status = "" } = filters
   const employeeId = filters.employeeId || null
   const projectId = filters.projectId || null
   const [{ n }] = await tx<{ n: number }[]>`
-    SELECT count(*)::int AS n
-      FROM time_tracking_entries te
-     WHERE (${employeeId}::uuid IS NULL OR te.employee_id = ${employeeId}::uuid)
-       AND (${projectId}::uuid IS NULL OR te.project_id = ${projectId}::uuid)
-       AND (${status} = '' OR te.status = ${status})
+    SELECT count(*)::int AS n FROM (
+      SELECT 1
+        FROM time_tracking_entries te
+       WHERE (${employeeId}::uuid IS NULL OR te.employee_id = ${employeeId}::uuid)
+         AND (${projectId}::uuid IS NULL OR te.project_id = ${projectId}::uuid)
+         AND (${status} = '' OR te.status = ${status})
+       ${cap === null ? tx`` : tx`LIMIT ${cap}`}
+    ) x
   `
   return n
 }

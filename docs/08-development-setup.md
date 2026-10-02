@@ -40,7 +40,10 @@ Turborepo monorepo, pnpm workspaces.
 
 ```
 kaaj/
-├── check                  Run everything. The pre-push gate.
+├── check                  Run everything. The pre-push gate (.githooks/pre-push runs --all).
+├── .githooks/             pre-push; ./setup sets core.hooksPath to it
+├── .claude/rules/         CLAUDE.md rules for one area; Claude Code loads each by its `paths`
+├── .claude/skills/        procedures loaded on request (deploy-production)
 ├── turbo.json             Task graph; ./check and CI both drive it
 ├── .github/workflows/     CI — must be at the ROOT; GitHub ignores it elsewhere
 ├── supabase/              Must stay at the ROOT — the CLI searches UPWARD only

@@ -96,6 +96,15 @@ describe("ownEntriesOnly", () => {
   it("is null for someone the policy lets see every entry", async () => {
     expect(await inRollback((tx) => entries.ownEntriesOnly(tx))).toBeNull()
   })
+
+  it("a capped count stops at its cap, and an uncapped one does not", async () => {
+    const { exact, capped } = await inRollback(async (tx) => ({
+      exact: await entries.count(tx),
+      capped: await entries.count(tx, {}, 2),
+    }))
+    expect(exact).toBeGreaterThan(2)
+    expect(capped).toBe(2)
+  })
 })
 
 describe("logging time keeps the task/project hours true", () => {

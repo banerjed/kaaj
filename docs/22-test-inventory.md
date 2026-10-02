@@ -143,12 +143,13 @@ financial statements, payment processing, exports.
   a second status-writing path
 - `lib/server/projects/projects.test.ts` [10] — the project list, tasks,
   client-visible slice
-- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [11] —
+- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [12] —
   logging time keeps task/project hours true, including when a PLAIN
   employee who sees only their own entries logs (the total and the `TE-nnn`
   number still span everyone's, L106); `ownEntriesOnly` names a plain
   employee and narrowing to them changes nothing they see, and is null for
-  someone the policy lets see everything (L117)
+  someone the policy lets see everything (L117); a capped count stops at
+  its cap and an uncapped one does not
 - `lib/server/projects/comments.repo.test.ts` [8] — adding, editing and
   soft-deleting a task comment; refuses a task from a different project or
   no such task; the fixture's own pre-existing comment is real coverage, not

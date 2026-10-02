@@ -9,8 +9,8 @@
 #   ./check --app        application only
 #   ./check --quick      skip the build (fastest useful signal)
 #   ./check --all        everything, plus the end-to-end suite in a browser
-#                        and the 100-row page check against the perf tenant
-#                        (needs `pnpm db:perf:cluster up && pnpm db:perf seed`)
+#                        and the perf tenant's page checks: 100 rows, budget
+#                        (needs `pnpm db:perf seed`); what the pre-push hook runs
 #
 # Exits non-zero if anything fails. Finds psql, resolves DATABASE_URL, and
 # checks the local Supabase stack is up before running anything that needs it.
@@ -19,6 +19,10 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
+
+# Every check here is local. A PUBLIC_SUPABASE_* exported in a shell profile
+# outranks apps/web/.env.local and would point the app steps elsewhere (L75).
+unset PUBLIC_SUPABASE_URL PUBLIC_SUPABASE_ANON_KEY
 
 # --- colours, only when attached to a terminal -------------------------------
 if [ -t 1 ]; then
@@ -154,6 +158,10 @@ if [ "$RUN_APP" = 1 ]; then
   # sends more than 100 rows of anything (CLAUDE.md, Performance). Needs the
   # build above and the perf cluster; refuses, loudly, when the cluster is down.
   [ "$RUN_E2E" = 1 ] && [ "$RUN_BUILD" = 1 ] && step "no page sends >100 rows" pnpm -s db:perf rows
+  # The same pages, against the committed budget of what each costs the
+  # database (packages/database/perf/budgets.tsv): fails on a page that got
+  # materially more expensive — a lost index, a lost LIMIT, a query in a loop.
+  [ "$RUN_E2E" = 1 ] && [ "$RUN_BUILD" = 1 ] && step "pages within budget" pnpm -s db:perf regress
   echo ""
 fi
 

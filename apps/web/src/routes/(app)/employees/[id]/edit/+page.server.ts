@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       employee,
       departments: await departments.list(tx),
       locations: await locationsRepo.list(tx),
-      jobTitles: await titles.list(tx),
+      jobTitles: await titles.options(tx),
       enums: employeeEnums,
     }
   })

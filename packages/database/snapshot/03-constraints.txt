@@ -227,8 +227,9 @@ firm_payroll_policies	firm_payroll_policies_tenant_id_fkey	f	FOREIGN KEY (tenant
 firm_payroll_policies	firm_payroll_policies_workweek_start_day_check	c	CHECK (((workweek_start_day >= 0) AND (workweek_start_day <= 6)))
 firm_payroll_policies	fk_firm_payroll_policies_location_id	f	FOREIGN KEY (location_id) REFERENCES firm_locations(id)
 gl_daily_balances	gl_daily_balances_account_id_fkey	f	FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id)
+gl_daily_balances	gl_daily_balances_key	u	UNIQUE NULLS NOT DISTINCT (tenant_id, account_id, balance_date, tax_rate_id)
 gl_daily_balances	gl_daily_balances_line_count_check	c	CHECK ((line_count > 0))
-gl_daily_balances	gl_daily_balances_pkey	p	PRIMARY KEY (tenant_id, account_id, balance_date)
+gl_daily_balances	gl_daily_balances_tax_rate_id_fkey	f	FOREIGN KEY (tax_rate_id) REFERENCES tax_rates(id)
 gl_daily_balances	gl_daily_balances_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 hr_attendance	hr_attendance_pkey	p	PRIMARY KEY (id)
 hr_attendance	hr_attendance_tenant_id_attendance_id_key	u	UNIQUE (tenant_id, attendance_id)

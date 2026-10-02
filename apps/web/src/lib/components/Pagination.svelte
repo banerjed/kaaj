@@ -10,12 +10,15 @@
     pageSize,
     total,
     hrefFor,
+    atLeast = false,
   }: {
     page: number
     pageSize: number
     total: number
     /** Builds the URL for a given page number, carrying the caller's own filters. */
     hrefFor: (page: number) => string
+    /** `total` is a capped count (`countCap`): there may be more. */
+    atLeast?: boolean
   } = $props()
 
   const totalPages = $derived(Math.max(1, Math.ceil(total / pageSize)))
@@ -25,7 +28,7 @@
 
 <div class="border-base-200 flex items-center justify-between border-t p-3">
   <p class="text-base-content/70 text-xs">
-    {rangeStart}–{rangeEnd} of {total}
+    {rangeStart}–{rangeEnd} of {total}{atLeast ? "+" : ""}
   </p>
   <div class="join">
     <a
@@ -35,7 +38,7 @@
       aria-disabled={page <= 1}>Prev</a
     >
     <span class="btn btn-sm join-item btn-disabled"
-      >Page {page} of {totalPages}</span
+      >{atLeast ? `Page ${page}` : `Page ${page} of ${totalPages}`}</span
     >
     <a
       href={hrefFor(page + 1)}

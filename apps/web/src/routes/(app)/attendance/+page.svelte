@@ -116,7 +116,7 @@
     />
   {:else}
     <p class="text-base-content/70 mt-4 text-sm">
-      {data.total}
+      {data.total}{data.totalAtLeast ? "+" : ""}
       {data.total === 1 ? "day" : "days"} · times shown in each office's own timezone
     </p>
 
@@ -224,6 +224,7 @@
         page={data.page}
         pageSize={data.pageSize}
         total={data.total}
+        atLeast={data.totalAtLeast}
         hrefFor={pageUrl}
       />
     </div>

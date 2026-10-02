@@ -55,12 +55,14 @@ query cost — the `tenant_id`-leading indexes, the RLS policy subqueries —
 is the same.
 
 ```
-pnpm db:perf:cluster up|rebuild|status|stop          the cluster itself
+pnpm db:perf:cluster up|start|rebuild|status|stop    the cluster itself
 pnpm db:perf seed [--scale=1] [--as-of=2026-10-01]   build the tenant (clean, deterministic)
 pnpm db:perf status                                  row counts per table, vs the model
 pnpm db:perf verify                                  invariants + sealed values open
 pnpm db:perf drop                                    remove the tenant
 pnpm db:perf measure                                 pages × actors, slowest queries (phase 3)
+pnpm db:perf rows                                    fails on any page sending over 100 rows
+pnpm db:perf regress [--update]                      fails on any page over its budget (budgets.tsv)
 ```
 
 `--scale=0.05` gives a 50-person version for a quick run.
@@ -363,17 +365,90 @@ before and after, on the fixture and after new postings.
 | Cash flow | 113–130ms | 10–14ms |
 | P&L | 62–102ms | 7–14ms |
 
-The tax summary stays on lines (~110ms): it groups by tax rate in native
-amounts, which a per-account rollup does not carry. A per-rate daily table
-on the same trigger machinery would do it. A full reseed takes 3:53 with the
-triggers, against 3:13 without.
+A full reseed takes 3:53 with the triggers, against 3:13 without.
+
+The tax summary grouped by tax rate in native amounts, which the first
+version of the table did not carry, so it stayed on lines (130–266ms).
+20261002120000 keys each row by tax rate too and adds native totals; every
+other report sums across rates, unchanged — the same 107 outputs were again
+identical before and after. Tax summary: 266ms to 14ms (one year: 78ms to
+4ms).
+
+The time-tracking and attendance pagers counted every matching row to print
+"of 417,680" — up to 52ms on their own for anyone who sees the whole firm.
+They now count to a cap (`countCap`: 10,000, or one past the page in view)
+and say "10,000+" when they reach it. Time tracking: worst 75ms to 39ms,
+typical 28 to 11. Attendance: 51 to 23, typical 27 to 15.
+
+The employee forms loaded every job title with a per-title head count (each
+a scan of the directory under its row policy) to fill a dropdown that shows
+only the title; they now load the titles alone. The directory and an
+employee's page computed "current pay" as `DISTINCT ON` over every
+employee's pay history, then joined one; they now look up the listed
+people's own. Directory: worst 68ms to 17; edit form 44 to 24; new 37 to 13.
 
 ## Interaction with `./check`
 
 The tenant lives in its own cluster, so `./check` and the unit suites never
-see its rows. `./check --all` runs `pnpm db:perf rows` as its last step, and
-fails with a sentence saying how to start the cluster when it is down — never
-a skip. The overlap is a `measure` or `rows` run: while it runs, the shared
+see its rows. `./check --all` — which the pre-push hook runs on every push —
+ends with `pnpm db:perf rows` and `pnpm db:perf regress`, and fails with a
+sentence saying what to run when the tenant is missing — never a skip. Both
+start the cluster if it is stopped and apply any migration it has not had
+(`cluster.sh up` records what it applied in `_cluster.applied`), and refuse a
+cluster holding a migration this checkout lacks — another branch's, which
+would otherwise be in every run from here. Runs, seeds and drops from any
+session take turns on one advisory lock (`lock.mjs`).
+
+### The page budget
+
+`pnpm db:perf regress` renders every page once, server-side, as every actor
+(about 15 seconds), and reads from `pg_stat_statements` what each render cost
+the database: statements run, and data pages read (`shared_blks_hit +
+shared_blks_read`). Both are a property of the code and the data, not of the
+machine or its load, so they are committed: `budgets.tsv`, one sorted line
+per page × actor, with the scale, as-of date and data fingerprint it was
+measured on. A different tenant refuses to compare and names the `seed`
+command that rebuilds the right one; `seed` defaults to the budget's as-of
+date for that reason.
+
+It fails on a status that changed, on queries over 1.25× + 2, on data pages
+over 1.5× + 200, and on a page missing from either side. Planted to watch it
+fail: dropping `idx_time_tracking_entries_date` took `/time-tracking` from
+~400 data pages to 269,000; a query per department in `/settings/departments`
+took it from 7 queries to 32.
+
+Data pages read are only comparable if the same data always plans the same
+way, which took four things, each of which on its own moved pages 2–5× with
+the fingerprint unchanged:
+
+- **Statistics.** ANALYZE samples 300 × the statistics target rows, at random,
+  so plans over a large table varied seed to seed. The cluster runs with a
+  target of 10000 (3M rows, more than any table holds): every ANALYZE reads
+  every row.
+- **Layout.** `seed` empties the tables with `VACUUM FULL` before generating
+  and turns autovacuum off while it runs, so rows land in the same pages
+  every time rather than wherever earlier rows or a background vacuum left
+  room.
+- **The visibility map**, which decides index-only scans: `seed` ends with
+  `VACUUM`, and `regress` runs one first (under a second).
+- **The plan cache.** A prepared statement switches to a generic plan after
+  five runs on one pooled connection, and which connection serves a page
+  varies; the cluster runs with `plan_cache_mode = force_custom_plan`.
+
+`cluster.sh` also pins `jit`, `work_mem`, `random_page_cost` and
+`effective_cache_size`, so another machine's defaults cannot move a plan, and
+the budget records the Postgres major version and refuses another. With all
+of that, across a full reseed queries moved by at most 1 and data pages by at
+most 141.
+
+Time is compared only against this machine's own first run against the
+current `budgets.tsv` (`~/.kaaj/perf-timings.tsv`, not committed; a budget
+someone else changed starts it over), and only after five re-measurements
+agree: over 2× and over +25ms. This branch has never been watched failing. Where the time went: `pnpm db:perf measure --actors=<actor>`.
+
+### The registry overlap
+
+The overlap is a `measure` or `rows` run: while it runs, the shared
 database holds a dedicated-tier registry row whose connection ref only the
 measuring preview can resolve, so another session's "dedicated targets"
 step fails for those few minutes, naming

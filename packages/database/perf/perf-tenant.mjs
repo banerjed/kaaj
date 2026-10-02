@@ -4,12 +4,13 @@
  * 1,000-person firm two years into using the product, generated into its own
  * Postgres cluster (cluster.sh).
  *
- *   pnpm db:perf seed [--scale=1] [--as-of=YYYY-MM-DD]   (re)build it
+ *   pnpm db:perf seed [--scale=1] [--as-of=YYYY-MM-DD]   (re)build it; as of budgets.tsv's date by default
  *   pnpm db:perf status                                   rows per table, against the model
  *   pnpm db:perf verify                                   check it: sealed values open, books balance
  *   pnpm db:perf drop                                     remove the tenant
  *   pnpm db:perf measure [--repeats=3] [--actors=a,b]     pages × actors, slowest queries (measure.mjs)
  *   pnpm db:perf rows [--max=100] [--actors=a,b]          fails on any page sending more than max rows
+ *   pnpm db:perf regress [--update]                       fails on any page over its budget (budgets.tsv)
  *
  * `seed` removes any previous perf tenant first, so it is always a clean,
  * deterministic build: the same scale and as-of date give the same rows.
@@ -17,9 +18,10 @@
  * Local only: PERF_DATABASE_URL must point at 127.0.0.1/localhost, and the
  * default is the perf cluster, never the shared Supabase database.
  */
-import { readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { parseArgs } from "node:util"
 import postgres from "postgres"
+import { holdPerfLock } from "./lock.mjs"
 import { sealEncryptedColumns } from "./seal.mjs"
 import { verifySealed } from "./verify-sealed.mjs"
 
@@ -28,6 +30,7 @@ const DB_URL =
   process.env.PERF_DATABASE_URL ??
   "postgresql://postgres:postgres@127.0.0.1:54349/kaaj_perf"
 const SQL_DIR = new URL("./sql/", import.meta.url).pathname
+const BUDGETS = new URL("./budgets.tsv", import.meta.url).pathname
 
 if (!/@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL)) {
   console.error("  PERF_DATABASE_URL is not local — refusing to run.")
@@ -98,7 +101,25 @@ async function drop() {
 
 async function seed({ scale, asOf }) {
   const started = Date.now()
+  // The same rows must also land in the same pages, or the same data plans
+  // differently and `regress` reads a different number: so the generator
+  // writes into fresh, empty files, with no autovacuum freeing space under
+  // it at moments that vary run to run.
+  await sql`ALTER SYSTEM SET autovacuum = off`
+  await sql`SELECT pg_reload_conf()`
+  try {
+    await build({ scale, asOf, started })
+  } finally {
+    await sql`ALTER SYSTEM RESET autovacuum`
+    await sql`SELECT pg_reload_conf()`
+  }
+}
+
+async function build({ scale, asOf, started }) {
   await drop()
+  const [{ others }] = await sql`SELECT count(*)::int AS others FROM tenants`
+  if (others === 0) await sql`VACUUM FULL`
+  else console.log(`  ${others} other tenant(s) in this database — not compacting, so budgets may not reproduce`)
   await sql.unsafe(readFileSync(`${SQL_DIR}00_helpers.sql`, "utf8"))
   await sql`
     INSERT INTO _perf.params (tenant_id, scale, as_of)
@@ -121,6 +142,7 @@ async function seed({ scale, asOf }) {
   console.log(`  ${"sealed columns".padEnd(28)} ${((Date.now() - t) / 1000).toFixed(1)}s  (${sealed} values)`)
 
   await sql`ANALYZE`
+  await sql`VACUUM` // the visibility map, which decides index-only scans
   const seconds = (Date.now() - started) / 1000
   await sql`UPDATE _perf.params SET seeded_at = now(), seconds = ${seconds}`
   console.log(`  perf tenant built at scale ${scale}, as of ${asOf}, in ${seconds.toFixed(0)}s`)
@@ -151,20 +173,23 @@ const INVARIANTS = [
       SELECT entry_id FROM journal_entry_lines WHERE tenant_id = $1 GROUP BY entry_id
       HAVING sum(debit_amount) <> sum(credit_amount)
           OR sum(base_debit_amount) <> sum(base_credit_amount)) x`],
-  ["gl_daily_balances equals the posted lines, per account per day", `
+  ["gl_daily_balances equals the posted lines, per account, day and tax rate", `
     WITH truth AS (
-      SELECT l.account_id, je.entry_date AS d,
+      SELECT l.account_id, je.entry_date AS d, l.tax_rate_id,
              coalesce(sum(l.base_debit_amount), 0) dr, coalesce(sum(l.base_credit_amount), 0) cr,
+             coalesce(sum(l.debit_amount), 0) ndr, coalesce(sum(l.credit_amount), 0) ncr,
              count(*) n
         FROM journal_entry_lines l
         JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
        WHERE je.tenant_id = $1
-       GROUP BY 1, 2)
+       GROUP BY 1, 2, 3)
     SELECT count(*) FROM truth t
       FULL JOIN (SELECT * FROM gl_daily_balances WHERE tenant_id = $1) b
         ON b.account_id = t.account_id AND b.balance_date = t.d
+       AND b.tax_rate_id IS NOT DISTINCT FROM t.tax_rate_id
      WHERE t.n IS NULL OR b.line_count IS NULL
-        OR t.dr <> b.base_debit OR t.cr <> b.base_credit OR t.n <> b.line_count`],
+        OR t.dr <> b.base_debit OR t.cr <> b.base_credit
+        OR t.ndr <> b.debit OR t.ncr <> b.credit OR t.n <> b.line_count`],
   ["every invoice's subtotal and tax equal its lines", `
     SELECT count(*) FROM invoices i
       JOIN (SELECT invoice_id, sum(amount) a, sum(tax_amount) t FROM invoice_lines GROUP BY 1) l
@@ -308,15 +333,23 @@ const { positionals, values } = parseArgs({
     actors: { type: "string" },
     top: { type: "string", default: "25" },
     max: { type: "string", default: "100" },
+    update: { type: "boolean", default: false },
   },
 })
+
+// The commands that rewrite the tenant wait for any perf run, and make one wait.
+const release = ["seed", "drop"].includes(positionals[0])
+  ? await holdPerfLock(DB_URL, "the perf cluster is not running — `pnpm db:perf:cluster up`")
+  : null
 
 try {
   switch (positionals[0]) {
     case "seed": {
       const scale = Number(values.scale)
       if (!(scale > 0 && scale <= 5)) throw new Error("--scale must be in (0, 5]")
-      const asOf = values["as-of"] ?? new Date().toISOString().slice(0, 10)
+      // By default the data budgets.tsv was measured on, so `regress` can compare.
+      const budget = existsSync(BUDGETS) ? readFileSync(BUDGETS, "utf8") : ""
+      const asOf = values["as-of"] ?? budget.match(/as_of=(\S+)/)?.[1] ?? new Date().toISOString().slice(0, 10)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("--as-of must be YYYY-MM-DD")
       await seed({ scale, asOf })
       break
@@ -351,8 +384,13 @@ try {
       })
       break
     }
+    case "regress": {
+      const { regress } = await import("./measure.mjs")
+      await regress({ perfUrl: DB_URL, tenantId: PERF_TENANT_ID, update: values.update })
+      break
+    }
     default:
-      console.error("usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25] | rows [--max=100] [--actors=a,b]")
+      console.error("usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25] | rows [--max=100] [--actors=a,b] | regress [--update]")
       process.exitCode = 2
   }
 } catch (e) {
@@ -360,4 +398,5 @@ try {
   process.exitCode = 1
 } finally {
   await sql.end()
+  await release?.()
 }

@@ -14,6 +14,17 @@ export function pageOf(page: number, size: number): Page {
 }
 
 /**
+ * How far to count a list that can run to hundreds of thousands of rows:
+ * counting every one to print "of 417,680" cost more than the page itself.
+ * At least 10,000, and always one past the page in view, so the pager still
+ * knows whether a next page exists. A count that reaches the cap is shown
+ * as "10,000+" — a lower bound, said as one, never a silent truncation.
+ */
+export function countCap(page: number, size: number): number {
+  return Math.max(10_000, page * size + 1)
+}
+
+/**
  * One page of a report query that is otherwise read whole (its CSV export,
  * its tests): `base` is the report's own SELECT, without ORDER BY, and
  * `orderBy` names its columns through the alias `q`. `total` counts every
