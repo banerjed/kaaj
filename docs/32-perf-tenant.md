@@ -436,7 +436,8 @@ the fingerprint unchanged:
   varies; the cluster runs with `plan_cache_mode = force_custom_plan`.
 
 `cluster.sh` also pins `jit`, `work_mem`, `random_page_cost` and
-`effective_cache_size`, so another machine's defaults cannot move a plan, and
+`effective_cache_size`, and keeps `pg_stat_statements.track_planning` off
+(L119), so another machine's defaults cannot move a plan, and
 the budget records the Postgres major version and refuses another. With all
 of that, across a full reseed queries moved by at most 1 and data pages by at
 most 141.

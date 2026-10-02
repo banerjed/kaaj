@@ -173,6 +173,24 @@ export type PeriodLine = {
 }
 
 /**
+ * Each pay record as the days it is in effect: from its start to its own end,
+ * or to the day before the next record starts. Entries join these ranges in
+ * one pass; a lookup per entry was one index probe per time entry, which at a
+ * firm's size is tens of thousands per review.
+ */
+function payRanges(tx: Tx) {
+  return tx`
+    SELECT c.employee_id, c.compensation_type::text AS compensation_type,
+           coalesce(c.overtime_eligible, false) AS ot_eligible,
+           c.pay_frequency::text AS pay_frequency, c.effective_from AS starts,
+           least(coalesce(c.effective_to, 'infinity'::date),
+                 coalesce(lead(c.effective_from) OVER (
+                            PARTITION BY c.employee_id ORDER BY c.effective_from) - 1,
+                          'infinity'::date)) AS ends
+      FROM compensation_base c`
+}
+
+/**
  * Every employee's hours for the period, by source, joined to the provider's
  * id and code. The whole period, not a page: the file needs every row and the
  * review needs every problem; the period is at most 31 days.
@@ -200,7 +218,8 @@ export async function periodLines(
   f: PeriodFilter,
 ): Promise<PeriodLine[]> {
   return tx<PeriodLine[]>`
-    WITH emp AS (
+    WITH pay AS (${payRanges(tx)}),
+    emp AS (
       SELECT e.id, e.first_name, e.last_name, e.employee_id AS employee_code,
              e.location_code
         FROM employees e
@@ -233,23 +252,15 @@ export async function periodLines(
         ) p ON true
     ),
     days AS (
-      SELECT t.employee_id, t.entry_date,
-             coalesce(c.overtime_eligible, false) AS ot_eligible, sum(t.hours) AS h
+      SELECT t.employee_id, t.entry_date, p.ot_eligible, sum(t.hours) AS h
         FROM time_tracking_entries t
         JOIN emp ON emp.id = t.employee_id
-        JOIN LATERAL (
-          SELECT c.compensation_type, c.overtime_eligible
-            FROM compensation_base c
-           WHERE c.employee_id = t.employee_id
-             AND c.effective_from <= t.entry_date
-             AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)
-           ORDER BY c.effective_from DESC
-           LIMIT 1
-        ) c ON true
+        JOIN pay p ON p.employee_id = t.employee_id
+                  AND t.entry_date BETWEEN p.starts AND p.ends
        WHERE t.status = 'approved'
-         AND c.compensation_type::text = 'hourly'
+         AND p.compensation_type = 'hourly'
          AND t.entry_date BETWEEN ${f.from}::date - 6 AND ${f.to}::date
-       GROUP BY t.employee_id, t.entry_date, c.overtime_eligible
+       GROUP BY t.employee_id, t.entry_date, p.ot_eligible
     ),
     daily AS (
       SELECT d.employee_id, d.entry_date, d.h, d.ot_eligible, pol.weekly_thr,
@@ -367,21 +378,15 @@ export async function periodNotes(
   f: PeriodFilter,
 ): Promise<PeriodNotes> {
   const [counts] = await tx<{ unapproved_entries: number }[]>`
+    WITH pay AS (${payRanges(tx)})
     SELECT count(*)::int AS unapproved_entries
       FROM time_tracking_entries t
-      JOIN LATERAL (
-        SELECT c.compensation_type, c.pay_frequency::text AS pay_frequency
-          FROM compensation_base c
-         WHERE c.employee_id = t.employee_id
-           AND c.effective_from <= t.entry_date
-           AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)
-         ORDER BY c.effective_from DESC
-         LIMIT 1
-      ) c ON true
+      JOIN pay p ON p.employee_id = t.employee_id
+                AND t.entry_date BETWEEN p.starts AND p.ends
      WHERE t.status IN ('draft', 'submitted')
-       AND c.compensation_type::text = 'hourly'
+       AND p.compensation_type = 'hourly'
        AND t.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
-       AND (${f.frequency}::text IS NULL OR c.pay_frequency = ${f.frequency}::text)`
+       AND (${f.frequency}::text IS NULL OR p.pay_frequency = ${f.frequency}::text)`
   const prorated = await tx<
     (PeriodNotes["prorated"][number] & { total: number })[]
   >`
@@ -411,27 +416,27 @@ export async function periodNotes(
   // record there is no frequency to filter on, and leaving them out is the
   // failure this exists to catch.
   const noPayRecord = await tx<Named[]>`
-    SELECT DISTINCT e.id AS employee_id, e.first_name || ' ' || e.last_name AS name,
-           e.last_name, e.first_name
-      FROM employees e
-     WHERE EXISTS (
-             SELECT 1 FROM time_tracking_entries t
-              WHERE t.employee_id = e.id AND t.status = 'approved'
-                AND t.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
-                AND NOT EXISTS (
-                      SELECT 1 FROM compensation_base c
-                       WHERE c.employee_id = e.id
-                         AND c.effective_from <= t.entry_date
-                         AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)))
-        OR EXISTS (
-             SELECT 1 FROM hr_time_off_requests r
-              WHERE r.employee_id = e.id AND r.status = 'approved'
-                AND r.start_date <= ${f.to}::date AND r.end_date >= ${f.from}::date
-                AND NOT EXISTS (
-                      SELECT 1 FROM compensation_base c
-                       WHERE c.employee_id = e.id
-                         AND c.effective_from <= ${f.to}::date
-                         AND (c.effective_to IS NULL OR c.effective_to >= ${f.from}::date)))
+    WITH pay AS (${payRanges(tx)}),
+    uncovered AS (
+      SELECT t.employee_id
+        FROM time_tracking_entries t
+        LEFT JOIN pay p ON p.employee_id = t.employee_id
+                       AND t.entry_date BETWEEN p.starts AND p.ends
+       WHERE t.status = 'approved'
+         AND t.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
+         AND p.employee_id IS NULL
+      UNION
+      SELECT r.employee_id
+        FROM hr_time_off_requests r
+        LEFT JOIN pay p ON p.employee_id = r.employee_id
+                       AND p.starts <= ${f.to}::date AND p.ends >= ${f.from}::date
+       WHERE r.status = 'approved'
+         AND r.start_date <= ${f.to}::date AND r.end_date >= ${f.from}::date
+         AND p.employee_id IS NULL
+    )
+    SELECT e.id AS employee_id, e.first_name || ' ' || e.last_name AS name
+      FROM uncovered u
+      JOIN employees e ON e.id = u.employee_id
      ORDER BY e.last_name, e.first_name`
   return {
     unapproved_entries: counts.unapproved_entries,
