@@ -39,9 +39,9 @@ export type ListFilters = {
 
 /**
  * The directory page. Compensation is taken from the effective-dated
- * `compensation_base` row covering today, falling back to the denormalised
- * cache on `employees`. Count comes back on every row, not a second query,
- * so the pagination total can't disagree with the page.
+ * `compensation_base` row covering today, and only from there (L47). Count
+ * comes back on every row, not a second query, so the pagination total
+ * can't disagree with the page.
  */
 export async function list(
   tx: Tx,
@@ -57,14 +57,23 @@ export async function list(
     offset = 0,
   } = filters
 
+  // The page first; then each listed person's current pay, looked up by
+  // employee — not the latest row of every employee's history in the firm.
   const rows = await tx<(EmployeeRow & { total: string })[]>`
-    WITH current_pay AS (
-      SELECT DISTINCT ON (employee_id)
-             employee_id, amount, currency, pay_frequency
-        FROM compensation_base
-       WHERE effective_from <= CURRENT_DATE
-         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
-       ORDER BY employee_id, effective_from DESC
+    WITH page AS (
+      SELECT e.id, count(*) OVER ()::text AS total
+        FROM employees e
+       WHERE (${includeInactive} OR e.is_active)
+         AND (${departmentCode} = '' OR e.department_code = ${departmentCode})
+         AND (${locationCode} = '' OR e.location_code = ${locationCode})
+         AND (${status} = '' OR e.employment_status::text = ${status})
+         AND (${search} = '' OR (
+                e.first_name ILIKE ${"%" + search + "%"} OR
+                e.last_name  ILIKE ${"%" + search + "%"} OR
+                e.email      ILIKE ${"%" + search + "%"} OR
+                e.employee_id ILIKE ${"%" + search + "%"}))
+       ORDER BY e.last_name ASC, e.first_name ASC, e.id
+       LIMIT ${limit} OFFSET ${offset}
     )
     SELECT e.id, e.employee_id, e.first_name, e.last_name, e.preferred_name,
            e.email, e.job_title, e.job_level,
@@ -82,22 +91,21 @@ export async function list(
            cp.amount::text AS base_amount_pvt,
            cp.currency AS currency,
            cp.pay_frequency::text AS pay_frequency,
-           count(*) OVER ()::text AS total
-      FROM employees e
+           page.total
+      FROM page
+      JOIN employees e ON e.id = page.id
       LEFT JOIN firm_departments d ON d.department_code = e.department_code
       LEFT JOIN employees m ON m.id = e.manager_id
-      LEFT JOIN current_pay cp ON cp.employee_id = e.id
-     WHERE (${includeInactive} OR e.is_active)
-       AND (${departmentCode} = '' OR e.department_code = ${departmentCode})
-       AND (${locationCode} = '' OR e.location_code = ${locationCode})
-       AND (${status} = '' OR e.employment_status::text = ${status})
-       AND (${search} = '' OR (
-              e.first_name ILIKE ${"%" + search + "%"} OR
-              e.last_name  ILIKE ${"%" + search + "%"} OR
-              e.email      ILIKE ${"%" + search + "%"} OR
-              e.employee_id ILIKE ${"%" + search + "%"}))
-     ORDER BY e.last_name ASC, e.first_name ASC
-     LIMIT ${limit} OFFSET ${offset}
+      LEFT JOIN LATERAL (
+        SELECT amount, currency, pay_frequency
+          FROM compensation_base
+         WHERE employee_id = e.id
+           AND effective_from <= CURRENT_DATE
+           AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+         ORDER BY effective_from DESC
+         LIMIT 1
+      ) cp ON true
+     ORDER BY e.last_name ASC, e.first_name ASC, e.id
   `
 
   return {
@@ -124,14 +132,6 @@ export async function getById(
   id: string,
 ): Promise<EmployeeDetail | null> {
   const [row] = await tx<EmployeeDetail[]>`
-    WITH current_pay AS (
-      SELECT DISTINCT ON (employee_id)
-             employee_id, amount, currency, pay_frequency
-        FROM compensation_base
-       WHERE effective_from <= CURRENT_DATE
-         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
-       ORDER BY employee_id, effective_from DESC
-    )
     SELECT e.id, e.employee_id, e.employee_number, e.first_name, e.last_name,
            e.middle_name, e.preferred_name, e.email, e.phone,
            e.gender::text AS gender, e.pronouns::text AS pronouns,
@@ -156,7 +156,15 @@ export async function getById(
       FROM employees e
       LEFT JOIN firm_departments d ON d.department_code = e.department_code
       LEFT JOIN employees m ON m.id = e.manager_id
-      LEFT JOIN current_pay cp ON cp.employee_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT amount, currency, pay_frequency
+          FROM compensation_base
+         WHERE employee_id = e.id
+           AND effective_from <= CURRENT_DATE
+           AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+         ORDER BY effective_from DESC
+         LIMIT 1
+      ) cp ON true
      WHERE e.id = ${id}
   `
   return row ?? null
