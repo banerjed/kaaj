@@ -1,9 +1,9 @@
 # Coding Guidelines
 
 This file gives the patterns to write code in Kaaj, with real GOOD and BAD
-examples. This file teaches the pattern. **CLAUDE.md and `docs/*.md` are the
-authority** for the rules of this repository, and `./check` enforces most of
-these rules. If this file and `./check` do not agree, `./check` is correct and
+examples. This file teaches the pattern. **CLAUDE.md, `.claude/rules/*.md` and
+`docs/*.md` are the authority** for the rules of this repository, and
+`./check` enforces most of these rules. If this file and `./check` do not agree, `./check` is correct and
 this file is out of date.
 
 Read this file before you write a new route, a new table or a new form. You do
