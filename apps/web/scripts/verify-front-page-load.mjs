@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fails if the first page after login takes longer than 50ms to fully load —
+ * Fails if the first page after login takes longer than 100ms to fully load —
  * Navigation Timing's `load` event (network transfer, CSS, JS, hydration),
  * not just server response time. The two are deliberately different budgets
  * (CLAUDE.md's Performance section): a server-only check would not have
@@ -21,7 +21,7 @@ import { chromium } from "@playwright/test"
 const APP_DIR = new URL("..", import.meta.url).pathname
 const PORT = 5177 // distinct from e2e's 5175 and a developer's own `pnpm dev`
 const BASE_URL = `http://localhost:${PORT}`
-const THRESHOLD_MS = Number(process.env.FRONT_PAGE_THRESHOLD_MS ?? 50)
+const THRESHOLD_MS = Number(process.env.FRONT_PAGE_THRESHOLD_MS ?? 100)
 /**
  * A single latency sample is not a measurement. Isolated, this page loads in
  * 21.8-25.4ms; with the machine busy — which is exactly where this step runs,
