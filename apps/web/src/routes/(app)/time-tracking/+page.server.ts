@@ -2,6 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as entries from "$lib/server/time-tracking/time_tracking_entries.repo"
 import { TimeEntryWriteRefused } from "$lib/server/time-tracking/time_tracking_entries.repo"
+import { countCap } from "$lib/server/db/paged"
 import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
@@ -56,17 +57,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         own ??
         undefined,
     }
+    const cap = countCap(page, PAGE_SIZE)
     const [entryRows, total] = await Promise.all([
       entries.list(tx, {
         ...queryFilters,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       }),
-      entries.count(tx, queryFilters),
+      entries.count(tx, queryFilters, cap),
     ])
     return {
       entries: entryRows,
       total,
+      totalAtLeast: total >= cap,
       page,
       pageSize: PAGE_SIZE,
       myEmployeeId,

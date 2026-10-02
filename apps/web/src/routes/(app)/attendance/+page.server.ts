@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as attendance from "$lib/server/hr/hr_attendance.repo"
+import { countCap } from "$lib/server/db/paged"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { FormReader } from "$lib/server/forms"
 
@@ -35,17 +36,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       status,
       employeeId: employeeId ?? undefined,
     }
+    const cap = countCap(page, PAGE_SIZE)
     const [days, total] = await Promise.all([
       attendance.list(tx, {
         ...queryFilters,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       }),
-      attendance.count(tx, queryFilters),
+      attendance.count(tx, queryFilters, cap),
     ])
     return {
       days,
       total,
+      totalAtLeast: total >= cap,
       page,
       pageSize: PAGE_SIZE,
       statuses: STATUSES,

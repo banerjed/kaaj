@@ -91,7 +91,11 @@ export async function list(
   `
 }
 
-/** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
+/**
+ * The total matching a filter set — same predicates as `list`, for the list
+ * page's pagination controls. `cap` (see `countCap`) stops counting there:
+ * a result equal to it means "at least this many".
+ */
 export async function count(
   tx: Tx,
   filters: {
@@ -100,18 +104,22 @@ export async function count(
     employeeId?: string
     status?: string
   } = {},
+  cap: number | null = null,
 ): Promise<number> {
   const { status = "" } = filters
   const from = filters.from || null
   const to = filters.to || null
   const employee = filters.employeeId || null
   const [{ n }] = await tx<{ n: number }[]>`
-    SELECT count(*)::int AS n
-      FROM hr_attendance a
-     WHERE (${from}::date IS NULL OR a.attendance_date >= ${from}::date)
-       AND (${to}::date   IS NULL OR a.attendance_date <= ${to}::date)
-       AND (${status} = '' OR a.status = ${status})
-       AND (${employee}::uuid IS NULL OR a.employee_id = ${employee}::uuid)
+    SELECT count(*)::int AS n FROM (
+      SELECT 1
+        FROM hr_attendance a
+       WHERE (${from}::date IS NULL OR a.attendance_date >= ${from}::date)
+         AND (${to}::date   IS NULL OR a.attendance_date <= ${to}::date)
+         AND (${status} = '' OR a.status = ${status})
+         AND (${employee}::uuid IS NULL OR a.employee_id = ${employee}::uuid)
+       ${cap === null ? tx`` : tx`LIMIT ${cap}`}
+    ) x
   `
   return n
 }
