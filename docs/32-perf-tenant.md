@@ -183,6 +183,11 @@ that grow with the tenant:
   across every time entry in the firm — ~420,000 rows per new entry.
 - `nextSequenceNumber` (invoices, journal entries, payments) does the same
   over `LIKE 'PREFIX-%'`.
+
+  Fixed by `20261002100000_document_number_indexes.sql`: an index on exactly
+  the `max()` expression for each of the nine numbered columns turns each
+  into a backward index scan that stops at the first row (184ms to 0.7ms per
+  time entry, 36ms to 0.6ms per invoice), with the same numbers out.
 - `hr_reviews.status` defaults to `'not_started'`, which its own CHECK
   (`draft`, `submitted`, `acknowledged`) refuses: any insert that leaves
   status to the default fails.
