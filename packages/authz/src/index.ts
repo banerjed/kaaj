@@ -80,7 +80,7 @@ export const PERMISSIONS = [
   // reserved customer-portal namespace) — see docs/20-team-chat.md §1/§4.
   "team_chat.read",
   "team_chat.write",
-  // Customer-facing SMS and email through Bird (docs/37-messaging.md). A
+  // Customer-facing SMS and email through Bird (docs/38-messaging.md). A
   // different trust boundary from team_chat.* (employees only) and from
   // 17§4's reserved chat.* (a portal contact's own view): this is staff
   // reading and writing conversations with people OUTSIDE the firm.

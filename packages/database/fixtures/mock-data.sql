@@ -2859,7 +2859,7 @@ INSERT INTO team_chat_messages (id, tenant_id, conversation_id, author_employee_
     ('d2000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'd0000000-0000-4000-8000-000000000003', 'bf17b1af-963b-53ef-9083-21506fb34e9c', 'Hey, got a sec to look at the ERP ticket?', '2026-02-03T09:01:00Z', NULL, NULL);
 
 -- =============================================================================
--- Messaging (docs/37-messaging.md) — an SMS number and an inbound email
+-- Messaging (docs/38-messaging.md) — an SMS number and an inbound email
 -- address for Northwind, one archived number, two open threads and one
 -- closed, a STOP that became an opt-out, a revoked manual opt-out, a failed
 -- send with its reason, and an email pair that threads by Message-ID.
@@ -2886,3 +2886,24 @@ INSERT INTO messaging_messages (id, tenant_id, conversation_id, direction, from_
     ('f3000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'f2000000-0000-4000-8000-000000000002', 'outbound', 'northwind-7f3kq2@inbound.example', 'felix.ndiaye@acme.example', 'Re: Renewal paperwork', 'Attached again — let me know if the dates need changing.', '<p>Attached again — let me know if the dates need changing.</p>', 'sent', NULL, 'bird', 'em_fixture000000000000000004', '<em_fixture000000000000000004@inbound.example>', '<abc123@acme.example>', NULL, NULL, 'db1f1f2b-b140-5948-a34e-1c998ed98757', '2026-09-12T10:30:00Z', '2026-09-12T10:30:00Z'),
     ('f3000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'f2000000-0000-4000-8000-000000000003', 'outbound', '+12125550100', '+15125550201', NULL, 'Reminder: your site visit is Thursday at 10am.', NULL, 'failed', 'Carrier rejected the message (undeliverable).', 'bird', 'sms_fixture00000000000000005', NULL, NULL, NULL, NULL, '6d466aa9-e51a-5d52-9015-152600855932', '2026-08-02T08:55:00Z', '2026-08-02T08:55:00Z'),
     ('f3000000-0000-4000-8000-000000000006', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'f2000000-0000-4000-8000-000000000003', 'inbound', '+15125550201', '+12125550100', NULL, 'STOP', NULL, 'received', NULL, 'bird', 'sms_fixture00000000000000006', NULL, NULL, NULL, NULL, NULL, '2026-08-02T09:00:00Z', '2026-08-02T09:00:00Z');
+
+-- Payroll export (docs/37): Northwind exports to ADP RUN. UK annual leave is
+-- mapped to "not exported" (a NULL code), and one cleared id is NULL, so both
+-- paths have a row.
+INSERT INTO payroll_export_settings (tenant_id, provider, company_code, updated_at, updated_by) VALUES
+    ('07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'R1ABC', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO payroll_export_codes (id, tenant_id, provider, source, code, updated_at, updated_by) VALUES
+    ('e1000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'regular', 'REG', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'overtime', 'OVT', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'double_time', 'DBL', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'time_off:US-PTO', 'VAC', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000005', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'time_off:GLOBAL-SICK', 'SCK', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000006', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'time_off:UK-ANNUAL', NULL, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e1000000-0000-4000-8000-000000000007', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'adp_run', 'time_off:IN-EARNED', 'VAC', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');
+
+INSERT INTO payroll_employee_ids (id, tenant_id, employee_id, provider, external_id, updated_at, updated_by) VALUES
+    ('e2000000-0000-4000-8000-000000000001', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '6d466aa9-e51a-5d52-9015-152600855932', 'adp_run', '000101', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e2000000-0000-4000-8000-000000000002', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'b9b84064-a67a-5048-8282-8fc048b4dbfb', 'adp_run', '000102', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e2000000-0000-4000-8000-000000000003', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', '11f31511-ad53-59c7-9e90-8ee3b553489b', 'adp_run', '000103', '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85'),
+    ('e2000000-0000-4000-8000-000000000004', '07fb03f8-1521-5ef4-9c2d-25fcfa297ac1', 'fa4c9324-158b-55b7-acdd-7fe7917bc7cf', 'adp_run', NULL, '2026-01-01T09:00:00Z', '48ccc5de-9ba7-5461-ab49-160a1146ed85');

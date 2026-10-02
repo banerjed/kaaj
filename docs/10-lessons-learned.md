@@ -1882,6 +1882,17 @@ budget"). The general point: a "deterministic" performance figure needs the
 planner's inputs fixed, not just the rows — and a check run once, or twice
 on the same database, cannot tell you it is not. Reseed and run it again.
 
+### L119 — `track_planning` puts the planner's catalog reads in the page budget
+
+To find where a slow page spent its time, `pg_stat_statements.track_planning`
+was turned on in the perf cluster. With it on, `shared_blks_hit` includes the
+pages the planner reads from the system catalogs, and those depend on what
+each connection has cached. The next `regress` failed on five unrelated
+pages, each a few hundred data pages over budget, and on different pages each
+run — with no code change. `cluster.sh` now pins the setting off with the
+other planner inputs (L118). Turn it on for a diagnosis, and off before the
+next `regress`.
+
 ### L85 — A DESC btree index defaults to NULLS FIRST, so `NULLS LAST` never uses it
 
 `idx_hr_feedback_date ON hr_feedback (tenant_id, feedback_date DESC, feedback_id)`

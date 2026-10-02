@@ -168,6 +168,12 @@ payroll_deduction_definitions	app_user	INSERT,SELECT,UPDATE
 payroll_deduction_definitions	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payroll_employee_deductions	app_user	INSERT,SELECT,UPDATE
 payroll_employee_deductions	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+payroll_employee_ids	app_user	INSERT,SELECT,UPDATE
+payroll_employee_ids	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+payroll_export_codes	app_user	INSERT,SELECT,UPDATE
+payroll_export_codes	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+payroll_export_settings	app_user	INSERT,SELECT,UPDATE
+payroll_export_settings	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payroll_india_salary_structure	app_user	INSERT,SELECT,UPDATE
 payroll_india_salary_structure	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payroll_india_tax_declarations	app_user	INSERT,SELECT,UPDATE

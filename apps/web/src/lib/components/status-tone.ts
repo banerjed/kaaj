@@ -48,15 +48,6 @@ export const billStatusTone = (s: string | null): Tone =>
           ? "progress"
           : "neutral"
 
-export const payrollRunStatusTone = (s: string): Tone =>
-  s === "paid" || s === "finalized"
-    ? "positive"
-    : s === "approved"
-      ? "progress"
-      : s === "cancelled"
-        ? "critical"
-        : "neutral"
-
 /** `projects.health_status` — a PM's own read on the project, not its stage. */
 export const projectHealthTone = (h: string | null): Tone =>
   h === "at_risk" ? "caution" : h === "off_track" ? "critical" : "positive"

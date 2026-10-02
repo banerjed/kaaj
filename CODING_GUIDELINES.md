@@ -40,8 +40,7 @@ this file refers to them as `Lnn`.
   UTC.** Never use the zone of the user. Never use a bare `::date` cast on a
   timestamp.
 - **Never hardcode a currency-to-locale or country-to-locale mapping.** Read
-  the real value from `firm_locations` through `localeForCurrency` or
-  `localeForCountry`. We released a ternary that knew only GBP and INR, and we
+  the real value from `firm_locations` through `localeForCurrency`. We released a ternary that knew only GBP and INR, and we
   had to correct it three times.
 - **A write that someone may have to justify later gets an audit entry, in the
   *same* transaction as the write.** If the application writes the entry
@@ -359,7 +358,7 @@ locations: await locationsRepo.list(tx),
 
 ```svelte
 <script lang="ts">
-  import { localeForCurrency, localeForCountry } from "$lib/format"
+  import { localeForCurrency } from "$lib/format"
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const localeFor = (currency: string) =>
     localeForCurrency(data.locations, currency, tenantLocale)

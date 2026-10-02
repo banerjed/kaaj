@@ -381,13 +381,25 @@ test("a lockbox payment whose allocations don't match the total received is refu
   await expect(alloc).toBeVisible()
 
   // $100 said received, but only $50 allocated — a mismatch, not an
-  // unallocated remainder silently accepted.
-  await totalAmount.fill("100.00")
-  await date.fill("2026-03-01")
-  await alloc.fill("50.00")
-  await submitPastTheBrowser(page, "?/allocate")
-
-  await expect(page.locator(".alert").first()).toContainText("don't add up")
+  // unallocated remainder silently accepted. Retried until the submission is
+  // the hydrated one: the allocation inputs are page state, so a value typed
+  // before hydration is reset to empty. Every attempt is refused, so nothing
+  // is written.
+  await expect(async () => {
+    await totalAmount.fill("100.00")
+    await date.fill("2026-03-01")
+    await alloc.fill("50.00")
+    await submitPastTheBrowser(
+      page,
+      "?customer_id=e40d0f18-1333-5cd1-a969-f5113df51e70&/allocate",
+    )
+    await expect(page.locator(".alert").first()).toContainText("don't add up", {
+      timeout: 3_000,
+    })
+    // Before hydration the refusal is a full reload, which keeps nothing
+    // typed: only the enhanced submission is the one under test.
+    await expect(totalAmount).toHaveValue("100.00", { timeout: 3_000 })
+  }).toPass({ timeout: 20_000 })
   await expect(totalAmount).toHaveClass(/input-error/)
   await expect(totalAmount).toHaveAttribute("aria-invalid", "true")
   // The form is still there and what was typed survived (keepValues).
@@ -1428,4 +1440,50 @@ test("a new message with nobody to send it to names the address field and keeps 
   await expect(address).toHaveClass(/input-error/)
   await expect(address).toHaveAttribute("aria-invalid", "true")
   await expect(body).not.toHaveClass(/textarea-error/)
+})
+
+test("a payroll export company code the provider would refuse is marked, not saved", async ({
+  page,
+}) => {
+  await page.goto("/payroll/export/settings")
+  const code = page.locator('input[name="company_code"]')
+  await expect(code).toBeVisible()
+
+  // Retried for the same hydration race as the company form above.
+  await expect(async () => {
+    await code.fill("not a code!")
+    await submitPastTheBrowser(page, "?/save")
+    await expect(page.locator(".alert").first()).toContainText("company code", {
+      timeout: 3_000,
+    })
+  }).toPass({ timeout: 20_000 })
+
+  await expect(code).toHaveClass(/input-error/)
+  await expect(code).toHaveAttribute("aria-invalid", "true")
+})
+
+test("an employee payroll id in the wrong form is refused, and its field is marked", async ({
+  page,
+}) => {
+  await page.goto("/payroll/employee-ids?q=Sarah")
+  const id = page.getByLabel("ADP RUN id for Sarah Johnson")
+  await expect(id).toBeVisible()
+
+  await expect(async () => {
+    // Short enough for the column, but RUN ids are letters, digits and dashes.
+    await id.fill("bad id!")
+    await id
+      .locator("xpath=ancestor::form")
+      .getByRole("button", { name: "Save" })
+      .click()
+    await expect(page.locator(".alert").first()).toContainText(
+      "ADP RUN id is not in the form",
+      {
+        timeout: 3_000,
+      },
+    )
+  }).toPass({ timeout: 20_000 })
+
+  await expect(id).toHaveClass(/input-error/)
+  await expect(id).toHaveAttribute("aria-invalid", "true")
 })

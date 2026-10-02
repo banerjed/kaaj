@@ -83,6 +83,9 @@ payment_gateway_settings	t	t
 payments	t	t
 payroll_deduction_definitions	t	t
 payroll_employee_deductions	t	t
+payroll_employee_ids	t	t
+payroll_export_codes	t	t
+payroll_export_settings	t	t
 payroll_india_salary_structure	t	t
 payroll_india_tax_declarations	t	t
 payroll_pay_schedules	t	t

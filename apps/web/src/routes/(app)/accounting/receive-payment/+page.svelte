@@ -96,9 +96,11 @@
         message="This customer has no open invoices."
       />
     {:else if data.mayWrite}
+      <!-- The customer stays in the URL: a refusal submitted before the page
+           hydrates is a full reload, and without it the form is gone. -->
       <form
         method="POST"
-        action="?/allocate"
+        action={`?customer_id=${data.filters.customerId}&/allocate`}
         use:enhance={keepValues}
         class="mt-4 space-y-4"
       >

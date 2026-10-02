@@ -3,7 +3,7 @@ import type { Tx } from "../db/tenant"
 
 /**
  * Messaging — conversations with people outside the firm, over SMS and
- * email carried by Bird (docs/37-messaging.md). RLS keyed on
+ * email carried by Bird (docs/38-messaging.md). RLS keyed on
  * app.reads_all_messaging()/app.writes_messaging() is what separates who
  * sees a thread; this file only ever runs inside a tenant-scoped `Tx`.
  */

@@ -143,10 +143,17 @@ SELECT _perf.u('employee', e.k), _perf.tenant(),
             ELSE _perf.u('employee', _perf.skew('emp:mgr', e.k, greatest(1, e.active / 10), 1.6)) END,
        o.code,
        CASE WHEN o.country = 'US' THEN 'bi-weekly' ELSE 'monthly' END::pay_frequency,
-       'salary',
-       round((CASE o.currency WHEN 'USD' THEN 85000 WHEN 'GBP' THEN 55000
-                                       WHEN 'EUR' THEN 62000 ELSE 1800000 END)
-             * (0.7 + _perf.r('emp:pay', e.k)::numeric * 1.2), 2),
+       -- A quarter of US individual contributors are paid by the hour, so the
+       -- payroll export's overtime classification runs at size (docs/37).
+       CASE WHEN o.country = 'US' AND e.k > e.active / 10
+                 AND _perf.r('emp:hourly', e.k) < 0.25
+            THEN 'hourly' ELSE 'salary' END,
+       CASE WHEN o.country = 'US' AND e.k > e.active / 10
+                 AND _perf.r('emp:hourly', e.k) < 0.25
+            THEN round(20 + _perf.r('emp:pay', e.k)::numeric * 40, 2)
+            ELSE round((CASE o.currency WHEN 'USD' THEN 85000 WHEN 'GBP' THEN 55000
+                                        WHEN 'EUR' THEN 62000 ELSE 1800000 END)
+                       * (0.7 + _perf.r('emp:pay', e.k)::numeric * 1.2), 2) END,
        o.currency,
        date '1965-01-01' + _perf.ri('emp:dob', e.k, 0, 14000),
        NOT e.left_firm, 'perf-generator', 1.00

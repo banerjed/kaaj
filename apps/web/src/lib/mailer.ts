@@ -13,7 +13,7 @@ import {
 /**
  * The product's own transactional email — invoices, payment reminders, the
  * welcome mail, admin notifications — sent through the same Bird workspace
- * that carries customer messaging (docs/37-messaging.md). Every send is
+ * that carries customer messaging (docs/38-messaging.md). Every send is
  * tagged `metadata.source = "mailer"` and carries no tenant: nothing in
  * Kaaj tracks these rows, so the webhook ignores their status events.
  *

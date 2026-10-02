@@ -39,6 +39,8 @@ running() { pg_isready -h 127.0.0.1 -p "$PORT" >/dev/null 2>&1; }
 # committed budget, and a different plan reads a different number. A
 # statistics target of 10000 samples 3M rows, more than any table holds, so
 # ANALYZE reads every row and its statistics are not a random sample.
+# Planning stays out of pg_stat_statements: with track_planning on, the
+# catalog pages the planner reads count too, and they vary with the cache.
 # Custom plans always: a prepared statement otherwise switches to a generic
 # plan after five runs on one pooled connection, and which connection serves
 # which page varies run to run. ALTER SYSTEM rather than a start flag: it
@@ -48,6 +50,7 @@ settings() {
     -c "ALTER SYSTEM SET default_statistics_target = 10000" \
     -c "ALTER SYSTEM SET jit = off" \
     -c "ALTER SYSTEM SET plan_cache_mode = force_custom_plan" \
+    -c "ALTER SYSTEM SET pg_stat_statements.track_planning = off" \
     -c "ALTER SYSTEM SET work_mem = '4MB'" \
     -c "ALTER SYSTEM SET random_page_cost = 4" \
     -c "ALTER SYSTEM SET effective_cache_size = '4GB'" \

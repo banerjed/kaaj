@@ -7,7 +7,7 @@ import { log } from "$lib/server/log"
 import { safeError } from "$lib/errors"
 
 /**
- * Bird's one webhook into Kaaj (docs/37-messaging.md §4). No session, no
+ * Bird's one webhook into Kaaj (docs/38-messaging.md §4). No session, no
  * tenant: the signature is the only authentication, and the tenant comes
  * from the address the event was sent to. Answers 200 for anything it has
  * dealt with — including an event it chose to ignore, or one it cannot

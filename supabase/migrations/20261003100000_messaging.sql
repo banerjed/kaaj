@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Kaaj — messaging: outbound and inbound SMS and email through Bird
 -- =============================================================================
--- docs/37-messaging.md. Conversations between the firm and a customer
+-- docs/38-messaging.md. Conversations between the firm and a customer
 -- contact (or any outside address), on a channel Bird carries. Every table is
 -- messaging_* so that a later customer-portal chat (17§4's chat_*) and the
 -- internal team_chat_* never share a name with it.

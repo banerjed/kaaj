@@ -212,48 +212,24 @@ could not represent). Dropped in `20260903160000_drop_duplicate_time_entry_table
 
 ---
 
-## Phase 6 — Payroll (lifecycle done; the calculation is not)
+## Phase 6 — Payroll (export to the customer's provider)
 
-**Payroll is NOT YET IMPLEMENTED as a product.** A run can move through its
-lifecycle, but the numbers on it are the fixture's: nothing computes gross,
-tax or net for anyone.
+**Kaaj does not calculate pay.** The customer keeps its own payroll provider,
+which calculates, files and pays. `/payroll/export` makes a file of a pay
+period's approved hours of hourly employees, with overtime classified by the
+office's payroll policy, and of everyone's approved time off, in the import
+format of ADP RUN, ADP Workforce Now, Gusto or Paychex Flex.
+`/payroll/employee-ids` holds each employee's id in the provider, and
+`/payroll/export/settings` the provider, the company code and the code for
+each kind of hours. See [37-payroll-provider-integration.md](37-payroll-provider-integration.md).
 
-`docs/module-payroll.md` · 10 tables, 2 repositories
-(`payroll_runs`, `payroll_pay_schedules`). India-specific tables
-(`payroll_india_salary_structure`, `payroll_india_tax_declarations`) are
-untouched.
+The earlier run lifecycle (`/payroll/runs`, payslips) is removed: with the
+provider calculating pay, it had nothing real to show. Its tables
+(`payroll_runs`, `payroll_run_employees` and the tax tables) stay, unused,
+for a later API connector that would fill them from the provider's results.
 
-`/payroll/runs`, `/payroll/runs/[id]` and `/payroll/payslips` render, and the
-run **lifecycle** now writes: open a draft, calculate, approve, finalize,
-cancel. Every transition is audited in the same transaction, and the header
-totals are recomputed from `payroll_run_employees` on every one of them
-(L58's rule, applied to money rather than to a task count).
-
-**What is deliberately NOT built: computing anybody's pay.** Gross, taxes and
-net per person need per-jurisdiction tax tables that do not exist here —
-`payroll_tax_rates` is unpopulated and the India structures are untouched.
-Inventing them would put a correct-*looking* number on a payslip, which is the
-failure mode this codebase keeps being bitten by. Lines come from the fixture;
-nothing in the product writes one. **That is the next slice of this phase.**
-
-Four CHECK constraints back the transitions, and each was observed refusing a
-bad write before being relied on. Two things they do *not* give, both enforced
-in the repository instead: **direction** (the database is equally happy with
-`finalized → draft`) and the **NULL calculator** case (separation of duties
-fires only when both `calculated_by` and `approved_by` are set, so approving a
-run nothing calculated slips past it).
-
-**This is the module where correctness is not negotiable.** Three rules from
-CLAUDE.md apply directly:
-
-- Custom fields must never feed payroll calculations.
-- `@kaaj/validation`'s 33 country-specific validators exist because a wrong tax
-  identifier on a payslip is not a cosmetic bug.
-- Money inside JSONB is a string. `9a3c922` fixed this once, on the read side;
-  a write must not put a JSON number back, and `./check` cannot see inside a
-  JSONB column to catch it.
-
-The pay-date projection from Phase 1 is already tested and reused here.
+Not built: holidays, bonuses, commissions and reimbursements in the file;
+an API connector (ADP Marketplace); India's structures.
 
 ---
 
@@ -440,7 +416,7 @@ for `staff_document_visibility` and the download-proxy route, which read
 `document_folders` from *outside* that table's own policy.
 
 **Customer-facing messaging (SMS and email through Bird) — ✅ built, first
-slice.** [37-messaging.md](./37-messaging.md). Four `messaging_*` tables
+slice.** [38-messaging.md](./38-messaging.md). Four `messaging_*` tables
 (endpoints, conversations, messages, opt-outs) under a role-keyed policy
 (sales, marketing, auditor and the base admins; never a portal contact), a
 `messaging.*` permission pair, one signed webhook (`/webhooks/bird`) that

@@ -110,8 +110,8 @@ Medium:
   `./check`.
 - **The `messaging` branch cannot merge cleanly**: 19 files are modified on
   both sides (snapshot `.txt`s, the three registers, `menu.ts`, the fixture,
-  smoke/form-errors specs, docs/11/22), `docs/37-messaging.md` collides with
-  main's `docs/37-payroll-provider-integration.md` (rename to 38), and the
+  smoke/form-errors specs, docs/11/22), the messaging design doc was numbered
+  37 like main's `docs/37-payroll-provider-integration.md` (now 38), and the
   three new pages have no row in `budgets.tsv`, so `./check --all` fails
   with "no budget — a new page?" until `pnpm db:perf regress --update` runs
   on the perf cluster.

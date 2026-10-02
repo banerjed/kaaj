@@ -72,19 +72,23 @@ export const appMenuItems: ISidebarMenuItem[] = [
     label: "Payroll",
     children: [
       {
-        id: "payroll-payslips",
-        label: "My Payslips",
-        url: "/payroll/payslips",
+        id: "payroll-export",
+        label: "Export to Payroll",
+        url: "/payroll/export",
+        permission: "payroll.run",
       },
       {
-        id: "payroll-runs",
-        label: "Pay Runs",
-        url: "/payroll/runs",
-        // Everyone in the firm's pay, on one page. Hidden from those who may
-        // not open it — the load refuses them regardless.
-        permission: "compensation.read.all",
+        id: "payroll-employee-ids",
+        label: "Employee Payroll IDs",
+        url: "/payroll/employee-ids",
+        permission: "payroll.run",
       },
-      { id: "payroll-taxes", label: "Taxes", ...soon },
+      {
+        id: "payroll-export-settings",
+        label: "Export Settings",
+        url: "/payroll/export/settings",
+        permission: "payroll.run",
+      },
     ],
   },
   {

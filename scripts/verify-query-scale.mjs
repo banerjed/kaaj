@@ -89,7 +89,7 @@ const SCALE_SENSITIVE = new Map([
   ["ticketing_updates", "one row per update posted to a ticket"],
   ["team_chat_messages", "one row per message sent, indefinitely (20§7 says so explicitly)"],
   ["messaging_conversations", "one row per outside person who ever wrote in or was written to, per channel; grows with the customer base and never closes"],
-  ["messaging_messages", "one row per SMS or email sent or received, indefinitely (docs/37)"],
+  ["messaging_messages", "one row per SMS or email sent or received, indefinitely (docs/38)"],
   ["time_tracking_entries", "one row per time entry logged, potentially daily"],
 ])
 
@@ -183,6 +183,9 @@ const NOT_SCALE_SENSITIVE = new Map([
     "bounded by employee count times tax years",
   ],
   ["payroll_pay_schedules", "small, admin-authored config"],
+  ["payroll_export_settings", "one row per tenant"],
+  ["payroll_export_codes", "one row per provider per kind of hours or time-off policy"],
+  ["payroll_employee_ids", "at most one row per employee per provider: bounded by headcount"],
   [
     "payroll_run_employees",
     "bounded by employee count times pay periods elapsed",

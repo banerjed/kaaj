@@ -8,7 +8,6 @@ import {
   fxRevaluation,
   fxRevaluationPage,
 } from "../accounting/fx_revaluation.repo"
-import * as runs from "../payroll/payroll_runs.repo"
 
 const AS_OWNER = {
   tenantId: "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1",
@@ -82,17 +81,6 @@ describe("paged reports equal their unpaged selves", () => {
         return { rows: p.receivables.rows, total: p.receivables.total }
       },
     },
-    {
-      name: "payroll run lines",
-      whole: async (tx) => {
-        const [run] = await runs.list(tx, { country: "US" })
-        return runs.linesFor(tx, run.id)
-      },
-      page: async (tx, n) => {
-        const [run] = await runs.list(tx, { country: "US" })
-        return runs.linesPage(tx, run.id, pageOf(n, 2))
-      },
-    },
   ]
 
   for (const c of cases) {
@@ -106,8 +94,7 @@ describe("paged reports equal their unpaged selves", () => {
         }
         // An empty report would pass this vacuously (L50).
         expect(whole.length).toBeGreaterThan(0)
-        const size = c.name === "payroll run lines" ? 2 : 1
-        const { rows, totals } = await allPages(tx, size, c.page)
+        const { rows, totals } = await allPages(tx, 1, c.page)
         expect(rows).toEqual(whole)
         expect(new Set(totals)).toEqual(new Set([whole.length]))
       })

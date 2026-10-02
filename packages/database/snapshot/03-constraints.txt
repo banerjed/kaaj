@@ -392,6 +392,20 @@ payroll_employee_deductions	fk_payroll_employee_deductions_employee_id	f	FOREIGN
 payroll_employee_deductions	payroll_employee_deductions_pkey	p	PRIMARY KEY (id)
 payroll_employee_deductions	payroll_employee_deductions_tenant_id_employee_deduction_id_key	u	UNIQUE (tenant_id, employee_deduction_id)
 payroll_employee_deductions	payroll_employee_deductions_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+payroll_employee_ids	payroll_employee_ids_employee_id_fkey	f	FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+payroll_employee_ids	payroll_employee_ids_external_id_taken	u	UNIQUE (tenant_id, provider, external_id)
+payroll_employee_ids	payroll_employee_ids_one_per_employee	u	UNIQUE (tenant_id, provider, employee_id)
+payroll_employee_ids	payroll_employee_ids_pkey	p	PRIMARY KEY (id)
+payroll_employee_ids	payroll_employee_ids_provider_is_known	c	CHECK ((provider = ANY (ARRAY['adp_run'::text, 'adp_wfn'::text, 'gusto'::text, 'paychex_flex'::text])))
+payroll_employee_ids	payroll_employee_ids_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payroll_export_codes	payroll_export_codes_one_per_source	u	UNIQUE (tenant_id, provider, source)
+payroll_export_codes	payroll_export_codes_pkey	p	PRIMARY KEY (id)
+payroll_export_codes	payroll_export_codes_provider_is_known	c	CHECK ((provider = ANY (ARRAY['adp_run'::text, 'adp_wfn'::text, 'gusto'::text, 'paychex_flex'::text])))
+payroll_export_codes	payroll_export_codes_source_is_known	c	CHECK (((source = ANY (ARRAY['regular'::text, 'overtime'::text, 'double_time'::text])) OR (source ~ '^time_off:.+$'::text)))
+payroll_export_codes	payroll_export_codes_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+payroll_export_settings	payroll_export_settings_pkey	p	PRIMARY KEY (tenant_id)
+payroll_export_settings	payroll_export_settings_provider_is_known	c	CHECK ((provider = ANY (ARRAY['adp_run'::text, 'adp_wfn'::text, 'gusto'::text, 'paychex_flex'::text])))
+payroll_export_settings	payroll_export_settings_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 payroll_india_salary_structure	fk_payroll_india_salary_structure_employee_id	f	FOREIGN KEY (employee_id) REFERENCES employees(id)
 payroll_india_salary_structure	payroll_india_salary_structure_pkey	p	PRIMARY KEY (id)
 payroll_india_salary_structure	payroll_india_salary_structure_tenant_id_fkey	f	FOREIGN KEY (tenant_id) REFERENCES tenants(id)

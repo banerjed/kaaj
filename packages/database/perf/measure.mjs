@@ -65,9 +65,6 @@ async function pickIds(perf, tenantId) {
     projectId: await one(perf`
       SELECT project_id AS id FROM tasks WHERE tenant_id = ${tenantId}
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
-    payrollRunId: await one(perf`
-      SELECT payroll_run_id AS id FROM payroll_run_employees WHERE tenant_id = ${tenantId}
-       GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
     billId: await one(perf`
       SELECT bill_id AS id FROM bill_lines WHERE tenant_id = ${tenantId}
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
@@ -167,6 +164,13 @@ function waitForServer(url, timeoutMs = 30_000) {
     }
     attempt()
   })
+}
+
+/** An ISO date moved by whole days, without a time zone to shift it. */
+function shiftDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
 }
 
 /** Every statement app_user ran since the last reset — what the pages cost the database. */
@@ -312,6 +316,8 @@ async function session({ perfUrl, tenantId, only }, fn) {
       ...(ids.openInvoiceCustomerId
         ? [`/accounting/receive-payment?customer_id=${ids.openInvoiceCustomerId}`]
         : []),
+      // The two weeks before the as-of date: the whole firm's hours, reviewed.
+      `/payroll/export?from=${shiftDays(as_of, -14)}&to=${shiftDays(as_of, -1)}&frequency=bi-weekly`,
     ]
     const { paths, unresolved } = pagePaths(ids, extraPaths)
 

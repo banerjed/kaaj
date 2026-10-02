@@ -14,7 +14,7 @@ To enable email capabilities, set the following environment variables:
 
 **Important**: The template includes a welcome email, which will be enabled once you set the Bird API key. You should customize the email to fit your brand and content or remove it **BEFORE** you enable the email with environment variables. See below.
 
-- `PRIVATE_BIRD_API_KEY` (and `PRIVATE_BIRD_REGION`): the Bird workspace key — the same one customer messaging uses (docs/37-messaging.md). Verify your 'from' domain in that workspace before sending.
+- `PRIVATE_BIRD_API_KEY` (and `PRIVATE_BIRD_REGION`): the Bird workspace key — the same one customer messaging uses (docs/38-messaging.md). Verify your 'from' domain in that workspace before sending.
 - `PRIVATE_ADMIN_EMAIL`: the email address to which admin emails will be sent. If unset, admin emails will not be sent.
   - `PRIVATE_FROM_ADMIN_EMAIL`: the email address to use as the from address for admin emails (defaults to `PRIVATE_ADMIN_EMAIL` if not set).
 

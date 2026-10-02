@@ -93,13 +93,19 @@ financial statements, payment processing, exports.
   separately) stitch back, page by page, into exactly the unpaged report,
   and every page's total is the full row count
 
-### Payroll & Compensation — 46 tests
+### Payroll & Compensation — 37 tests
 
-- `lib/server/payroll/payroll_lifecycle.test.ts` [18] — opening/calculating a
-  run, separation of duties, one-way transitions, the two status columns
-  cannot diverge
-- `lib/server/payroll/payroll.test.ts` [13] — figures add up, money stays a
-  string, runs across jurisdictions, a person's payslip history
+- `lib/payroll/export-formats.test.ts` [9] — each provider's import file
+  byte for byte (ADP RUN, ADP Workforce Now, Gusto, Paychex Flex), blanks
+  never zeros, the Workforce Now character set and second record, a name a
+  spreadsheet would run as a formula
+- `lib/server/payroll/payroll_export.test.ts` [8] — daily, weekly and double
+  time against a written-out oracle, a workweek that starts before the
+  period, ineligible and salaried employees, unapproved hours, prorated time
+  off, what refuses the file
+- `routes/(app)/payroll/export/file/payroll-export-file.test.ts` [5] — the
+  download as the refused employee and the permitted payroll admin, the
+  audit entry, leave mapped to "not exported", period and frequency limits
 - `lib/server/compensation/compensation_base.test.ts` [9] — effective dating
 - `lib/server/compensation/compensation.test.ts` [6] — current pay, as
   different people
