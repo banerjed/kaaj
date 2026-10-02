@@ -256,6 +256,14 @@ async function session({ perfUrl, tenantId, only }, fn) {
   let server = null
   let actors = []
   try {
+    const [ready] = await perf`SELECT to_regclass('_perf.actors') IS NOT NULL AS seeded`.catch(() => {
+      throw new Error(
+        "the perf cluster is not running — start it with `pnpm db:perf:cluster up` " +
+          "(and `pnpm db:perf seed` the first time); docs/32-perf-tenant.md",
+      )
+    })
+    if (!ready.seeded)
+      throw new Error("the perf cluster has no perf tenant — run `pnpm db:perf seed`")
     actors = await perf`
       SELECT a.actor, a.user_id::text, a.email, tu.role::text,
              e.first_name || ' ' || e.last_name AS full_name

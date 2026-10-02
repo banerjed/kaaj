@@ -36,7 +36,8 @@ Never point it at a customer's infrastructure.
 
 **Everything must pass before you push, and always before deploying to
 production.** 25 steps, about 25 seconds; `./check --all` adds the
-browser suite. Non-zero exit means do not
+browser suite and the 100-row page check against the perf tenant (about a
+minute more; needs `pnpm db:perf:cluster up`). Non-zero exit means do not
 push.
 
 ```
@@ -795,8 +796,10 @@ backed by the page's own `search*` action and a function in
 old list had. A total shown beside a paged list is computed in SQL over
 every row, never summed from the page ([L117](docs/10-lessons-learned.md)).
 `pnpm db:perf rows` reads every page's load data as every perf-tenant actor
-and fails on any array over 100, so a picker inside a closed modal counts;
-run it after touching any page's `load()`.
+and fails on any array over 100, so a picker inside a closed modal counts.
+`./check --all` runs it; run that after touching any page's `load()`. It is
+not in plain `./check` because it needs the perf cluster, and a step that
+skipped whenever the cluster was down would pass silently.
 
 ---
 

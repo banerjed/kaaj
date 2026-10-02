@@ -9,6 +9,8 @@
 #   ./check --app        application only
 #   ./check --quick      skip the build (fastest useful signal)
 #   ./check --all        everything, plus the end-to-end suite in a browser
+#                        and the 100-row page check against the perf tenant
+#                        (needs `pnpm db:perf:cluster up && pnpm db:perf seed`)
 #
 # Exits non-zero if anything fails. Finds psql, resolves DATABASE_URL, and
 # checks the local Supabase stack is up before running anything that needs it.
@@ -148,6 +150,10 @@ if [ "$RUN_APP" = 1 ]; then
   [ "$RUN_BUILD" = 1 ] && step "front-page load (<50ms)" node apps/web/scripts/verify-front-page-load.mjs
   # The only other step that renders a page.
   [ "$RUN_E2E" = 1 ] && step "end-to-end" pnpm --filter @kaaj/web e2e
+  # Every page, as every kind of user, at a 1,000-person firm's size: no page
+  # sends more than 100 rows of anything (CLAUDE.md, Performance). Needs the
+  # build above and the perf cluster; refuses, loudly, when the cluster is down.
+  [ "$RUN_E2E" = 1 ] && [ "$RUN_BUILD" = 1 ] && step "no page sends >100 rows" pnpm -s db:perf rows
   echo ""
 fi
 

@@ -345,7 +345,9 @@ an entry posts, so a report adds periods instead of lines.
 ## Interaction with `./check`
 
 The tenant lives in its own cluster, so `./check` and the unit suites never
-see its rows. The one overlap is a `measure` run: while it runs, the shared
+see its rows. `./check --all` runs `pnpm db:perf rows` as its last step, and
+fails with a sentence saying how to start the cluster when it is down — never
+a skip. The overlap is a `measure` or `rows` run: while it runs, the shared
 database holds a dedicated-tier registry row whose connection ref only the
 measuring preview can resolve, so another session's "dedicated targets"
 step fails for those few minutes, naming

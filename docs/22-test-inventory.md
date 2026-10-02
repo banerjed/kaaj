@@ -76,6 +76,10 @@ financial statements, payment processing, exports.
 - `routes/.../accounting/invoices/page.server.test.ts` [3] — send reminders
 - `routes/.../accounting/{ap-due-soon,fx-revaluation,ledger}/export/row-cap.test.ts`
   [1 each, 3 total] — export row-cap guards
+- `lib/server/db/paged.test.ts` [6] — the paged AR aging, customer
+  balances, AP due soon and FX revaluation (receivables and payables
+  separately) stitch back, page by page, into exactly the unpaged report,
+  and every page's total is the full row count
 
 ### Payroll & Compensation — 46 tests
 
@@ -127,10 +131,12 @@ financial statements, payment processing, exports.
   a second status-writing path
 - `lib/server/projects/projects.test.ts` [10] — the project list, tasks,
   client-visible slice
-- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [9] —
+- `lib/server/time-tracking/time_tracking_entries.writes.test.ts` [11] —
   logging time keeps task/project hours true, including when a PLAIN
   employee who sees only their own entries logs (the total and the `TE-nnn`
-  number still span everyone's, L106)
+  number still span everyone's, L106); `ownEntriesOnly` names a plain
+  employee and narrowing to them changes nothing they see, and is null for
+  someone the policy lets see everything (L117)
 - `lib/server/projects/comments.repo.test.ts` [8] — adding, editing and
   soft-deleting a task comment; refuses a task from a different project or
   no such task; the fixture's own pre-existing comment is real coverage, not
