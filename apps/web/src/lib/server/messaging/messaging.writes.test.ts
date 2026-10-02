@@ -4,6 +4,7 @@ import { withTenant, type Actor, type Tx } from "../db/tenant"
 import type { AuthContext } from "../auth/can"
 import type { MessagingProvider } from "./bird"
 import {
+  clip,
   handleBirdEvent,
   routeAddress,
   stripHtml,
@@ -162,6 +163,12 @@ describe("the inbound handler's non-writing branches", () => {
         provider,
       ),
     ).toBe("unroutable")
+  })
+
+  it("clips a subject or name at the column width, by code point, instead of failing the insert", () => {
+    expect(clip("x".repeat(1200), 998)).toHaveLength(998)
+    expect(clip("é".repeat(5), 3)).toBe("ééé")
+    expect(clip(null, 10)).toBeNull()
   })
 
   it("reduces HTML to readable text when a mail has no plain part", () => {

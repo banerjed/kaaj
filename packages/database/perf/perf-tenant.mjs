@@ -32,8 +32,13 @@ const DB_URL =
 const SQL_DIR = new URL("./sql/", import.meta.url).pathname
 const BUDGETS = new URL("./budgets.tsv", import.meta.url).pathname
 
-if (!/@(127\.0\.0\.1|localhost)[:/]/.test(DB_URL)) {
-  console.error("  PERF_DATABASE_URL is not local — refusing to run.")
+// Port as well as host — a tunnel answers on localhost too, and `seed` turns
+// autovacuum off and writes a tenant into whatever it reaches.
+const PERF_PORT = process.env.KAAJ_PERF_PORT ?? "54349"
+if (!new RegExp(`@(127\\.0\\.0\\.1|localhost):${PERF_PORT}/`).test(DB_URL)) {
+  console.error(
+    `  PERF_DATABASE_URL is not the perf cluster (127.0.0.1:${PERF_PORT}) — refusing to run.`,
+  )
   process.exit(1)
 }
 
@@ -64,10 +69,15 @@ const sql = postgres(DB_URL, { types: {}, onnotice: () => {}, max: 1 })
  * several lines, so the table name is matched as the first string after `[`.
  */
 function scaleSensitiveTables() {
-  const src = readFileSync(new URL("../../../scripts/verify-query-scale.mjs", import.meta.url), "utf8")
+  const src = readFileSync(
+    new URL("../../../scripts/verify-query-scale.mjs", import.meta.url),
+    "utf8",
+  )
   const start = src.indexOf("const SCALE_SENSITIVE = new Map([")
   const end = src.indexOf("\n])", start)
-  return [...src.slice(start, end).matchAll(/\[\s*"([a-z_]+)",/g)].map((m) => m[1])
+  return [...src.slice(start, end).matchAll(/\[\s*"([a-z_]+)",/g)].map(
+    (m) => m[1],
+  )
 }
 
 async function tenantTables() {
@@ -90,13 +100,16 @@ async function drop() {
   await sql.begin(async (tx) => {
     await tx`SET LOCAL session_replication_role = replica`
     for (const { table_name } of tables) {
-      await tx.unsafe(`DELETE FROM public."${table_name}" WHERE tenant_id = $1`, [
-        PERF_TENANT_ID,
-      ])
+      await tx.unsafe(
+        `DELETE FROM public."${table_name}" WHERE tenant_id = $1`,
+        [PERF_TENANT_ID],
+      )
     }
     await tx`DELETE FROM tenants WHERE id = ${PERF_TENANT_ID}`
   })
-  console.log(`  perf tenant removed (${((Date.now() - started) / 1000).toFixed(1)}s)`)
+  console.log(
+    `  perf tenant removed (${((Date.now() - started) / 1000).toFixed(1)}s)`,
+  )
 }
 
 async function seed({ scale, asOf }) {
@@ -119,7 +132,10 @@ async function build({ scale, asOf, started }) {
   await drop()
   const [{ others }] = await sql`SELECT count(*)::int AS others FROM tenants`
   if (others === 0) await sql`VACUUM FULL`
-  else console.log(`  ${others} other tenant(s) in this database — not compacting, so budgets may not reproduce`)
+  else
+    console.log(
+      `  ${others} other tenant(s) in this database — not compacting, so budgets may not reproduce`,
+    )
   await sql.unsafe(readFileSync(`${SQL_DIR}00_helpers.sql`, "utf8"))
   await sql`
     INSERT INTO _perf.params (tenant_id, scale, as_of)
@@ -133,19 +149,25 @@ async function build({ scale, asOf, started }) {
     .sort()
   for (const step of steps) {
     const t = Date.now()
-    await sql.begin((tx) => tx.unsafe(readFileSync(`${SQL_DIR}${step}`, "utf8")))
+    await sql.begin((tx) =>
+      tx.unsafe(readFileSync(`${SQL_DIR}${step}`, "utf8")),
+    )
     console.log(`  ${step.padEnd(28)} ${((Date.now() - t) / 1000).toFixed(1)}s`)
   }
 
   const t = Date.now()
   const sealed = await sealEncryptedColumns(sql, PERF_TENANT_ID)
-  console.log(`  ${"sealed columns".padEnd(28)} ${((Date.now() - t) / 1000).toFixed(1)}s  (${sealed} values)`)
+  console.log(
+    `  ${"sealed columns".padEnd(28)} ${((Date.now() - t) / 1000).toFixed(1)}s  (${sealed} values)`,
+  )
 
   await sql`ANALYZE`
   await sql`VACUUM` // the visibility map, which decides index-only scans
   const seconds = (Date.now() - started) / 1000
   await sql`UPDATE _perf.params SET seeded_at = now(), seconds = ${seconds}`
-  console.log(`  perf tenant built at scale ${scale}, as of ${asOf}, in ${seconds.toFixed(0)}s`)
+  console.log(
+    `  perf tenant built at scale ${scale}, as of ${asOf}, in ${seconds.toFixed(0)}s`,
+  )
   await status()
 }
 
@@ -155,25 +177,36 @@ async function build({ scale, asOf, started }) {
  * (invoice total = subtotal + tax, …) is already a CHECK on insert.
  */
 const INVARIANTS = [
-  ["each employee's latest pay record equals the base_amount_pvt cache", `
+  [
+    "each employee's latest pay record equals the base_amount_pvt cache",
+    `
     SELECT count(*) FROM employees e
      WHERE e.tenant_id = $1
        AND NOT EXISTS (
              SELECT 1 FROM compensation_base c
               WHERE c.employee_id = e.id AND c.amount = e.base_amount_pvt
                 AND NOT EXISTS (SELECT 1 FROM compensation_base n
-                                 WHERE n.employee_id = e.id AND n.effective_from > c.effective_from))`],
-  ["an objective's rollup matches its linked projects", `
+                                 WHERE n.employee_id = e.id AND n.effective_from > c.effective_from))`,
+  ],
+  [
+    "an objective's rollup matches its linked projects",
+    `
     SELECT count(*) FROM pm_objectives o
       LEFT JOIN (SELECT objective_id, coalesce(sum(total_billed), 0) AS revenue FROM projects
                   WHERE archived_at IS NULL GROUP BY 1) p ON p.objective_id = o.id
-     WHERE o.tenant_id = $1 AND o.actual_revenue <> coalesce(p.revenue, 0)`],
-  ["every journal entry balances, natively and in base", `
+     WHERE o.tenant_id = $1 AND o.actual_revenue <> coalesce(p.revenue, 0)`,
+  ],
+  [
+    "every journal entry balances, natively and in base",
+    `
     SELECT count(*) FROM (
       SELECT entry_id FROM journal_entry_lines WHERE tenant_id = $1 GROUP BY entry_id
       HAVING sum(debit_amount) <> sum(credit_amount)
-          OR sum(base_debit_amount) <> sum(base_credit_amount)) x`],
-  ["gl_daily_balances equals the posted lines, per account, day and tax rate", `
+          OR sum(base_debit_amount) <> sum(base_credit_amount)) x`,
+  ],
+  [
+    "gl_daily_balances equals the posted lines, per account, day and tax rate",
+    `
     WITH truth AS (
       SELECT l.account_id, je.entry_date AS d, l.tax_rate_id,
              coalesce(sum(l.base_debit_amount), 0) dr, coalesce(sum(l.base_credit_amount), 0) cr,
@@ -189,43 +222,70 @@ const INVARIANTS = [
        AND b.tax_rate_id IS NOT DISTINCT FROM t.tax_rate_id
      WHERE t.n IS NULL OR b.line_count IS NULL
         OR t.dr <> b.base_debit OR t.cr <> b.base_credit
-        OR t.ndr <> b.debit OR t.ncr <> b.credit OR t.n <> b.line_count`],
-  ["every invoice's subtotal and tax equal its lines", `
+        OR t.ndr <> b.debit OR t.ncr <> b.credit OR t.n <> b.line_count`,
+  ],
+  [
+    "every invoice's subtotal and tax equal its lines",
+    `
     SELECT count(*) FROM invoices i
       JOIN (SELECT invoice_id, sum(amount) a, sum(tax_amount) t FROM invoice_lines GROUP BY 1) l
         ON l.invoice_id = i.id
-     WHERE i.tenant_id = $1 AND (i.subtotal <> l.a OR i.tax_total <> l.t)`],
-  ["every invoice has at least one line", `
+     WHERE i.tenant_id = $1 AND (i.subtotal <> l.a OR i.tax_total <> l.t)`,
+  ],
+  [
+    "every invoice has at least one line",
+    `
     SELECT count(*) FROM invoices i WHERE i.tenant_id = $1
-       AND NOT EXISTS (SELECT 1 FROM invoice_lines l WHERE l.invoice_id = i.id)`],
-  ["every bill's subtotal equals its lines", `
+       AND NOT EXISTS (SELECT 1 FROM invoice_lines l WHERE l.invoice_id = i.id)`,
+  ],
+  [
+    "every bill's subtotal equals its lines",
+    `
     SELECT count(*) FROM bills b
       JOIN (SELECT bill_id, sum(amount) a FROM bill_lines GROUP BY 1) l ON l.bill_id = b.id
-     WHERE b.tenant_id = $1 AND b.subtotal <> l.a`],
-  ["what an invoice says was paid equals its allocations", `
+     WHERE b.tenant_id = $1 AND b.subtotal <> l.a`,
+  ],
+  [
+    "what an invoice says was paid equals its allocations",
+    `
     SELECT count(*) FROM invoices i
       LEFT JOIN (SELECT invoice_id, sum(amount) a FROM payment_allocations GROUP BY 1) p
         ON p.invoice_id = i.id
-     WHERE i.tenant_id = $1 AND i.amount_paid <> coalesce(p.a, 0)`],
-  ["every issued invoice, approved bill and payment has its journal entry", `
+     WHERE i.tenant_id = $1 AND i.amount_paid <> coalesce(p.a, 0)`,
+  ],
+  [
+    "every issued invoice, approved bill and payment has its journal entry",
+    `
     SELECT (SELECT count(*) FROM invoices WHERE tenant_id = $1
                AND status NOT IN ('draft','void') AND journal_entry_id IS NULL)
          + (SELECT count(*) FROM bills WHERE tenant_id = $1
                AND status <> 'draft' AND journal_entry_id IS NULL)
-         + (SELECT count(*) FROM payments WHERE tenant_id = $1 AND journal_entry_id IS NULL)`],
-  ["task and timesheet counters agree with their rows (L58)", `
+         + (SELECT count(*) FROM payments WHERE tenant_id = $1 AND journal_entry_id IS NULL)`,
+  ],
+  [
+    "task and timesheet counters agree with their rows (L58)",
+    `
     SELECT (SELECT count(*) FROM projects p WHERE p.tenant_id = $1 AND p.task_count <>
               (SELECT count(*) FROM tasks t WHERE t.project_id = p.id))
          + (SELECT count(*) FROM time_tracking_timesheets s WHERE s.tenant_id = $1 AND s.entry_count <>
-              (SELECT count(*) FROM time_tracking_entries e WHERE e.timesheet_id = s.id))`],
-  ["time entries point at a task of their own project", `
+              (SELECT count(*) FROM time_tracking_entries e WHERE e.timesheet_id = s.id))`,
+  ],
+  [
+    "time entries point at a task of their own project",
+    `
     SELECT count(*) FROM time_tracking_entries e LEFT JOIN tasks t ON t.id = e.task_id
-     WHERE e.tenant_id = $1 AND (t.id IS NULL OR t.project_id <> e.project_id)`],
-  ["each business area's counter matches its tickets", `
+     WHERE e.tenant_id = $1 AND (t.id IS NULL OR t.project_id <> e.project_id)`,
+  ],
+  [
+    "each business area's counter matches its tickets",
+    `
     SELECT count(*) FROM ticketing_business_areas b WHERE b.tenant_id = $1
        AND b.current_sequence <> (SELECT count(*) FROM ticketing_tickets t
-                                   WHERE t.business_area_id = b.id)`],
-  ["leave balances: used and pending equal the requests, and the formula holds", `
+                                   WHERE t.business_area_id = b.id)`,
+  ],
+  [
+    "leave balances: used and pending equal the requests, and the formula holds",
+    `
     SELECT count(*) FROM hr_time_off_balances b
       JOIN hr_time_off_policies p ON p.id = b.policy_id
      WHERE b.tenant_id = $1 AND (
@@ -235,41 +295,63 @@ const INVARIANTS = [
        OR b.pending <> coalesce((SELECT sum(r.total_hours) / 8 FROM hr_time_off_requests r
                             WHERE r.employee_id = b.employee_id AND r.policy_code = p.policy_code
                               AND r.status = 'pending' AND extract(year FROM r.start_date) = b.accrual_year), 0)
-       OR b.current_balance <> b.opening_balance + b.accrued + b.adjusted - b.used - b.pending - b.forfeited)`],
-  ["nobody is clocked in on a day of approved leave", `
+       OR b.current_balance <> b.opening_balance + b.accrued + b.adjusted - b.used - b.pending - b.forfeited)`,
+  ],
+  [
+    "nobody is clocked in on a day of approved leave",
+    `
     SELECT count(*) FROM hr_attendance a
       JOIN hr_time_off_requests r ON r.employee_id = a.employee_id AND r.status = 'approved'
        AND a.attendance_date BETWEEN r.start_date AND r.end_date
-     WHERE a.tenant_id = $1`],
-  ["payroll run totals equal their lines", `
+     WHERE a.tenant_id = $1`,
+  ],
+  [
+    "payroll run totals equal their lines",
+    `
     SELECT count(*) FROM payroll_runs p
       JOIN (SELECT payroll_run_id, count(*) n, sum(gross_pay) g, sum(net_pay) net
               FROM payroll_run_employees GROUP BY 1) l ON l.payroll_run_id = p.id
-     WHERE p.tenant_id = $1 AND (p.employee_count <> l.n OR p.total_gross_pay <> l.g OR p.total_net_pay <> l.net)`],
-  ["money in payroll JSONB is a string, never a JSON number (L41)", `
+     WHERE p.tenant_id = $1 AND (p.employee_count <> l.n OR p.total_gross_pay <> l.g OR p.total_net_pay <> l.net)`,
+  ],
+  [
+    "money in payroll JSONB is a string, never a JSON number (L41)",
+    `
     SELECT count(*) FROM payroll_run_employees r
      CROSS JOIN LATERAL (SELECT value FROM jsonb_each(r.earnings) UNION ALL
                          SELECT value FROM jsonb_each(r.taxes)) v
-     WHERE r.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`],
-  ["each statement import's counts equal the lines it owns", `
+     WHERE r.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`,
+  ],
+  [
+    "each statement import's counts equal the lines it owns",
+    `
     SELECT count(*) FROM bank_statement_imports i
      WHERE i.tenant_id = $1
-       AND i.transactions_imported <> (SELECT count(*) FROM bank_transactions t WHERE t.import_id = i.id)`],
-  ["a chat's member_ids equal its current members", `
+       AND i.transactions_imported <> (SELECT count(*) FROM bank_transactions t WHERE t.import_id = i.id)`,
+  ],
+  [
+    "a chat's member_ids equal its current members",
+    `
     SELECT count(*) FROM team_chat_conversations c
      WHERE c.tenant_id = $1
        AND (SELECT coalesce(array_agg(employee_id ORDER BY employee_id), '{}') FROM team_chat_members m
              WHERE m.conversation_id = c.id AND m.left_at IS NULL)
-           <> (SELECT coalesce(array_agg(x ORDER BY x), '{}') FROM unnest(c.member_ids) x)`],
-  ["audit changes hold strings only", `
+           <> (SELECT coalesce(array_agg(x ORDER BY x), '{}') FROM unnest(c.member_ids) x)`,
+  ],
+  [
+    "audit changes hold strings only",
+    `
     SELECT count(*) FROM audit_log a
      CROSS JOIN LATERAL jsonb_each(a.changes) c
      CROSS JOIN LATERAL jsonb_each(c.value) v
-     WHERE a.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`],
-  ["nothing is dated after as_of", `
+     WHERE a.tenant_id = $1 AND jsonb_typeof(v.value) <> 'string'`,
+  ],
+  [
+    "nothing is dated after as_of",
+    `
     SELECT (SELECT count(*) FROM invoices WHERE tenant_id = $1 AND invoice_date > (SELECT as_of FROM _perf.params))
          + (SELECT count(*) FROM time_tracking_entries WHERE tenant_id = $1 AND entry_date > (SELECT as_of FROM _perf.params))
-         + (SELECT count(*) FROM crm_activities WHERE tenant_id = $1 AND occurred_at::date > (SELECT as_of FROM _perf.params))`],
+         + (SELECT count(*) FROM crm_activities WHERE tenant_id = $1 AND occurred_at::date > (SELECT as_of FROM _perf.params))`,
+  ],
 ]
 
 /** Every check, then the sealed sample; exits non-zero on the first failure. */
@@ -278,11 +360,15 @@ async function verify() {
   for (const [name, query] of INVARIANTS) {
     const [row] = await sql.unsafe(query, [PERF_TENANT_ID])
     const n = Number(Object.values(row)[0])
-    console.log(`  ${n === 0 ? "✓" : "✗"} ${name}${n === 0 ? "" : ` — ${n} violation(s)`}`)
+    console.log(
+      `  ${n === 0 ? "✓" : "✗"} ${name}${n === 0 ? "" : ` — ${n} violation(s)`}`,
+    )
     if (n !== 0) failed++
   }
   const opened = await verifySealed(sql, PERF_TENANT_ID)
-  console.log(`  ✓ sealed values open with the app's own key handling (${opened} checked)`)
+  console.log(
+    `  ✓ sealed values open with the app's own key handling (${opened} checked)`,
+  )
   if (failed) throw new Error(`${failed} invariant(s) failed`)
 }
 
@@ -290,7 +376,8 @@ async function status() {
   const [params] = await sql`
     SELECT to_regclass('_perf.params') IS NOT NULL AS ok`
   if (!params.ok) return console.log("  no perf tenant has been built here")
-  const [p] = await sql`SELECT scale::text, as_of::text, seeded_at, seconds::text FROM _perf.params`
+  const [p] =
+    await sql`SELECT scale::text, as_of::text, seeded_at, seconds::text FROM _perf.params`
   console.log(
     p
       ? `  scale ${p.scale}, as of ${p.as_of}, built ${p.seeded_at ? p.seeded_at.toISOString() : "— (incomplete)"}`
@@ -309,10 +396,15 @@ async function status() {
   const scale = Number(p?.scale ?? 1)
   for (const [table, n] of rows.sort((a, b) => b[1] - a[1])) {
     const want = MODEL[table] ? Math.round(MODEL[table] * scale) : null
-    const note = want === null ? "" : `  (model ${want.toLocaleString("en-US")})`
-    console.log(`  ${table.padEnd(34)} ${n.toLocaleString("en-US").padStart(10)}${note}`)
+    const note =
+      want === null ? "" : `  (model ${want.toLocaleString("en-US")})`
+    console.log(
+      `  ${table.padEnd(34)} ${n.toLocaleString("en-US").padStart(10)}${note}`,
+    )
   }
-  console.log(`  ${"total".padEnd(34)} ${total.toLocaleString("en-US").padStart(10)}`)
+  console.log(
+    `  ${"total".padEnd(34)} ${total.toLocaleString("en-US").padStart(10)}`,
+  )
 
   // An empty table renders an empty page, and an empty page is unmeasured.
   const counted = new Map(rows)
@@ -339,18 +431,26 @@ const { positionals, values } = parseArgs({
 
 // The commands that rewrite the tenant wait for any perf run, and make one wait.
 const release = ["seed", "drop"].includes(positionals[0])
-  ? await holdPerfLock(DB_URL, "the perf cluster is not running — `pnpm db:perf:cluster up`")
+  ? await holdPerfLock(
+      DB_URL,
+      "the perf cluster is not running — `pnpm db:perf:cluster up`",
+    )
   : null
 
 try {
   switch (positionals[0]) {
     case "seed": {
       const scale = Number(values.scale)
-      if (!(scale > 0 && scale <= 5)) throw new Error("--scale must be in (0, 5]")
+      if (!(scale > 0 && scale <= 5))
+        throw new Error("--scale must be in (0, 5]")
       // By default the data budgets.tsv was measured on, so `regress` can compare.
       const budget = existsSync(BUDGETS) ? readFileSync(BUDGETS, "utf8") : ""
-      const asOf = values["as-of"] ?? budget.match(/as_of=(\S+)/)?.[1] ?? new Date().toISOString().slice(0, 10)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("--as-of must be YYYY-MM-DD")
+      const asOf =
+        values["as-of"] ??
+        budget.match(/as_of=(\S+)/)?.[1] ??
+        new Date().toISOString().slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf))
+        throw new Error("--as-of must be YYYY-MM-DD")
       await seed({ scale, asOf })
       break
     }
@@ -386,11 +486,17 @@ try {
     }
     case "regress": {
       const { regress } = await import("./measure.mjs")
-      await regress({ perfUrl: DB_URL, tenantId: PERF_TENANT_ID, update: values.update })
+      await regress({
+        perfUrl: DB_URL,
+        tenantId: PERF_TENANT_ID,
+        update: values.update,
+      })
       break
     }
     default:
-      console.error("usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25] | rows [--max=100] [--actors=a,b] | regress [--update]")
+      console.error(
+        "usage: perf-tenant.mjs seed [--scale=1] [--as-of=YYYY-MM-DD] | status | verify | drop | measure [--repeats=3] [--actors=a,b] [--top=25] | rows [--max=100] [--actors=a,b] | regress [--update]",
+      )
       process.exitCode = 2
   }
 } catch (e) {

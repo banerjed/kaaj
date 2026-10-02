@@ -12,6 +12,7 @@ import {
   validEmployeeId,
 } from "$lib/payroll/export-formats"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 50
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -22,7 +23,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   params.append("q", url.searchParams.get("q") ?? "")
   const search = new FormReader(params).text("q", { max: 100 }) ?? ""
   const missingOnly = url.searchParams.get("missing") === "1"
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const settings = await exp.settings(tx)

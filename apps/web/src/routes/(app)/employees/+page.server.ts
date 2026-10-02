@@ -5,6 +5,7 @@ import * as departments from "$lib/server/firm-profile/firm_departments.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 25
 
 /** /employees — the directory. Filter/page state lives in the URL (doc 03). */
@@ -16,7 +17,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const locationCode = url.searchParams.get("loc") ?? ""
   const status = url.searchParams.get("status") ?? ""
   const includeInactive = url.searchParams.get("inactive") === "1"
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1)
+  const page = pageParam(url)
 
   const result = await withTenant(actorFrom(locals), async (tx) => ({
     directory: await employees.list(tx, {

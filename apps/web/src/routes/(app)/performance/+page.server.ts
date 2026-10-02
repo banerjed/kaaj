@@ -9,6 +9,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import { ReviewRefused } from "$lib/server/hr/hr_reviews.repo"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /**
@@ -29,14 +30,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     readsAll: can(ctx, "performance.read.all"),
   }
 
-  const reviewsPage = Math.max(
-    1,
-    Number(url.searchParams.get("reviews_page")) || 1,
-  )
-  const feedbackPage = Math.max(
-    1,
-    Number(url.searchParams.get("feedback_page")) || 1,
-  )
+  const reviewsPage = pageParam(url, "reviews_page")
+  const feedbackPage = pageParam(url, "feedback_page")
 
   return withTenant(actorFrom(locals), async (tx) => {
     const [visible, reviewsTotal] = await Promise.all([

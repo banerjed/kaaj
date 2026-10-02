@@ -13,9 +13,10 @@ import {
 } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { FormReader, uuidParam } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import { uploadDocument, UploadRefused } from "$lib/server/documents/upload"
+import { pageParam } from "$lib/server/db/paged"
 
 /** Four rows of the card grid at its widest. */
 const FOLDER_PAGE_SIZE = 24
@@ -27,9 +28,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   requireCan(ctx, "document.read")
 
   const q = url.searchParams.get("q") || undefined
-  const ownerId = url.searchParams.get("owner") || undefined
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
-  const folderPage = Math.max(1, Number(url.searchParams.get("fpage")) || 1)
+  const ownerId = uuidParam(url.searchParams.get("owner")) ?? undefined
+  const page = pageParam(url)
+  const folderPage = pageParam(url, "fpage")
   const hasFilters = Boolean(q || ownerId)
 
   return withTenant(actorFrom(locals), async (tx) => {

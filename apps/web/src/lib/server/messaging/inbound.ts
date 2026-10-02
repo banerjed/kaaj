@@ -63,6 +63,15 @@ function addresses(value: unknown): Addressed[] {
 
 const str = (v: unknown): string | null =>
   typeof v === "string" && v !== "" ? v : null
+/**
+ * Mail is not a form: nothing upstream enforces a column width, and a value
+ * over it is a 500 that Bird redelivers for 27 hours and then drops. Clip
+ * at the width (code points, as Postgres counts) rather than lose the mail.
+ */
+export const clip = (v: string | null, max: number): string | null =>
+  v === null ? null : [...v].slice(0, max).join("")
+const SUBJECT_MAX = 998
+const NAME_MAX = 200
 const bool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null)
 
 function occurredAt(
@@ -205,7 +214,7 @@ async function receiveEmail(
     const endpoint = await messaging.endpointByAddress(tx, "email", to)
     if (!endpoint) return "unroutable"
     const contact = await messaging.matchContact(tx, "email", from)
-    const subject = str(data.subject)
+    const subject = clip(str(data.subject), SUBJECT_MAX)
     const conversationId = await messaging.findOrOpenConversation(
       tx,
       tenantId,
@@ -213,7 +222,7 @@ async function receiveEmail(
         channel: "email",
         endpointId: endpoint.id,
         counterpartyAddress: from,
-        counterpartyName: sender.name,
+        counterpartyName: clip(sender.name, NAME_MAX),
         contact,
         subject,
         direction: "inbound",

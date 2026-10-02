@@ -8,6 +8,7 @@ import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import type { RelationshipStatus } from "$lib/server/customers/customers.repo"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 50
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       ? status
       : undefined
 
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const { rows, total } = await customers.list(tx, {

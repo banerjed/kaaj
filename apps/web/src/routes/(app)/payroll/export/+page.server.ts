@@ -5,6 +5,7 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as exp from "$lib/server/payroll/payroll_export.repo"
 import { readPeriod, MAX_PERIOD_DAYS } from "$lib/server/payroll/export-request"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 50
 
 function firstTen<T>(all: T[]): { first: T[]; total: number } {
@@ -22,7 +23,7 @@ type ReviewRow = {
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "payroll.run")
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const settings = await exp.settings(tx)

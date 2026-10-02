@@ -10,6 +10,7 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 import { allEnumerations } from "@kaaj/enums"
+import { pageParam } from "$lib/server/db/paged"
 
 /** /settings/job-titles — module-firm-profile.md § Job Titles Page. */
 /** Titles per page; each title's own levels come with it. */
@@ -18,7 +19,7 @@ const PAGE_SIZE = 20
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "firm.settings.read")
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   const { jobTitles, total, jobLevels, locations } = await withTenant(
     actorFrom(locals),

@@ -2,6 +2,7 @@
 paths:
   - "apps/web/src/lib/server/**/*.repo.ts"
   - "apps/web/src/routes/**/+page.server.ts"
+  - "apps/web/src/routes/**/+server.ts"
   - "apps/web/src/lib/server/pickers.ts"
   - "apps/web/src/lib/server/db/paged.ts"
   - "apps/web/src/lib/components/Pagination.svelte"
@@ -126,9 +127,18 @@ budget cannot find this problem ([L118](docs/10-lessons-learned.md)).
   and joins them, the same reads occur, in more round trips. The correct fix
   is the shape of the SQL.
 
-No automated step or test examines the shape of a query. `/crm/pipeline`
-ranks every deal to show 20 for each stage, and it does not obey this rule
-today.
+No automated step or test examines the shape of a query. Two pages do not
+obey this rule today, and each is a known exception, not a precedent:
+
+- `/crm/pipeline` ranks every deal to show 20 for each stage.
+- `/payroll/export` reads every time entry and time-off day of the period
+  (at most 31 days) for the whole firm, on every page of its review, and
+  pages the result in JavaScript. The export must find every problem before
+  it offers the file, so the whole period is the subject; a page of
+  employees is only the view. The budget records the cost (22,955 data
+  pages at the perf tenant's size, against about 400 for a comparable
+  list). A cheaper shape computes the problems once per period and pages
+  the employees in SQL.
 
 **Regenerate the page budget only on purpose, and commit it with the change
 that moved it.** `packages/database/perf/budgets.tsv` records the cost of each

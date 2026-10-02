@@ -93,7 +93,13 @@ financial statements, payment processing, exports.
   separately) stitch back, page by page, into exactly the unpaged report,
   and every page's total is the full row count
 
-### Payroll & Compensation — 37 tests
+### Payroll & Compensation — 39 tests
+
+- `lib/server/payroll/payroll_export.visibility.test.ts` [2] — the export
+  tables' RESTRICTIVE write policies watched failing as `app_user`: an
+  employee, HR and finance cannot bind a provider id or change the settings
+  (42501, or an UPDATE of 0 rows); payroll, firm_admin and owner can. The
+  guard verify-rls.sql cannot give, since it only SELECTs (L63).
 
 - `lib/payroll/export-formats.test.ts` [9] — each provider's import file
   byte for byte (ADP RUN, ADP Workforce Now, Gusto, Paychex Flex), blanks
@@ -265,7 +271,7 @@ test rather than only having been fixed once and trusted to stay fixed.
 
 ### Messaging — 24 tests
 
-Customer-facing SMS and email through Bird (docs/37-messaging.md). The
+Customer-facing SMS and email through Bird (docs/38-messaging.md). The
 webhook is the one unauthenticated route in the product, so its refusing
 branches are the first thing tested, and every role's view of the tables is
 asserted as the refused actor and the permitted one.

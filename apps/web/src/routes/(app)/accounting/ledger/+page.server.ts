@@ -6,6 +6,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { parseLedgerFilters } from "$lib/server/accounting/report_filters"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /** /accounting/ledger — the journal, and whether it balances. */
@@ -17,7 +18,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 
   const filters = parseLedgerFilters(url)
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const [entries, total] = await Promise.all([

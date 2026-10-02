@@ -22,6 +22,13 @@
   let addingEmail = $state(false)
   let registering = $state(false)
   let buying = $state(false)
+  // One token per opening of the buy dialog, sent as Bird's idempotency key:
+  // a double submit, or a retry after a timeout, buys one number, not two.
+  let orderToken = $state("")
+  function openBuy() {
+    orderToken = crypto.randomUUID()
+    buying = true
+  }
   let addingOptOut = $state(false)
 
   const endpointActions = (e: (typeof data.endpoints)[number]): RowAction[] =>
@@ -116,7 +123,7 @@
         </button>
         <button
           class="btn btn-primary btn-sm gap-2"
-          onclick={() => (buying = true)}
+          onclick={openBuy}
           disabled={!data.providerConfigured}
           title={data.providerConfigured
             ? undefined
@@ -437,6 +444,7 @@
               name="country_code"
               value={form.searchedCountry}
             />
+            <input type="hidden" name="order_token" value={orderToken} />
             <fieldset class="fieldset">
               <legend class="fieldset-legend">Number</legend>
               <select

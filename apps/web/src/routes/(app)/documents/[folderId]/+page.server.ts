@@ -16,6 +16,7 @@ import { constraintFailure } from "$lib/server/db/constraints"
 import { uploadDocument, UploadRefused } from "$lib/server/documents/upload"
 import * as audit from "$lib/server/audit/audit.repo"
 
+import { pageParam } from "$lib/server/db/paged"
 const FOLDER_PAGE_SIZE = 24
 
 /** /documents/[folderId] — one folder: breadcrumb, subfolders, its files, and (owner/admin) the share panel. */
@@ -24,8 +25,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   const ctx = contextFrom(locals)
   requireCan(ctx, "document.read")
 
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
-  const folderPage = Math.max(1, Number(url.searchParams.get("fpage")) || 1)
+  const page = pageParam(url)
+  const folderPage = pageParam(url, "fpage")
 
   return withTenant(actorFrom(locals), async (tx) => {
     const folder = await documents.folder(tx, params.folderId)

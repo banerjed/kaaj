@@ -15,6 +15,7 @@ import {
   requireCan,
 } from "$lib/server/auth/can"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /** /time-off — module-hr.md. Shows the approval queue and the signed-in employee's own balances. */
@@ -23,7 +24,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const userId = locals.user?.id
 
   const status = url.searchParams.get("status") ?? ""
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   // tenant_users stays in the control-plane database regardless of tier
   // (ADR-009) — a dedicated tenant's own database never has these rows.

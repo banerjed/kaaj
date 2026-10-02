@@ -11,6 +11,7 @@ import { sendTemplatedEmail } from "$lib/mailer"
 import { constraintFailure } from "$lib/server/db/constraints"
 import { money, calendarDate, localeForCurrency } from "$lib/format"
 import { env } from "$env/dynamic/private"
+import { pageParam } from "$lib/server/db/paged"
 
 // "viewed" has no equivalent in accounting.repo.ts's INVOICE_STATUSES — a
 // pre-existing divergence, left alone; "credited" and "written_off" are
@@ -42,7 +43,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", STATUSES) ?? ""
   const overdueOnly = url.searchParams.get("overdue") === "1"
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const [invoices, total] = await Promise.all([

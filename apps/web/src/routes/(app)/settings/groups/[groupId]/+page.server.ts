@@ -7,6 +7,7 @@ import { FormReader } from "$lib/server/forms"
 import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import * as audit from "$lib/server/audit/audit.repo"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 50
 
 /** /settings/groups/[groupId] — membership for one group. */
@@ -14,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "it.groups.read")
 
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const group = await groups.groupById(tx, params.groupId)

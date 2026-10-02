@@ -4,12 +4,13 @@ import * as ticketing from "$lib/server/ticketing/ticketing.repo"
 import { TICKET_STATUSES } from "$lib/server/ticketing/ticketing.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { FormReader, uuidParam } from "$lib/server/forms"
 import {
   employeeLabels,
   pickerQuery,
   searchEmployees,
 } from "$lib/server/pickers"
+import { pageParam } from "$lib/server/db/paged"
 
 const PAGE_SIZE = 20
 
@@ -36,12 +37,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
   const f = new FormReader(params)
   const status = f.choice("status", TICKET_STATUSES) ?? ""
-  const businessAreaId = url.searchParams.get("business_area") || undefined
-  const categoryId = url.searchParams.get("category") || undefined
-  const subcategoryId = url.searchParams.get("subcategory") || undefined
-  const loggerId = url.searchParams.get("logger") || undefined
-  const assigneeId = url.searchParams.get("assignee") || undefined
-  const subscriberId = url.searchParams.get("subscriber") || undefined
+  // Each of these reaches a `::uuid` cast; a crafted value is a 500, not an
+  // empty filter, unless it is screened here (L37).
+  const businessAreaId =
+    uuidParam(url.searchParams.get("business_area")) ?? undefined
+  const categoryId = uuidParam(url.searchParams.get("category")) ?? undefined
+  const subcategoryId =
+    uuidParam(url.searchParams.get("subcategory")) ?? undefined
+  const loggerId = uuidParam(url.searchParams.get("logger")) ?? undefined
+  const assigneeId = uuidParam(url.searchParams.get("assignee")) ?? undefined
+  const subscriberId =
+    uuidParam(url.searchParams.get("subscriber")) ?? undefined
   const search = url.searchParams.get("q") || undefined
 
   // Nothing is queried until at least one filter is set — at tens of
@@ -58,7 +64,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     search,
   )
 
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   const readsAll = can(ctx, "ticketing.read.all")
 

@@ -1,6 +1,7 @@
 ---
 paths:
   - "apps/web/src/routes/**/*.server.ts"
+  - "apps/web/src/routes/**/+server.ts"
   - "apps/web/src/routes/**/*.svelte"
   - "apps/web/src/lib/server/forms.ts"
   - "apps/web/src/lib/form-*.ts"

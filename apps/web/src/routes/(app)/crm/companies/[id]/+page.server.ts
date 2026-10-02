@@ -17,6 +17,7 @@ import {
   readCustomFieldValues,
 } from "$lib/server/custom-fields/read-values"
 
+import { pageParam } from "$lib/server/db/paged"
 const SCOPE = { entityType: "company" } as const
 
 const ACTIVITY_PAGE_SIZE = 10
@@ -35,7 +36,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   // "Load more" grows the feed; a page never holds more than 100 rows.
   const activityPages = Math.min(
     100 / ACTIVITY_PAGE_SIZE,
-    Math.max(1, Number(url.searchParams.get("activities")) || 1),
+    pageParam(url, "activities"),
   )
   const activityLimit = activityPages * ACTIVITY_PAGE_SIZE
 

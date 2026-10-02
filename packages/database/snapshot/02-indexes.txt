@@ -125,6 +125,8 @@ custom_field_values	idx_custom_field_values_task	CREATE INDEX idx_custom_field_v
 custom_field_values	idx_custom_field_values_ticket	CREATE INDEX idx_custom_field_values_ticket ON public.custom_field_values USING btree (tenant_id, ticket_id) WHERE (ticket_id IS NOT NULL)
 customer_contacts	customer_contacts_pkey	CREATE UNIQUE INDEX customer_contacts_pkey ON public.customer_contacts USING btree (id)
 customer_contacts	customer_contacts_tenant_id_email_key	CREATE UNIQUE INDEX customer_contacts_tenant_id_email_key ON public.customer_contacts USING btree (tenant_id, email)
+customer_contacts	idx_customer_contacts_email_lower	CREATE INDEX idx_customer_contacts_email_lower ON public.customer_contacts USING btree (tenant_id, lower((email)::text)) WHERE is_active
+customer_contacts	idx_customer_contacts_phone_digits	CREATE INDEX idx_customer_contacts_phone_digits ON public.customer_contacts USING btree (tenant_id, regexp_replace((COALESCE(phone, ''::character varying))::text, '[^0-9+]'::text, ''::text, 'g'::text)) WHERE is_active
 customer_contacts	idx_customer_contacts_tenant_customer	CREATE INDEX idx_customer_contacts_tenant_customer ON public.customer_contacts USING btree (tenant_id, customer_id)
 customer_contacts	uq_customer_contacts_tenant_id_id	CREATE UNIQUE INDEX uq_customer_contacts_tenant_id_id ON public.customer_contacts USING btree (tenant_id, id)
 customers	customers_pkey	CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)

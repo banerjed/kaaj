@@ -15,6 +15,7 @@ import {
   searchObjectives,
 } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+import { pageParam } from "$lib/server/db/paged"
 
 // Vocabulary comes from the repository — two copies of a text-column list would drift (L57).
 const {
@@ -46,7 +47,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", STATUSES) ?? ""
   const health = f.choice("health", HEALTHS) ?? ""
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
     projects: await projects.list(

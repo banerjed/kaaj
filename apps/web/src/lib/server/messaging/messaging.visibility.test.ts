@@ -4,7 +4,7 @@ import { can, type AuthContext } from "../auth/can"
 
 /**
  * Who the database lets read and write messaging rows — asserted directly
- * as app_user, as the refused actor AND the permitted one (docs/37 §3). A
+ * as app_user, as the refused actor AND the permitted one (docs/38 §3). A
  * policy that admits nobody blanks the inbox rather than erroring (L21), so
  * the permitted half matters as much as the refused half.
  */

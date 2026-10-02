@@ -9,6 +9,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /** /accounting/banking — accounts, and the transactions still to reconcile. */
@@ -28,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const accountId = f.uuid("account")
   const status = f.choice("status", BANK_TRANSACTION_STATUSES) ?? ""
   if (!f.ok) error(400, "That is not a valid account.")
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const filters = { accountId: accountId ?? "", status }

@@ -7,6 +7,7 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, uuidParam } from "$lib/server/forms"
 import { pickerQuery, searchCustomers } from "$lib/server/pickers"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /** The "shared contact database" view — every contact, across every client. */
@@ -17,7 +18,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const search = url.searchParams.get("q") ?? ""
   const customerId = uuidParam(url.searchParams.get("company")) ?? ""
   const department = url.searchParams.get("dept") ?? ""
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const [result, departmentOptions, selectedCompany] = await Promise.all([

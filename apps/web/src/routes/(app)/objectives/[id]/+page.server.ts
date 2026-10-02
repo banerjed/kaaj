@@ -21,6 +21,7 @@ const PAGE_SIZE = 25
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  requireCan(ctx, "projects.read")
   const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {

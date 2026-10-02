@@ -11,6 +11,7 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, uuidParam } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageParam } from "$lib/server/db/paged"
 
 /**
  * `crm_deals` is SCALE_SENSITIVE — one row per potential sale, forever — so
@@ -28,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   // One column paged at a time: the URL carries which stage, and which page.
   const pageStageId = uuidParam(url.searchParams.get("stage"))
-  const stagePage = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const stagePage = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const stages = await pipelineStages.list(tx)

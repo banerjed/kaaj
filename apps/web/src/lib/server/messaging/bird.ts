@@ -69,8 +69,11 @@ export type MessagingProvider = {
     countryCode: string
     numberType?: string
   }): Promise<AvailableNumber[]>
-  orderNumber(number: string): Promise<NumberOrder>
+  /** `idempotencyKey` is the form's own token: a double submit buys one number, not two. */
+  orderNumber(number: string, idempotencyKey: string): Promise<NumberOrder>
 }
+
+const REQUEST_TIMEOUT_MS = 15_000
 
 const HOSTS: Record<string, string> = {
   eu1: "https://eu1.platform.bird.com",
@@ -112,10 +115,14 @@ export function birdProvider(
     }
     if (init.body !== undefined) headers["Content-Type"] = "application/json"
     if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey
+    // A carrier that stops answering must not hold a request, or the
+    // webhook, open: the caller already treats a thrown fetch as a failed
+    // send with a reason.
     const res = await fetchImpl(`${host}${path}`, {
       method: init.method,
       headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     let json: unknown = null
     try {
@@ -252,11 +259,12 @@ export function birdProvider(
       }
     },
 
-    async orderNumber(number) {
+    async orderNumber(number, idempotencyKey) {
       if (!config.apiKey) return { ordered: false, reason: "not_configured" }
       try {
         const r = await call("/v1/numbers/orders", {
           method: "POST",
+          idempotencyKey,
           body: { number },
         })
         const order = r.json as {

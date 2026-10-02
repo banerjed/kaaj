@@ -1,6 +1,7 @@
 ---
 paths:
   - "apps/web/src/routes/**/*.server.ts"
+  - "apps/web/src/routes/**/+server.ts"
   - "apps/web/src/lib/server/**"
   - "apps/web/src/hooks.server.ts"
   - "supabase/migrations/**"

@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit"
 import type { PageServerLoad } from "./$types"
 import * as attendance from "$lib/server/hr/hr_attendance.repo"
-import { countCap } from "$lib/server/db/paged"
+import { countCap, pageParam } from "$lib/server/db/paged"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { FormReader } from "$lib/server/forms"
 
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const to = f.date("to")
   const status = f.choice("status", STATUSES) ?? ""
   const employeeId = f.uuid("employee")
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const queryFilters = {

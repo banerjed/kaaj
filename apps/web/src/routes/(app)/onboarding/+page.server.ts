@@ -4,6 +4,7 @@ import * as onboarding from "$lib/server/hr/hr_onboarding.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom } from "$lib/server/auth/can"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /**
@@ -15,7 +16,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const ctx = contextFrom(locals)
   const readsAll = can(ctx, "employee.read.all")
   const me = ctx?.employeeId ?? null
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     if (readsAll) {

@@ -2,7 +2,7 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as entries from "$lib/server/time-tracking/time_tracking_entries.repo"
 import { TimeEntryWriteRefused } from "$lib/server/time-tracking/time_tracking_entries.repo"
-import { countCap } from "$lib/server/db/paged"
+import { countCap, pageParam } from "$lib/server/db/paged"
 import { withTenant, withControlPlane, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const status = url.searchParams.get("status") ?? ""
   const mineOnly = url.searchParams.get("mine") === "1"
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
   // Arriving from a project's "Log time" link — pre-fills the create modal,
   // never trusted beyond that: the create action re-validates both as real
   // uuids the same as any other submission.

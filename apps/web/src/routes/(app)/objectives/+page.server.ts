@@ -17,14 +17,16 @@ import { pageOf, pageParam } from "$lib/server/db/paged"
 const { OBJECTIVE_TYPES, OBJECTIVE_STATUSES } = objectives
 
 /**
- * /objectives — the strategic layer over projects. No read gate, matching
- * /projects: an objective is firm business, every employee may see it.
+ * /objectives — the strategic layer over projects. The same module gate as
+ * /projects (`projects.read`, held by every staff role and by no portal
+ * contact): an objective is firm business, every employee may see it.
  */
 const PAGE_SIZE = 25
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  requireCan(ctx, "projects.read")
   const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({

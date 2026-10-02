@@ -4,9 +4,20 @@ import type { Tx } from "./tenant"
 export type Page = { limit: number; offset: number }
 export type Paged<T> = { rows: T[]; total: number }
 
-/** `?<param>=n` as a page; anything else is page 1. */
+/** No list is deeper than this; past it, `OFFSET` is a scan with nothing to show. */
+export const MAX_PAGE = 100_000
+
+/**
+ * `?<param>=n` as a page: a positive integer, at most MAX_PAGE; anything
+ * else is page 1. A query string is as crafted as a form body (L37): `1.5`,
+ * `1e400` and `99999999999999999999` all pass `Number()` and are then refused
+ * by the `LIMIT`/`OFFSET` cast as "invalid input syntax for type bigint" —
+ * an Internal Error, not an empty page. Only a run of digits gets through.
+ */
 export function pageParam(url: URL, param = "page"): number {
-  return Math.max(1, Math.floor(Number(url.searchParams.get(param))) || 1)
+  const raw = url.searchParams.get(param)
+  if (!raw || !/^\d{1,6}$/.test(raw)) return 1
+  return Math.min(MAX_PAGE, Math.max(1, Number(raw)))
 }
 
 export function pageOf(page: number, size: number): Page {

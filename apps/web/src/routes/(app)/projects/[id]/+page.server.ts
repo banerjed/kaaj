@@ -28,6 +28,7 @@ import {
 } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
+import { pageParam } from "$lib/server/db/paged"
 const {
   TASK_STATUSES,
   TASK_PRIORITIES,
@@ -45,7 +46,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   // identity, not this module (L79). Which projects are then visible is
   // `project_visibility` RLS, not this check.
   requireCan(ctx, "projects.read")
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
   const pageSize = projects.TASK_PAGE_SIZE
 
   return withTenant(actorFrom(locals), async (tx) => {

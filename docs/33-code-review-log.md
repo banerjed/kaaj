@@ -54,7 +54,19 @@ maintainer's call.
 | 2026-10-02 | `148f3ef` (main) + `8d31cd0` (branch `messaging`) | `3d9a5d8..148f3ef` and `148f3ef..8d31cd0` | 60 commits on main (perf tenant, every page paged, pickers, daily ledger balances, accounting conformance suite, payroll export) + 2 on the branch (Bird messaging, mailer off Resend); 505 + 97 files | 0 critical, 4 high (inbound mail over a column width is a 500 Bird retries then drops; perf tooling plants known-password users wherever `DATABASE_URL` points; page numbers from the query string reach `LIMIT`/`OFFSET` unbounded on 14 pages; raw `::uuid` casts on documents/ticketing filters), 9 medium, ~15 low. Payroll export and the pagination sweep reviewed by subagents; accounting ledger, conformance suite, messaging and the docs restructure reviewed by hand after the subagents for those areas hit the session rate limit — depth there is correspondingly lower, and the conformance scenarios were sampled, not read. Nothing remediated yet. |
 | 2026-10-01 | `3d9a5d8` | `ec606a5..3d9a5d8` | 18 commits, 137 files (+7,472 / −2,995): enterprise SSO, custom fields consolidation, portal off, row actions, CRM person accounts, pipeline paging | 1 critical (live 500 on a uuid query param), 2 high (unpaged SCALE_SENSITIVE reads; money summed in JS and across currencies), 4 medium. Remediated in the follow-up commit; `projects.read` left open as a decision (see below). L112 and L113 written. |
 
-### Open from the 2026-10-02 review
+### From the 2026-10-02 review
+
+Remediated on branch `messaging`, in the commit after the merge of main:
+every high item; of the medium items, the Bird timeout, the number-order
+idempotency key, the contact lookup indexes (`20261003110000`), the
+`+server.ts` rule globs, the objectives read guard, the payroll write-policy
+test, the merge itself (with the design doc renumbered to 38 and budgets
+recorded for the new pages), and the check-step counts. The `/payroll/export`
+whole-period read is now a named exception in performance.md rather than
+redesigned. **Still open:** the fixture has no hourly employee — adding one
+moves row counts that dozens of tests assert exactly, so it is its own
+change; and `/messaging/[id]` has no perf budget because the perf tenant
+has no messaging rows to open (a generator step for `messaging_*`).
 
 High:
 

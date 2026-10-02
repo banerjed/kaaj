@@ -10,6 +10,7 @@ import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
+import { pageParam } from "$lib/server/db/paged"
 const PAGE_SIZE = 20
 
 /** The `payment_method` enum, which `enumValue` reads from @kaaj/enums —
@@ -35,7 +36,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const f = new FormReader(params)
   const status = f.choice("status", BILL_STATUSES) ?? ""
   const unapprovedOnly = url.searchParams.get("unapproved") === "1"
-  const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const [bills, total] = await Promise.all([

@@ -16,7 +16,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 
 /**
  * /settings/messaging — the firm's numbers and inbound addresses, and the
- * people who asked not to be contacted (docs/37-messaging.md §3).
+ * people who asked not to be contacted (docs/38-messaging.md §3).
  * Endpoints change what the public can reach and cost money, so they are
  * the account admins' (tenant.settings.write); opt-outs are part of
  * messaging itself (messaging.write).
@@ -192,13 +192,19 @@ export const actions: Actions = {
     const rawNumber = f.text("number", { required: true, max: ADDRESS_MAX })
     const label = f.text("label", { required: true, max: LABEL_MAX })
     const countryCode = f.text("country_code", { required: true, max: 2 })
+    // The dialog's own token, minted when it opened — Bird's idempotency key
+    // for the order, so a double submit buys one number.
+    const orderToken = f.uuid("order_token", { required: true })
     const number = rawNumber && messaging.normalizePhone(rawNumber)
     if (rawNumber && !number) f.reject("number")
     if (countryCode && !/^[A-Za-z]{2}$/.test(countryCode))
       f.reject("country_code")
     if (!f.ok) return fail(400, f.problem())
 
-    const order = await birdProvider().orderNumber(number!)
+    const order = await birdProvider().orderNumber(
+      number!,
+      `order-${orderToken!}`,
+    )
     if (!order.ordered) {
       return fail(400, {
         message:
