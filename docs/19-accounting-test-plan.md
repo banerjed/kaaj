@@ -208,7 +208,7 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
   *`payables.test.ts:135` ("never returns an account number in any form") is a direct, deliberate masking test.*
 
 ### 2.4 Fixed Assets — **[MISSING]**, entirely
-*No table, no code, no test. `rg -il 'fixed.asset|depreciation'` across `apps/web/src` and `packages` finds nothing. Confirmed as explicitly deferred in both `module-accounting.md`'s Future Enhancements and `accounting-gap-analysis.md` Enhancement #19 — a product decision, not a testing oversight.*
+*No table, no code, no test. `rg -il 'fixed.asset|depreciation'` across `apps/web/src` and `packages` finds nothing. Confirmed as explicitly deferred in both `module-accounting.md`'s Future Enhancements and `36-accounting-gap-analysis.md` Enhancement #19 — a product decision, not a testing oversight.*
 
 ### 2.5 Inventory / COGS — **[MISSING]**, entirely
 *No table, no code, no test. Same status as Fixed Assets — deferred by product decision (Gap #4 / Phase 2 in the same docs).*
@@ -233,7 +233,7 @@ Additionally, and beyond the original taxonomy — **segregation of duties on bi
 *`/accounting/fx-revaluation` (`fx_revaluation.repo.ts`) reports unrealized gain/loss on open foreign-currency invoices/bills as of a chosen date — a real, read-only page, not a stub. It does not post anything: see `module-accounting.md`'s Tier 7 entry for why a non-reversing adjustment would double-count against §3.2's settlement recognition. Bank account balances are NOT covered — a bank account carries no per-account booking rate to revalue against, unlike an invoice/bill's own stored `exchange_rate`. `fx_revaluation.test.ts` covers the query against the real database: a real GBP invoice's gain, the no-rate-on-file case, a bill's opposite-direction loss (temporarily converted to GBP within a rollback, same technique as `payables.writes.test.ts`'s settlement tests), and that a USD document never appears. `apps/web/e2e/smoke.spec.ts` separately asserts the page itself renders.*
 
 ### 3.4 Multi-entity / consolidation — **[MISSING]**, entirely
-*Kaaj is single-entity-per-tenant today (`accounting-gap-analysis.md` Enhancement #13). No schema, code, or test.*
+*Kaaj is single-entity-per-tenant today (`36-accounting-gap-analysis.md` Enhancement #13). No schema, code, or test.*
 
 ---
 
@@ -365,7 +365,7 @@ cancellation, no account-type validation).
 
 This remains a genuine specification gap in `module-accounting.md` itself
 for having gone unnamed for so long, not an implementation gap any more:
-recurring invoices were Enhancement #7 in `accounting-gap-analysis.md`, and
+recurring invoices were Enhancement #7 in `36-accounting-gap-analysis.md`, and
 accruals/deferrals were named only in this test plan before 2026-09-20 —
 both are now built.
 
@@ -474,4 +474,4 @@ building a new module:
 Fixed assets, inventory, multi-entity consolidation, budgeting, and recurring
 transactions/accruals are larger, genuinely unbuilt modules rather than test
 gaps in existing code — those are product decisions (see
-`accounting-gap-analysis.md`) more than testing ones.
+`36-accounting-gap-analysis.md`) more than testing ones.

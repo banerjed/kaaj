@@ -444,7 +444,7 @@ section overrides it.
 ## Domain operations harvested from the module specifications
 
 271 distinct endpoint declarations were found across **every** `.md` in
-`docs/` — not a curated subset, because `accounting-gap-analysis.md` carries ten that a
+`docs/` — not a curated subset, because `36-accounting-gap-analysis.md` carries ten that a
 `module-*` filter would have missed. They arrive in two
 conventions (`/api/v1/x/{id}` and `/api/x/:id`) which are normalised here to one.
 84 collapse into the plain CRUD above. The **186** below do not —

@@ -462,7 +462,7 @@ In that positioning, the best next specification work is:
 - [Change Requests Module](./module-change-requests.md)
 - [Marketing Module](./module-marketing.md)
 - [Accounting Module](./module-accounting.md)
-- [Accounting Gap Analysis](./accounting-gap-analysis.md)
+- [Accounting Gap Analysis](./36-accounting-gap-analysis.md)
 - [Module Roadmap](./11-module-roadmap.md)
 
 ### External References

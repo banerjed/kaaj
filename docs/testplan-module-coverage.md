@@ -215,7 +215,7 @@ High-value negative tests:
 Spec authorities:
 
 - `module-accounting.md`
-- `accounting-gap-analysis.md`
+- `36-accounting-gap-analysis.md`
 - `module-time-tracking.md`
 - `service-provider-modules-overview.md`
 

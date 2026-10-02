@@ -1,18 +1,66 @@
 # Accounting Module - Small Business Gap Analysis & Enhancement Plan
 
-**Version:** 1.0
-**Date:** December 3, 2025
-**Status:** Review Document
+**Version:** 2.0
+**Date:** 2026-10-02 (v1.0 was 2025-12-03)
+**Status:** Review Document, re-verified against the implementation
 
 ---
 
 ## Executive Summary
 
+**What changed in v2.0.** Version 1.0 compared the accounting module's *specification* with what small businesses need. This version compares the *implementation* — the code at commit `843a0ff` on 2026-10-02 — with the same list, and adds what the accounting conformance suite ([34-accounting-conformance-spec-V1.md](./34-accounting-conformance-spec-V1.md)) found inside the accounting engine itself. Every "Current State" below was rewritten from the code, not from the spec. The proposed solutions, business impact and effort estimates of v1.0 are kept as written; they are a product view and were not re-estimated.
+
+**Status of the 37 items**: 1 built, 14 partly built, 21 not built, 1 built then switched off.
+
+| Item | Title | Status 2026-10-02 |
+|---|---|---|
+| Gap #1 | Advanced Cash Flow Management | PARTLY BUILT |
+| Gap #2 | Guided Setup & Onboarding for Non-Accountants | NOT BUILT |
+| Gap #3 | AI-Powered Insights & Recommendations | NOT BUILT |
+| Gap #4 | Inventory Management | NOT BUILT |
+| Gap #5 | Purchase Orders & Procurement | NOT BUILT |
+| Gap #6 | Quote/Estimate Management | NOT BUILT |
+| Gap #7 | Time Tracking & Billable Hours | PARTLY BUILT |
+| Gap #8 | Project/Job Costing | PARTLY BUILT |
+| Gap #9 | Sales Order Management | NOT BUILT |
+| Gap #10 | Enhanced Mileage Tracking | NOT BUILT |
+| Gap #11 | Document Management System | PARTLY BUILT |
+| Gap #12 | Accountant Collaboration Portal | NOT BUILT |
+| Gap #13 | Smart Alerts & Notification System | PARTLY BUILT |
+| Gap #14 | Mobile-First Experience | PARTLY BUILT |
+| Gap #15 | Simplified Bookkeeping Mode | NOT BUILT |
+| Enhancement #1 | Improved Dashboard Customization | NOT BUILT |
+| Enhancement #2 | Advanced Payment Terms Management | NOT BUILT |
+| Enhancement #3 | Customer Portal Enhancements | SWITCHED OFF |
+| Enhancement #4 | Vendor Portal | NOT BUILT |
+| Enhancement #5 | Approval Workflows | PARTLY BUILT |
+| Enhancement #6 | Budget Management | NOT BUILT |
+| Enhancement #7 | Advanced Recurring Transactions | PARTLY BUILT |
+| Enhancement #8 | Batch Operations | PARTLY BUILT |
+| Enhancement #9 | Advanced Search & Filtering | PARTLY BUILT |
+| Enhancement #10 | Credit Management | PARTLY BUILT |
+| Enhancement #11 | Advanced Tax Features | PARTLY BUILT |
+| Enhancement #12 | Industry-Specific Features | NOT BUILT |
+| Enhancement #13 | Multi-Entity Accounting | NOT BUILT |
+| Enhancement #14 | Advanced Reporting Features | PARTLY BUILT |
+| Enhancement #15 | Audit & Compliance Tools | BUILT |
+| Enhancement #16 | Integration Marketplace | PARTLY BUILT |
+| Enhancement #17 | Performance Benchmarking | NOT BUILT |
+| Enhancement #18 | Subscription Management | NOT BUILT |
+| Enhancement #19 | Fixed Asset Management | NOT BUILT |
+| Enhancement #20 | Class/Division Tracking | NOT BUILT |
+| Enhancement #21 | White-Label/Reseller Features | NOT BUILT |
+| Enhancement #22 | Environmental, Social, Governance | NOT BUILT |
+
+### Inside the engine: what the conformance suite shows is not built
+
+The list above is about product features. Underneath them, the conformance suite found nine accounting capabilities the engine lacks, each with the scenarios it blocks: inventory, fixed assets, deferred revenue, reversing a posted journal, money received without an invoice (deposits, overpayments, prepayments, reallocation), refunds, statement-level bank reconciliation, posting a foreign-currency revaluation, and an idempotency key for duplicate requests. They are listed in plain words in [11-module-roadmap.md](./11-module-roadmap.md) ("Accounting — what the conformance suite shows is NOT built") and grouped by scenario in section 32.3 of the spec. The same suite found 19 scenarios where the engine does something other than the spec requires; those are defects, not gaps, and section 32.1 of the spec lists each with its cause.
+
 This document provides a comprehensive gap analysis of the current Accounting Module specification against the specific needs and pain points of small businesses (10-50 employees). Based on industry research and analysis of leading platforms like QuickBooks and Xero, we've identified **15 critical gaps** and **22 enhancement opportunities** that will significantly improve the module's value proposition for small business customers.
 
-### Key Findings
+### Key Findings (v1.0, unchanged)
 
-**Critical Missing Features:**
+**Critical Missing Features as identified in v1.0:**
 1. Cash flow management and forecasting tools (82% of business failures due to poor cash flow)
 2. Guided setup and onboarding for non-accountants
 3. AI-powered insights and recommendations
@@ -59,11 +107,10 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: 82% of small business failures are due to poor cash flow management. Current spec only includes basic 30-day forecast.
 
-**Current State**:
-- US-ACC-017: Basic 30-day cash flow projection
-- No cash flow monitoring or alerts
-- No scenario planning
-- No payment term optimization
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- `/accounting/cash-flow` is a cash-flow **statement** for a chosen period (`cashFlowStatement`, `cashFlowTotals`): beginning cash, net income, working-capital change, operating, investing and financing flows, net change. Historical only.
+- No forecast, projection, threshold, alert or scenario exists. `module-accounting.md` US-ACC-017 is still MISSING.
+- Payment-term optimisation: not built. `customers.payment_terms` is a stored label.
 
 **Required Enhancements**:
 1. **Real-Time Cash Flow Dashboard**:
@@ -105,11 +152,10 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: 40% of small business owners say accounting/bookkeeping is the worst part of owning a business. Current spec assumes accounting knowledge.
 
-**Current State**:
-- No guided setup wizard
-- No accounting education/tutorials
-- Technical accounting terminology throughout
-- Assumes user understands debits/credits
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- No tenant setup wizard. `/onboarding` is HR employee onboarding, not accounting setup.
+- No route creates or edits the chart of accounts; the chart comes from the fixture or a migration.
+- Terminology is unchanged: journal entries, debits and credits, trial balance.
 
 **Required Enhancements**:
 1. **Intelligent Onboarding Wizard**:
@@ -175,11 +221,8 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Small businesses need proactive financial guidance. Current spec is passive.
 
-**Current State**:
-- Static reports only
-- No insights or recommendations
-- User must interpret data manually
-- No predictive analytics
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- Reports are static. No insight, anomaly, recommendation or prediction code exists anywhere in `apps/web/src`.
 
 **Required Enhancements**:
 1. **AI Financial Assistant**:
@@ -227,11 +270,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Product-based businesses need inventory tracking. Current spec has no inventory features.
 
-**Current State**:
-- No inventory tracking mentioned
-- No COGS calculation for inventory
-- No stock level monitoring
-- No purchase orders
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- No inventory table, movement, warehouse, cost layer or COGS posting. The conformance suite reports every `INV-*` scenario `NOT_IMPLEMENTED` (`docs/34`, section 32.3).
+- The chart carries an Inventory account (1210) that nothing feeds.
 
 **Required Enhancements**:
 1. **Basic Inventory (Phase 1)**:
@@ -268,10 +309,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: No purchase order functionality means no way to track ordered inventory or services before bills arrive.
 
-**Current State**:
-- Bills can be entered, but no PO workflow
-- No three-way matching (PO → Receipt → Bill)
-- No approval workflow for purchases
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- Bills exist (`/accounting/bills/new`, `createBill`, `approveBill`) with one approval step and a rule that the approver may not also pay (`self_approval`).
+- No purchase order, no goods receipt, no three-way match, no multi-step purchase approval.
 
 **Required Enhancements**:
 1. **Purchase Order Management**:
@@ -311,10 +351,8 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Sales cycle starts with quotes, not invoices. No quote management in current spec.
 
-**Current State**:
-- Only invoices, no quotes/estimates
-- No way to convert quote to invoice
-- No quote tracking or analytics
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- CRM has deals and a pipeline (`/crm/deals`, `/crm/pipeline`) with a deal value, but no quote or estimate document, no quote-to-invoice conversion, no quote analytics.
 
 **Required Enhancements**:
 1. **Quote/Estimate Creation**:
@@ -357,11 +395,10 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Service businesses need to track time and bill by hour. Current spec has no time tracking.
 
-**Current State**:
-- No time entry functionality
-- No billable hours tracking
-- No time-based invoicing
-- Employee time tracking is in HR module for payroll only
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- Time entries exist with a billable flag (`/time-tracking`, `time_tracking_entries.is_billable`), hourly rates (`time_tracking_hourly_rates`), timesheets, and an approval step that snapshots `billable_amount`.
+- Billable expenses were merged into `expenses` (`is_billable`, `customer_id`, `project_id`, `billable_amount`).
+- No path turns approved time into an invoice: `createInvoice` takes lines typed on the form and reads nothing from time tracking.
 
 **Required Enhancements**:
 1. **Time Entry**:
@@ -400,11 +437,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Many small businesses work on projects and need to track profitability per project.
 
-**Current State**:
-- Tracking categories exist but limited
-- No project-level P&L
-- No budget vs. actual by project
-- No project completion tracking
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- `projects.budget` is stored and shown. No project-level profit and loss, no budget-versus-actual, no cost roll-up from the ledger (`RPT-016` is `NOT_IMPLEMENTED`).
+- `journal_entry_lines.tracking_categories`, `department_id` and `location_id` exist but nothing writes them.
 
 **Required Enhancements**:
 1. **Project Management**:
@@ -444,11 +479,8 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Businesses with fulfillment processes need sales orders between quote and invoice.
 
-**Current State**:
-- Jump directly from quote (if exists) to invoice
-- No order fulfillment tracking
-- No backorder handling
-- No shipping integration
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- No sales order, fulfilment, backorder or shipping code.
 
 **Required Enhancements**:
 1. **Sales Order Creation**:
@@ -486,10 +518,8 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Current spec mentions mileage tracking in expenses but no dedicated features.
 
-**Current State**:
-- Basic mileage field in expenses
-- Manual calculation with rate
-- No trip tracking
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- `expenses.mileage_distance` and `mileage_rate` exist as columns. The expense module has no write path at all (CLAUDE.md: expense tracking is NOT YET IMPLEMENTED), so no mileage is ever recorded.
 
 **Required Enhancements**:
 1. **Mobile Mileage Tracking**:
@@ -519,11 +549,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Small businesses need centralized document storage for all financial documents.
 
-**Current State**:
-- Documents attached to specific records (invoices, bills)
-- No central document repository
-- No document search across all records
-- No document expiration tracking
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- A central documents module exists: `/documents` with folders, folder sharing (`document_folder_shares`), archive and download.
+- Documents are not linked to invoices or bills, there is no expiry tracking on `documents`, and no search across record attachments.
 
 **Required Enhancements**:
 1. **Central Document Library**:
@@ -563,11 +591,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Poor communication with accountants is a common complaint. No dedicated accountant features in current spec.
 
-**Current State**:
-- Generic user roles only
-- No accountant-specific features
-- No communication tools
-- No request/task management
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- An `auditor` functional role exists: reads everything in accounting, writes nothing, and may hold no other role (a CHECK constraint).
+- No accountant-facing portal, request list or messaging. The customer portal is switched off (CLAUDE.md), so there is no external-party surface to extend.
 
 **Required Enhancements**:
 1. **Accountant Portal Access**:
@@ -619,11 +645,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Current spec mentions some automated reminders but lacks comprehensive alert system.
 
-**Current State**:
-- Automated payment reminders for invoices
-- No other proactive alerts
-- No customizable notification preferences
-- No alert prioritization
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- Payment reminders are a manual select-and-send action on `/accounting/invoices` (`invoicesForReminder`), guarded against a second send the same day. No scheduler sends them.
+- No other alert, no notification preferences, no prioritisation.
 
 **Required Enhancements**:
 1. **Financial Health Alerts**:
@@ -679,11 +703,9 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Current spec doesn't emphasize mobile experience. Small business owners are often on-the-go.
 
-**Current State**:
-- "Mobile-responsive web interface" mentioned
-- No native mobile app discussion
-- No mobile-specific features
-- Limited mobile workflows
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**:
+- The shell is responsive (daisyUI, the Nexus template) and every page is checked against the template at each breakpoint.
+- No native app, no offline mode, no camera capture, no mobile-specific workflow.
 
 **Required Enhancements**:
 1. **Mobile App (iOS & Android)**:
@@ -736,11 +758,8 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 **Problem**: Current spec assumes full accounting knowledge. Need simplified mode for micro-businesses.
 
-**Current State**:
-- Full double-entry accounting system
-- Complex chart of accounts
-- Accounting terminology throughout
-- Overwhelming for solopreneurs
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**:
+- Full double-entry throughout. No simplified mode, no hidden-ledger view, no plain-language account names.
 
 **Required Enhancements**:
 1. **Simple Bookkeeping Mode**:
@@ -786,7 +805,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #1: Improved Dashboard Customization
 
-**Current State**: Static dashboard layout
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Static dashboard layout; no per-user widgets.
 
 **Enhancement**:
 - Drag-and-drop widget arrangement
@@ -802,7 +821,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #2: Advanced Payment Terms Management
 
-**Current State**: Simple payment terms (Net 15, Net 30, etc.)
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: `customers.payment_terms` and `vendors.payment_terms` are stored labels (`net_30`); due dates come from the form. No early-payment discount, no late fee, no instalment plan.
 
 **Enhancement**:
 - Complex payment terms (e.g., "2% 10, Net 30")
@@ -818,7 +837,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #3: Customer Portal Enhancements
 
-**Current State**: Basic customer portal for invoice viewing
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **SWITCHED OFF**: A customer portal was built and then switched off (`20260930130000_customer_portal_off.sql`): a contact's sign-in carries no tenant and the `/portal` pages are gone, because portal contacts could read every staff table that had only `tenant_isolation` ([L111](./10-lessons-learned.md)). It stays off until every staff table is closed to them.
 
 **Enhancement**:
 - Customer account dashboard
@@ -838,7 +857,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #4: Vendor Portal
 
-**Current State**: No vendor-facing features
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: No vendor-facing feature.
 
 **Enhancement**:
 - Vendor login access
@@ -857,7 +876,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #5: Approval Workflows (Advanced)
 
-**Current State**: Basic approval for bills and expenses
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: One-step approvals exist where a write needs one: bills (`approveBill`, approver may not pay), time entries and time-off requests (`decide`), payroll runs (calculate, approve, finalize). No configurable chain, no amount thresholds, no delegation.
 
 **Enhancement**:
 - **Workflow Builder**:
@@ -883,7 +902,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #6: Budget Management (Comprehensive)
 
-**Current State**: Not included in initial spec
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Only `projects.budget`. No GL-account budgets, no budget-versus-actual report. (`packages/database/perf/budgets.tsv` is a page-latency budget, not a financial one.)
 
 **Enhancement**:
 - **Budget Creation**:
@@ -914,7 +933,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #7: Advanced Recurring Transactions
 
-**Current State**: Recurring invoices only
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: Recurring invoices only: `/accounting/recurring-invoices`, `createRecurringSchedule`, `generateDueInvoices`, triggered by hand. No recurring bills or journals, no scheduler.
 
 **Enhancement**:
 - Recurring bills
@@ -933,7 +952,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #8: Batch Operations
 
-**Current State**: Limited bulk operations
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: Pay selected bills in one batch (`payBillsInBatch`, one payment per vendor), one receipt across several invoices (`recordLockboxPayment`, `/accounting/receive-payment`), bulk reminders. No bulk edit, no bulk categorisation, no bulk export beyond a report's CSV.
 
 **Enhancement**:
 - Bulk invoice send
@@ -951,7 +970,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #9: Advanced Search & Filtering
 
-**Current State**: Basic search and filters
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: A site-wide search index is built at build time (`lib/build_index`), and every list page has its own filters, paged at 20 to 50 rows. No saved searches, no cross-record advanced query.
 
 **Enhancement**:
 - **Global Search**:
@@ -976,7 +995,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #10: Credit Management
 
-**Current State**: Basic credit limit per customer
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: `customers.credit_limit` is stored and shown on `/accounting/customer-balances`. Nothing enforces it, and there is no credit hold or scoring.
 
 **Enhancement**:
 - Credit application workflow
@@ -995,7 +1014,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #11: Advanced Tax Features
 
-**Current State**: Basic tax calculation
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: Several rates per tenant (`/accounting/tax-rates`), one GL tax line per rate on an invoice or bill, a reverse-charge flag, customer exemption with an expiry date, and a tax summary report. No automatic rate lookup by address, no filing or remittance, no tax-inclusive pricing support in the engine (the form supplies the tax amount).
 
 **Enhancement**:
 - Tax planning tools
@@ -1015,7 +1034,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #12: Industry-Specific Features
 
-**Current State**: Generic accounting
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Generic accounting; no industry template.
 
 **Enhancement**:
 - **Industry Templates**:
@@ -1056,7 +1075,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #13: Multi-Entity Accounting
 
-**Current State**: Single entity per tenant
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: One legal entity per tenant. ADR-009's dedicated-database tier isolates a tenant; it does not consolidate several.
 
 **Enhancement**:
 - Multiple legal entities per tenant
@@ -1073,7 +1092,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #14: Advanced Reporting Features
 
-**Current State**: Standard financial reports
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: Trial balance, balance sheet, profit and loss, cash flow, equity statement, AR aging, AP due-soon, customer balances, tax summary, FX revaluation, with period comparison and CSV export (no PDF, by decision). No custom report builder, no scheduled delivery.
 
 **Enhancement**:
 - **Report Designer**:
@@ -1105,7 +1124,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #15: Audit & Compliance Tools
 
-**Current State**: Basic audit trail
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **BUILT**: `audit_log` is insert-only, every write is classified in `audit/register.ts` and `./check` fails on one that is not; the log carries its own row visibility; posted journal entries are immutable through row-level security. No compliance pack or external attestation export.
 
 **Enhancement**:
 - Compliance dashboard
@@ -1125,7 +1144,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #16: Integration Marketplace
 
-**Current State**: Fixed integrations (Stripe, Plaid, etc.)
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **PARTLY BUILT**: Stripe, bring-your-own-key, with manual reconciliation (`/accounting/payment-gateway`); CSV and OFX statement import with saved column mappings (`/accounting/banking/import`). No Plaid or other bank feed (`bank_accounts.feed_provider` is unused), no marketplace.
 
 **Enhancement**:
 - Integration marketplace/app store
@@ -1147,7 +1166,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #17: Performance Benchmarking
 
-**Current State**: No benchmarking
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: No benchmarking.
 
 **Enhancement**:
 - Industry benchmark comparison
@@ -1164,7 +1183,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #18: Subscription Management
 
-**Current State**: Recurring invoices only
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Recurring invoices only; no subscription object, plan, proration or dunning.
 
 **Enhancement**:
 - Subscription plans and tiers
@@ -1183,7 +1202,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #19: Fixed Asset Management (Advanced)
 
-**Current State**: Not included
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: No fixed-asset register, depreciation or disposal; every `FA-*` conformance scenario is `NOT_IMPLEMENTED`.
 
 **Enhancement**:
 - Asset register
@@ -1203,7 +1222,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #20: Class/Division Tracking
 
-**Current State**: Basic tracking categories
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: `tracking_categories`, `department_id` and `location_id` exist on journal lines, invoice lines and bill lines; nothing reads or writes them.
 
 **Enhancement**:
 - Hierarchical class structure
@@ -1219,7 +1238,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #21: White-Label/Reseller Features
 
-**Current State**: Single-branded product
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Single brand; the product name is spelled once in `config.ts`.
 
 **Enhancement**:
 - White-label options for partners
@@ -1235,7 +1254,7 @@ This document provides a comprehensive gap analysis of the current Accounting Mo
 
 ### Enhancement #22: Environmental, Social, Governance (ESG) Reporting
 
-**Current State**: Not included
+**Current State (2026-10-02, against the code at commit 843a0ff)** — **NOT BUILT**: Not built.
 
 **Enhancement**:
 - Carbon footprint tracking
@@ -2146,6 +2165,8 @@ CREATE TABLE ai_predictions (
 
 ## Conclusion
 
+**v2.0 note.** Ten months after v1.0, the engine side moved further than the product side: the ledger, receivables, payables, bank matching, tax, multi-currency settlement, accruals, period close and the financial statements are built and are now measured by a conformance suite. Of the 15 gaps, time tracking (Gap #7) and document management (Gap #11) are partly closed by other modules, and cash flow (Gap #1) has its statement but not its forecast. None of the three v1.0 P0 features — cash-flow forecasting, guided setup, AI insights — has been started. The paragraphs below are v1.0's conclusion, kept as written.
+
 This gap analysis has identified **15 critical gaps** and **22 enhancement opportunities** that will transform the accounting module from a solid foundation into a truly small-business-optimized solution. The prioritized implementation plan ensures that the most impactful features—especially cash flow management, guided setup, and AI-powered insights—are delivered first.
 
 By addressing these gaps, the platform will:
@@ -2166,5 +2187,6 @@ By addressing these gaps, the platform will:
 ---
 
 **Document Owner**: Product Management
-**Review Cycle**: Quarterly
-**Next Review Date**: 2026-03-03
+**Review Cycle**: Quarterly, against the code — rerun `pnpm db:acs audit` and re-read each Current State
+**Last Review**: 2026-10-02
+**Next Review Date**: 2027-01-02

@@ -376,7 +376,7 @@ tagged as matched to a payment already on the books — `/accounting/banking`,
 row action. Deliberately narrow: this ties one imported line to one existing
 payment, manually, one at a time. Bank feed integration, auto-match rules, and
 the "reconcile a statement against a running balance" workflow the module spec
-describes are not built — `docs/accounting-gap-analysis.md` catalogues the
+describes are not built — `docs/36-accounting-gap-analysis.md` catalogues the
 rest of that gap.
 
 No `postJournal` here, and no `period_closed` check as a result: the cash

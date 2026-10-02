@@ -212,7 +212,7 @@ _Status: **DONE**. `/accounting/invoices` lists every invoice with status, and `
 _Status: **DONE** (2026-09-13). `/accounting/ar-aging` buckets every open invoice into current/1-30/31-60/61-90/90+ by days past due, as of a chosen date. Per-customer rows in the invoice's own currency, no cross-currency total — see `accounting.repo.ts`'s `arAging()` and `accounting.test.ts`'s "AR aging" suite._
 
 **US-ACC-017**: As a Business Owner, I want to forecast short-term cash flow (30-day projection), so that I can plan for cash needs.
-_Status: **MISSING**. No forecasting code exists — this is Gap #1 in `accounting-gap-analysis.md` and remains unbuilt._
+_Status: **MISSING**. No forecasting code exists — this is Gap #1 in `36-accounting-gap-analysis.md` and remains unbuilt._
 
 **US-ACC-018**: As an Accountant, I want to apply customer payments to multiple invoices, so that accounts are accurate.
 _Status: **DONE** (2026-09-13). `/accounting/receive-payment` allocates one payment across several of a customer's open invoices — `acc.recordLockboxPayment()` posts one journal entry (one Cash debit, one AR credit per invoice) and refuses when the allocations don't sum to the stated total received. See `accounting.repo.ts` and `receivables.writes.test.ts`'s "receiving a lockbox payment across multiple invoices" suite._
@@ -2843,7 +2843,7 @@ either way.
 - [x] Accruals (auto-reversing) — DONE (2026-09-20). [ ] Deferred
       revenue/prepaid expense amortization — PARTIAL. §11 — flagged as a
       genuine specification gap, not just an implementation one; neither
-      `module-accounting.md` nor `accounting-gap-analysis.md` named this as
+      `module-accounting.md` nor `36-accounting-gap-analysis.md` named this as
       a known gap before now.
 
       `recordAccrual()` posts BOTH the accrual and its reversal
@@ -2938,13 +2938,13 @@ either way.
       cheapest Tier 9 item to scope, since the data model needs no
       migration — only application code.
 - [ ] Fixed assets & depreciation. §2.4 (`19-accounting-test-plan.md`);
-      `accounting-gap-analysis.md` Enhancement #19. No table, no code, no
+      `36-accounting-gap-analysis.md` Enhancement #19. No table, no code, no
       test at all (`rg -il 'fixed.asset|depreciation'` finds nothing) —
       needs schema from scratch. Scope per the gap analysis: asset
       register, asset categories, depreciation calculation (multiple
       methods), disposal tracking, inter-location transfers, maintenance
       schedules, insurance tracking.
-- [ ] Inventory / COGS. §2.5; `accounting-gap-analysis.md` Gap #4. No
+- [ ] Inventory / COGS. §2.5; `36-accounting-gap-analysis.md` Gap #4. No
       table, no code, no test — same status as fixed assets. Likely the
       largest of the six by scope, and the P&L already has a documented
       gap waiting on it ("no COGS/gross-margin subtotal" on
@@ -2957,12 +2957,12 @@ either way.
 - [ ] Budgeting (GL-account-level, distinct from the existing
       project/task `budget` field, which is scoped to those tables and
       does not roll up through the chart of accounts). §14;
-      `accounting-gap-analysis.md` Enhancement #6. No GL-account-level
+      `36-accounting-gap-analysis.md` Enhancement #6. No GL-account-level
       budget table, comparison report, or variance test exists at all.
       Scope: annual/department/project budgets by account, budget-vs-
       actual reporting, variance analysis ($/%), budget alerts, approval
       workflow, rolling forecasts.
-- [ ] Multi-entity / consolidation. §3.4; `accounting-gap-analysis.md`
+- [ ] Multi-entity / consolidation. §3.4; `36-accounting-gap-analysis.md`
       Enhancement #13. Kaaj is single-entity-per-tenant today — no schema,
       code, or test. Scope: multiple legal entities per tenant,
       consolidated reporting, inter-company transactions, elimination
@@ -2973,7 +2973,7 @@ either way.
       before any code.
 - [ ] Purchase orders & three-way match. US-ACC-021 (procurement half);
       `19-accounting-test-plan.md` §2.2 ("no purchase-order feature
-      exists at all"); `accounting-gap-analysis.md` Gap #5. Bills can
+      exists at all"); `36-accounting-gap-analysis.md` Gap #5. Bills can
       already be entered manually (`/accounting/bills/new`, done), but
       there is no PO concept anywhere — no table, no vendor-facing send,
       no receipt tracking. Scope: PO lifecycle (create → send to vendor →
@@ -3018,7 +3018,7 @@ either way.
       `REPORT_ROW_CAP` refusal. See US-ACC-045's status block above for the
       full shape.
 - [ ] Central document management for financial records. Gap #11 in
-      `accounting-gap-analysis.md`. Today, documents attach only to
+      `36-accounting-gap-analysis.md`. Today, documents attach only to
       specific records (invoices, bills) — no central repository, no
       cross-record document search, no expiration tracking. Scope per the
       gap analysis: a central document library (folders, tags, full-text

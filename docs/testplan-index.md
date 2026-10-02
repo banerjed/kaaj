@@ -75,7 +75,7 @@ The central rule is simple:
 - [module-payroll.md](./module-payroll.md)
 - [module-change-requests.md](./module-change-requests.md)
 - [module-accounting.md](./module-accounting.md)
-- [accounting-gap-analysis.md](./accounting-gap-analysis.md)
+- [36-accounting-gap-analysis.md](./36-accounting-gap-analysis.md)
 - [module-time-tracking.md](./module-time-tracking.md)
 - [module-project-management-v2.md](./module-project-management-v2.md)
 - [service-provider-modules-overview.md](./service-provider-modules-overview.md)
