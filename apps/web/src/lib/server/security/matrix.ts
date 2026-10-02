@@ -163,6 +163,11 @@ export const PROTECTED_BUSINESS_TABLES: Record<
     audience: "finance",
     why: "The general ledger. Every other accounting table ultimately posts here.",
   },
+  gl_daily_balances: {
+    defense: "rls",
+    audience: "finance",
+    why: "The posted ledger summed per account per day — the same figures as journal_entry_lines, so the same audience.",
+  },
   journal_entry_lines: {
     defense: "rls",
     audience: "finance",

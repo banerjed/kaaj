@@ -670,6 +670,36 @@ BEGIN
 END $money$;
 
 
+-- -----------------------------------------------------------------------------
+-- gl_daily_balances agrees with the posted lines (20261002110000)
+-- -----------------------------------------------------------------------------
+-- The ledger reports read this table instead of every line, and — unlike
+-- other denormalised figures (L58) — do not count the real rows beside it on
+-- every read, which would undo the point. Its agreement is asserted here,
+-- in gl_daily_balances.test.ts after each kind of write, and in the perf
+-- tenant's `verify`.
+INSERT INTO _inv (rule, subject, passed, detail)
+SELECT 'ledger/daily-balances-agree', t.tenant_id::text, bad = 0,
+       CASE WHEN bad = 0 THEN 'ok'
+            ELSE bad || ' account-day(s) where gl_daily_balances differs from the posted lines' END
+  FROM (
+    SELECT x.tenant_id, count(*) FILTER (WHERE NOT x.ok) AS bad
+      FROM (
+        SELECT coalesce(t.tenant_id, b.tenant_id) AS tenant_id,
+               t.n IS NOT NULL AND b.line_count IS NOT NULL
+               AND t.dr = b.base_debit AND t.cr = b.base_credit AND t.n = b.line_count AS ok
+          FROM (SELECT je.tenant_id, l.account_id, je.entry_date AS d,
+                       sum(l.base_debit_amount) AS dr, sum(l.base_credit_amount) AS cr,
+                       count(*) AS n
+                  FROM journal_entry_lines l
+                  JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                 GROUP BY 1, 2, 3) t
+          FULL JOIN gl_daily_balances b
+            ON b.tenant_id = t.tenant_id AND b.account_id = t.account_id
+           AND b.balance_date = t.d) x
+     GROUP BY x.tenant_id) t;
+
+
 \echo '=================== SCHEMA INVARIANTS ==================='
 SELECT rule,
        count(*) AS checks,

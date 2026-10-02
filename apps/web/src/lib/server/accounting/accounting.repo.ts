@@ -773,12 +773,16 @@ export type TrialBalanceRow = {
 }
 
 /**
- * Every account with activity, summed in the tenant's BASE currency
- * (`base_debit_amount`/`base_credit_amount`) — a raw sum of
- * `debit_amount`/`credit_amount` would silently mix USD, EUR and GBP
+ * Every account with activity, summed in the tenant's BASE currency — a raw
+ * sum of `debit_amount`/`credit_amount` would silently mix USD, EUR and GBP
  * figures from entries posted in different original currencies. Only
  * `posted` entries count; nothing today produces another status, but a
  * future draft-JE feature must not appear on a trial balance.
+ *
+ * This and the other ledger reports below read `gl_daily_balances` — the
+ * posted base-currency lines summed per account per day, kept in step by
+ * triggers (20261002110000) — instead of every line ever posted. A day is
+ * the finest unit any report filters by, so the figures are the same.
  */
 export async function trialBalance(
   tx: Tx,
@@ -787,18 +791,15 @@ export async function trialBalance(
   const asOf = filters.asOf || null
   return tx<TrialBalanceRow[]>`
     SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
-           COALESCE(sum(CASE WHEN je.id IS NOT NULL THEN l.base_debit_amount  END), 0)::text AS debits,
-           COALESCE(sum(CASE WHEN je.id IS NOT NULL THEN l.base_credit_amount END), 0)::text AS credits
+           COALESCE(sum(l.base_debit), 0)::text  AS debits,
+           COALESCE(sum(l.base_credit), 0)::text AS credits
       FROM chart_of_accounts a
-      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-      LEFT JOIN journal_entries je
-             ON je.id = l.entry_id
-            AND je.status = 'posted'
-            AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+      LEFT JOIN gl_daily_balances l
+             ON l.account_id = a.id
+            AND (${asOf}::date IS NULL OR l.balance_date <= ${asOf}::date)
      WHERE a.is_active
      GROUP BY a.id, a.account_code, a.account_name, a.account_type
-    HAVING sum(CASE WHEN je.id IS NOT NULL THEN l.base_debit_amount  END) IS NOT NULL
-        OR sum(CASE WHEN je.id IS NOT NULL THEN l.base_credit_amount END) IS NOT NULL
+    HAVING count(l.account_id) > 0
      ORDER BY a.account_code
   `
 }
@@ -816,13 +817,12 @@ export async function trialBalanceTotals(
   const [row] = await tx<
     { debits: string; credits: string; balances: boolean }[]
   >`
-    SELECT COALESCE(sum(l.base_debit_amount), 0)::text  AS debits,
-           COALESCE(sum(l.base_credit_amount), 0)::text AS credits,
-           COALESCE(sum(l.base_debit_amount), 0) = COALESCE(sum(l.base_credit_amount), 0)
+    SELECT COALESCE(sum(l.base_debit), 0)::text  AS debits,
+           COALESCE(sum(l.base_credit), 0)::text AS credits,
+           COALESCE(sum(l.base_debit), 0) = COALESCE(sum(l.base_credit), 0)
              AS balances
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
-     WHERE (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+      FROM gl_daily_balances l
+     WHERE (${asOf}::date IS NULL OR l.balance_date <= ${asOf}::date)
   `
   return row
 }
@@ -855,27 +855,26 @@ export async function trialBalanceComparison(
   const { asOf, compareAsOf } = filters
   return tx<TrialBalanceComparisonRow[]>`
     SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
-           COALESCE(sum(l.base_debit_amount)
-                     FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+           COALESCE(sum(l.base_debit)
+                     FILTER (WHERE l.balance_date <= ${asOf}::date), 0)::text
              AS debits,
-           COALESCE(sum(l.base_credit_amount)
-                     FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+           COALESCE(sum(l.base_credit)
+                     FILTER (WHERE l.balance_date <= ${asOf}::date), 0)::text
              AS credits,
-           COALESCE(sum(l.base_debit_amount)
-                     FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text
+           COALESCE(sum(l.base_debit)
+                     FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)::text
              AS compare_debits,
-           COALESCE(sum(l.base_credit_amount)
-                     FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text
+           COALESCE(sum(l.base_credit)
+                     FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)::text
              AS compare_credits
       FROM chart_of_accounts a
-      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      LEFT JOIN gl_daily_balances l ON l.account_id = a.id
      WHERE a.is_active
      GROUP BY a.id, a.account_code, a.account_name, a.account_type
-    HAVING sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date) IS NOT NULL
-        OR sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date) IS NOT NULL
-        OR sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date) IS NOT NULL
-        OR sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date) IS NOT NULL
+    HAVING sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date) IS NOT NULL
+        OR sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date) IS NOT NULL
+        OR sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${compareAsOf}::date) IS NOT NULL
+        OR sum(l.base_credit) FILTER (WHERE l.balance_date <= ${compareAsOf}::date) IS NOT NULL
      ORDER BY a.account_code
   `
 }
@@ -897,18 +896,17 @@ export async function trialBalanceComparisonTotals(
   const { asOf, compareAsOf } = filters
   const [row] = await tx<TrialBalanceComparisonTotals[]>`
     SELECT
-      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text AS debits,
-      COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text AS credits,
-      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
-        = COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+      COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date), 0)::text AS debits,
+      COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date), 0)::text AS credits,
+      COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
+        = COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
         AS balances,
-      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text AS compare_debits,
-      COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)::text AS compare_credits,
-      COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)
-        = COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0)
+      COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)::text AS compare_debits,
+      COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)::text AS compare_credits,
+      COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)
+        = COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0)
         AS compare_balances
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      FROM gl_daily_balances l
   `
   return row
 }
@@ -945,18 +943,16 @@ export async function controlAccountTieOut(
   return tx<ControlAccountTieOut[]>`
     WITH totals AS (
       SELECT '1100' AS account_code, 'Accounts Receivable' AS label,
-             (SELECT COALESCE(sum(l.base_debit_amount) - sum(l.base_credit_amount), 0)
-                FROM journal_entry_lines l
-                JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+             (SELECT COALESCE(sum(l.base_debit) - sum(l.base_credit), 0)
+                FROM gl_daily_balances l
                 JOIN chart_of_accounts a ON a.id = l.account_id
                WHERE a.account_code = '1100') AS gl_balance,
              (SELECT COALESCE(sum(base_amount_due), 0) FROM invoices
                WHERE journal_entry_id IS NOT NULL) AS subledger_total
       UNION ALL
       SELECT '2000', 'Accounts Payable',
-             (SELECT COALESCE(sum(l.base_credit_amount) - sum(l.base_debit_amount), 0)
-                FROM journal_entry_lines l
-                JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+             (SELECT COALESCE(sum(l.base_credit) - sum(l.base_debit), 0)
+                FROM gl_daily_balances l
                 JOIN chart_of_accounts a ON a.id = l.account_id
                WHERE a.account_code = '2000'),
              (SELECT COALESCE(sum(base_amount_due), 0) FROM bills
@@ -1002,15 +998,14 @@ export async function profitAndLoss(
   return tx<ProfitAndLossRow[]>`
     SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
            (CASE WHEN a.account_type = 'revenue'
-                 THEN sum(l.base_credit_amount) - sum(l.base_debit_amount)
-                 ELSE sum(l.base_debit_amount) - sum(l.base_credit_amount)
+                 THEN sum(l.base_credit) - sum(l.base_debit)
+                 ELSE sum(l.base_debit) - sum(l.base_credit)
             END)::text AS amount
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      FROM gl_daily_balances l
       JOIN chart_of_accounts a ON a.id = l.account_id
      WHERE a.account_type IN ('revenue', 'expense')
-       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
-       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+       AND (${from}::date IS NULL OR l.balance_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR l.balance_date <= ${to}::date)
      GROUP BY a.id, a.account_code, a.account_name, a.account_type
      ORDER BY a.account_type DESC, a.account_code
   `
@@ -1037,19 +1032,18 @@ export async function profitAndLossTotals(
   const [row] = await tx<ProfitAndLossTotals[]>`
     SELECT
       COALESCE(sum(CASE WHEN a.account_type = 'revenue'
-                         THEN l.base_credit_amount - l.base_debit_amount END), 0)::text AS revenue,
+                         THEN l.base_credit - l.base_debit END), 0)::text AS revenue,
       COALESCE(sum(CASE WHEN a.account_type = 'expense'
-                         THEN l.base_debit_amount - l.base_credit_amount END), 0)::text AS expenses,
+                         THEN l.base_debit - l.base_credit END), 0)::text AS expenses,
       (COALESCE(sum(CASE WHEN a.account_type = 'revenue'
-                          THEN l.base_credit_amount - l.base_debit_amount END), 0)
+                          THEN l.base_credit - l.base_debit END), 0)
        - COALESCE(sum(CASE WHEN a.account_type = 'expense'
-                            THEN l.base_debit_amount - l.base_credit_amount END), 0))::text AS net_income
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                            THEN l.base_debit - l.base_credit END), 0))::text AS net_income
+      FROM gl_daily_balances l
       JOIN chart_of_accounts a ON a.id = l.account_id
      WHERE a.account_type IN ('revenue', 'expense')
-       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
-       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+       AND (${from}::date IS NULL OR l.balance_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR l.balance_date <= ${to}::date)
   `
   return row
 }
@@ -1108,22 +1102,21 @@ export async function profitAndLossComparison(
     activity AS (
       SELECT
         COALESCE(sum(CASE WHEN a.account_type = 'revenue'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                  FILTER (WHERE je.entry_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_revenue,
+                           THEN l.base_credit - l.base_debit END)
+                  FILTER (WHERE l.balance_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_revenue,
         COALESCE(sum(CASE WHEN a.account_type = 'expense'
-                           THEN l.base_debit_amount - l.base_credit_amount END)
-                  FILTER (WHERE je.entry_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_expenses,
+                           THEN l.base_debit - l.base_credit END)
+                  FILTER (WHERE l.balance_date BETWEEN b.cur_from AND b.cur_to), 0) AS current_expenses,
         COALESCE(sum(CASE WHEN a.account_type = 'revenue'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                  FILTER (WHERE je.entry_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_revenue,
+                           THEN l.base_credit - l.base_debit END)
+                  FILTER (WHERE l.balance_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_revenue,
         COALESCE(sum(CASE WHEN a.account_type = 'expense'
-                           THEN l.base_debit_amount - l.base_credit_amount END)
-                  FILTER (WHERE je.entry_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_expenses
+                           THEN l.base_debit - l.base_credit END)
+                  FILTER (WHERE l.balance_date BETWEEN b.pri_from AND b.pri_to), 0) AS prior_expenses
         FROM bounds b
-        LEFT JOIN journal_entry_lines l ON TRUE
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.balance_date BETWEEN b.pri_from AND b.cur_to
         LEFT JOIN chart_of_accounts a ON a.id = l.account_id AND a.account_type IN ('revenue', 'expense')
-       WHERE je.entry_date BETWEEN b.pri_from AND b.cur_to
+       WHERE l.balance_date BETWEEN b.pri_from AND b.cur_to
     )
     SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
            current_revenue::text, current_expenses::text,
@@ -1167,14 +1160,13 @@ export async function balanceSheet(
   return tx<BalanceSheetRow[]>`
     SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
            (CASE WHEN a.account_type = 'asset'
-                 THEN sum(l.base_debit_amount) - sum(l.base_credit_amount)
-                 ELSE sum(l.base_credit_amount) - sum(l.base_debit_amount)
+                 THEN sum(l.base_debit) - sum(l.base_credit)
+                 ELSE sum(l.base_credit) - sum(l.base_debit)
             END)::text AS amount
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      FROM gl_daily_balances l
       JOIN chart_of_accounts a ON a.id = l.account_id
      WHERE a.account_type IN ('asset', 'liability', 'equity')
-       AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+       AND (${asOf}::date IS NULL OR l.balance_date <= ${asOf}::date)
      GROUP BY a.id, a.account_code, a.account_name, a.account_type
      ORDER BY CASE a.account_type WHEN 'asset' THEN 1 WHEN 'liability' THEN 2 ELSE 3 END,
               a.account_code
@@ -1214,18 +1206,17 @@ export async function balanceSheetTotals(
     WITH t AS (
       SELECT
         COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                           THEN l.base_debit_amount - l.base_credit_amount END), 0) AS assets,
+                           THEN l.base_debit - l.base_credit END), 0) AS assets,
         COALESCE(sum(CASE WHEN a.account_type = 'liability'
-                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS liabilities,
+                           THEN l.base_credit - l.base_debit END), 0) AS liabilities,
         COALESCE(sum(CASE WHEN a.account_type = 'equity'
-                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS equity,
+                           THEN l.base_credit - l.base_debit END), 0) AS equity,
         COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
-                           THEN l.base_credit_amount - l.base_debit_amount END), 0) AS net_income
-        FROM journal_entry_lines l
-        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                           THEN l.base_credit - l.base_debit END), 0) AS net_income
+        FROM gl_daily_balances l
         JOIN chart_of_accounts a ON a.id = l.account_id
        WHERE a.account_type IN ('asset', 'liability', 'equity', 'revenue', 'expense')
-         AND (${asOf}::date IS NULL OR je.entry_date <= ${asOf}::date)
+         AND (${asOf}::date IS NULL OR l.balance_date <= ${asOf}::date)
     )
     SELECT assets::text, liabilities::text, equity::text, net_income::text,
            (equity + net_income)::text             AS total_equity,
@@ -1272,19 +1263,18 @@ export async function balanceSheetComparison(
              -- accounts a comparison is most useful for (ones that only
              -- started being posted to partway through the window).
              COALESCE((CASE WHEN a.account_type = 'asset'
-                   THEN sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date)
-                      - sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date)
-                   ELSE sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date)
-                      - sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date)
+                   THEN sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date)
+                      - sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date)
+                   ELSE sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date)
+                      - sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date)
               END), 0) AS amount,
              COALESCE((CASE WHEN a.account_type = 'asset'
-                   THEN sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
-                      - sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
-                   ELSE sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
-                      - sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${compareAsOf}::date)
+                   THEN sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${compareAsOf}::date)
+                      - sum(l.base_credit) FILTER (WHERE l.balance_date <= ${compareAsOf}::date)
+                   ELSE sum(l.base_credit) FILTER (WHERE l.balance_date <= ${compareAsOf}::date)
+                      - sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${compareAsOf}::date)
               END), 0) AS compare_amount
-        FROM journal_entry_lines l
-        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        FROM gl_daily_balances l
         JOIN chart_of_accounts a ON a.id = l.account_id
        WHERE a.account_type IN ('asset', 'liability', 'equity')
        GROUP BY a.id, a.account_code, a.account_name, a.account_type
@@ -1331,31 +1321,30 @@ export async function balanceSheetComparisonTotals(
     WITH t AS (
       SELECT
         COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                           THEN l.base_debit_amount - l.base_credit_amount END)
-                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS assets,
+                           THEN l.base_debit - l.base_credit END)
+                   FILTER (WHERE l.balance_date <= ${asOf}::date), 0) AS assets,
         COALESCE(sum(CASE WHEN a.account_type = 'liability'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS liabilities,
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${asOf}::date), 0) AS liabilities,
         COALESCE(sum(CASE WHEN a.account_type = 'equity'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS equity,
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${asOf}::date), 0) AS equity,
         COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${asOf}::date), 0) AS net_income,
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${asOf}::date), 0) AS net_income,
         COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                           THEN l.base_debit_amount - l.base_credit_amount END)
-                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_assets,
+                           THEN l.base_debit - l.base_credit END)
+                   FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0) AS compare_assets,
         COALESCE(sum(CASE WHEN a.account_type = 'liability'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_liabilities,
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0) AS compare_liabilities,
         COALESCE(sum(CASE WHEN a.account_type = 'equity'
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_equity,
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0) AS compare_equity,
         COALESCE(sum(CASE WHEN a.account_type IN ('revenue', 'expense')
-                           THEN l.base_credit_amount - l.base_debit_amount END)
-                   FILTER (WHERE je.entry_date <= ${compareAsOf}::date), 0) AS compare_net_income
-        FROM journal_entry_lines l
-        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+                           THEN l.base_credit - l.base_debit END)
+                   FILTER (WHERE l.balance_date <= ${compareAsOf}::date), 0) AS compare_net_income
+        FROM gl_daily_balances l
         JOIN chart_of_accounts a ON a.id = l.account_id
        WHERE a.account_type IN ('asset', 'liability', 'equity', 'revenue', 'expense')
     )
@@ -1416,16 +1405,15 @@ export async function cashFlowStatement(
       SELECT a.id, a.account_code, a.account_name, a.account_type::text AS account_type,
              COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS begin_bal,
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE ${from}::date IS NOT NULL AND l.balance_date < ${from}::date), 0) AS begin_bal,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS end_bal
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE ${to}::date IS NULL OR l.balance_date <= ${to}::date), 0) AS end_bal
         FROM chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.account_id = a.id
        WHERE a.account_type IN ('asset', 'liability', 'equity')
        GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.is_bank_account
     )
@@ -1485,16 +1473,15 @@ export async function cashFlowTotals(
       SELECT a.account_type::text AS account_type,
              COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS begin_bal,
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE ${from}::date IS NOT NULL AND l.balance_date < ${from}::date), 0) AS begin_bal,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS end_bal
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE ${to}::date IS NULL OR l.balance_date <= ${to}::date), 0) AS end_bal
         FROM chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.account_id = a.id
        WHERE a.account_type IN ('asset', 'liability', 'equity')
        GROUP BY a.id, a.account_type, a.is_bank_account
     ),
@@ -1509,13 +1496,12 @@ export async function cashFlowTotals(
           AS working_capital_change,
         COALESCE(sum(end_bal - begin_bal) FILTER (WHERE account_type = 'equity'), 0) AS financing_cash_flow,
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND (${from}::date IS NULL OR je2.entry_date >= ${from}::date)
-            AND (${to}::date   IS NULL OR je2.entry_date <= ${to}::date)) AS net_income
+            AND (${from}::date IS NULL OR l2.balance_date >= ${from}::date)
+            AND (${to}::date   IS NULL OR l2.balance_date <= ${to}::date)) AS net_income
         FROM acct
     )
     SELECT beginning_cash::text, ending_cash::text,
@@ -1579,24 +1565,23 @@ export async function cashFlowComparison(
       SELECT a.account_type::text AS account_type,
              COALESCE(a.is_bank_account, FALSE) AS is_bank_account,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE je.entry_date < b.cur_from), 0) AS cur_begin,
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE l.balance_date < b.cur_from), 0) AS cur_begin,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE je.entry_date <= b.cur_to), 0) AS cur_end,
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE l.balance_date <= b.cur_to), 0) AS cur_end,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE je.entry_date < b.pri_from), 0) AS pri_begin,
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE l.balance_date < b.pri_from), 0) AS pri_begin,
              COALESCE(sum(CASE WHEN a.account_type = 'asset'
-                                THEN l.base_debit_amount - l.base_credit_amount
-                                ELSE l.base_credit_amount - l.base_debit_amount END)
-                       FILTER (WHERE je.entry_date <= b.pri_to), 0) AS pri_end
+                                THEN l.base_debit - l.base_credit
+                                ELSE l.base_credit - l.base_debit END)
+                       FILTER (WHERE l.balance_date <= b.pri_to), 0) AS pri_end
         FROM bounds b, chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.account_id = a.id
        WHERE a.account_type IN ('asset', 'liability', 'equity')
        GROUP BY a.id, a.account_type, a.is_bank_account
     ),
@@ -1615,19 +1600,17 @@ export async function cashFlowComparison(
           AS pri_working_capital_change,
         COALESCE(sum(pri_end - pri_begin) FILTER (WHERE account_type = 'equity'), 0) AS pri_financing,
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND je2.entry_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
+            AND l2.balance_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND je2.entry_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
+            AND l2.balance_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
         FROM acct
     )
     SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
@@ -1676,20 +1659,19 @@ export async function equityStatement(
   const to = filters.to || null
   return tx<EquityStatementRow[]>`
     SELECT a.account_code, a.account_name,
-           COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                     FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0)::text
+           COALESCE(sum(l.base_credit - l.base_debit)
+                     FILTER (WHERE ${from}::date IS NOT NULL AND l.balance_date < ${from}::date), 0)::text
              AS beginning_balance,
-           (COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                      FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0)
-            - COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                        FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0))::text
+           (COALESCE(sum(l.base_credit - l.base_debit)
+                      FILTER (WHERE ${to}::date IS NULL OR l.balance_date <= ${to}::date), 0)
+            - COALESCE(sum(l.base_credit - l.base_debit)
+                        FILTER (WHERE ${from}::date IS NOT NULL AND l.balance_date < ${from}::date), 0))::text
              AS direct_changes,
-           COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                     FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0)::text
+           COALESCE(sum(l.base_credit - l.base_debit)
+                     FILTER (WHERE ${to}::date IS NULL OR l.balance_date <= ${to}::date), 0)::text
              AS ending_balance
       FROM chart_of_accounts a
-      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      LEFT JOIN gl_daily_balances l ON l.account_id = a.id
      WHERE a.account_type = 'equity' AND a.is_active
      GROUP BY a.id, a.account_code, a.account_name
      ORDER BY a.account_code
@@ -1723,21 +1705,19 @@ export async function equityStatementTotals(
   const [row] = await tx<EquityStatementTotals[]>`
     WITH t AS (
       SELECT
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE ${from}::date IS NOT NULL AND je.entry_date < ${from}::date), 0) AS beginning_equity,
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE ${to}::date IS NULL OR je.entry_date <= ${to}::date), 0) AS ending_equity,
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE ${from}::date IS NOT NULL AND l.balance_date < ${from}::date), 0) AS beginning_equity,
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE ${to}::date IS NULL OR l.balance_date <= ${to}::date), 0) AS ending_equity,
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND (${from}::date IS NULL OR je2.entry_date >= ${from}::date)
-            AND (${to}::date   IS NULL OR je2.entry_date <= ${to}::date)) AS net_income
+            AND (${from}::date IS NULL OR l2.balance_date >= ${from}::date)
+            AND (${to}::date   IS NULL OR l2.balance_date <= ${to}::date)) AS net_income
         FROM chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.account_id = a.id
        WHERE a.account_type = 'equity' AND a.is_active
     )
     SELECT beginning_equity::text,
@@ -1793,35 +1773,32 @@ export async function equityComparison(
     ),
     eq AS (
       SELECT
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE je.entry_date < b.cur_from), 0) AS cur_begin,
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE je.entry_date <= b.cur_to), 0) AS cur_end,
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE je.entry_date < b.pri_from), 0) AS pri_begin,
-        COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                  FILTER (WHERE je.entry_date <= b.pri_to), 0) AS pri_end
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE l.balance_date < b.cur_from), 0) AS cur_begin,
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE l.balance_date <= b.cur_to), 0) AS cur_end,
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE l.balance_date < b.pri_from), 0) AS pri_begin,
+        COALESCE(sum(l.base_credit - l.base_debit)
+                  FILTER (WHERE l.balance_date <= b.pri_to), 0) AS pri_end
         FROM bounds b, chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-        LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+        LEFT JOIN gl_daily_balances l ON l.account_id = a.id
        WHERE a.account_type = 'equity' AND a.is_active
     ),
     ni AS (
       SELECT
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND je2.entry_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
+            AND l2.balance_date BETWEEN b.cur_from AND b.cur_to) AS cur_net_income,
         (SELECT COALESCE(sum(CASE WHEN a2.account_type IN ('revenue', 'expense')
-                                   THEN l2.base_credit_amount - l2.base_debit_amount END), 0)
-           FROM journal_entry_lines l2
-           JOIN journal_entries je2 ON je2.id = l2.entry_id AND je2.status = 'posted'
+                                   THEN l2.base_credit - l2.base_debit END), 0)
+           FROM gl_daily_balances l2
            JOIN chart_of_accounts a2 ON a2.id = l2.account_id, bounds b
           WHERE a2.account_type IN ('revenue', 'expense')
-            AND je2.entry_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
+            AND l2.balance_date BETWEEN b.pri_from AND b.pri_to) AS pri_net_income
     )
     SELECT b.pri_from::text AS prior_from, b.pri_to::text AS prior_to,
            (eq.cur_end - eq.cur_begin)::text AS current_direct_changes,
@@ -4318,14 +4295,13 @@ export async function previewYearEndClose(
   const accounts = await tx<YearEndCloseLine[]>`
     SELECT a.account_code, a.account_name, a.account_type::text AS account_type,
            (CASE WHEN a.account_type = 'revenue'
-                 THEN COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
-                    - COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
-                 ELSE COALESCE(sum(l.base_debit_amount)  FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
-                    - COALESCE(sum(l.base_credit_amount) FILTER (WHERE je.entry_date <= ${asOf}::date), 0)
+                 THEN COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
+                    - COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
+                 ELSE COALESCE(sum(l.base_debit)  FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
+                    - COALESCE(sum(l.base_credit) FILTER (WHERE l.balance_date <= ${asOf}::date), 0)
             END)::text AS net
       FROM chart_of_accounts a
-      LEFT JOIN journal_entry_lines l ON l.account_id = a.id
-      LEFT JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      LEFT JOIN gl_daily_balances l ON l.account_id = a.id
      WHERE a.account_type IN ('revenue', 'expense')
      GROUP BY a.id, a.account_code, a.account_name, a.account_type
      ORDER BY a.account_code
@@ -4333,11 +4309,10 @@ export async function previewYearEndClose(
   const lines = accounts.filter((a) => compareDecimal(a.net, "0") !== 0)
 
   const [{ net_income: netIncome }] = await tx<{ net_income: string }[]>`
-    SELECT COALESCE(sum(l.base_credit_amount - l.base_debit_amount)
-                      FILTER (WHERE je.entry_date <= ${asOf}::date), 0)::text
+    SELECT COALESCE(sum(l.base_credit - l.base_debit)
+                      FILTER (WHERE l.balance_date <= ${asOf}::date), 0)::text
              AS net_income
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      FROM gl_daily_balances l
       JOIN chart_of_accounts a ON a.id = l.account_id
      WHERE a.account_type IN ('revenue', 'expense')
   `

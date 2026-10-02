@@ -98,6 +98,8 @@ firm_locations	app_user	INSERT,SELECT,UPDATE
 firm_locations	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 firm_payroll_policies	app_user	INSERT,SELECT,UPDATE
 firm_payroll_policies	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+gl_daily_balances	app_user	SELECT
+gl_daily_balances	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 hr_attendance	app_user	INSERT,SELECT,UPDATE
 hr_attendance	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 hr_benefits_enrollments	app_user	INSERT,SELECT,UPDATE

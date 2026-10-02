@@ -48,6 +48,7 @@ firm_job_levels	t	t
 firm_job_titles	t	t
 firm_locations	t	t
 firm_payroll_policies	t	t
+gl_daily_balances	t	t
 hr_attendance	t	t
 hr_benefits_enrollments	t	t
 hr_change_requests	t	t

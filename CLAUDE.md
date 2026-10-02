@@ -591,6 +591,17 @@ The recompute runs under the WRITER's row policies, so **before narrowing a
 table, find every recompute that reads it**. Otherwise the sum silently covers
 only the rows the writer can see ([L106](docs/10-lessons-learned.md)).
 
+**`gl_daily_balances` is the one figure whose read path does not count the
+rows beside it** — the ledger reports read it precisely so as not to sum
+every line. It is recomputed by triggers on every write that can move a
+posted figure (as the table owner, under an advisory lock per account), and
+its agreement with the lines is asserted instead by `./check`'s
+`ledger/daily-balances-agree` invariant, `gl_daily_balances.test.ts` (after
+each kind of write, and two concurrent posts), and the perf tenant's
+`verify`. A new path that writes posted journal lines needs nothing extra;
+one that bypasses triggers (`session_replication_role = replica`) must
+rebuild the table for what it touched.
+
 **When a page's layout and an action's write path turn on the same question,
 the predicate is one exported function both call.** `crm/companies/[id]` asked
 `customer_type === 'individual' && contacts.length === 1` in the template and

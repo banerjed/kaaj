@@ -151,6 +151,20 @@ const INVARIANTS = [
       SELECT entry_id FROM journal_entry_lines WHERE tenant_id = $1 GROUP BY entry_id
       HAVING sum(debit_amount) <> sum(credit_amount)
           OR sum(base_debit_amount) <> sum(base_credit_amount)) x`],
+  ["gl_daily_balances equals the posted lines, per account per day", `
+    WITH truth AS (
+      SELECT l.account_id, je.entry_date AS d,
+             coalesce(sum(l.base_debit_amount), 0) dr, coalesce(sum(l.base_credit_amount), 0) cr,
+             count(*) n
+        FROM journal_entry_lines l
+        JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+       WHERE je.tenant_id = $1
+       GROUP BY 1, 2)
+    SELECT count(*) FROM truth t
+      FULL JOIN (SELECT * FROM gl_daily_balances WHERE tenant_id = $1) b
+        ON b.account_id = t.account_id AND b.balance_date = t.d
+     WHERE t.n IS NULL OR b.line_count IS NULL
+        OR t.dr <> b.base_debit OR t.cr <> b.base_credit OR t.n <> b.line_count`],
   ["every invoice's subtotal and tax equal its lines", `
     SELECT count(*) FROM invoices i
       JOIN (SELECT invoice_id, sum(amount) a, sum(tax_amount) t FROM invoice_lines GROUP BY 1) l

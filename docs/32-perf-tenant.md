@@ -340,12 +340,33 @@ sweep is clean for all eight actors. Three indexes came out of the timings:
 | /documents | 53–104ms, 1.2 MB | 5–18ms |
 
 Of 359 page × actor renders that returned 200, 340 are under 100ms and 251
-under 20ms; the largest page is 253 KB. What remains over 100ms is the
+under 20ms; the largest page is 253 KB. What remained over 100ms was the
 accounting reports (trial balance, balance sheet, tax summary, cash flow:
-120–530ms). Each sums the whole ledger per request — 56,000 AR lines joined
-to their entries for one control-account figure — and better plans only
-halve it. They need balances kept per account per period, maintained when
-an entry posts, so a report adds periods instead of lines.
+120–530ms). Each summed the whole ledger per request — 56,000 AR lines
+joined to their entries for one control-account figure — and better plans
+only halve it.
+
+`gl_daily_balances` (20261002110000) now holds the posted lines summed per
+account per day, recomputed by triggers on every write that can move a
+posted figure (7,572 rows for 199,596 lines here). The trial balance,
+balance sheet, P&L, cash flow, equity statement, their comparisons and
+totals, the control-account tie-out and the year-end preview read it; every
+one of 107 report outputs over a grid of dates and ranges was identical
+before and after, on the fixture and after new postings.
+
+| Report (owner / finance / auditor) | Before | After |
+|---|---|---|
+| Trial balance, comparative | 511–531ms | 22–23ms |
+| Trial balance | 369–410ms | 20–22ms |
+| Balance sheet, comparative | 314–365ms | 15–18ms |
+| Balance sheet | 147–177ms | 9–16ms |
+| Cash flow | 113–130ms | 10–14ms |
+| P&L | 62–102ms | 7–14ms |
+
+The tax summary stays on lines (~110ms): it groups by tax rate in native
+amounts, which a per-account rollup does not carry. A per-rate daily table
+on the same trigger machinery would do it. A full reseed takes 3:53 with the
+triggers, against 3:13 without.
 
 ## Interaction with `./check`
 

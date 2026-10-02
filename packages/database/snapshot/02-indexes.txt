@@ -241,6 +241,8 @@ firm_locations	idx_firm_locations_is_active	CREATE INDEX idx_firm_locations_is_a
 firm_payroll_policies	firm_payroll_policies_pkey	CREATE UNIQUE INDEX firm_payroll_policies_pkey ON public.firm_payroll_policies USING btree (id)
 firm_payroll_policies	idx_firm_payroll_policies_created	CREATE INDEX idx_firm_payroll_policies_created ON public.firm_payroll_policies USING btree (tenant_id, created_at DESC)
 firm_payroll_policies	idx_firm_payroll_policies_location_id	CREATE INDEX idx_firm_payroll_policies_location_id ON public.firm_payroll_policies USING btree (tenant_id, location_id)
+gl_daily_balances	gl_daily_balances_pkey	CREATE UNIQUE INDEX gl_daily_balances_pkey ON public.gl_daily_balances USING btree (tenant_id, account_id, balance_date)
+gl_daily_balances	idx_gl_daily_balances_date	CREATE INDEX idx_gl_daily_balances_date ON public.gl_daily_balances USING btree (tenant_id, balance_date)
 hr_attendance	hr_attendance_pkey	CREATE UNIQUE INDEX hr_attendance_pkey ON public.hr_attendance USING btree (id)
 hr_attendance	hr_attendance_tenant_id_attendance_id_key	CREATE UNIQUE INDEX hr_attendance_tenant_id_attendance_id_key ON public.hr_attendance USING btree (tenant_id, attendance_id)
 hr_attendance	idx_hr_attendance_attendance_id	CREATE INDEX idx_hr_attendance_attendance_id ON public.hr_attendance USING btree (tenant_id, attendance_id)

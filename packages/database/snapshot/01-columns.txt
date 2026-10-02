@@ -904,6 +904,12 @@ firm_payroll_policies	9	updated_at	timestamp with time zone	f	CURRENT_TIMESTAMP
 firm_payroll_policies	10	created_by	uuid	f	
 firm_payroll_policies	11	updated_by	uuid	f	
 firm_payroll_policies	12	is_active	boolean	t	true
+gl_daily_balances	1	tenant_id	uuid	t	
+gl_daily_balances	2	account_id	uuid	t	
+gl_daily_balances	3	balance_date	date	t	
+gl_daily_balances	4	base_debit	numeric(15,2)	t	
+gl_daily_balances	5	base_credit	numeric(15,2)	t	
+gl_daily_balances	6	line_count	integer	t	
 hr_attendance	1	id	uuid	t	gen_random_uuid()
 hr_attendance	2	tenant_id	uuid	t	
 hr_attendance	3	attendance_id	text	f	

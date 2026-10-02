@@ -76,6 +76,11 @@ financial statements, payment processing, exports.
 - `routes/.../accounting/invoices/page.server.test.ts` [3] — send reminders
 - `routes/.../accounting/{ap-due-soon,fx-revaluation,ledger}/export/row-cap.test.ts`
   [1 each, 3 total] — export row-cap guards
+- `lib/server/accounting/gl_daily_balances.test.ts` [4] — the per-day ledger
+  table the reports read agrees with the posted lines: as the fixture
+  stands, after a posted journal, as a draft is posted, re-dated and deleted,
+  and after two concurrent posts to one account and day (without the
+  advisory lock the second overwrites the first — watched failing)
 - `lib/server/db/paged.test.ts` [6] — the paged AR aging, customer
   balances, AP due soon and FX revaluation (receivables and payables
   separately) stitch back, page by page, into exactly the unpaged report,

@@ -607,6 +607,7 @@ const ACCOUNTING = [
   "payment_allocations",
   "journal_entries",
   "journal_entry_lines",
+  "gl_daily_balances",
   "chart_of_accounts",
   "accounting_periods",
   "vendors",

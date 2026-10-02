@@ -74,6 +74,7 @@ const SCALE_SENSITIVE = new Map([
   ["jobs", "one row per background job enqueued"],
   ["journal_entries", "one row per GL posting; grows with accounting activity"],
   ["journal_entry_lines", "grows with journal entries times lines per entry"],
+  ["gl_daily_balances", "one row per account per day with posted activity"],
   ["payment_allocations", "grows with payments applied to invoices/bills"],
   ["payments", "one row per payment recorded"],
   ["custom_field_values", "grows with projects+tasks times custom fields defined, over time"],
