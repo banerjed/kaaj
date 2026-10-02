@@ -43,7 +43,7 @@ experiments go into the baseline. This occurred one time: a manual `ALTER` left
 
 **If another session works in a parallel worktree, do not reset or snapshot
 the shared local database. Build a scratch database with `ci-database.sh`
-and point `DATABASE_URL` at it** ([L119](docs/10-lessons-learned.md)). Every
+and point `DATABASE_URL` at it** ([L120](docs/10-lessons-learned.md)). Every
 worktree's tests use the one local stack. A migration that another branch
 applied there goes into your snapshot, and `--generate` cannot tell the two
 apart. Read the diff of `00-tables.txt` before you commit it.

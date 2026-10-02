@@ -1755,7 +1755,7 @@ scaffolded table turns out to need wiring up, check whether it has scaffolded
 *siblings* sharing its naming prefix before assuming there's exactly one.
 
 
-### L119 — Every worktree shares the one local database, so another branch's migration lands in your snapshot
+### L120 — Every worktree shares the one local database, so another branch's migration lands in your snapshot
 
 **What happened.** Two sessions worked in two worktrees at once. One
 applied its migration (three `payroll_*` tables) to the local stack. The
@@ -2918,6 +2918,33 @@ for a `text` column lives in the repository (L57).
 Ask of any such guard: **what happens to a row that is already in the shape
 the invariant forbids?** It exists; the invariant is new.
 
+
+### L121 — A test that changes a committed fixture row races every other file that reads it
+
+**What happened.** `invoices/[id]/page.server.test.ts` cannot run its
+action inside a rollback (the action opens its own transactions), so its
+"no email on file" case sets Acme's `customers.email` to NULL on the real
+row, calls the action, and restores the value in `finally`. Correct in
+isolation. But vitest runs files in parallel, and two other files read that
+same row inside their own rolled-back transactions: the payment-reminder
+test and `invoiceForPdf`. Each landed inside the NULL window once in every
+few full runs and failed with "expected undefined to be 'ap@acme.example'".
+Standalone, every file passed every time — the failure existed only under
+`./check`, and refused a push through the pre-push hook.
+
+**Why it is easy to make.** The mutation is narrow, restored, and the only
+way to reach that branch of the action. Nothing marks the row as shared,
+and no test fails deterministically.
+
+**The rule.** A committed fixture mutation is visible to every file running
+beside it. Either the reader pins what it depends on inside its own
+transaction (`UPDATE … SET email = …` before the read, as those two tests
+now do — the join is still what is under test), or the mutating test uses a
+row no other test asserts on. When neither is possible, say so in the test
+and expect the flake. Standalone passes are not evidence here: reproduce
+with the whole suite, several times.
+
+---
 
 ## Working in this codebase
 

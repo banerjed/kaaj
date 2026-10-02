@@ -1337,9 +1337,15 @@ describe("voiding", () => {
 describe("payment reminders (US-ACC-003)", () => {
   describe("invoicesForReminder", () => {
     it("returns eligible overdue invoices with the customer's email", async () => {
-      const rows = await inRollback((tx) =>
-        acc.invoicesForReminder(tx, NORTHWIND, [GBP, PARTIAL]),
-      )
+      // Pinned inside this transaction: invoices/[id]/page.server.test.ts
+      // blanks Acme's email on the committed row and restores it, and the
+      // files run in parallel — a read that lands in that window sees NULL
+      // (L121). The join is still what is under test.
+      const rows = await inRollback(async (tx) => {
+        await tx`UPDATE customers SET email = 'ap@britco.example' WHERE id = 'ac7a04b4-a28e-5a15-9993-596db32c8d4e'::uuid`
+        await tx`UPDATE customers SET email = 'ap@acme.example' WHERE id = 'e40d0f18-1333-5cd1-a969-f5113df51e70'::uuid`
+        return acc.invoicesForReminder(tx, NORTHWIND, [GBP, PARTIAL])
+      })
       const byId = new Map(rows.map((r) => [r.id, r]))
       expect(byId.get(GBP)).toMatchObject({
         invoice_number: "INV-2026-002",
