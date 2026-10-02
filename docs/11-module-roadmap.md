@@ -486,7 +486,7 @@ twin ([L59](./10-lessons-learned.md)) — and a test asserting an error *class*
 passes on the wrong error, which hid a transition bug behind three green
 separation-of-duties tests ([L60](./10-lessons-learned.md)).
 
-### 3. Accounting — ✅ done
+### 3. Accounting — ✅ done for its slice; the gaps are listed below
 
 The balance rule was **not** only a spec test.
 `packages/database/tests/verify-stories.sql` asserts, over the live schema, that
@@ -516,6 +516,69 @@ was already posted when that payment was recorded, so this write never opens a
 journal entry. Its own guard, `direction_mismatch`, was verified the same
 way as the counter and header guards before it: removed, watched fail, then
 restored — same L48 discipline as the rest of this list.
+
+### Accounting — what the conformance suite shows is NOT built
+
+Re-verified 2026-10-02 by the accounting conformance suite
+([34-accounting-conformance-spec-V1.md](./34-accounting-conformance-spec-V1.md),
+`pnpm db:acs run`). The suite has a fixture for every one of its 330
+scenarios; 121 report `NOT_IMPLEMENTED` because the engine has no operation
+for them. `packages/database/conformance/capabilities.json` is the committed
+list, with a reason per scenario; section 32.3 of the spec groups them. In
+plain words, the engine cannot yet do these nine things:
+
+1. **Track inventory.** Nothing records goods bought for resale, the cost of
+   goods sold when they are sold, stock counts, warehouses, or returns to
+   stock. The chart has an Inventory account; no table or write path feeds it.
+   22 scenarios, plus the inventory halves of three others.
+
+2. **Hold fixed assets.** There is no register of equipment or furniture, so
+   nothing books a purchase as an asset, depreciates it month by month, or
+   records a gain or loss when it is sold. 12 scenarios.
+
+3. **Defer revenue.** A customer paying a year in advance cannot be held as a
+   liability and released month by month. `amortization_schedules` has a
+   `deferred_revenue` kind, but there is no contract behind it and no way to
+   cancel or refund part of one. 10 scenarios.
+
+4. **Reverse a posted journal.** There is no "reverse this entry" operation
+   that posts the mirror image and links the two; `journal_entries` has no
+   reversal column. The one reversal that exists is the accrual's own,
+   posted in the same call. This also blocks voiding an approved bill or a
+   vendor payment. 10 scenarios.
+
+5. **Take money without an invoice.** Every customer payment names one
+   invoice and may not exceed what it is owed. So an overpayment, a deposit
+   paid in advance, an unapplied receipt on the customer's account, moving a
+   payment between invoices, or a vendor prepayment, cannot be recorded.
+   10 scenarios.
+
+6. **Refund.** Money cannot be sent back to a customer or received back from
+   a vendor. 4 scenarios.
+
+7. **Reconcile a bank statement.** Single bank lines match to payments, but
+   there is no statement-level step with an ending balance, outstanding
+   items, deposits in transit, and a difference to resolve. 7 scenarios.
+
+8. **Post a foreign-currency revaluation.** Open invoices and bills in
+   another currency are revalued on a report only; nothing posts the
+   unrealized gain or loss or reverses it the next period. 4 scenarios.
+
+9. **Recognise a duplicate request.** There is no idempotency key, so a
+   payment gateway retrying its callback, or a client retrying after a
+   timeout, is not detected. 5 scenarios.
+
+Three smaller ones sit outside the runner's reach rather than outside the
+engine: audit rows and field-level refusals are written by page actions, not
+the accounting functions; and `postDueAmortizations` reads `CURRENT_DATE` and
+takes no as-of date, so two schedule scenarios cannot be expressed.
+
+The suite also found 19 scenarios where the engine does something **other**
+than the spec requires — a credit note that reverses no tax, a journal on an
+inactive account, out-of-order period closes, four concurrency races, two
+missing database constraints — and one scale problem in the daily-balance
+recompute. Those are not gaps; they are defects or policy decisions, and
+section 32.1 of the spec lists each with its cause.
 
 ### What every one of these writes needs
 
