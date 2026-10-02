@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { actionSearch } from "$lib/action-search"
   import { enhance } from "$app/forms"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
@@ -8,6 +9,8 @@
   import { compareDecimal } from "$lib/decimal"
 
   let { data, form } = $props()
+
+  const searchAccounts = actionSearch("searchAccounts")
 
   const err = $derived(fieldErrors(form))
 
@@ -44,14 +47,6 @@
   }
 
   const today = new Date().toISOString().slice(0, 10)
-
-  const accountOptions = $derived(
-    data.accounts.map((a) => ({
-      id: a.id,
-      label: a.account_name,
-      sublabel: a.account_code,
-    })),
-  )
 
   const totalDebit = $derived(
     lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0),
@@ -201,7 +196,7 @@
                       name={`lines.${i}.account_id`}
                       placeholder="Search accounts…"
                       invalid={err.has(`lines.${i}.account_id`)}
-                      options={accountOptions}
+                      search={searchAccounts}
                     />
                   </td>
                   <td>

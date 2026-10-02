@@ -1108,9 +1108,17 @@ test("a reconciliation rule with no matching criteria is refused, not silently a
   await page.goto("/accounting/banking/rules")
   const form = page.locator('form[action="?/create"]')
   await form.locator('input[name="rule_name"]').fill("Matches everything")
-  await form
-    .locator('select[name="category_account_id"]')
-    .selectOption({ index: 1 })
+  // The account picker searches: focusing it lists the first matches.
+  await form.locator('input[role="combobox"]').first().click()
+  await page
+    .getByRole("listbox")
+    .getByRole("option")
+    .first()
+    .locator("button")
+    .click()
+  await expect(
+    form.locator('input[type="hidden"][name="category_account_id"]'),
+  ).not.toHaveValue("")
   await form.getByRole("button", { name: /create rule/i }).click()
 
   await expect(page.getByText(/a rule needs at least one of/i)).toBeVisible()
@@ -1166,9 +1174,18 @@ test("recording an accrual against the last period is refused, not silently acce
   await form.locator('select[name="period_id"]').selectOption({
     label: "March 2026",
   })
-  await form.locator('select[name="expense_account_id"]').selectOption({
-    index: 1,
-  })
+  // The account picker searches: focusing it lists the first matches. Its
+  // own input, not getByRole("combobox") — a native <select> has that role too.
+  await form.locator('input[role="combobox"]').first().click()
+  await page
+    .getByRole("listbox")
+    .getByRole("option")
+    .first()
+    .locator("button")
+    .click()
+  await expect(
+    form.locator('input[type="hidden"][name="expense_account_id"]'),
+  ).not.toHaveValue("")
   await form.locator('input[name="amount"]').fill("100.00")
   await form
     .locator('input[name="description"]')

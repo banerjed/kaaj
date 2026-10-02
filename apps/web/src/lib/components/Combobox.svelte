@@ -72,12 +72,26 @@
   // absolutely-positioned dropdown to that table's own height, a few pixels
   // tall, with nothing erroring (L-class silent failure: the listbox renders,
   // with the right rows, just invisible/unreachable).
-  let dropdownRect = $state<{ top: number; left: number; width: number }>()
+  let dropdownRect = $state<{
+    top?: number
+    bottom?: number
+    left: number
+    width: number
+  }>()
+
+  /** The listbox's own max height (`max-h-60`, 15rem) plus its margin. */
+  const DROPDOWN_HEIGHT = 248
 
   function updateDropdownPosition() {
     if (!rootEl) return
     const r = rootEl.getBoundingClientRect()
-    dropdownRect = { top: r.bottom, left: r.left, width: r.width }
+    // A field near the foot of the window opens upwards: below it, the list
+    // would sit off-screen, reachable only by scrolling the page under it.
+    const roomBelow = window.innerHeight - r.bottom
+    dropdownRect =
+      roomBelow < DROPDOWN_HEIGHT && r.top > roomBelow
+        ? { bottom: window.innerHeight - r.top, left: r.left, width: r.width }
+        : { top: r.bottom, left: r.left, width: r.width }
   }
 
   const listboxId = $derived(`combobox-listbox-${name}`)
@@ -279,8 +293,8 @@
     <ul
       id={listboxId}
       role="listbox"
-      class="menu bg-base-100 rounded-box border-base-300 fixed z-50 mt-1 max-h-60 flex-nowrap overflow-y-auto border p-1 shadow-lg"
-      style={`top:${dropdownRect.top}px; left:${dropdownRect.left}px; width:${dropdownRect.width}px;`}
+      class={`menu bg-base-100 rounded-box border-base-300 fixed z-50 max-h-60 flex-nowrap overflow-y-auto border p-1 shadow-lg ${dropdownRect.top !== undefined ? "mt-1" : "mb-1"}`}
+      style={`${dropdownRect.top !== undefined ? `top:${dropdownRect.top}px;` : `bottom:${dropdownRect.bottom}px;`} left:${dropdownRect.left}px; width:${dropdownRect.width}px;`}
     >
       {#if atMax}
         <li class="text-base-content/60 px-2 py-1.5 text-xs">

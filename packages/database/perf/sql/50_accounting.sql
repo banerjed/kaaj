@@ -41,6 +41,24 @@ SELECT _perf.u('coa', code::int), _perf.tenant(), code, name, type::account_type
     ('6000','Interest Income','revenue','other_income')
   ) a(code, name, type, subtype);
 
+-- Departmental cost centres under each operating expense, as a firm this
+-- size runs them: about 220 accounts in all, so every account picker meets
+-- a real chart rather than a dozen rows. Nothing posts to them; the
+-- generator's journals use the parent accounts above.
+INSERT INTO chart_of_accounts (id, tenant_id, account_code, account_name, account_type,
+                               account_subtype, currency, is_bank_account, is_active,
+                               description, parent_account_id)
+SELECT _perf.u('coa', 100000 + d.n * 100 + p.n), _perf.tenant(),
+       p.code || '.' || _perf.pad(d.n, 2), p.name || ' — ' || d.name,
+       'expense'::account_type, 'operating_expense', 'USD', false, true,
+       p.name || ' for ' || d.name, _perf.u('coa', p.code::int)
+  FROM (SELECT row_number() OVER (ORDER BY account_code)::int AS n,
+               account_code AS code, account_name AS name
+          FROM chart_of_accounts
+         WHERE tenant_id = _perf.tenant() AND account_type = 'expense') p
+ CROSS JOIN (SELECT row_number() OVER (ORDER BY code)::int AS n, name
+               FROM firm_departments WHERE tenant_id = _perf.tenant()) d;
+
 -- Monthly periods; everything older than two months is closed.
 INSERT INTO accounting_periods (id, tenant_id, period_name, period_type, start_date, end_date,
                                 fiscal_year, status, closed_at)

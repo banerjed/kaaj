@@ -702,6 +702,26 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the vendor picker.",
   },
   {
+    route: "accounting/bills/new",
+    action: "searchAccounts",
+    why: "A read, not a write — backs the line account pickers.",
+  },
+  {
+    route: "accounting/journal-entries/new",
+    action: "searchAccounts",
+    why: "A read, not a write — backs the line account pickers.",
+  },
+  {
+    route: "accounting/accruals",
+    action: "searchAccounts",
+    why: "A read, not a write — backs the accrual and schedule account pickers.",
+  },
+  {
+    route: "accounting/banking/rules",
+    action: "searchAccounts",
+    why: "A read, not a write — backs the rule's category account picker.",
+  },
+  {
     route: "crm/companies/[id]",
     action: "searchPeople",
     why: "A read, not a write — backs the account-manager and deal-owner pickers.",

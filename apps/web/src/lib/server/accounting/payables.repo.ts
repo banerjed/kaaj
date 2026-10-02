@@ -1454,24 +1454,6 @@ export async function listReconciliationRules(
   `
 }
 
-export type CategoryAccountOption = {
-  id: string
-  account_code: string
-  account_name: string
-}
-
-/** The chart of accounts, for the rule form's category picker. */
-export async function categoryAccountsForPicker(
-  tx: Tx,
-): Promise<CategoryAccountOption[]> {
-  return tx<CategoryAccountOption[]>`
-    SELECT id::text AS id, account_code, account_name
-      FROM chart_of_accounts
-     WHERE is_active
-     ORDER BY account_code
-  `
-}
-
 export type NewReconciliationRule = {
   ruleName: string
   bankAccountId: string | null
@@ -1654,29 +1636,6 @@ export async function applyReconciliationRules(
 // ---------------------------------------------------------------------------
 // Writes — entering a vendor bill as a draft
 // ---------------------------------------------------------------------------
-
-export type ExpenseAccountOption = {
-  id: string
-  account_code: string
-  account_name: string
-}
-
-/**
- * Every active account, not only `account_type = 'expense'` — a bill can
- * legitimately debit an asset (capex, a prepaid) or pay down a liability, so
- * the type name on the column is illustrative, not a restriction the picker
- * should enforce.
- */
-export async function listExpenseAccountsForPicker(
-  tx: Tx,
-): Promise<ExpenseAccountOption[]> {
-  return tx<ExpenseAccountOption[]>`
-    SELECT id, account_code, account_name
-      FROM chart_of_accounts
-     WHERE is_active
-     ORDER BY account_code
-  `
-}
 
 export type NewBillLine = {
   description: string

@@ -221,3 +221,25 @@ export async function searchObjectives(
     sublabel: r.objective_number ?? undefined,
   }))
 }
+
+/** Active accounts by code or name — every account picker's set (a bill can debit an asset, so not expense-only). */
+export async function searchAccounts(
+  tx: Tx,
+  q: string,
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; account_code: string; account_name: string }[]
+  >`
+    SELECT id::text AS id, account_code, account_name
+      FROM chart_of_accounts
+     WHERE is_active
+       AND (account_code ILIKE ${like(q)} OR account_name ILIKE ${like(q)})
+     ORDER BY account_code
+     LIMIT ${PICKER_LIMIT}
+  `
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.account_name,
+    sublabel: r.account_code,
+  }))
+}

@@ -2,7 +2,7 @@ import { error, fail, redirect } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as acc from "$lib/server/accounting/accounting.repo"
 import { AccountingRefused } from "$lib/server/accounting/accounting.repo"
-import { listExpenseAccountsForPicker } from "$lib/server/accounting/payables.repo"
+import { pickerQuery, searchAccounts } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -19,9 +19,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!can(ctx, "accounting.read")) {
     error(403, "Only finance can see the general ledger.")
   }
-  return withTenant(actorFrom(locals), async (tx) => ({
-    accounts: await listExpenseAccountsForPicker(tx),
-  }))
+  return {}
 }
 
 /** A domain refusal the page can show, rather than a constraint name in a 500. */
@@ -57,6 +55,15 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the account pickers: active accounts by code or name. */
+  searchAccounts: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchAccounts(tx, q),
+    }))
+  },
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

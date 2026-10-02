@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { actionSearch } from "$lib/action-search"
+  import Combobox from "$lib/components/Combobox.svelte"
   import { enhance } from "$app/forms"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
@@ -8,6 +10,8 @@
   import { keepValues } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  const searchAccounts = actionSearch("searchAccounts")
 
   const err = $derived(fieldErrors(form))
 
@@ -97,18 +101,13 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Expense account</legend>
-            <select
+            <Combobox
               name="expense_account_id"
-              class={`select w-full ${err.select("expense_account_id")}`}
-              aria-invalid={err.aria("expense_account_id")}
-              required
-            >
-              <option value="">Choose one</option>
-              {#each data.accounts as a (a.id)}
-                <option value={a.id}>{a.account_code} — {a.account_name}</option
-                >
-              {/each}
-            </select>
+              search={searchAccounts}
+              invalid={!!err.aria("expense_account_id")}
+              placeholder="Search accounts…"
+              emptyText="No matching account"
+            />
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Amount</legend>
@@ -239,18 +238,13 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Balance sheet account</legend>
-            <select
+            <Combobox
               name="balance_sheet_account_id"
-              class={`select w-full ${err.select("balance_sheet_account_id")}`}
-              aria-invalid={err.aria("balance_sheet_account_id")}
-              required
-            >
-              <option value="">Choose one</option>
-              {#each data.accounts as a (a.id)}
-                <option value={a.id}>{a.account_code} — {a.account_name}</option
-                >
-              {/each}
-            </select>
+              search={searchAccounts}
+              invalid={!!err.aria("balance_sheet_account_id")}
+              placeholder="Search accounts…"
+              emptyText="No matching account"
+            />
             <p class="text-base-content/70 mt-1 text-xs">
               The liability (deferred revenue) or asset (prepaid) account
               draining down.
@@ -258,18 +252,13 @@
           </fieldset>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Income statement account</legend>
-            <select
+            <Combobox
               name="income_statement_account_id"
-              class={`select w-full ${err.select("income_statement_account_id")}`}
-              aria-invalid={err.aria("income_statement_account_id")}
-              required
-            >
-              <option value="">Choose one</option>
-              {#each data.accounts as a (a.id)}
-                <option value={a.id}>{a.account_code} — {a.account_name}</option
-                >
-              {/each}
-            </select>
+              search={searchAccounts}
+              invalid={!!err.aria("income_statement_account_id")}
+              placeholder="Search accounts…"
+              emptyText="No matching account"
+            />
             <p class="text-base-content/70 mt-1 text-xs">
               The revenue or expense account recognized into over time.
             </p>

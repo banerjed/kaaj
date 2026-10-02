@@ -9,6 +9,8 @@
 
   let { data, form } = $props()
 
+  const searchAccounts = actionSearch("searchAccounts")
+
   const err = $derived(fieldErrors(form))
   const searchVendors = actionSearch("searchVendors")
 
@@ -47,14 +49,6 @@
   }
 
   const today = new Date().toISOString().slice(0, 10)
-
-  const accountOptions = $derived(
-    data.accounts.map((a) => ({
-      id: a.id,
-      label: a.account_name,
-      sublabel: a.account_code,
-    })),
-  )
 </script>
 
 <PageHead title="New bill" />
@@ -280,7 +274,7 @@
                       name={`lines.${i}.expense_account_id`}
                       placeholder="Search accounts…"
                       invalid={err.has(`lines.${i}.expense_account_id`)}
-                      options={accountOptions}
+                      search={searchAccounts}
                     />
                   </td>
                   <td>

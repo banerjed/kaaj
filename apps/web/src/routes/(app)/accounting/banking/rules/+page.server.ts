@@ -8,6 +8,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pickerQuery, searchAccounts } from "$lib/server/pickers"
 
 /** /accounting/banking/rules — define categorization rules and run them. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -21,7 +22,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     return {
       rules: await pay.listReconciliationRules(tx),
       bankAccounts: await pay.bankAccounts(tx),
-      categoryAccounts: await pay.categoryAccountsForPicker(tx),
       transactionTypes: RECONCILIATION_TRANSACTION_TYPES,
       mayWrite: can(ctx, "accounting.write"),
     }
@@ -59,6 +59,15 @@ function refusal(e: AccountingRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the account pickers: active accounts by code or name. */
+  searchAccounts: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchAccounts(tx, q),
+    }))
+  },
   create: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

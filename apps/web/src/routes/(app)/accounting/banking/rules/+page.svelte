@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { actionSearch } from "$lib/action-search"
+  import Combobox from "$lib/components/Combobox.svelte"
   import { enhance } from "$app/forms"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
@@ -7,6 +9,8 @@
   import { keepValues } from "$lib/form-enhance"
 
   let { data, form } = $props()
+
+  const searchAccounts = actionSearch("searchAccounts")
 
   const err = $derived(fieldErrors(form))
 
@@ -235,19 +239,13 @@
             </fieldset>
             <fieldset class="fieldset">
               <legend class="fieldset-legend">Category account</legend>
-              <select
+              <Combobox
                 name="category_account_id"
-                class={`select w-full ${err.select("category_account_id")}`}
-                aria-invalid={err.aria("category_account_id")}
-                required
-              >
-                <option value="">Choose one</option>
-                {#each data.categoryAccounts as c (c.id)}
-                  <option value={c.id}
-                    >{c.account_code} — {c.account_name}</option
-                  >
-                {/each}
-              </select>
+                search={searchAccounts}
+                invalid={!!err.aria("category_account_id")}
+                placeholder="Search accounts…"
+                emptyText="No matching account"
+              />
             </fieldset>
             <fieldset class="fieldset">
               <legend class="fieldset-legend">Amount equals</legend>

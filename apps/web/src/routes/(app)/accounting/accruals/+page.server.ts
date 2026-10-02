@@ -5,7 +5,7 @@ import {
   AccountingRefused,
   AMORTIZATION_KINDS,
 } from "$lib/server/accounting/accounting.repo"
-import { listExpenseAccountsForPicker } from "$lib/server/accounting/payables.repo"
+import { pickerQuery, searchAccounts } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
@@ -35,7 +35,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     periods: (await acc.listAccountingPeriods(tx)).filter(
       (p) => p.status === "open",
     ),
-    accounts: await listExpenseAccountsForPicker(tx),
     schedules: await acc.listAmortizationSchedules(tx, pageOf(page, PAGE_SIZE)),
     kinds: AMORTIZATION_KINDS,
     mayWrite: can(ctx, "accounting.write"),
@@ -85,6 +84,15 @@ function refusal(
 }
 
 export const actions: Actions = {
+  /** Backs the account pickers: active accounts by code or name. */
+  searchAccounts: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "accounting.read")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchAccounts(tx, q),
+    }))
+  },
   recordAccrual: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)
