@@ -1755,7 +1755,7 @@ scaffolded table turns out to need wiring up, check whether it has scaffolded
 *siblings* sharing its naming prefix before assuming there's exactly one.
 
 
-### L120 — Every worktree shares the one local database, so another branch's migration lands in your snapshot
+### L122 — Every worktree shares the one local database, so another branch's migration lands in your snapshot
 
 **What happened.** Two sessions worked in two worktrees at once. One
 applied its migration (three `payroll_*` tables) to the local stack. The
@@ -2948,7 +2948,7 @@ Ask of any such guard: **what happens to a row that is already in the shape
 the invariant forbids?** It exists; the invariant is new.
 
 
-### L121 — A test that changes a committed fixture row races every other file that reads it
+### L123 — A test that changes a committed fixture row races every other file that reads it
 
 **What happened.** `invoices/[id]/page.server.test.ts` cannot run its
 action inside a rollback (the action opens its own transactions), so its

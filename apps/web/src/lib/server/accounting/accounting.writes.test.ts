@@ -1960,7 +1960,7 @@ describe("invoiceForPdf (US-ACC-001)", () => {
   it("assembles the invoice, customer and company data a PDF template needs", async () => {
     // Pinned inside this transaction: invoices/[id]/page.server.test.ts
     // blanks Acme's email on the committed row for one test and the files
-    // run in parallel (L121).
+    // run in parallel (L123).
     const data = await inRollback(async (tx) => {
       await tx`UPDATE customers SET email = 'ap@acme.example' WHERE id = 'e40d0f18-1333-5cd1-a969-f5113df51e70'::uuid`
       return invoiceForPdf(tx, INV_2026_001)
