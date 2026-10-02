@@ -6,7 +6,9 @@ WITH lines AS (
    WHERE je.tenant_id = $1 AND je.status = 'posted'
    GROUP BY l.account_id, je.entry_date),
 cached AS (
-  SELECT account_id, balance_date, base_debit, base_credit, line_count FROM gl_daily_balances WHERE tenant_id = $1)
+  SELECT account_id, balance_date, sum(base_debit) AS base_debit, sum(base_credit) AS base_credit, sum(line_count) AS line_count
+    FROM gl_daily_balances WHERE tenant_id = $1
+   GROUP BY account_id, balance_date)
 SELECT coalesce(x.balance_date, b.balance_date)::text AS day
   FROM lines x FULL OUTER JOIN cached b ON b.account_id = x.account_id AND b.balance_date = x.balance_date
  WHERE x.account_id IS NULL OR b.account_id IS NULL OR x.d <> b.base_debit OR x.c <> b.base_credit OR x.n <> b.line_count

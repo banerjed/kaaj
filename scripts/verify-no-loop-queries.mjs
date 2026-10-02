@@ -62,6 +62,15 @@ const EXEMPT = new Set([
   // (NOT_SCALE_SENSITIVE), same reasoning as generateDueInvoices' own
   // per-schedule postJournal call just above.
   "apps/web/src/lib/server/accounting/accounting.repo.ts:for (const sched of due) {",
+
+  // The accounting conformance runner (docs/34): never on a request path.
+  // Each loop is bounded by a fixture — its invariant list, its action list,
+  // the seed's file list, the handful of tenant tables — not by data volume.
+  "apps/web/src/lib/server/accounting/conformance/invariants.ts:for (const inv of invariants) {",
+  "apps/web/src/lib/server/accounting/conformance/seed.ts:for (const { table_name } of tables) {",
+  "apps/web/src/lib/server/accounting/conformance/seed.ts:for (const step of steps) {",
+  "apps/web/src/lib/server/accounting/conformance/acs.conformance.ts:for (const [handle, v] of Object.entries(",
+  "apps/web/src/lib/server/accounting/conformance/acs.conformance.ts:for (const [i, action] of (f.actions ?? []).entries()) {",
 ])
 
 function* tsFiles(dir) {

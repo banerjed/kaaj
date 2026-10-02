@@ -18,6 +18,14 @@ const DELETE_ALLOWED = new Map([
     "apps/web/src/lib/server/pii/pii.repo.ts",
     "GDPR Art. 17 — destroying the key IS the erasure, and it reaches backups",
   ],
+  [
+    "apps/web/src/lib/server/accounting/conformance/seed.ts",
+    "conformance runner, never on a request path: restores ACS_GOLDEN_SEED_V1 by removing the conformance tenant's rows on its own cluster (docs/34, section 4.3)",
+  ],
+  [
+    "apps/web/src/lib/server/accounting/conformance/ops.ts",
+    "conformance runner: journal.attempt_delete issues the DELETE so the suite can prove the database refuses it (docs/34, GL-011)",
+  ],
 ])
 
 /** action path -> why it needs no check. Runs before a tenant exists (account/marketing surfaces, not product routes). Reviewed edits only. */
