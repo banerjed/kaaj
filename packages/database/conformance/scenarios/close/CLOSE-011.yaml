@@ -1,0 +1,44 @@
+# CLOSE-011 — After year-end close, the next year opens with retained earnings only. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-011
+title: After year-end close, the next year opens with retained earnings only
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '10'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: journal.post
+  args:
+    date: '2026-03-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '400.00'
+    - account: OPERATING_BANK
+      credit: '400.00'
+  as: J1
+- op: year.close
+  as: YE
+  args:
+    as_of: '2026-12-31'
+    expected_net_income: '600.00'
+expect:
+  balances_as_of:
+    '2027-01-01':
+      ACCOUNTS_RECEIVABLE: '1000.00'
+      OPERATING_BANK: '-400.00'
+      RETAINED_EARNINGS: '-600.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-006

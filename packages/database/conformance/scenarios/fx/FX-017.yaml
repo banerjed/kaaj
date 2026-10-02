@@ -1,0 +1,45 @@
+# FX-017 — A six-decimal rate is stored and applied exactly. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: FX-017
+title: A six-decimal rate is stored and applied exactly
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-003
+    date: '2026-01-01'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+    rate: '1.234567'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '123.46'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '123.46'
+expect:
+  documents:
+    INV1:
+      exchange_rate: '1.234567'
+      base_total: '123.46'
+  balances:
+    ACCOUNTS_RECEIVABLE: '123.46'
+    SERVICE_REVENUE: '-123.46'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AP-001
+  - INV-AP-002

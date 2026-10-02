@@ -1,0 +1,34 @@
+# CLOSE-013 — The invoice date, not the form, decides the period. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-013
+title: The invoice date, not the form, decides the period
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-01
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-31'
+    lines:
+    - item: SERVICE-A
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: refused
+    refusal: period_closed
+expect:
+  documents:
+    INV1:
+      status: draft
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-006
+  - INV-SYS-003

@@ -1,0 +1,17 @@
+{
+  "ACCOUNTS_RECEIVABLE.account_code": "1100",
+  "ACCOUNTS_RECEIVABLE.label": "Accounts Receivable",
+  "ACCOUNTS_RECEIVABLE.gl_balance": "0.00",
+  "ACCOUNTS_RECEIVABLE.subledger_total": "0.00",
+  "ACCOUNTS_RECEIVABLE.difference": "0.00",
+  "ACCOUNTS_RECEIVABLE.ties_out": "true",
+  "ACCOUNTS_PAYABLE.account_code": "2000",
+  "ACCOUNTS_PAYABLE.label": "Accounts Payable",
+  "ACCOUNTS_PAYABLE.gl_balance": "300.00",
+  "ACCOUNTS_PAYABLE.subledger_total": "300.00",
+  "ACCOUNTS_PAYABLE.difference": "0.00",
+  "ACCOUNTS_PAYABLE.ties_out": "true",
+  "rows": "2",
+  "all_tie_out": "true",
+  "hash": "b1ab5656f8bef8fc"
+}

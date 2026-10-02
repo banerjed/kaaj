@@ -1,0 +1,16 @@
+# CLOSE-002 — Closing January. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-002
+title: Closing January
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-01
+expect:
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

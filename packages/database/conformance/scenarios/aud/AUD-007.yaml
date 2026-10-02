@@ -1,0 +1,37 @@
+# AUD-007 — A credit note names its invoice. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-007
+title: A credit note names its invoice
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.credit
+  as: C1
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-20'
+expect:
+  documents:
+    C1:
+      invoice_id: '@ref:INV1'
+      credit_type: credit_memo
+      journal_posted: 'true'
+      created_by: '@owner'
+  balances: {}
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

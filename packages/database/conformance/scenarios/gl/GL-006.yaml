@@ -1,0 +1,25 @@
+# GL-006 — Journal on an account that does not exist is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-006
+title: Journal on an account that does not exist is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: NO_SUCH_ACCOUNT
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  expect:
+    result: refused
+    refusal: no_such_account
+expect:
+  balances: {}
+  invariants:
+  - INV-GL-004
+  - INV-JRN-007

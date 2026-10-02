@@ -1,0 +1,55 @@
+# BANK-021 — A transaction cannot be matched to a payment of a different amount. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-021
+title: A transaction cannot be matched to a payment of a different amount
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-15'
+  as: PAY1
+- op: bank.import
+  as: T1
+  args:
+    statement: S1
+    lines:
+    - date: '2026-01-15'
+      amount: '50.00'
+      description: ACME WIRE
+- op: bank.match
+  args:
+    transaction: T1
+    payment: PAY1
+  expect:
+    result: refused
+    refusal: amount_mismatch
+expect:
+  documents:
+    T1:
+      status: unmatched
+  balances:
+    OPERATING_BANK: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

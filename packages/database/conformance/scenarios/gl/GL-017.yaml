@@ -1,0 +1,36 @@
+# GL-017 — Very large amount. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-017
+title: Very large amount
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '999999999.99'
+    - account: OPERATING_BANK
+      credit: '999999999.99'
+  as: J1
+  expect:
+    result: ok
+    journal:
+    - account: OFFICE_EXPENSE
+      debit: '999999999.99'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '999999999.99'
+expect:
+  balances:
+    OFFICE_EXPENSE: '999999999.99'
+    OPERATING_BANK: '-999999999.99'
+  invariants:
+  - INV-JRN-001
+  - INV-JRN-002
+  - INV-GL-001
+  - INV-GL-002

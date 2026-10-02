@@ -1,0 +1,12 @@
+# DB-007 — Every source reference resolves. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-007
+title: Every source reference resolves
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-007.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

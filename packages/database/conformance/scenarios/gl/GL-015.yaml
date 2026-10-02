@@ -1,0 +1,129 @@
+# GL-015 — 100-line journal. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-015
+title: 100-line journal
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - &id001
+      account: OFFICE_EXPENSE
+      debit: '1.01'
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - account: OPERATING_BANK
+      credit: '99.99'
+  as: J1
+expect:
+  documents:
+    J1:
+      line_count: '100'
+  balances:
+    OFFICE_EXPENSE: '99.99'
+    OPERATING_BANK: '-99.99'
+  invariants:
+  - INV-JRN-001
+  - INV-JRN-002
+  - INV-GL-001
+  - INV-GL-002

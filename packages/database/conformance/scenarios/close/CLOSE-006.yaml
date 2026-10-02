@@ -1,0 +1,32 @@
+# CLOSE-006 — Posting in the next open period after a close is accepted. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-006
+title: Posting in the next open period after a close is accepted
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-01
+- op: journal.post
+  args:
+    date: '2026-02-01'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+expect:
+  documents:
+    J1:
+      status: posted
+      accounting_period: 2026-02
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

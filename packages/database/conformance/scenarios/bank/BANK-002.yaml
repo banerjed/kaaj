@@ -1,0 +1,45 @@
+# BANK-002 — A vendor payment moves cash once. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-002
+title: A vendor payment moves cash once
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+      tax: TAX-0
+- op: bill.approve
+  args:
+    bill: B1
+- op: bill.pay
+  actor: finance
+  args:
+    bill: B1
+    amount: '100.00'
+    date: '2026-01-20'
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_PAYABLE
+      debit: '100.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '100.00'
+expect:
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

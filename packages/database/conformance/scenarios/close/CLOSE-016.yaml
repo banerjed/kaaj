@@ -1,0 +1,22 @@
+# CLOSE-016 — Closing a closed period again is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-016
+title: Closing a closed period again is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-01
+- op: period.close
+  args:
+    period: 2026-01
+  expect:
+    result: refused
+    refusal: wrong_status
+expect:
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

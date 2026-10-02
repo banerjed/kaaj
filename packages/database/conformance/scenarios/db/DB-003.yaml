@@ -1,0 +1,12 @@
+# DB-003 — Monetary columns are NUMERIC. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-003
+title: Monetary columns are NUMERIC
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-003.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

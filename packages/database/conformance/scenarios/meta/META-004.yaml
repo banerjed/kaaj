@@ -1,0 +1,53 @@
+# META-004 — One payment of 100 equals payments of 20, 30 and 50. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-004
+title: One payment of 100 equals payments of 20, 30 and 50
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - &id001
+    op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '1'
+        tax: TAX-0
+  - &id002
+    op: invoice.post
+    args:
+      invoice: INV1
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '100.00'
+      date: '2026-01-15'
+  B:
+  - *id001
+  - *id002
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '20.00'
+      date: '2026-01-15'
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '30.00'
+      date: '2026-01-16'
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '50.00'
+      date: '2026-01-17'
+expect:
+  equal:
+  - balances
+  - customers
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

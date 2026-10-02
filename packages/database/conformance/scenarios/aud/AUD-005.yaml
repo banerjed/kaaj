@@ -1,0 +1,37 @@
+# AUD-005 — The payment entry resolves to its payment. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-005
+title: The payment entry resolves to its payment
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-15'
+  as: PAY1
+expect:
+  documents:
+    PAY1:
+      journal_posted: 'true'
+      created_by: '@owner'
+  balances:
+    OPERATING_BANK: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

@@ -1,0 +1,58 @@
+# CON-005 — Two matches of one transaction at once: one wins. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-005
+title: 'Two matches of one transaction at once: one wins'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-15'
+  as: PAY1
+- op: bank.import
+  as: T1
+  args:
+    statement: S1
+    lines:
+    - date: '2026-01-15'
+      amount: '100.00'
+concurrent:
+- actions:
+  - op: bank.match
+    args:
+      transaction: T1
+      payment: PAY1
+- actions:
+  - op: bank.match
+    args:
+      transaction: T1
+      payment: PAY1
+expect:
+  lanes:
+    succeeded: '1'
+  documents:
+    T1:
+      status: matched
+  balances:
+    OPERATING_BANK: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-004
+  - INV-GL-006

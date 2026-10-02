@@ -1,0 +1,12 @@
+# DB-006 — An unbalanced posted entry cannot be committed. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-006
+title: An unbalanced posted entry cannot be committed
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-006.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

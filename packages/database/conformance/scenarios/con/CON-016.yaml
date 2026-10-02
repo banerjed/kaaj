@@ -1,0 +1,44 @@
+# CON-016 — Two amortization runs at once post one entry. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-016
+title: Two amortization runs at once post one entry
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-01'
+    description: Journal
+    lines:
+    - account: PREPAID_EXPENSES
+      debit: '1200.00'
+    - account: OPERATING_BANK
+      credit: '1200.00'
+  as: J1
+- op: amortization.create
+  as: S1
+  args:
+    kind: prepaid_expense
+    balance_sheet_account: PREPAID_EXPENSES
+    income_statement_account: INSURANCE_EXPENSE
+    amount: '1200.00'
+    periods: 12
+    first_date: '2026-01-31'
+concurrent:
+- actions:
+  - op: amortization.post_due
+    args: {}
+- actions:
+  - op: amortization.post_due
+    args: {}
+expect:
+  balances:
+    PREPAID_EXPENSES: '1100.00'
+    INSURANCE_EXPENSE: '100.00'
+    OPERATING_BANK: '-1200.00'
+  journals_total: '2'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

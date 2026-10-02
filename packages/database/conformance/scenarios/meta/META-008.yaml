@@ -1,0 +1,47 @@
+# META-008 — Per-line rounding: three lines of one unit carry one cent more tax than one line of three. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-008
+title: 'Per-line rounding: three lines of one unit carry one cent more tax than one line of three'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: ITEM-C
+        quantity: '3'
+        tax: TAX-8
+        tax_amount: '0.02'
+  - op: invoice.post
+    args:
+      invoice: INV1
+  B:
+  - op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - &id001
+        item: ITEM-C
+        tax: TAX-8
+        tax_amount: '0.01'
+      - *id001
+      - *id001
+  - op: invoice.post
+    args:
+      invoice: INV1
+expect:
+  equal:
+  - balances
+  differ:
+    SALES_TAX_PAYABLE: '-0.01'
+    ACCOUNTS_RECEIVABLE: '0.01'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

@@ -1,0 +1,327 @@
+{
+  "$comment": "The capability register (docs/34-accounting-conformance-spec-V1.md, section 3.2). Every module in section 3.1 must appear. A not_implemented entry carries the reason. The runner gives NOT_IMPLEMENTED to every scenario of a not_implemented module, to every scenario listed under scenarios, and skips every invariant listed under invariants.",
+  "modules": {
+    "GL": {
+      "status": "implemented"
+    },
+    "AR": {
+      "status": "implemented"
+    },
+    "AP": {
+      "status": "implemented"
+    },
+    "BANK": {
+      "status": "implemented"
+    },
+    "TAX": {
+      "status": "implemented"
+    },
+    "FX": {
+      "status": "implemented"
+    },
+    "INV": {
+      "status": "not_implemented",
+      "reason": "The engine has no inventory tables."
+    },
+    "ACC": {
+      "status": "implemented"
+    },
+    "DEF": {
+      "status": "not_implemented",
+      "reason": "The engine has no deferred-revenue schedule that posts revenue against a contract; amortization_schedules kind deferred_revenue exists but no contract or cancellation model."
+    },
+    "FA": {
+      "status": "not_implemented",
+      "reason": "The engine has no fixed-asset register."
+    },
+    "CLOSE": {
+      "status": "implemented"
+    },
+    "META": {
+      "status": "implemented"
+    },
+    "RPT": {
+      "status": "implemented"
+    },
+    "CON": {
+      "status": "implemented"
+    },
+    "FAIL": {
+      "status": "implemented"
+    },
+    "AUD": {
+      "status": "implemented"
+    },
+    "NUM": {
+      "status": "implemented"
+    },
+    "PROP": {
+      "status": "implemented"
+    },
+    "DB": {
+      "status": "implemented"
+    },
+    "E2E": {
+      "status": "implemented"
+    },
+    "MIG": {
+      "status": "implemented"
+    }
+  },
+  "scenarios": {
+    "GL-008": {
+      "reason": "No draft journal entry exists; recordManualJournalEntry posts at once."
+    },
+    "GL-009": {
+      "reason": "No draft journal entry exists."
+    },
+    "GL-012": {
+      "reason": "No reversing-entry operation exists for a posted journal entry."
+    },
+    "GL-013": {
+      "reason": "No reversing-entry operation exists."
+    },
+    "AR-010": {
+      "reason": "recordPayment refuses an amount above amount_due; no unapplied customer receipt exists."
+    },
+    "AR-011": {
+      "reason": "No unapplied customer receipt exists; every payment names an invoice."
+    },
+    "AR-012": {
+      "reason": "No unapplied customer receipt exists."
+    },
+    "AR-013": {
+      "reason": "No payment reallocation operation exists."
+    },
+    "AR-018": {
+      "reason": "No customer refund operation exists."
+    },
+    "AR-019": {
+      "reason": "No customer refund operation exists."
+    },
+    "AR-023": {
+      "reason": "No customer deposit exists."
+    },
+    "AR-024": {
+      "reason": "No customer deposit exists."
+    },
+    "AR-026": {
+      "reason": "No void-payment operation exists."
+    },
+    "AP-006": {
+      "reason": "No vendor credit operation exists."
+    },
+    "AP-007": {
+      "reason": "No vendor credit operation exists."
+    },
+    "AP-008": {
+      "reason": "No vendor credit operation exists."
+    },
+    "AP-009": {
+      "reason": "No vendor prepayment exists; every vendor payment names a bill."
+    },
+    "AP-010": {
+      "reason": "No vendor prepayment exists."
+    },
+    "AP-011": {
+      "reason": "No void-bill operation exists for an approved bill."
+    },
+    "AP-012": {
+      "reason": "No void-vendor-payment operation exists."
+    },
+    "AP-014": {
+      "reason": "INV is not implemented."
+    },
+    "AP-015": {
+      "reason": "No vendor prepayment exists."
+    },
+    "AP-018": {
+      "reason": "No payment reallocation operation exists."
+    },
+    "AP-019": {
+      "reason": "No vendor refund operation exists."
+    },
+    "BANK-009": {
+      "reason": "No statement reconciliation operation exists; only match and reconciliation rules."
+    },
+    "BANK-010": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "BANK-011": {
+      "reason": "No split of one bank transaction across accounts exists."
+    },
+    "BANK-012": {
+      "reason": "No split of one bank transaction across customers exists."
+    },
+    "BANK-016": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "BANK-017": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "BANK-018": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "BANK-019": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "BANK-020": {
+      "reason": "No statement reconciliation operation exists."
+    },
+    "FX-009": {
+      "reason": "FX revaluation is report-only; it posts nothing."
+    },
+    "FX-010": {
+      "reason": "FX revaluation is report-only; it posts nothing."
+    },
+    "FX-011": {
+      "reason": "FX revaluation is report-only; it posts nothing."
+    },
+    "FX-012": {
+      "reason": "FX revaluation is report-only; it posts nothing."
+    },
+    "FX-014": {
+      "reason": "No customer deposit exists."
+    },
+    "FX-019": {
+      "reason": "Reports have no display-currency option."
+    },
+    "ACC-003": {
+      "reason": "recordAccrual posts accrued expenses only; accrued revenue is a documented scope line."
+    },
+    "ACC-004": {
+      "reason": "recordAccrual posts accrued expenses only."
+    },
+    "ACC-009": {
+      "reason": "No operation changes an amortization schedule after creation."
+    },
+    "ACC-011": {
+      "reason": "No operation cancels an amortization schedule."
+    },
+    "ACC-007": {
+      "reason": "postDueAmortizations posts only schedules due by CURRENT_DATE; twelve 2026 recognitions cannot all be posted until 2027. Same clock dependency as ACC-013."
+    },
+    "ACC-013": {
+      "reason": "postDueAmortizations reads CURRENT_DATE and takes no as-of date, so 'twice for 2026-01-31' cannot be expressed; the second call posts the next month."
+    },
+    "ACC-014": {
+      "reason": "recordAccrual posts the accrual and its reversal in one call; there is no separate reversal run."
+    },
+    "CLOSE-005": {
+      "reason": "No reversing-entry operation exists; a January journal cannot be voided."
+    },
+    "CLOSE-008": {
+      "reason": "The audit row for a reopen is written by the page action, outside the engine boundary the runner calls."
+    },
+    "CLOSE-014": {
+      "reason": "No reversing-entry operation exists."
+    },
+    "AUD-009": {
+      "reason": "The audit row for a reopen is written by the page action, outside the engine boundary the runner calls."
+    },
+    "AUD-015": {
+      "reason": "Audit rows are written by page actions, outside the engine boundary the runner calls."
+    },
+    "NUM-009": {
+      "reason": "A third decimal is refused by FormReader in the page action; the engine casts to numeric(15,2) and would round."
+    },
+    "NUM-013": {
+      "reason": "The column-size refusal is answered by the page action's constraint registry, outside the engine boundary."
+    },
+    "CON-001": {
+      "reason": "No idempotency key exists."
+    },
+    "CON-002": {
+      "reason": "No idempotency key exists."
+    },
+    "CON-009": {
+      "reason": "No idempotency key exists."
+    },
+    "CON-010": {
+      "reason": "No idempotency key exists."
+    },
+    "CON-013": {
+      "reason": "INV is not implemented."
+    },
+    "CON-014": {
+      "reason": "FA is not implemented."
+    },
+    "CON-015": {
+      "reason": "DEF is not implemented."
+    },
+    "RPT-012": {
+      "reason": "INV is not implemented."
+    },
+    "RPT-013": {
+      "reason": "FA is not implemented."
+    },
+    "DB-008": {
+      "reason": "No idempotency key exists."
+    },
+    "MIG-009": {
+      "reason": "INV is not implemented."
+    },
+    "CON-003": {
+      "reason": "No draft journal entry exists; there is no draft for two users to post."
+    },
+    "CON-007": {
+      "reason": "An issued invoice cannot be cancelled; only a draft can be voided, and a draft takes no payment."
+    },
+    "RPT-008": {
+      "reason": "No AP aging report exists; apDueSoon lists bills by due date without aging buckets."
+    },
+    "RPT-010": {
+      "reason": "No vendor statement exists."
+    },
+    "RPT-015": {
+      "reason": "No cost-centre report exists; journal_entry_lines.department_id is written by nothing."
+    },
+    "RPT-016": {
+      "reason": "No project report over the ledger exists."
+    },
+    "RPT-020": {
+      "reason": "The trial balance has no include-zero-balances option."
+    },
+    "RPT-023": {
+      "reason": "CSV columns are defined per page action; the engine has no export the runner can call."
+    },
+    "TAX-008": {
+      "reason": "No customer refund operation exists."
+    },
+    "FAIL-011": {
+      "reason": "closePeriod writes no audit row; the page action does, outside the engine boundary."
+    },
+    "FAIL-012": {
+      "reason": "No reversing-entry operation exists."
+    },
+    "META-003": {
+      "reason": "No reversing-entry operation exists."
+    },
+    "AUD-006": {
+      "reason": "No reversing-entry operation exists; journal_entries carries no reversal link."
+    }
+  },
+  "invariants": {
+    "INV-INV-001": {
+      "reason": "INV is not implemented."
+    },
+    "INV-INV-002": {
+      "reason": "INV is not implemented."
+    },
+    "INV-INV-003": {
+      "reason": "INV is not implemented."
+    },
+    "INV-FX-004": {
+      "reason": "FX revaluation posts nothing."
+    },
+    "INV-SYS-001": {
+      "reason": "No idempotency key exists."
+    },
+    "INV-JRN-005": {
+      "reason": "No reversing-entry operation exists; journal_entries carries no reversal link column."
+    },
+    "INV-JRN-006": {
+      "reason": "No reversing-entry operation exists."
+    }
+  }
+}

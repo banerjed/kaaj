@@ -1,0 +1,28 @@
+# BANK-005 — A bank fee. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-005
+title: A bank fee
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.fee
+  as: J1
+  args:
+    amount: '15.00'
+    date: '2026-01-10'
+  expect:
+    journal:
+    - account: BANK_FEES
+      debit: '15.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '15.00'
+expect:
+  balances:
+    BANK_FEES: '15.00'
+    OPERATING_BANK: '-15.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

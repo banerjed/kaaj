@@ -1,0 +1,11 @@
+# MIG-007 — Every document status equal. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-007
+title: Every document status equal
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

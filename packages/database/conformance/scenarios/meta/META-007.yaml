@@ -1,0 +1,90 @@
+# META-007 — One batch receipt equals three receipts. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-007
+title: One batch receipt equals three receipts
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - &id001
+    op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '1'
+        tax: TAX-0
+  - &id002
+    op: invoice.post
+    args:
+      invoice: INV1
+  - &id003
+    op: invoice.create
+    as: INV2
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '2'
+  - &id004
+    op: invoice.post
+    args:
+      invoice: INV2
+  - &id005
+    op: invoice.create
+    as: INV3
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '3'
+  - &id006
+    op: invoice.post
+    args:
+      invoice: INV3
+  - op: payment.receive_batch
+    args:
+      customer: CUST-001
+      amount: '600.00'
+      date: '2026-01-20'
+      allocate:
+      - invoice: INV1
+        amount: '100.00'
+      - invoice: INV2
+        amount: '200.00'
+      - invoice: INV3
+        amount: '300.00'
+  B:
+  - *id001
+  - *id002
+  - *id003
+  - *id004
+  - *id005
+  - *id006
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '100.00'
+      date: '2026-01-20'
+  - op: payment.receive
+    args:
+      invoice: INV2
+      amount: '200.00'
+      date: '2026-01-20'
+  - op: payment.receive
+    args:
+      invoice: INV3
+      amount: '300.00'
+      date: '2026-01-20'
+expect:
+  equal:
+  - balances
+  - customers
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

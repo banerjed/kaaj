@@ -1,0 +1,64 @@
+# FX-005 — A payable settled at a lower rate is a realized gain. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: FX-005
+title: A payable settled at a lower rate is a realized gain
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FX
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-002
+    date: '2026-01-01'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+    rate: '1.200000'
+- op: bill.approve
+  args:
+    bill: B1
+  expect:
+    result: ok
+    journal:
+    - account: OFFICE_EXPENSE
+      debit: '120.00'
+      credit: '0.00'
+    - account: ACCOUNTS_PAYABLE
+      debit: '0.00'
+      credit: '120.00'
+- op: bill.pay
+  actor: finance
+  args:
+    bill: B1
+    amount: '100.00'
+    date: '2026-03-01'
+    bank: EUR Bank
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_PAYABLE
+      debit: '120.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '115.00'
+    - account: REALIZED_FX_GAIN_LOSS
+      debit: '0.00'
+      credit: '5.00'
+expect:
+  documents:
+    B1:
+      status: paid
+      amount_due: '0.00'
+  balances:
+    OFFICE_EXPENSE: '120.00'
+    OPERATING_BANK: '-115.00'
+    REALIZED_FX_GAIN_LOSS: '-5.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AP-001
+  - INV-AP-002

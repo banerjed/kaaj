@@ -1,0 +1,175 @@
+# E2E-GLD-001 — The golden end-to-end state. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: E2E-GLD-001
+title: The golden end-to-end state
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: E2E
+isolation: database
+actions:
+- op: journal.post
+  as: FUND
+  args:
+    date: '2026-01-01'
+    description: Owner funding
+    lines:
+    - account: OPERATING_BANK
+      debit: '100000.00'
+    - account: COMMON_STOCK
+      credit: '100000.00'
+- op: journal.post
+  as: PREPAID
+  args:
+    date: '2026-01-02'
+    description: Prepaid insurance
+    lines:
+    - account: PREPAID_EXPENSES
+      debit: '1200.00'
+    - account: OPERATING_BANK
+      credit: '1200.00'
+- op: amortization.create
+  as: S1
+  args:
+    kind: prepaid_expense
+    balance_sheet_account: PREPAID_EXPENSES
+    income_statement_account: INSURANCE_EXPENSE
+    amount: '1200.00'
+    periods: 12
+    first_date: '2026-01-31'
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-05'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '500.00'
+- op: bill.approve
+  args:
+    bill: B1
+- op: bill.pay
+  actor: finance
+  args:
+    bill: B1
+    amount: '200.00'
+    date: '2026-01-20'
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-06'
+    lines:
+    - item: SERVICE-A
+      tax: TAX-8
+      tax_amount: '8.00'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '50.00'
+    date: '2026-01-15'
+  as: PAY1
+- op: invoice.credit
+  args:
+    invoice: INV1
+    amount: '10.80'
+    date: '2026-01-18'
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '47.20'
+    date: '2026-01-22'
+  as: PAY2
+- op: invoice.create
+  as: INV2
+  args:
+    customer: CUST-003
+    date: '2026-01-07'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+    rate: '1.200000'
+- op: invoice.post
+  args:
+    invoice: INV2
+- op: payment.receive
+  args:
+    invoice: INV2
+    amount: '100.00'
+    date: '2026-01-31'
+    bank: EUR Bank
+  as: PAY3
+- op: accrual.create
+  as: ACC
+  args:
+    period: 2026-01
+    account: RENT_EXPENSE
+    amount: '500.00'
+- op: amortization.post_due
+  args: {}
+  expect:
+    value:
+      posted: '1'
+- op: bank.import
+  as: T1
+  args:
+    statement: JAN
+    lines:
+    - date: '2026-01-15'
+      amount: '50.00'
+      description: ACME
+    - date: '2026-01-22'
+      amount: '47.20'
+      description: ACME
+    - date: '2026-01-20'
+      amount: '-200.00'
+      description: SUPPLYCO
+- op: bank.match
+  args:
+    transaction: T1
+    payment: PAY1
+- op: period.close
+  args:
+    period: 2026-01
+golden:
+- trial-balance
+- balance-sheet
+- income-statement
+- cash-flow
+- ar-aging
+- tax-liability
+- control-tie-out
+- journal-ledger
+expect:
+  documents:
+    INV1:
+      status: paid
+      amount_due: '0.00'
+    INV2:
+      status: paid
+    B1:
+      status: partial
+      amount_due: '300.00'
+    T1:
+      status: matched
+  balances:
+    OPERATING_BANK: '98822.20'
+    COMMON_STOCK: '-100000.00'
+    PREPAID_EXPENSES: '1100.00'
+    INSURANCE_EXPENSE: '100.00'
+    OFFICE_EXPENSE: '500.00'
+    ACCOUNTS_PAYABLE: '-300.00'
+    SERVICE_REVENUE: '-209.20'
+    SALES_TAX_PAYABLE: '-8.00'
+    RENT_EXPENSE: '0.00'
+    ACCRUED_EXPENSES: '0.00'
+    REALIZED_FX_GAIN_LOSS: '-5.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002
+  - INV-AR-001
+  - INV-AP-001
+  - INV-GL-006

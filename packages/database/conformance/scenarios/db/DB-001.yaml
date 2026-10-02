@@ -1,0 +1,12 @@
+# DB-001 — journal_entry_lines.entry_id has a foreign key. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-001
+title: journal_entry_lines.entry_id has a foreign key
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-001.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

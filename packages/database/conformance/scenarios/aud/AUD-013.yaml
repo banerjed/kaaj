@@ -1,0 +1,26 @@
+# AUD-013 — A voided document survives as a row. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-013
+title: A voided document survives as a row
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+- op: invoice.void
+  args:
+    invoice: INV1
+expect:
+  documents:
+    INV1:
+      status: void
+      created_by: '@owner'
+  balances: {}
+  invariants:
+  - INV-SYS-003

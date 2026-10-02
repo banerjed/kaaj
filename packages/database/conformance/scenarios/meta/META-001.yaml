@@ -1,0 +1,34 @@
+# META-001 — Invoice plus full credit equals nothing. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-001
+title: Invoice plus full credit equals nothing
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '1'
+        tax: TAX-0
+  - op: invoice.post
+    args:
+      invoice: INV1
+  - op: invoice.credit
+    args:
+      invoice: INV1
+      amount: '100.00'
+      date: '2026-01-20'
+  B: []
+expect:
+  equal:
+  - balances
+  - customers
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

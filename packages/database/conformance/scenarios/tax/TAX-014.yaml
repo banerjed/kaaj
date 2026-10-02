@@ -1,0 +1,43 @@
+# TAX-014 — A historical invoice keeps its tax after the rate changes. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-014
+title: A historical invoice keeps its tax after the rate changes
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      tax: TAX-8
+      tax_amount: '8.00'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: tax.create_rate
+  as: R9
+  args:
+    code: TAX-9
+    rate: '0.0900'
+    name: 9% exclusive
+expect:
+  documents:
+    INV1:
+      tax_total: '8.00'
+      total: '108.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '108.00'
+    SERVICE_REVENUE: '-100.00'
+    SALES_TAX_PAYABLE: '-8.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003
+  - INV-TAX-002

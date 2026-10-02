@@ -1,0 +1,44 @@
+# META-005 — One line of 100 equals two lines of 50, tax included. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-005
+title: One line of 100 equals two lines of 50, tax included
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        tax: TAX-8
+        tax_amount: '8.00'
+  - op: invoice.post
+    args:
+      invoice: INV1
+  B:
+  - op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - &id001
+        item: SERVICE-A
+        unit_price: '50.00'
+        tax: TAX-8
+        tax_amount: '4.00'
+      - *id001
+  - op: invoice.post
+    args:
+      invoice: INV1
+expect:
+  equal:
+  - balances
+  - customers
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

@@ -1,0 +1,25 @@
+# ACC-002 — The accrual reverses in the next period. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: ACC-002
+title: The accrual reverses in the next period
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: ACC
+isolation: transaction
+actions:
+- op: accrual.create
+  as: ACC
+  args:
+    period: 2026-01
+    account: RENT_EXPENSE
+    amount: '500.00'
+expect:
+  balances: {}
+  balances_as_of:
+    '2026-01-31':
+      RENT_EXPENSE: '500.00'
+      ACCRUED_EXPENSES: '-500.00'
+    '2026-02-28': {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

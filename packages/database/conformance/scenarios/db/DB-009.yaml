@@ -1,0 +1,12 @@
+# DB-009 — Required uniqueness constraints exist. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-009
+title: Required uniqueness constraints exist
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-009.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

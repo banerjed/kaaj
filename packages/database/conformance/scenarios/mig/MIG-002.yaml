@@ -1,0 +1,11 @@
+# MIG-002 — Seed and run E2E-GLD-001 with commits. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-002
+title: Seed and run E2E-GLD-001 with commits
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

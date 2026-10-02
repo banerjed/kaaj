@@ -1,0 +1,47 @@
+# ACC-008 — A schedule starting after the 15th recognises half a month first. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: ACC-008
+title: A schedule starting after the 15th recognises half a month first
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: ACC
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-01'
+    description: Journal
+    lines:
+    - account: PREPAID_EXPENSES
+      debit: '1200.00'
+    - account: OPERATING_BANK
+      credit: '1200.00'
+  as: J1
+- op: amortization.create
+  as: S1
+  args:
+    kind: prepaid_expense
+    balance_sheet_account: PREPAID_EXPENSES
+    income_statement_account: INSURANCE_EXPENSE
+    amount: '1200.00'
+    periods: 12
+    first_date: '2026-01-31'
+    start: '2026-01-16'
+- op: amortization.post_due
+  args: {}
+  expect:
+    journal:
+    - account: INSURANCE_EXPENSE
+      debit: '50.00'
+      credit: '0.00'
+    - account: PREPAID_EXPENSES
+      debit: '0.00'
+      credit: '50.00'
+expect:
+  balances:
+    PREPAID_EXPENSES: '1150.00'
+    INSURANCE_EXPENSE: '50.00'
+    OPERATING_BANK: '-1200.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

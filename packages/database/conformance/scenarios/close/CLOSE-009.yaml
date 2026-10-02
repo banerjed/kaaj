@@ -1,0 +1,45 @@
+# CLOSE-009 — Reopen, post, close again. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-009
+title: Reopen, post, close again
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- &id001
+  op: period.close
+  args:
+    period: 2026-01
+- op: period.reopen
+  args:
+    period: 2026-01
+- op: journal.post
+  args:
+    date: '2026-01-15'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+- *id001
+- op: journal.post
+  args:
+    date: '2026-01-16'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '1.00'
+    - account: OPERATING_BANK
+      credit: '1.00'
+  expect:
+    result: refused
+    refusal: period_closed
+expect:
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

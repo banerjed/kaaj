@@ -1,0 +1,12 @@
+# DB-015 — app_user cannot DELETE a journal entry. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-015
+title: app_user cannot DELETE a journal entry
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-015.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

@@ -1,0 +1,22 @@
+# RPT-001 — An empty trial balance. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: RPT-001
+title: An empty trial balance
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: RPT
+isolation: transaction
+actions:
+- op: report.trial_balance
+  args: {}
+  expect:
+    result: ok
+    value:
+      debits: '0.00'
+      credits: '0.00'
+      rows: '0'
+      balances: 'true'
+expect:
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

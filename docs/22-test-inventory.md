@@ -28,6 +28,11 @@ are that file's top-level `describe` blocks, not every `it`.
 The largest single area by a wide margin: general ledger, AR, AP, tax,
 financial statements, payment processing, exports.
 
+- `lib/server/accounting/conformance/acs.conformance.ts` [211 fixtures] — the
+  accounting conformance suite (docs/34): one case per YAML fixture in
+  `packages/database/conformance/scenarios/`, run with `pnpm db:acs run`
+  against the suite's own cluster. Deliberately NOT matched by the default
+  vitest include, so `./check` does not need that cluster.
 - `lib/server/accounting/accounting.test.ts` [55] — general ledger, accounting
   periods, invoices, AR aging, customer balances, trial balance (+ comparison),
   P&L (+ comparison), balance sheet (+ comparison), cash flow (+ comparison),

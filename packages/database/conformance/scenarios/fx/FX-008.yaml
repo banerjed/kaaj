@@ -1,0 +1,71 @@
+# FX-008 — Two partial settlements at two rates. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: FX-008
+title: Two partial settlements at two rates
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-003
+    date: '2026-01-01'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+    rate: '1.200000'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '120.00'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '120.00'
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '40.00'
+    date: '2026-01-31'
+    bank: EUR Bank
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '60.00'
+    date: '2026-02-15'
+    bank: EUR Bank
+  expect:
+    result: ok
+    journal:
+    - account: OPERATING_BANK
+      debit: '78.00'
+      credit: '0.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '72.00'
+    - account: REALIZED_FX_GAIN_LOSS
+      debit: '0.00'
+      credit: '6.00'
+expect:
+  documents:
+    INV1:
+      status: paid
+      amount_due: '0.00'
+      base_amount_due: '0.00'
+  balances:
+    OPERATING_BANK: '128.00'
+    SERVICE_REVENUE: '-120.00'
+    REALIZED_FX_GAIN_LOSS: '-8.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AP-001
+  - INV-AP-002

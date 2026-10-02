@@ -1,0 +1,34 @@
+# CLOSE-018 — Year-end close refuses while a period of the year is open. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-018
+title: Year-end close refuses while a period of the year is open
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: year.close
+  args:
+    as_of: '2026-12-31'
+    expected_net_income: '100.00'
+  expect:
+    result: refused
+    refusal: period_open
+expect:
+  balances:
+    ACCOUNTS_RECEIVABLE: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

@@ -1,0 +1,38 @@
+# FAIL-004 — Failure at the first journal line insert. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: FAIL-004
+title: Failure at the first journal line insert
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FAIL
+isolation: database
+inject:
+  table: journal_entry_lines
+  op: INSERT
+  nth: 1
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+- op: invoice.post
+  args:
+    invoice: INV1
+  inject: true
+  expect:
+    result: refused
+    refusal: pg:P0001
+expect:
+  unchanged: true
+  balances: {}
+  invariants:
+  - INV-GL-004
+  - INV-SYS-002
+  - INV-SYS-003
+  - INV-SYS-004
+  documents:
+    INV1:
+      status: draft
+  journals_total: '0'

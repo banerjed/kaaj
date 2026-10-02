@@ -1,0 +1,31 @@
+# AR-022 — A customer with 100 invoices. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-022
+title: A customer with 100 invoices
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.issue_new
+  repeat: 100
+  args:
+    customer: CUST-002
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '1.00'
+expect:
+  balances:
+    ACCOUNTS_RECEIVABLE: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  journals_total: '100'
+  subledger:
+    customers:
+      CUST-002: '100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

@@ -1,0 +1,25 @@
+# GL-005 — Zero-value journal is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-005
+title: Zero-value journal is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '0.00'
+    - account: OPERATING_BANK
+      credit: '0.00'
+  expect:
+    result: refused
+    refusal: no_lines
+expect:
+  balances: {}
+  invariants:
+  - INV-GL-004
+  - INV-SYS-004

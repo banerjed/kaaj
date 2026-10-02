@@ -1,0 +1,29 @@
+# NUM-003 — One thousand one-cent invoices sum to exactly ten dollars. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-003
+title: One thousand one-cent invoices sum to exactly ten dollars
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+gate: nightly
+actions:
+- op: invoice.issue_new
+  repeat: 1000
+  args:
+    customer: CUST-002
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '0.01'
+expect:
+  balances:
+    ACCOUNTS_RECEIVABLE: '10.00'
+    SERVICE_REVENUE: '-10.00'
+  subledger:
+    customers:
+      CUST-002: '10.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002

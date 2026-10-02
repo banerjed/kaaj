@@ -1,0 +1,12 @@
+# DB-004 — journal_entries.status permits only the four values. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-004
+title: journal_entries.status permits only the four values
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-004.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

@@ -1,0 +1,40 @@
+# NUM-012 — Fractional quantity. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-012
+title: Fractional quantity
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '2.5'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '250.00'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '250.00'
+expect:
+  documents:
+    INV1:
+      total: '250.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '250.00'
+    SERVICE_REVENUE: '-250.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002

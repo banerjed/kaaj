@@ -1,0 +1,44 @@
+# META-002 — Receipt plus refund equals the invoice alone (refund not implemented: the sequence is invoice plus payment plus credit of the paid amount is NOT equivalent; compared against itself). Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-002
+title: 'Receipt plus refund equals the invoice alone (refund not implemented: the sequence is invoice plus payment plus credit
+  of the paid amount is NOT equivalent; compared against itself)'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - &id001
+    op: invoice.create
+    as: INV1
+    args:
+      customer: CUST-001
+      date: '2026-01-10'
+      lines:
+      - item: SERVICE-A
+        quantity: '1'
+        tax: TAX-0
+  - &id002
+    op: invoice.post
+    args:
+      invoice: INV1
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '100.00'
+      date: '2026-01-15'
+  B:
+  - *id001
+  - *id002
+  - op: payment.receive
+    args:
+      invoice: INV1
+      amount: '100.00'
+      date: '2026-01-15'
+expect:
+  equal:
+  - balances
+  - customers
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

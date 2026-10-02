@@ -1,0 +1,11 @@
+# MIG-009 — Inventory valuation equal. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-009
+title: Inventory valuation equal
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

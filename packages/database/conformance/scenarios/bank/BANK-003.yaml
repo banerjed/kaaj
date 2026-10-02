@@ -1,0 +1,30 @@
+# BANK-003 — A transfer between two bank accounts conserves cash. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-003
+title: A transfer between two bank accounts conserves cash
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.transfer
+  as: J1
+  args:
+    from: OPERATING_BANK
+    to: SAVINGS_BANK
+    amount: '500.00'
+    date: '2026-01-10'
+  expect:
+    journal:
+    - account: SAVINGS_BANK
+      debit: '500.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '500.00'
+expect:
+  balances:
+    OPERATING_BANK: '-500.00'
+    SAVINGS_BANK: '500.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

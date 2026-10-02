@@ -1,0 +1,51 @@
+# TAX-005 — Discount is applied before tax. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-005
+title: Discount is applied before tax
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      discount_percent: '10'
+      tax: TAX-8
+      tax_amount: '7.20'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '97.20'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '90.00'
+    - account: SALES_TAX_PAYABLE
+      debit: '0.00'
+      credit: '7.20'
+expect:
+  documents:
+    INV1:
+      subtotal: '90.00'
+      tax_total: '7.20'
+      total: '97.20'
+  balances:
+    ACCOUNTS_RECEIVABLE: '97.20'
+    SERVICE_REVENUE: '-90.00'
+    SALES_TAX_PAYABLE: '-7.20'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003
+  - INV-TAX-002

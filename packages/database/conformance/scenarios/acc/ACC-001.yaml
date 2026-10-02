@@ -1,0 +1,43 @@
+# ACC-001 — An accrued expense posts with its reversal in the next period. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: ACC-001
+title: An accrued expense posts with its reversal in the next period
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: ACC
+isolation: transaction
+actions:
+- op: accrual.create
+  as: ACC
+  args:
+    period: 2026-01
+    account: RENT_EXPENSE
+    amount: '500.00'
+    description: January rent
+  expect:
+    result: ok
+    journals:
+    - - account: RENT_EXPENSE
+        debit: '500.00'
+        credit: '0.00'
+      - account: ACCRUED_EXPENSES
+        debit: '0.00'
+        credit: '500.00'
+    - - account: ACCRUED_EXPENSES
+        debit: '500.00'
+        credit: '0.00'
+      - account: RENT_EXPENSE
+        debit: '0.00'
+        credit: '500.00'
+    value:
+      reversal_date: '2026-02-01'
+expect:
+  documents:
+    ACC:
+      status: posted
+      is_adjusting: 'true'
+      date: '2026-01-31'
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

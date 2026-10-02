@@ -1,0 +1,59 @@
+# META-006 — One vendor payment equals two. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: META-006
+title: One vendor payment equals two
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: META
+isolation: transaction
+sequences:
+  A:
+  - op: bill.create
+    as: B1
+    args:
+      vendor: VEND-001
+      date: '2026-01-10'
+      lines:
+      - account: OFFICE_EXPENSE
+        amount: '100.00'
+        tax: TAX-0
+  - op: bill.approve
+    args:
+      bill: B1
+  - op: bill.pay
+    actor: finance
+    args:
+      bill: B1
+      amount: '100.00'
+      date: '2026-01-20'
+  B:
+  - op: bill.create
+    as: B1
+    args:
+      vendor: VEND-001
+      date: '2026-01-10'
+      lines:
+      - account: OFFICE_EXPENSE
+        amount: '100.00'
+        tax: TAX-0
+  - op: bill.approve
+    args:
+      bill: B1
+  - op: bill.pay
+    actor: finance
+    args:
+      bill: B1
+      amount: '60.00'
+      date: '2026-01-20'
+  - op: bill.pay
+    actor: finance
+    args:
+      bill: B1
+      amount: '40.00'
+      date: '2026-01-25'
+expect:
+  equal:
+  - balances
+  - vendors
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

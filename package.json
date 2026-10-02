@@ -24,7 +24,9 @@
     "db:snapshot": "packages/database/scripts/db-snapshot.sh --generate",
     "db:check": "packages/database/scripts/db-snapshot.sh --check",
     "db:perf": "node --experimental-transform-types --no-warnings packages/database/perf/perf-tenant.mjs",
-    "db:perf:cluster": "packages/database/perf/cluster.sh"
+    "db:perf:cluster": "packages/database/perf/cluster.sh",
+    "db:acs": "node --no-warnings packages/database/conformance/acs.mjs",
+    "db:acs:cluster": "packages/database/conformance/cluster.sh"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

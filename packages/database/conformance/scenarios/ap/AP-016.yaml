@@ -1,0 +1,45 @@
+# AP-016 — A duplicate vendor bill number is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AP-016
+title: A duplicate vendor bill number is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AP
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+      tax: TAX-0
+    bill_number: SUP-1001
+- op: bill.approve
+  args:
+    bill: B1
+- op: bill.create
+  args:
+    vendor: VEND-001
+    date: '2026-01-12'
+    bill_number: SUP-1001
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '50.00'
+  expect:
+    result: refused
+    refusal: pg:23505
+expect:
+  documents:
+    B1:
+      status: approved
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    ACCOUNTS_PAYABLE: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

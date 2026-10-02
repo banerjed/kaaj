@@ -1,0 +1,11 @@
+# MIG-010 — Audit rows neither removed nor changed. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-010
+title: Audit rows neither removed nor changed
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

@@ -1,0 +1,53 @@
+# AR-016 — Invoice partly credited. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-016
+title: Invoice partly credited
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.credit
+  args:
+    invoice: INV1
+    amount: '40.00'
+    date: '2026-01-20'
+  expect:
+    result: ok
+    journal:
+    - account: SERVICE_REVENUE
+      debit: '40.00'
+      credit: '0.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '40.00'
+expect:
+  documents:
+    INV1:
+      status: sent
+      amount_due: '60.00'
+      amount_credited: '40.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '60.00'
+    SERVICE_REVENUE: '-60.00'
+  subledger:
+    customers:
+      CUST-001: '60.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

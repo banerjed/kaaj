@@ -1,0 +1,30 @@
+# CON-011 — A connection lost before COMMIT writes nothing. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-011
+title: A connection lost before COMMIT writes nothing
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions: []
+concurrent:
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '100.00'
+      - account: OPERATING_BANK
+        credit: '100.00'
+  abort: true
+expect:
+  lanes:
+    succeeded: '0'
+    refused: '1'
+  journals_total: '0'
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-004
+  - INV-GL-006

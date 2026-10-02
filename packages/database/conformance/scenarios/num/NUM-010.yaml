@@ -1,0 +1,44 @@
+# NUM-010 — Functional amount of a foreign-currency unit. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-010
+title: Functional amount of a foreign-currency unit
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-003
+    date: '2026-01-01'
+    lines:
+    - item: SERVICE-A
+      unit_price: '1.00'
+    rate: '1.234567'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '1.23'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '1.23'
+expect:
+  documents:
+    INV1:
+      currency: EUR
+      total: '1.00'
+      base_total: '1.23'
+      exchange_rate: '1.234567'
+  balances:
+    ACCOUNTS_RECEIVABLE: '1.23'
+    SERVICE_REVENUE: '-1.23'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002

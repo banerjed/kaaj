@@ -1,0 +1,58 @@
+# AR-027 — Residual cent written off. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-027
+title: Residual cent written off
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '99.00'
+    date: '2026-01-15'
+- op: invoice.write_off
+  args:
+    invoice: INV1
+    amount: '1.00'
+    date: '2026-01-25'
+  expect:
+    result: ok
+    journal:
+    - account: BAD_DEBT_EXPENSE
+      debit: '1.00'
+      credit: '0.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '1.00'
+expect:
+  documents:
+    INV1:
+      status: written_off
+      amount_due: '0.00'
+  balances:
+    OPERATING_BANK: '99.00'
+    BAD_DEBT_EXPENSE: '1.00'
+    SERVICE_REVENUE: '-100.00'
+  subledger:
+    customers:
+      CUST-001: '0.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

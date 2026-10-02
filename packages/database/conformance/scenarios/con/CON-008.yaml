@@ -1,0 +1,26 @@
+# CON-008 — A close and a posting in the closing period at once. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-008
+title: A close and a posting in the closing period at once
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions: []
+concurrent:
+- actions:
+  - op: period.close
+    args:
+      period: 2026-01
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '100.00'
+      - account: OPERATING_BANK
+        credit: '100.00'
+expect:
+  invariants:
+  - INV-GL-006
+  - INV-JRN-001

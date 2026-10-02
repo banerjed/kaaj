@@ -1,0 +1,30 @@
+# CON-012 — A connection lost after COMMIT has written everything. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-012
+title: A connection lost after COMMIT has written everything
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions: []
+concurrent:
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '100.00'
+      - account: OPERATING_BANK
+        credit: '100.00'
+expect:
+  lanes:
+    succeeded: '1'
+  journals_total: '1'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-004
+  - INV-GL-006

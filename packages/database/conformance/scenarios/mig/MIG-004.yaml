@@ -1,0 +1,11 @@
+# MIG-004 — Apply the new migrations. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-004
+title: Apply the new migrations
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

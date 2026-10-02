@@ -1,0 +1,11 @@
+{
+  "TAX-8.tax_rate_id": "333f8247-e449-5cfd-bdec-a4a517747b34",
+  "TAX-8.code": "TAX-8",
+  "TAX-8.jurisdiction": "US-ACS",
+  "TAX-8.output_tax": "8.00",
+  "TAX-8.input_tax": "0",
+  "TAX-8.net_liability": "8.00",
+  "rows": "1",
+  "net_liability": "8.00",
+  "hash": "e4d715095d2fe1db"
+}

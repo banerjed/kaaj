@@ -1,0 +1,31 @@
+# NUM-008 — The column maximum, thirteen integer digits. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-008
+title: The column maximum, thirteen integer digits
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '9999999999999.99'
+- op: invoice.post
+  args:
+    invoice: INV1
+expect:
+  documents:
+    INV1:
+      total: '9999999999999.99'
+  balances:
+    ACCOUNTS_RECEIVABLE: '9999999999999.99'
+    SERVICE_REVENUE: '-9999999999999.99'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002

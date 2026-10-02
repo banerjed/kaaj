@@ -1,0 +1,30 @@
+# AUD-001 — Created-by is recorded. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-001
+title: Created-by is recorded
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+expect:
+  documents:
+    INV1:
+      created_by: '@owner'
+  balances:
+    ACCOUNTS_RECEIVABLE: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

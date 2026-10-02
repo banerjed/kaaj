@@ -1,0 +1,28 @@
+# BANK-015 — An opening bank balance. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-015
+title: An opening bank balance
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.opening_balance
+  as: J1
+  args:
+    amount: '1000.00'
+    date: '2026-01-01'
+  expect:
+    journal:
+    - account: OPERATING_BANK
+      debit: '1000.00'
+      credit: '0.00'
+    - account: RETAINED_EARNINGS
+      debit: '0.00'
+      credit: '1000.00'
+expect:
+  balances:
+    OPERATING_BANK: '1000.00'
+    RETAINED_EARNINGS: '-1000.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

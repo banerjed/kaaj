@@ -1,0 +1,29 @@
+# CLOSE-001 — Posting in an open period is accepted. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-001
+title: Posting in an open period is accepted
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-15'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+expect:
+  documents:
+    J1:
+      status: posted
+      accounting_period: 2026-01
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

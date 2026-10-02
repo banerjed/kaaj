@@ -1,0 +1,40 @@
+# FX-018 — A document keeps the rate it was posted with. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: FX-018
+title: A document keeps the rate it was posted with
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-003
+    date: '2026-01-01'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+    rate: '1.200000'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: fx.set_rate
+  args:
+    from: EUR
+    to: USD
+    date: '2026-01-01'
+    rate: '1.210000'
+expect:
+  documents:
+    INV1:
+      exchange_rate: '1.200000'
+      base_total: '120.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '120.00'
+    SERVICE_REVENUE: '-120.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002

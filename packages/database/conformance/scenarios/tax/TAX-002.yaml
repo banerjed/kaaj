@@ -1,0 +1,51 @@
+# TAX-002 — 108 tax-inclusive decomposes to 100 revenue and 8 tax. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-002
+title: 108 tax-inclusive decomposes to 100 revenue and 8 tax
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '100.00'
+      tax: TAX-8-I
+      tax_amount: '8.00'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '108.00'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '100.00'
+    - account: SALES_TAX_PAYABLE
+      debit: '0.00'
+      credit: '8.00'
+expect:
+  documents:
+    INV1:
+      subtotal: '100.00'
+      tax_total: '8.00'
+      total: '108.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '108.00'
+    SERVICE_REVENUE: '-100.00'
+    SALES_TAX_PAYABLE: '-8.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003
+  - INV-TAX-002

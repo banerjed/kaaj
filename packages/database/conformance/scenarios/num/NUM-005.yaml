@@ -1,0 +1,27 @@
+# NUM-005 — Ten thousand postings of 0.10 show no drift. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-005
+title: Ten thousand postings of 0.10 show no drift
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+gate: nightly
+actions:
+- op: journal.post
+  repeat: 10000
+  args:
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '0.10'
+    - account: OPERATING_BANK
+      credit: '0.10'
+expect:
+  balances:
+    OFFICE_EXPENSE: '1000.00'
+    OPERATING_BANK: '-1000.00'
+  journals_total: '10000'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

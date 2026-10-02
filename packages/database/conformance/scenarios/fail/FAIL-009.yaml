@@ -1,0 +1,47 @@
+# FAIL-009 — Failure at the invoice status update after a payment. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: FAIL-009
+title: Failure at the invoice status update after a payment
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FAIL
+isolation: database
+inject:
+  table: invoices
+  op: UPDATE
+  nth: 2
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-15'
+  inject: true
+  expect:
+    result: refused
+    refusal: pg:P0001
+expect:
+  unchanged: true
+  balances:
+    ACCOUNTS_RECEIVABLE: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-GL-004
+  - INV-SYS-002
+  - INV-SYS-003
+  - INV-SYS-004
+  documents:
+    INV1:
+      status: sent
+      amount_due: '100.00'
+      amount_paid: '0.00'
+  journals_total: '1'

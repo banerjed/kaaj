@@ -1,0 +1,28 @@
+# BANK-006 — Interest income. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-006
+title: Interest income
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.interest
+  as: J1
+  args:
+    amount: '2.50'
+    date: '2026-01-10'
+  expect:
+    journal:
+    - account: OPERATING_BANK
+      debit: '2.50'
+      credit: '0.00'
+    - account: INTEREST_INCOME
+      debit: '0.00'
+      credit: '2.50'
+expect:
+  balances:
+    OPERATING_BANK: '2.50'
+    INTEREST_INCOME: '-2.50'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

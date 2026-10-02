@@ -1,0 +1,47 @@
+# AP-001 — Basic expense bill. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AP-001
+title: Basic expense bill
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AP
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+      tax: TAX-0
+- op: bill.approve
+  args:
+    bill: B1
+  expect:
+    result: ok
+    journal:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+      credit: '0.00'
+    - account: ACCOUNTS_PAYABLE
+      debit: '0.00'
+      credit: '100.00'
+expect:
+  documents:
+    B1:
+      status: approved
+      total: '100.00'
+      amount_due: '100.00'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    ACCOUNTS_PAYABLE: '-100.00'
+  subledger:
+    vendors:
+      VEND-001: '100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

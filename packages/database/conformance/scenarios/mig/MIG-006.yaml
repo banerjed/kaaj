@@ -1,0 +1,11 @@
+# MIG-006 — Every balance equal. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: MIG-006
+title: Every balance equal
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: MIG
+isolation: transaction
+procedure: migration
+expect:
+  invariants:
+  - INV-GL-001

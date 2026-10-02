@@ -1,0 +1,19 @@
+# CLOSE-017 — Periods close in order. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-017
+title: Periods close in order
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-03
+  expect:
+    result: refused
+    refusal: period_out_of_order
+expect:
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

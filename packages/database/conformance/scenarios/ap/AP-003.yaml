@@ -1,0 +1,53 @@
+# AP-003 — Partial vendor payment. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AP-003
+title: Partial vendor payment
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AP
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+      tax: TAX-0
+- op: bill.approve
+  args:
+    bill: B1
+- op: bill.pay
+  actor: finance
+  args:
+    bill: B1
+    amount: '40.00'
+    date: '2026-01-20'
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_PAYABLE
+      debit: '40.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '40.00'
+expect:
+  documents:
+    B1:
+      status: partial
+      amount_due: '60.00'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-40.00'
+    ACCOUNTS_PAYABLE: '-60.00'
+  subledger:
+    vendors:
+      VEND-001: '60.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

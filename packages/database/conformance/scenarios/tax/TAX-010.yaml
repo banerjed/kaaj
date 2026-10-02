@@ -1,0 +1,51 @@
+# TAX-010 — One line of three units: tax rounds once on the line. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-010
+title: 'One line of three units: tax rounds once on the line'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: ITEM-C
+      quantity: '3'
+      tax: TAX-8
+      tax_amount: '0.02'
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.32'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '0.30'
+    - account: SALES_TAX_PAYABLE
+      debit: '0.00'
+      credit: '0.02'
+expect:
+  documents:
+    INV1:
+      subtotal: '0.30'
+      tax_total: '0.02'
+      total: '0.32'
+  balances:
+    ACCOUNTS_RECEIVABLE: '0.32'
+    SERVICE_REVENUE: '-0.30'
+    SALES_TAX_PAYABLE: '-0.02'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003
+  - INV-TAX-002

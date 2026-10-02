@@ -1,0 +1,77 @@
+# RPT-005 — Income statement net income. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: RPT-005
+title: Income statement net income
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: RPT
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '1111.11'
+      tax: TAX-5
+      tax_amount: '55.56'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '833.34'
+    date: '2026-01-15'
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-12'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '444.44'
+- op: bill.approve
+  args:
+    bill: B1
+- op: bill.create
+  as: B2
+  args:
+    vendor: VEND-001
+    date: '2026-01-12'
+    lines:
+    - account: RENT_EXPENSE
+      amount: '222.22'
+- op: bill.approve
+  args:
+    bill: B2
+- op: bill.pay
+  actor: finance
+  args:
+    bill: B2
+    amount: '222.22'
+    date: '2026-01-20'
+- op: report.income_statement
+  args:
+    from: '2026-01-01'
+    to: '2026-01-31'
+  expect:
+    result: ok
+    value:
+      revenue: '1111.11'
+      expenses: '666.66'
+      net_income: '444.45'
+      SERVICE_REVENUE.amount: '1111.11'
+expect:
+  balances:
+    OPERATING_BANK: '611.12'
+    ACCOUNTS_RECEIVABLE: '333.33'
+    ACCOUNTS_PAYABLE: '-444.44'
+    SALES_TAX_PAYABLE: '-55.56'
+    SERVICE_REVENUE: '-1111.11'
+    OFFICE_EXPENSE: '444.44'
+    RENT_EXPENSE: '222.22'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

@@ -1,0 +1,28 @@
+# AUD-003 — The posting timestamp is the database clock of the transaction. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-003
+title: The posting timestamp is the database clock of the transaction
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+expect:
+  documents:
+    J1:
+      posted_at_is_now: 'true'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

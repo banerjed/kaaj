@@ -1,0 +1,23 @@
+# TAX-016 — A tax rate that does not exist is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-016
+title: A tax rate that does not exist is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      tax: NO_SUCH_TAX
+      tax_amount: '1.00'
+  expect:
+    result: refused
+    refusal: pg:23503
+expect:
+  balances: {}
+  invariants:
+  - INV-GL-004

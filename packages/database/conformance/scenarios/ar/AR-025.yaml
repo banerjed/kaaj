@@ -1,0 +1,28 @@
+# AR-025 — A draft invoice can be voided and posts nothing. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-025
+title: A draft invoice can be voided and posts nothing
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+- op: invoice.void
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+expect:
+  documents:
+    INV1:
+      status: void
+  balances: {}
+  invariants:
+  - INV-GL-003
+  - INV-SYS-003

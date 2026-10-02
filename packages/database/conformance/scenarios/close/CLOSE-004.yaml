@@ -1,0 +1,28 @@
+# CLOSE-004 — A manual journal dated in a closed period is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-004
+title: A manual journal dated in a closed period is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: period.close
+  args:
+    period: 2026-01
+- op: journal.post
+  args:
+    date: '2026-01-20'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  expect:
+    result: refused
+    refusal: period_closed
+expect:
+  balances: {}
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

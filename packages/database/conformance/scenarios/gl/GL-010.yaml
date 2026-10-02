@@ -1,0 +1,33 @@
+# GL-010 — A posted journal cannot be changed: the update touches no row. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-010
+title: 'A posted journal cannot be changed: the update touches no row'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+- op: journal.attempt_update
+  args:
+    journal: J1
+    debit: '150.00'
+  expect:
+    result: ok
+    value:
+      rows: '0'
+expect:
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-003
+  - INV-JRN-001

@@ -1,0 +1,93 @@
+# AR-020 — One receipt across three invoices. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-020
+title: One receipt across three invoices
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.create
+  as: INV2
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '2'
+- op: invoice.post
+  args:
+    invoice: INV2
+- op: invoice.create
+  as: INV3
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '3'
+- op: invoice.post
+  args:
+    invoice: INV3
+- op: payment.receive_batch
+  as: PAY1
+  args:
+    customer: CUST-001
+    amount: '600.00'
+    date: '2026-01-20'
+    allocate:
+    - invoice: INV1
+      amount: '100.00'
+    - invoice: INV2
+      amount: '200.00'
+    - invoice: INV3
+      amount: '300.00'
+  expect:
+    result: ok
+    journal:
+    - account: OPERATING_BANK
+      debit: '600.00'
+      credit: '0.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '100.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '200.00'
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '0.00'
+      credit: '300.00'
+expect:
+  documents:
+    INV1:
+      status: paid
+    INV2:
+      status: paid
+    INV3:
+      status: paid
+    PAY1:
+      amount: '600.00'
+  balances:
+    OPERATING_BANK: '600.00'
+    SERVICE_REVENUE: '-600.00'
+  subledger:
+    customers:
+      CUST-001: '0.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

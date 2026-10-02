@@ -1,0 +1,24 @@
+# NUM-007 — A negative line is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-007
+title: A negative line is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '-100.00'
+  expect:
+    result: refused
+    refusal: pg:23514
+expect:
+  balances: {}
+  invariants:
+  - INV-GL-003
+  - INV-SYS-003

@@ -1,0 +1,49 @@
+# AR-001 — Basic invoice. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-001
+title: Basic invoice
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+  expect:
+    result: ok
+    journal:
+    - account: ACCOUNTS_RECEIVABLE
+      debit: '100.00'
+      credit: '0.00'
+    - account: SERVICE_REVENUE
+      debit: '0.00'
+      credit: '100.00'
+expect:
+  documents:
+    INV1:
+      status: sent
+      total: '100.00'
+      amount_due: '100.00'
+      tax_total: '0.00'
+  balances:
+    ACCOUNTS_RECEIVABLE: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  subledger:
+    customers:
+      CUST-001: '100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003

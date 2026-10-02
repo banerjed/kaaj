@@ -1,0 +1,12 @@
+# DB-014 — A posted entry refuses UPDATE. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-014
+title: A posted entry refuses UPDATE
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-014.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

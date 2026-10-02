@@ -1,0 +1,12 @@
+# DB-011 — Every accounting table is tenant-isolated. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-011
+title: Every accounting table is tenant-isolated
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-011.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

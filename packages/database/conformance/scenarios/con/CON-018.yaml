@@ -1,0 +1,200 @@
+# CON-018 — Twenty journals at once: no deadlock, balances agree. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: CON-018
+title: 'Twenty journals at once: no deadlock, balances agree'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CON
+isolation: database
+actions: []
+concurrent:
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+- actions:
+  - op: journal.post
+    args:
+      date: '2026-01-15'
+      lines:
+      - account: OFFICE_EXPENSE
+        debit: '1.00'
+      - account: OPERATING_BANK
+        credit: '1.00'
+expect:
+  lanes:
+    succeeded: '20'
+  journals_total: '20'
+  balances:
+    OFFICE_EXPENSE: '20.00'
+    OPERATING_BANK: '-20.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

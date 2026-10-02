@@ -1,0 +1,52 @@
+# ACC-006 — Prepaid insurance: first monthly recognition. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: ACC-006
+title: 'Prepaid insurance: first monthly recognition'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: ACC
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-01'
+    description: Journal
+    lines:
+    - account: PREPAID_EXPENSES
+      debit: '1200.00'
+    - account: OPERATING_BANK
+      credit: '1200.00'
+  as: J1
+- op: amortization.create
+  as: S1
+  args:
+    kind: prepaid_expense
+    balance_sheet_account: PREPAID_EXPENSES
+    income_statement_account: INSURANCE_EXPENSE
+    amount: '1200.00'
+    periods: 12
+    first_date: '2026-01-31'
+- op: amortization.post_due
+  args: {}
+  expect:
+    result: ok
+    value:
+      posted: '1'
+    journal:
+    - account: INSURANCE_EXPENSE
+      debit: '100.00'
+      credit: '0.00'
+    - account: PREPAID_EXPENSES
+      debit: '0.00'
+      credit: '100.00'
+expect:
+  documents:
+    S1:
+      next_run_date: '2026-02-28'
+  balances:
+    PREPAID_EXPENSES: '1100.00'
+    INSURANCE_EXPENSE: '100.00'
+    OPERATING_BANK: '-1200.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

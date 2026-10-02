@@ -1,0 +1,44 @@
+# AP-013 — Sales tax on a purchase is part of the expense in this US profile. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AP-013
+title: Sales tax on a purchase is part of the expense in this US profile
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AP
+isolation: transaction
+actions:
+- op: bill.create
+  as: B1
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '100.00'
+      tax: TAX-8
+      tax_amount: '8.00'
+- op: bill.approve
+  args:
+    bill: B1
+  expect:
+    result: ok
+    journal:
+    - account: OFFICE_EXPENSE
+      debit: '108.00'
+      credit: '0.00'
+    - account: ACCOUNTS_PAYABLE
+      debit: '0.00'
+      credit: '108.00'
+expect:
+  documents:
+    B1:
+      total: '108.00'
+      tax_total: '8.00'
+  balances:
+    OFFICE_EXPENSE: '108.00'
+    ACCOUNTS_PAYABLE: '-108.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

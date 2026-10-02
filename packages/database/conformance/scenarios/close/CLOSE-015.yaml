@@ -1,0 +1,35 @@
+# CLOSE-015 — Closing writes no journal entry and changes none. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-015
+title: Closing writes no journal entry and changes none
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-15'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+- op: period.close
+  args:
+    period: 2026-01
+expect:
+  documents:
+    J1:
+      status: posted
+      line_count: '2'
+      accounting_period: 2026-01
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  journals_total: '1'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-006

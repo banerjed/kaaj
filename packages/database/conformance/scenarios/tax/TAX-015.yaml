@@ -1,0 +1,55 @@
+# TAX-015 — The tax liability report equals the tax control account. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: TAX-015
+title: The tax liability report equals the tax control account
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: TAX
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      tax: TAX-8
+      tax_amount: '8.00'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.create
+  as: INV2
+  args:
+    customer: CUST-001
+    date: '2026-01-12'
+    lines:
+    - item: SERVICE-A
+      tax: TAX-8
+      tax_amount: '8.00'
+    - item: SERVICE-A
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV2
+- op: report.tax_liability
+  args:
+    from: '2026-01-01'
+    to: '2026-01-31'
+  expect:
+    value:
+      net_liability: '16.00'
+      TAX-8.output_tax: '16.00'
+expect:
+  balances:
+    ACCOUNTS_RECEIVABLE: '316.00'
+    SERVICE_REVENUE: '-300.00'
+    SALES_TAX_PAYABLE: '-16.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
+  - INV-AR-004
+  - INV-SYS-003
+  - INV-TAX-002

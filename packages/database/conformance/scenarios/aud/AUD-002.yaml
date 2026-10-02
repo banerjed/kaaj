@@ -1,0 +1,29 @@
+# AUD-002 — Posted-by is recorded. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-002
+title: Posted-by is recorded
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+expect:
+  documents:
+    J1:
+      posted_by: '@owner'
+      created_by: '@owner'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

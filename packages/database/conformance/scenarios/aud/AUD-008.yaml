@@ -1,0 +1,66 @@
+# AUD-008 — Allocations name the payment and each invoice. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AUD-008
+title: Allocations name the payment and each invoice
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AUD
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '1'
+      tax: TAX-0
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.create
+  as: INV2
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '2'
+- op: invoice.post
+  args:
+    invoice: INV2
+- op: invoice.create
+  as: INV3
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '3'
+- op: invoice.post
+  args:
+    invoice: INV3
+- op: payment.receive_batch
+  as: PAY1
+  args:
+    customer: CUST-001
+    amount: '600.00'
+    date: '2026-01-20'
+    allocate:
+    - invoice: INV1
+      amount: '100.00'
+    - invoice: INV2
+      amount: '200.00'
+    - invoice: INV3
+      amount: '300.00'
+expect:
+  documents:
+    PAY1:
+      allocations: '3'
+      allocated_total: '600.00'
+  balances:
+    OPERATING_BANK: '600.00'
+    SERVICE_REVENUE: '-600.00'
+  invariants:
+  - INV-JRN-008
+  - INV-SYS-003

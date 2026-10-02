@@ -1,0 +1,13 @@
+{
+  "beginning_cash": "0",
+  "ending_cash": "98822.20",
+  "net_income": "-385.80",
+  "working_capital_change": "-792.00",
+  "operating_cash_flow": "-1177.80",
+  "investing_cash_flow": "0",
+  "financing_cash_flow": "100000.00",
+  "net_change_in_cash": "98822.20",
+  "computed_ending_cash": "98822.20",
+  "reconciles": "true",
+  "hash": "199bc8eea7c1462e"
+}

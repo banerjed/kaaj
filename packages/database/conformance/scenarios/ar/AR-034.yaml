@@ -1,0 +1,31 @@
+# AR-034 — A payment against a draft invoice is refused. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AR-034
+title: A payment against a draft invoice is refused
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AR
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+- op: payment.receive
+  args:
+    invoice: INV1
+    amount: '100.00'
+    date: '2026-01-15'
+  expect:
+    result: refused
+    refusal: wrong_status
+expect:
+  documents:
+    INV1:
+      status: draft
+  balances: {}
+  invariants:
+  - INV-GL-003
+  - INV-SYS-003

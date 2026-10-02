@@ -1,0 +1,22 @@
+# BANK-004 — A transfer from savings to operating. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-004
+title: A transfer from savings to operating
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.transfer
+  as: J1
+  args:
+    from: SAVINGS_BANK
+    to: OPERATING_BANK
+    amount: '100.00'
+    date: '2026-01-10'
+expect:
+  balances:
+    SAVINGS_BANK: '-100.00'
+    OPERATING_BANK: '100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

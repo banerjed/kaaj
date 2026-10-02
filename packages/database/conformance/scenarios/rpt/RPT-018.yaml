@@ -1,0 +1,41 @@
+# RPT-018 — As-of reporting excludes later postings. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: RPT-018
+title: As-of reporting excludes later postings
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: RPT
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-15'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+- op: journal.post
+  args:
+    date: '2026-02-15'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+- op: report.balance_sheet
+  args:
+    as_of: '2026-01-31'
+  expect:
+    result: ok
+    value:
+      OPERATING_BANK.amount: '-100.00'
+      net_income: '-100.00'
+expect:
+  balances:
+    OFFICE_EXPENSE: '200.00'
+    OPERATING_BANK: '-200.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

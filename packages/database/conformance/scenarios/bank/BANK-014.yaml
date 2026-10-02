@@ -1,0 +1,30 @@
+# BANK-014 — Two lines with the same date, amount and description in one statement are two transactions. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: BANK-014
+title: Two lines with the same date, amount and description in one statement are two transactions
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: BANK
+isolation: transaction
+actions:
+- op: bank.import
+  as: T1
+  args:
+    statement: S1
+    lines:
+    - date: '2026-01-15'
+      amount: '100.00'
+      description: ACME WIRE
+    - date: '2026-01-15'
+      amount: '100.00'
+      description: ACME WIRE
+  expect:
+    value:
+      imported: '2'
+      duplicates: '0'
+      transactions: '2'
+expect:
+  balances: {}
+  journals_total: '0'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

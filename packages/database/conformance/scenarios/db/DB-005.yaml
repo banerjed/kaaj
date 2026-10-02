@@ -1,0 +1,12 @@
+# DB-005 — A posted entry with zero lines cannot exist. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-005
+title: A posted entry with zero lines cannot exist
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-005.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

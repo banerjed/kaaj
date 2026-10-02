@@ -1,0 +1,59 @@
+# CLOSE-010 — Year-end close moves net income to retained earnings. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: CLOSE-010
+title: Year-end close moves net income to retained earnings
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: CLOSE
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      quantity: '10'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: journal.post
+  args:
+    date: '2026-03-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '400.00'
+    - account: OPERATING_BANK
+      credit: '400.00'
+  as: J1
+- op: year.close
+  as: YE
+  args:
+    as_of: '2026-12-31'
+    expected_net_income: '600.00'
+  expect:
+    result: ok
+    journal:
+    - account: SERVICE_REVENUE
+      debit: '1000.00'
+      credit: '0.00'
+    - account: OFFICE_EXPENSE
+      debit: '0.00'
+      credit: '400.00'
+    - account: RETAINED_EARNINGS
+      debit: '0.00'
+      credit: '600.00'
+expect:
+  documents:
+    YE:
+      status: posted
+      source_type: year_end_close
+      line_count: '3'
+  balances:
+    ACCOUNTS_RECEIVABLE: '1000.00'
+    OPERATING_BANK: '-400.00'
+    RETAINED_EARNINGS: '-600.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

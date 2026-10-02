@@ -1,0 +1,35 @@
+# GL-011 — A posted journal cannot be deleted. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-011
+title: A posted journal cannot be deleted
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+  as: J1
+- op: journal.attempt_delete
+  args:
+    journal: J1
+  expect:
+    result: refused
+    refusal: pg:42501
+expect:
+  documents:
+    J1:
+      status: posted
+      line_count: '2'
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    OPERATING_BANK: '-100.00'
+  invariants:
+  - INV-JRN-004
+  - INV-JRN-001

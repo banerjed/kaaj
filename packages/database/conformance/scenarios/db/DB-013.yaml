@@ -1,0 +1,12 @@
+# DB-013 — Daily balances agree with the lines. Spec: docs/34-accounting-conformance-spec-V1.md.
+id: DB-013
+title: Daily balances agree with the lines
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: DB
+isolation: transaction
+sql: db/DB-013.sql
+expect:
+  rows: '0'
+  invariants:
+  - INV-SYS-004

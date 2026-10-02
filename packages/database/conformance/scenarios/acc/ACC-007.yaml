@@ -1,0 +1,43 @@
+# ACC-007 — Prepaid insurance: twelve recognitions total the prepayment. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: ACC-007
+title: 'Prepaid insurance: twelve recognitions total the prepayment'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: ACC
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-01'
+    description: Journal
+    lines:
+    - account: PREPAID_EXPENSES
+      debit: '1200.00'
+    - account: OPERATING_BANK
+      credit: '1200.00'
+  as: J1
+- op: amortization.create
+  as: S1
+  args:
+    kind: prepaid_expense
+    balance_sheet_account: PREPAID_EXPENSES
+    income_statement_account: INSURANCE_EXPENSE
+    amount: '1200.00'
+    periods: 12
+    first_date: '2026-01-31'
+- op: amortization.post_due
+  args:
+    repeat: 13
+  expect:
+    result: ok
+    value:
+      posted: '12'
+expect:
+  balances:
+    PREPAID_EXPENSES: '0.00'
+    INSURANCE_EXPENSE: '1200.00'
+    OPERATING_BANK: '-1200.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-GL-002

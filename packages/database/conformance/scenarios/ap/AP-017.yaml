@@ -1,0 +1,30 @@
+# AP-017 — A vendor with 100 bills. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: AP-017
+title: A vendor with 100 bills
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: AP
+isolation: transaction
+actions:
+- op: bill.create_and_approve
+  repeat: 100
+  args:
+    vendor: VEND-001
+    date: '2026-01-10'
+    lines:
+    - account: OFFICE_EXPENSE
+      amount: '1.00'
+expect:
+  balances:
+    OFFICE_EXPENSE: '100.00'
+    ACCOUNTS_PAYABLE: '-100.00'
+  journals_total: '100'
+  subledger:
+    vendors:
+      VEND-001: '100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AP-001
+  - INV-AP-002
+  - INV-SYS-003

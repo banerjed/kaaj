@@ -1,0 +1,42 @@
+# RPT-017 — A date filter includes its last day and not the next. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: RPT-017
+title: A date filter includes its last day and not the next
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: RPT
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-31'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+- op: journal.post
+  args:
+    date: '2026-02-01'
+    description: Journal
+    lines:
+    - account: OFFICE_EXPENSE
+      debit: '100.00'
+    - account: OPERATING_BANK
+      credit: '100.00'
+- op: report.income_statement
+  args:
+    from: '2026-01-01'
+    to: '2026-01-31'
+  expect:
+    result: ok
+    value:
+      OFFICE_EXPENSE.amount: '100.00'
+      expenses: '100.00'
+expect:
+  balances:
+    OFFICE_EXPENSE: '200.00'
+    OPERATING_BANK: '-200.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

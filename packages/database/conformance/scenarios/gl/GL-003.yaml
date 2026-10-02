@@ -1,0 +1,57 @@
+# GL-003 — Ten-line journal. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: GL-003
+title: Ten-line journal
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: GL
+isolation: transaction
+actions:
+- op: journal.post
+  args:
+    date: '2026-01-10'
+    description: Journal
+    lines:
+    - &id001
+      account: OFFICE_EXPENSE
+      debit: '11.11'
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - *id001
+    - account: OPERATING_BANK
+      credit: '99.99'
+  as: J1
+  expect:
+    result: ok
+    journal:
+    - &id002
+      account: OFFICE_EXPENSE
+      debit: '11.11'
+      credit: '0.00'
+    - *id002
+    - *id002
+    - *id002
+    - *id002
+    - *id002
+    - *id002
+    - *id002
+    - *id002
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '99.99'
+expect:
+  documents:
+    J1:
+      line_count: '10'
+  balances:
+    OFFICE_EXPENSE: '99.99'
+    OPERATING_BANK: '-99.99'
+  invariants:
+  - INV-JRN-001
+  - INV-JRN-002
+  - INV-GL-001
+  - INV-GL-002

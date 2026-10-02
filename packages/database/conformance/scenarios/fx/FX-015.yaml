@@ -1,0 +1,31 @@
+# FX-015 — A transfer into the EUR bank account, booked in functional currency. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: FX-015
+title: A transfer into the EUR bank account, booked in functional currency
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: FX
+isolation: transaction
+actions:
+- op: bank.transfer
+  as: J1
+  args:
+    from: OPERATING_BANK
+    to: EUR_BANK
+    amount: '120.00'
+    date: '2026-01-01'
+    description: USD 120 bought EUR 100
+  expect:
+    journal:
+    - account: EUR_BANK
+      debit: '120.00'
+      credit: '0.00'
+    - account: OPERATING_BANK
+      debit: '0.00'
+      credit: '120.00'
+expect:
+  balances:
+    EUR_BANK: '120.00'
+    OPERATING_BANK: '-120.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001

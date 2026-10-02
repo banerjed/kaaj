@@ -1,0 +1,74 @@
+# NUM-004 — Allocation remainder: 100 across three invoices. Spec: docs/34-accounting-conformance-spec-V1.md section 10.
+id: NUM-004
+title: 'Allocation remainder: 100 across three invoices'
+version: 1
+profile: ACS-US-ACCRUAL-1.0
+module: NUM
+isolation: transaction
+actions:
+- op: invoice.create
+  as: INV1
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '33.33'
+- op: invoice.post
+  args:
+    invoice: INV1
+- op: invoice.create
+  as: INV2
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '33.33'
+- op: invoice.post
+  args:
+    invoice: INV2
+- op: invoice.create
+  as: INV3
+  args:
+    customer: CUST-001
+    date: '2026-01-10'
+    lines:
+    - item: SERVICE-A
+      unit_price: '33.34'
+- op: invoice.post
+  args:
+    invoice: INV3
+- op: payment.receive_batch
+  as: PAY1
+  args:
+    customer: CUST-001
+    amount: '100.00'
+    date: '2026-01-20'
+    allocate:
+    - invoice: INV1
+      amount: '33.33'
+    - invoice: INV2
+      amount: '33.33'
+    - invoice: INV3
+      amount: '33.34'
+  expect:
+    result: ok
+expect:
+  documents:
+    INV1:
+      status: paid
+    INV2:
+      status: paid
+    INV3:
+      status: paid
+    PAY1:
+      amount: '100.00'
+  balances:
+    OPERATING_BANK: '100.00'
+    SERVICE_REVENUE: '-100.00'
+  invariants:
+  - INV-JRN-001
+  - INV-GL-001
+  - INV-AR-001
+  - INV-AR-002
