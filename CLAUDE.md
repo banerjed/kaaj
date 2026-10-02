@@ -129,7 +129,7 @@ close every staff table to portal contacts.
 - **Payroll**: Kaaj does not calculate pay. `/payroll/export` makes a file of
   the approved hours and time off of a pay period. The customer imports the
   file in its own payroll provider: ADP RUN, ADP Workforce Now, Gusto or
-  Paychex Flex ([docs/36](docs/36-payroll-provider-integration.md)). The
+  Paychex Flex ([docs/37](docs/37-payroll-provider-integration.md)). The
   `payroll_runs` tables stay, but no code reads or writes them.
 - **Expense tracking** has no module. `expenses` exists, and accounting
   reports read it. But no code submits, approves or reimburses an expense.

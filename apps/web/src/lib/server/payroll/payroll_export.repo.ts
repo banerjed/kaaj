@@ -1,6 +1,6 @@
 /**
  * Hours for a pay period, in the shape a payroll provider imports
- * (docs/36-payroll-provider-integration.md), and the settings that shape
+ * (docs/37-payroll-provider-integration.md), and the settings that shape
  * them. Kaaj does not calculate pay: this totals approved hours, classifies
  * overtime, and prorates time off. All arithmetic is NUMERIC, in SQL.
  */

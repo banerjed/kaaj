@@ -221,7 +221,7 @@ office's payroll policy, and of everyone's approved time off, in the import
 format of ADP RUN, ADP Workforce Now, Gusto or Paychex Flex.
 `/payroll/employee-ids` holds each employee's id in the provider, and
 `/payroll/export/settings` the provider, the company code and the code for
-each kind of hours. See [36-payroll-provider-integration.md](36-payroll-provider-integration.md).
+each kind of hours. See [37-payroll-provider-integration.md](37-payroll-provider-integration.md).
 
 The earlier run lifecycle (`/payroll/runs`, payslips) is removed: with the
 provider calculating pay, it had nothing real to show. Its tables

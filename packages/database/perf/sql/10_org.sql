@@ -144,7 +144,7 @@ SELECT _perf.u('employee', e.k), _perf.tenant(),
        o.code,
        CASE WHEN o.country = 'US' THEN 'bi-weekly' ELSE 'monthly' END::pay_frequency,
        -- A quarter of US individual contributors are paid by the hour, so the
-       -- payroll export's overtime classification runs at size (docs/36).
+       -- payroll export's overtime classification runs at size (docs/37).
        CASE WHEN o.country = 'US' AND e.k > e.active / 10
                  AND _perf.r('emp:hourly', e.k) < 0.25
             THEN 'hourly' ELSE 'salary' END,

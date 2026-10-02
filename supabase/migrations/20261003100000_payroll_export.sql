@@ -1,5 +1,5 @@
 -- =============================================================================
--- Kaaj — export hours to the customer's payroll provider (docs/36)
+-- Kaaj — export hours to the customer's payroll provider (docs/37)
 -- =============================================================================
 -- Kaaj does not calculate pay. For a pay period it writes each hourly
 -- employee's approved hours and everyone's time off in the import format of

@@ -1,6 +1,6 @@
 /**
  * The import files of the payroll providers Kaaj exports hours to
- * (docs/36-payroll-provider-integration.md). Pure: hours arrive already
+ * (docs/37-payroll-provider-integration.md). Pure: hours arrive already
  * classified and rounded, as decimal strings from SQL, and leave as text.
  * Nothing here does arithmetic on an hour value.
  */
