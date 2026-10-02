@@ -84,12 +84,13 @@ async function inRollback<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   }
 }
 
-/** A draft or posted entry with one 1000/2000 pair, inserted directly. */
+/** A draft or posted entry with one debit/credit pair (1000/2000 by default), inserted directly. */
 async function insertEntry(
   q: Q,
   number: string,
   status: "draft" | "posted",
   amount: string,
+  [debitCode, creditCode]: [string, string] = ["1000", "2000"],
 ): Promise<string> {
   const [entry] = await (q as Tx)<{ id: string }[]>`
     INSERT INTO journal_entries (tenant_id, entry_number, entry_date, status, description)
@@ -102,7 +103,7 @@ async function insertEntry(
                                      base_currency, base_debit_amount, base_credit_amount)
     SELECT ${NORTHWIND}, ${entry.id}, a.id, x.n, 'USD', x.dr::numeric, x.cr::numeric,
            'USD', x.dr::numeric, x.cr::numeric
-      FROM (VALUES ('1000', 1, ${amount}, '0'), ('2000', 2, '0', ${amount}))
+      FROM (VALUES (${debitCode}, 1, ${amount}, '0'), (${creditCode}, 2, '0', ${amount}))
            AS x(code, n, dr, cr)
       JOIN chart_of_accounts a ON a.tenant_id = ${NORTHWIND} AND a.account_code = x.code
   `
@@ -235,6 +236,46 @@ describe("gl_daily_balances", () => {
       }
     }
     expect(await day(superuser, "1000", DAY)).toBeNull()
+    expect(await disagreements(superuser)).toBe(0)
+  })
+
+  it("two transactions posting to the same accounts in opposite orders do not deadlock", async () => {
+    const A: [string, string] = ["1150", "2100"]
+    const B: [string, string] = ["1200", "2150"]
+    const ids: string[] = []
+    try {
+      let firstPosted!: () => void
+      const posted = new Promise<void>((r) => (firstPosted = r))
+      // Each posts twice in one transaction, the second in the other order —
+      // a recurring-invoice run and an amortisation run, say. Locks taken
+      // per account, statement by statement, would deadlock here.
+      const first = superuser.begin(async (sql) => {
+        ids.push(await insertEntry(sql, "JE-GLD-ORD-1", "posted", "5.00", A))
+        firstPosted()
+        await new Promise((r) => setTimeout(r, 300))
+        ids.push(await insertEntry(sql, "JE-GLD-ORD-2", "posted", "6.00", B))
+      })
+      await posted
+      const second = superuser.begin(async (sql) => {
+        ids.push(await insertEntry(sql, "JE-GLD-ORD-3", "posted", "7.00", B))
+        ids.push(await insertEntry(sql, "JE-GLD-ORD-4", "posted", "8.00", A))
+      })
+      await Promise.all([first, second])
+
+      expect(await day(superuser, "1150", DAY)).toMatchObject({
+        base_debit: "13.00",
+        line_count: 2,
+      })
+      expect(await day(superuser, "1200", DAY)).toMatchObject({
+        base_debit: "13.00",
+        line_count: 2,
+      })
+      expect(await disagreements(superuser)).toBe(0)
+    } finally {
+      if (ids.length) {
+        await superuser`DELETE FROM journal_entries WHERE id = ANY(${ids}::uuid[])`
+      }
+    }
     expect(await disagreements(superuser)).toBe(0)
   })
 })

@@ -8,10 +8,14 @@
 -- triggers on every write that can move a posted figure — the app, the
 -- fixture and the perf generator alike. The recompute runs as the table
 -- owner, so it sums every line, not the lines the writer's row policy shows
--- (L106). Concurrent posts to one account serialise on an advisory lock per
--- (tenant, account), taken in a fixed order, and each recompute statement
--- runs after the lock is held — under READ COMMITTED it then sees every
--- earlier writer's committed lines.
+-- (L106). Concurrent posts serialise on an advisory lock per TENANT, held to
+-- commit, and each recompute statement runs after the lock is held — under
+-- READ COMMITTED it then sees every earlier writer's committed lines. One
+-- lock rather than one per account: a transaction posting several journals
+-- (recurring invoices, amortisations, a vendor payment batch) would take
+-- per-account locks statement by statement, in no single order, and two of
+-- them could deadlock. Posting is not frequent enough per tenant for the
+-- coarser lock to matter.
 --
 -- `line_count` keeps "has activity" (a trial balance lists an account with
 -- any posted line, even if it nets to zero); a day whose count falls to
@@ -50,9 +54,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 BEGIN
     PERFORM pg_advisory_xact_lock(k)
-       FROM (SELECT DISTINCT hashtextextended(t::text || '|' || a::text, 0) AS k
-               FROM unnest(p_tenant, p_account) AS u(t, a)
-              WHERE t IS NOT NULL AND a IS NOT NULL
+       FROM (SELECT DISTINCT hashtextextended('gl_daily_balances|' || t::text, 0) AS k
+               FROM unnest(p_tenant) AS u(t)
+              WHERE t IS NOT NULL
               ORDER BY 1) s;
 
     INSERT INTO public.gl_daily_balances
