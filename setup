@@ -250,6 +250,10 @@ else
   bad "pnpm install failed"
   exit 1
 fi
+# The pre-push hook runs `./check --all`, which needs the perf tenant
+# (`pnpm db:perf seed`, a few minutes, once per machine).
+git config core.hooksPath .githooks
+ok "pre-push hook enabled ${D}(.githooks/pre-push runs ./check --all)${N}"
 
 # =============================================================================
 # 4. Environment file
@@ -374,6 +378,7 @@ if ./check; then
   echo ""
   echo "  ${C}pnpm dev${N}                      the app on http://localhost:5173"
   echo "  ${C}./check${N}                       everything — run before pushing"
+  echo "  ${C}pnpm db:perf seed${N}             once per machine: the perf tenant every push is measured on"
   echo "  ${C}supabase status${N}               URLs and keys"
   echo ""
   echo "  Studio   ${D}http://127.0.0.1:54323${N}"

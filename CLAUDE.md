@@ -36,9 +36,13 @@ Never point it at a customer's infrastructure.
 
 **Everything must pass before you push, and always before deploying to
 production.** 25 steps, about 25 seconds; `./check --all` adds the
-browser suite and the 100-row page check against the perf tenant (about a
-minute more; needs `pnpm db:perf:cluster up`). Non-zero exit means do not
-push.
+browser suite and two page checks against the perf tenant: the 100-row
+check and every page's budget (about a minute more; needs `pnpm db:perf
+seed` once per machine). **A pre-push hook runs `./check --all` on every
+push** (`.githooks/pre-push`, enabled by `./setup`); it refuses uncommitted
+tracked changes, since it would test them and then not push them. `git push
+--no-verify` skips it, and CI does not run the perf steps. Non-zero exit
+means do not push.
 
 ```
 ./check          everything — run this before pushing
@@ -76,6 +80,7 @@ directory in the repo.
 | security | authorization, PII and tenant isolation, both suites | 558 |
 | format / lint / typecheck / unit tests / build | every workspace package, via turbo | 1,399 tests |
 | front-page load | signs in for real, loads `/employees` 5×, fails if the MEDIAN is over 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
+| pages within budget (`--all`) | every page × every perf actor costs the database no more queries or data pages than `budgets.tsv` allows, and no more time than on this machine last time | 640 |
 
 **These counts go stale.** They are here because a number nobody can check is a
 claim nobody can challenge — so correct them when they move, or delete the
@@ -425,6 +430,14 @@ supabase db reset && pnpm db:snapshot
 Generating from a hand-modified database bakes local experiments into the
 baseline. This has already happened once: a manual `ALTER` left `invoices.total`
 as `numeric(18,2)` when the migration says `numeric(15,2)`.
+
+**Regenerate the page budget only on purpose, and commit it with the change
+that moved it.** `packages/database/perf/budgets.tsv` is what every page
+costs the database as every perf actor — statements run and data pages read,
+which are the same on every machine, unlike time. `pnpm db:perf regress
+--update` rewrites it; a page that got dearer then shows as a diff someone
+reviews. Never run `--update` to make a red push green without reading which
+page moved and why — that is the snapshot rule again, one layer up.
 
 **`supabase db reset` leaves `app_user` unable to log in.** The role is
 created with no password (`20260827000002_auth_and_grants.sql`); `./setup`
@@ -808,7 +821,7 @@ old list had. A total shown beside a paged list is computed in SQL over
 every row, never summed from the page ([L117](docs/10-lessons-learned.md)).
 `pnpm db:perf rows` reads every page's load data as every perf-tenant actor
 and fails on any array over 100, so a picker inside a closed modal counts.
-`./check --all` runs it; run that after touching any page's `load()`. It is
+`./check --all` runs it, as the pre-push hook does. It is
 not in plain `./check` because it needs the perf cluster, and a step that
 skipped whenever the cluster was down would pass silently.
 

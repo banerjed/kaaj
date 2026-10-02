@@ -1817,6 +1817,33 @@ Two more only showed in timings, never in correctness:
   employee explicitly with an index in list order, took it to 8ms with the
   same rows.
 
+### L118 — The same data does not plan the same way, so a page's cost is not a property of the data alone
+
+`pnpm db:perf regress` compares what each page costs the database — queries
+and data pages read — against a committed budget, on the theory that both
+depend only on the code and the data. Queries did. Data pages did not: on a
+reseed with an identical fingerprint, 45 page × actor pairs read 2–5× their
+budget, with no code change and no error. Four separate causes, each found
+only after the previous one was fixed:
+
+- **Visibility map.** Measured right after a bulk load, before autovacuum,
+  index-only scans visit the heap: roughly double.
+- **Statistics.** ANALYZE samples 300 × `default_statistics_target` rows at
+  random; over a larger table a new sample can flip a join.
+  `/crm/pipeline` read 5,278 or 14,162.
+- **Physical layout.** A seed that deletes and then reinserts lays rows out
+  wherever space was freed — and a background autovacuum frees it at moments
+  that vary. Same rows, different relpages, different costs.
+- **The plan cache.** postgres.js prepares statements, and Postgres switches
+  one to a generic plan after five executions on a connection. Which pooled
+  connection served which page varied, so `/documents` read 1,770 or 3,549
+  on the same database, minutes apart.
+
+The perf cluster now pins all four (docs/32-perf-tenant.md, "The page
+budget"). The general point: a "deterministic" performance figure needs the
+planner's inputs fixed, not just the rows — and a check run once, or twice
+on the same database, cannot tell you it is not. Reseed and run it again.
+
 ### L85 — A DESC btree index defaults to NULLS FIRST, so `NULLS LAST` never uses it
 
 `idx_hr_feedback_date ON hr_feedback (tenant_id, feedback_date DESC, feedback_id)`

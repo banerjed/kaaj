@@ -19,8 +19,8 @@
  * GET only, but as app_user against the perf cluster: a page that wrote on
  * read would change the data. Check with fingerprint.sql before and after.
  */
-import { spawn } from "node:child_process"
-import { mkdirSync, openSync, readdirSync, writeFileSync } from "node:fs"
+import { execFileSync, spawn } from "node:child_process"
+import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir, loadavg } from "node:os"
 import { join } from "node:path"
 import postgres from "postgres"
@@ -38,6 +38,11 @@ const BASE_URL = `http://localhost:${PORT}`
 const PASSWORD = "devpassword"
 const SECRET_REF = "PERF_TENANT_MEASURE_RUN_IN_PROGRESS_DATABASE_URL"
 const OUT_DIR = join(homedir(), ".kaaj", "perf-measurements")
+const PERF_RUN_LOCK = 7_317_455_201 // any fixed key; held by whichever perf run is live
+const CLUSTER = new URL("./cluster.sh", import.meta.url).pathname
+const BUDGETS = new URL("./budgets.tsv", import.meta.url).pathname
+const LOCAL_TIMINGS = join(homedir(), ".kaaj", "perf-timings.tsv")
+const FINGERPRINT_SQL = new URL("./fingerprint.sql", import.meta.url).pathname
 
 if (!/@(127\.0\.0\.1|localhost)[:/]/.test(SHARED_URL)) {
   console.error("  DATABASE_URL is not local — refusing to register a tenant there.")
@@ -255,13 +260,28 @@ async function session({ perfUrl, tenantId, only }, fn) {
 
   let server = null
   let actors = []
+  // One run at a time on the shared perf cluster: every session's push runs
+  // one, and two would delete each other's registration, fight over the
+  // preview port and reset each other's query statistics. A session-level
+  // lock on its own connection dies with the process, so a crashed run never
+  // leaves it held.
+  const lock = postgres(perfUrl, { onnotice: () => {}, max: 1 })
   try {
-    const [ready] = await perf`SELECT to_regclass('_perf.actors') IS NOT NULL AS seeded`.catch(() => {
+    execFileSync(CLUSTER, ["start"], { stdio: ["ignore", "ignore", "inherit"] })
+    const [held] = await lock`SELECT pg_try_advisory_lock(${PERF_RUN_LOCK}) AS ok`.catch(() => {
       throw new Error(
-        "the perf cluster is not running — start it with `pnpm db:perf:cluster up` " +
-          "(and `pnpm db:perf seed` the first time); docs/32-perf-tenant.md",
+        "the perf cluster has no database — run `pnpm db:perf:cluster up` and " +
+          "`pnpm db:perf seed`; docs/32-perf-tenant.md",
       )
     })
+    if (!held.ok) {
+      console.log("  another perf run is in progress — waiting for it to finish…")
+      await lock`SELECT pg_advisory_lock(${PERF_RUN_LOCK})`
+    }
+    // Under the lock, so two runs never apply the same migration: a cluster
+    // left behind the repo's schema would measure a schema nobody ships.
+    execFileSync(CLUSTER, ["up"], { stdio: ["ignore", "ignore", "inherit"] })
+    const [ready] = await perf`SELECT to_regclass('_perf.actors') IS NOT NULL AS seeded`
     if (!ready.seeded)
       throw new Error("the perf cluster has no perf tenant — run `pnpm db:perf seed`")
     actors = await perf`
@@ -326,6 +346,7 @@ async function session({ perfUrl, tenantId, only }, fn) {
     if (actors.length) await unregister(shared, tenantId, actors.map((a) => a.user_id))
     await perf.end()
     await shared.end()
+    await lock.end()
   }
 }
 
@@ -450,5 +471,207 @@ export async function rows({ perfUrl, tenantId, only, max }) {
     for (const [key, f] of [...found].sort((x, y) => y[1].length - x[1].length))
       console.log(`  ${String(f.length).padStart(6)}  ${key}  (${[...f.actors].join(", ")})`)
     process.exitCode = 1
+  })
+}
+
+/**
+ * A page's budget is what it costs the DATABASE — statements run and data
+ * pages read — because those are the same on every machine and under any
+ * load, so they can be committed and compared exactly. Wall-clock time is
+ * neither, so it is compared only against this machine's own last run, and
+ * only after re-measuring, since one slow sample is usually the machine.
+ *
+ * Generous on purpose: what this exists to catch is a missing index, a lost
+ * LIMIT or a query in a loop, which move these figures by multiples, not
+ * percent. Anything smaller is noise or a deliberate change.
+ */
+const TOLERANCE = {
+  queries: (was) => Math.ceil(was * 1.25) + 2,
+  pages: (was) => Math.ceil(was * 1.5) + 200,
+  ms: (was) => Math.max(was * 2, was + 25),
+}
+const TIMING_RETRIES = 5
+const REQUEST_TIMEOUT_MS = 20_000
+
+const keyOf = (path, actor) => `${path}\t${actor}`
+const normalise = (path) =>
+  path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "[id]")
+
+function readTsv(file) {
+  if (!existsSync(file)) return null
+  const header = {}
+  const rows = new Map()
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (!line) continue
+    if (line.startsWith("#")) {
+      for (const [, k, v] of line.matchAll(/(\w+)=(\S+)/g)) header[k] = v
+      continue
+    }
+    const [path, actor, ...fields] = line.split("\t")
+    if (path === "path") continue
+    rows.set(keyOf(path, actor), fields)
+  }
+  return { header, rows }
+}
+
+function writeTsv(file, header, columns, rows, preamble = []) {
+  const head = Object.entries(header).map(([k, v]) => `${k}=${v}`).join(" ")
+  const body = [...rows].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, f]) => `${k}\t${f.join("\t")}`)
+  writeFileSync(file, [...preamble, `# ${head}`, ["path", "actor", ...columns].join("\t"), ...body, ""].join("\n"))
+}
+
+/** One server render of `path`: status, server ms, and what it cost the database. */
+async function costOf(page, perf, path) {
+  await perf`SELECT pg_stat_statements_reset()`
+  // A page that never answers is the worst regression of all, so it is a
+  // result, not an exception — and the error text, which carries the
+  // session cookie, is not printed.
+  const res = await page.request
+    .get(`${BASE_URL}${path}`, { maxRedirects: 0, timeout: REQUEST_TIMEOUT_MS })
+    .catch(() => null)
+  const m = res?.headers()["server-timing"]?.match(/dur=([\d.]+)/)
+  const [db] = await perf`
+    SELECT coalesce(sum(s.calls), 0)::int AS queries,
+           coalesce(sum(s.shared_blks_hit + s.shared_blks_read), 0)::int AS pages
+      FROM pg_stat_statements s
+      JOIN pg_roles r ON r.oid = s.userid
+     WHERE r.rolname = 'app_user' AND s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())`
+  return { status: res ? res.status() : `no answer in ${REQUEST_TIMEOUT_MS / 1000}s`, ms: m ? parseFloat(m[1]) : null, ...db }
+}
+
+/**
+ * `pnpm db:perf regress [--update]` — every page, as every actor, against
+ * the committed budget in budgets.tsv; fails on any page that got
+ * materially more expensive. `--update` rewrites the budget, which is how a
+ * deliberate change is acknowledged — in review, as a diff.
+ */
+export async function regress({ perfUrl, tenantId, update }) {
+  return session({ perfUrl, tenantId }, async ({ perf, actors, as_of, paths, unresolved, browser }) => {
+    const started = Date.now()
+    // A migration applied since the seed leaves rows the visibility map does
+    // not cover yet, and that changes which scans the planner picks.
+    await perf`VACUUM`
+    const [{ scale, postgres: pg }] = await perf`
+      SELECT scale::text, current_setting('server_version_num')::int / 10000 AS postgres FROM _perf.params`
+    const [{ fingerprint }] = await perf.unsafe(readFileSync(FINGERPRINT_SQL, "utf8"))
+    const header = { scale, as_of, fingerprint, postgres: String(pg) }
+
+    const budget = readTsv(BUDGETS)
+    if (!update) {
+      if (!budget) throw new Error(`no ${BUDGETS} — create it with \`pnpm db:perf regress --update\``)
+      const want = budget.header
+      if (want.postgres !== header.postgres)
+        throw new Error(
+          `the budget was measured on Postgres ${want.postgres} and the perf cluster runs ` +
+            `${header.postgres}; plans differ between major versions, so the pages read do too`,
+        )
+      if (want.scale !== scale || want.as_of !== as_of || want.fingerprint !== fingerprint)
+        throw new Error(
+          `the perf tenant is not the data the budget was measured on ` +
+            `(budget: scale ${want.scale}, as of ${want.as_of}, fingerprint ${want.fingerprint}; ` +
+            `here: scale ${scale}, as of ${as_of}, fingerprint ${fingerprint}). ` +
+            `Reseed it: \`pnpm db:perf seed --scale=${want.scale} --as-of=${want.as_of}\``,
+        )
+    }
+
+    const measured = new Map() // key -> { status, queries, pages, ms }
+    const pages = new Map() // key -> [actor, path] to re-measure
+    for (const a of actors) {
+      const t = Date.now()
+      await asActor(browser, a, async (page) => {
+        for (const path of paths) {
+          const key = keyOf(normalise(path), a.actor)
+          measured.set(key, await costOf(page, perf, path))
+          pages.set(key, [a, path])
+        }
+      })
+      if (![...measured].some(([k, r]) => k.endsWith(`\t${a.actor}`) && r.queries > 0))
+        throw new Error(
+          `no app_user statements reached the perf cluster as ${a.actor} — the app is not ` +
+            `routed to it; see ${join(OUT_DIR, "preview.log")}`,
+        )
+      console.log(`  ${a.actor.padEnd(9)} ${paths.length} pages in ${((Date.now() - t) / 1000).toFixed(0)}s`)
+    }
+
+    const timings = readTsv(LOCAL_TIMINGS)
+    const timingsUsable = timings && timings.header.fingerprint === fingerprint
+    const writeTimings = () => {
+      mkdirSync(join(homedir(), ".kaaj"), { recursive: true })
+      writeTsv(LOCAL_TIMINGS, header, ["ms"],
+        [...measured].filter(([, r]) => r.ms != null).map(([k, r]) => [k, [r.ms.toFixed(1)]]),
+        ["# this machine's server times, kept until the next `regress --update`; not committed (measure.mjs)"])
+    }
+
+    if (update) {
+      writeTsv(BUDGETS, header, ["status", "queries", "pages"],
+        [...measured].map(([k, r]) => [k, [r.status, r.queries, r.pages].map(String)]),
+        [
+          "# What each page costs the database, as each perf actor: the budget `pnpm db:perf regress`",
+          "# holds every push to (docs/32-perf-tenant.md). Regenerate only with `pnpm db:perf regress --update`.",
+        ])
+      writeTimings()
+      console.log(`\n  wrote ${measured.size} budgets to ${BUDGETS}`)
+      if (unresolved.length) console.log(`  not measured, no sample id: ${unresolved.join(", ")}`)
+      return
+    }
+
+    const failures = []
+    for (const [key, r] of measured) {
+      const was = budget.rows.get(key)
+      const where = key.replace("\t", " as ")
+      if (!was) {
+        failures.push(`${where}: no budget — a new page? \`pnpm db:perf regress --update\``)
+        continue
+      }
+      const [status, queries, pagesRead] = was.map(Number)
+      if (r.status !== status) {
+        failures.push(`${where}: status ${status} → ${r.status}`)
+        continue
+      }
+      if (r.queries > TOLERANCE.queries(queries))
+        failures.push(`${where}: queries ${queries} → ${r.queries}`)
+      if (r.pages > TOLERANCE.pages(pagesRead))
+        failures.push(`${where}: data pages read ${pagesRead} → ${r.pages}`)
+    }
+    for (const key of budget.rows.keys())
+      if (!measured.has(key))
+        failures.push(`${key.replace("\t", " as ")}: in the budget but not measured — removed? \`pnpm db:perf regress --update\``)
+
+    // Time only where the counts passed: a counted regression already fails,
+    // and one slow sample is re-measured before it is believed.
+    const slow = []
+    const failed = new Set(failures.map((f) => f.slice(0, f.indexOf(":"))))
+    if (timingsUsable) {
+      for (const [key, r] of measured) {
+        if (failed.has(key.replace("\t", " as "))) continue
+        const was = Number(timings.rows.get(key)?.[0])
+        if (!was || r.ms == null || r.ms <= TOLERANCE.ms(was)) continue
+        const [a, path] = pages.get(key)
+        const samples = await asActor(browser, a, async (page) => {
+          const out = []
+          for (let i = 0; i < TIMING_RETRIES; i++) out.push((await costOf(page, perf, path)).ms)
+          return out.sort((x, y) => x - y)
+        })
+        const median = samples[Math.floor(samples.length / 2)]
+        if (median > TOLERANCE.ms(was))
+          slow.push(`${key.replace("\t", " as ")}: ${was.toFixed(0)}ms → ${median.toFixed(0)}ms (median of ${TIMING_RETRIES})`)
+        else r.ms = median
+      }
+    }
+
+    console.log(`\n  ${measured.size} page renders in ${((Date.now() - started) / 1000).toFixed(0)}s`)
+    if (failures.length || slow.length) {
+      if (failures.length) console.log(`\n  ${failures.length} over budget:\n    ${failures.join("\n    ")}`)
+      if (slow.length)
+        console.log(`\n  ${slow.length} slower than on this machine last time:\n    ${slow.join("\n    ")}`)
+      console.log(
+        `\n  A deliberate change: \`pnpm db:perf regress --update\`, and commit budgets.tsv with it.` +
+          `\n  Where the time goes: \`pnpm db:perf measure --actors=<actor>\`.`,
+      )
+      process.exitCode = 1
+      return
+    }
+    if (!timingsUsable) writeTimings()
+    console.log(`  every page within budget, as every actor`)
   })
 }
