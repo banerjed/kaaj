@@ -14,6 +14,19 @@ export type SendResult =
   | { sent: true; providerMessageId: string }
   | { sent: false; reason: "not_configured" | "send_failed"; detail?: string }
 
+export type EmailAttachment = {
+  filename: string
+  content: Buffer
+  contentType?: string
+}
+
+/** `"Acme <billing@acme.example>"` or a bare address, as Bird's `{email, name}`. */
+export function parseSender(from: string): { email: string; name: string } {
+  const m = from.match(/^\s*(?:"?([^"<]*)"?\s*)?<([^>]+)>\s*$/)
+  if (m) return { email: m[2].trim(), name: (m[1] ?? "").trim() }
+  return { email: from.trim(), name: "" }
+}
+
 export type AvailableNumber = {
   number: string
   country_code: string
@@ -42,9 +55,10 @@ export type MessagingProvider = {
     from: { email: string; name: string }
     to: string
     subject: string
-    text: string
+    text?: string
     html?: string
     inReplyTo?: string | null
+    attachments?: EmailAttachment[]
     idempotencyKey: string
     metadata: Record<string, string>
   }): Promise<SendResult>
@@ -145,6 +159,7 @@ export function birdProvider(
       text,
       html,
       inReplyTo,
+      attachments,
       idempotencyKey,
       metadata,
     }) {
@@ -154,11 +169,20 @@ export function birdProvider(
           method: "POST",
           idempotencyKey,
           body: {
-            from,
+            from: from.name ? from : { email: from.email },
             to: [to],
             subject,
-            text,
+            ...(text ? { text } : {}),
             ...(html ? { html } : {}),
+            ...(attachments && attachments.length > 0
+              ? {
+                  attachments: attachments.map((a) => ({
+                    filename: a.filename,
+                    content: a.content.toString("base64"),
+                    ...(a.contentType ? { content_type: a.contentType } : {}),
+                  })),
+                }
+              : {}),
             category: "transactional",
             metadata,
             track_opens: false,

@@ -75,7 +75,7 @@ The system description (AICPA DC 200) must name every component. From
 | Supabase (`us-east-1`) | Postgres, Auth, Storage; one project per premium tenant | Subservice — **carve-out** |
 | Cloudflare | DNS, TLS, WAF, DDoS | Subservice — **carve-out** |
 | Stripe | subscription billing, invoice payment links | Subservice — **carve-out** |
-| Resend | outbound email | Subservice — **carve-out** |
+| Bird | outbound email, SMS | Subservice — **carve-out** |
 | GitHub + GitHub Actions | source control, CI | Subservice — **carve-out** |
 | `PRIVATE_PII_KEK` storage | key-encryption key, backed up separately from the database | Yes — Kaaj's own control |
 
@@ -244,7 +244,7 @@ hardest (§5.2).
 |---|---|---|---|
 | SOC-CC6-12 | **End-user MFA** available, and enforced for privileged roles (owner, firm_admin, hr_admin, payroll_admin, finance_admin) | Attempt to reach payroll/pay pages with a password-only session; expect step-up to AAL2 | **GAP** — `[auth.mfa.totp] enroll_enabled = false`; no `aal2` check anywhere in `apps/web/src` |
 | SOC-CC6-13 | Password policy per NIST SP 800-63B-4: ≥ 15 characters if password-only (≥ 8 when MFA is enforced), accept 64+, allow paste, no composition rules, breached-password screening | Reperform against **production** auth settings via the Supabase Management API | **GAP** locally (`minimum_password_length = 6`, `password_requirements = ""`); verify production |
-| SOC-CC6-14 | Operator MFA on Supabase org (enforced), GitHub org, Render, Cloudflare, Stripe, Resend, domain registrar; at least two org owners on each | Inspect each org's MFA-enforcement setting and owner list | GAP — not evidenced |
+| SOC-CC6-14 | Operator MFA on Supabase org (enforced), GitHub org, Render, Cloudflare, Stripe, Bird, domain registrar; at least two org owners on each | Inspect each org's MFA-enforcement setting and owner list | GAP — not evidenced |
 | SOC-CC6-15 | Sessions: short-lived JWT (900 s), refresh-token rotation with reuse detection, logout revokes refresh token | Capture a refresh token, log out, replay it; expect 401. Replay a rotated token after the 10 s reuse interval; expect family revocation | PARTIAL — configured (`jwt_expiry = 900`, rotation on); replay tests not written |
 | SOC-CC6-16 | Re-authentication for sensitive changes (password, email, bank details) | Change password with a 2-day-old session; expect re-auth | GAP locally (`secure_password_change = false`) |
 | SOC-CC6-17 | Email confirmation required for sign-up | Sign up with an unowned address; expect no session until confirmed | GAP locally (`enable_confirmations = false`); verify production |
@@ -395,7 +395,7 @@ the wrong place, with no error. The tester's brief is to find the next one.
 | SOC-INJ-04 | SSRF: any server-side fetch with user-influenced URLs (logo URLs, webhook targets, link previews) | Allowlist; block private ranges and cloud metadata `169.254.169.254` | Rolled into A01:2025 |
 | SOC-INJ-05 | Path traversal in Storage keys and document names | Keys generated server-side | Test `../` and encoded variants |
 | SOC-INJ-06 | Oversized / malformed inputs: 10 MB text fields, deeply nested JSON, invalid UTF-8, `2026-02-31` dates, `1e309` numbers | Field errors, never 500 (L34, L66, L67) | `forms.test.ts`, `form-errors.spec.ts` |
-| SOC-INJ-07 | Exceptional conditions (A10:2025): DB timeouts, pool exhaustion, Stripe/Resend outage mid-transaction | Fails closed; no partial writes; no stack traces or `detail` leaked | `safeError` covers leakage; add fault-injection tests |
+| SOC-INJ-07 | Exceptional conditions (A10:2025): DB timeouts, pool exhaustion, Stripe/Bird outage mid-transaction | Fails closed; no partial writes; no stack traces or `detail` leaked | `safeError` covers leakage; add fault-injection tests |
 
 ### 5.6 Web and transport hardening (A02:2025, ASVS V3)
 
@@ -529,7 +529,7 @@ checklist becomes a control Kaaj must evidence **in production**:
 | SOC-SB-03 | Network restrictions (Render egress IPs only) | attempt from another IP |
 | SOC-SB-04 | Org MFA enforced; ≥ 2 owners | org settings export |
 | SOC-SB-05 | PITR enabled (shared + every dedicated project) | settings export |
-| SOC-SB-06 | Custom SMTP (Resend) with link tracking **off** (tracking rewrites confirmation links) | settings; send a reset email and inspect the link |
+| SOC-SB-06 | Custom SMTP (Bird) with link tracking **off** (tracking rewrites confirmation links) | settings; send a reset email and inspect the link |
 | SOC-SB-07 | Email confirmations on; OTP expiry ≤ 3600 s | settings |
 | SOC-SB-08 | Auth rate limits and CAPTCHA on sign-up, sign-in, reset | settings; brute-force test (SOC-AUTH-01) |
 | SOC-SB-09 | Connection logging enabled, logs exported and retained (Supabase's SOC 2 page names this explicitly) | settings; retrieve an old log |
@@ -540,7 +540,7 @@ checklist becomes a control Kaaj must evidence **in production**:
 
 ### 7.2 Vendor review procedure (annual, per critical vendor)
 
-For Supabase, Render, Cloudflare, Stripe, Resend and GitHub:
+For Supabase, Render, Cloudflare, Stripe, Bird and GitHub:
 
 1. Obtain the current SOC 2 Type II report (and bridge letter if the period
    ended more than 3 months ago).

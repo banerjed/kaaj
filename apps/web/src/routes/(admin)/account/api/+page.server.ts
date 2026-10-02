@@ -1,4 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit"
+import { env } from "$env/dynamic/private"
 import { sendAdminEmail, sendUserEmail } from "$lib/mailer"
 import { formString } from "$lib/server/forms"
 import { WebsiteBaseUrl } from "../../../../config"
@@ -289,7 +290,8 @@ export const actions = {
       await sendUserEmail({
         user: session.user,
         subject: "Welcome!",
-        from_email: "no-reply@saasstarter.work",
+        from_email:
+          env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL || "",
         template_name: "welcome_email",
         template_properties: {
           companyName: "SaaS Starter",

@@ -37,7 +37,7 @@ import { actions } from "./+page.server"
  * restores it in `finally`, a real committed mutation kept as narrow and
  * short-lived as the Storage tests' own cleanup discipline.
  *
- * No `PRIVATE_RESEND_API_KEY` is configured in this environment (matching
+ * No `PRIVATE_BIRD_API_KEY` is configured in this environment (matching
  * `mailer.test.ts`'s own "not configured" case) — real sends aren't
  * exercised here either, only that the action reaches that honest refusal
  * rather than reporting success.

@@ -18,9 +18,10 @@ shell:
 - `chat_*` ([17-customer-portal.md §4](./17-customer-portal.md)) is a portal
   contact's own view, still unbuilt.
 - The transactional email the product sends on its own behalf (invoice
-  email, payment reminders) still goes through `$lib/mailer.ts` and Resend.
-  Moving it to Bird is one adapter swap, deferred until inbound has run on
-  Bird for a while (§6).
+  email, payment reminders, the welcome mail, admin notifications) goes
+  through `$lib/mailer.ts`, which sends on the same Bird workspace but
+  records nothing: those sends carry `metadata.source = "mailer"` and no
+  tenant, and the webhook ignores their status events.
 
 ---
 
@@ -171,8 +172,6 @@ message's `Message-ID`, so they thread in the recipient's mail client.
   DKIM-verified domain per tenant inside the Bird workspace.
 - **Realtime.** A `pg_notify` on `messaging_messages` plus the existing SSE
   shape would replace the poll.
-- **Moving the product's own transactional email** (`$lib/mailer.ts`) from
-  Resend to Bird.
 - **WhatsApp and Apple Messages.** The tables already carry `channel` as a
   closed list; adding one is a CHECK change, a provider method, and an event
   type in `inbound.ts`.

@@ -52,7 +52,7 @@ describe("sendReminders (US-ACC-020-ish)", () => {
     expect(result.data.errorFields).toEqual(["invoice_ids"])
   })
 
-  // No PRIVATE_RESEND_API_KEY is configured in this environment (same as
+  // No PRIVATE_BIRD_API_KEY is configured in this environment (same as
   // page.server.test.ts's own emailInvoice case), so a real send is not
   // exercised here — but reaching this honest per-invoice skip proves the
   // read (invoicesForReminder + locations), the loop, and the write phase

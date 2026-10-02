@@ -116,7 +116,7 @@ prerequisite is still open.
 
 ## Phase 3 — One-to-one email send + auto-log
 
-⛔ **Not built.** Reuse `apps/web/src/lib/mailer.ts` (Resend — already real
+⛔ **Not built.** Reuse `apps/web/src/lib/mailer.ts` (Bird — already real
 infrastructure, already used for invoice/welcome/admin sends via
 `sendTemplatedEmail`/`sendUserEmail`/`sendAdminEmail`) to send from a
 company/contact/deal page, auto-creating a `crm_activities` row of type
@@ -141,7 +141,7 @@ designed consent/suppression state machine (`evaluateMarketingSend`,
 `packages/spec-tests/tests/marketing-consent-invariants.spec.test.ts`, but
 not wired to any table or route. **Read it before building this** so the
 consent model isn't re-derived from scratch. Sends go through the same
-`mailer.ts`/Resend path as Phase 3. Un-disables the existing `marketing` nav
+`mailer.ts`/Bird path as Phase 3. Un-disables the existing `marketing` nav
 entry (`apps/web/src/routes/(app)/menu.ts`) and the already-reserved
 `marketing.read`/`marketing.write` permissions.
 

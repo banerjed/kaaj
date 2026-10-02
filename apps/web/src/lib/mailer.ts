@@ -1,8 +1,37 @@
-import { Resend } from "resend"
 import { env } from "$env/dynamic/private"
 import type { User } from "@supabase/supabase-js"
 import { supabaseServiceRole } from "$lib/server/supabase_service_role"
 import handlebars from "handlebars"
+import {
+  birdConfig,
+  birdProvider,
+  parseSender,
+  type EmailAttachment,
+  type MessagingProvider,
+} from "$lib/server/messaging/bird"
+
+/**
+ * The product's own transactional email — invoices, payment reminders, the
+ * welcome mail, admin notifications — sent through the same Bird workspace
+ * that carries customer messaging (docs/37-messaging.md). Every send is
+ * tagged `metadata.source = "mailer"` and carries no tenant: nothing in
+ * Kaaj tracks these rows, so the webhook ignores their status events.
+ *
+ * The sender must be at a domain verified in the Bird workspace; a bounce
+ * for anything else is Bird's answer, reported here as `send_failed`.
+ */
+
+export type { EmailAttachment }
+
+/** The provider is a parameter so a test can hand in a fake; pages use the default. */
+let providerFactory: () => MessagingProvider = () => birdProvider()
+
+/** Test seam only. */
+export function useProvider(factory: (() => MessagingProvider) | null): void {
+  providerFactory = factory ?? (() => birdProvider())
+}
+
+const configured = () => !!birdConfig().apiKey
 
 // Sends to the admin email address. Logs errors rather than throwing.
 export const sendAdminEmail = async ({
@@ -12,21 +41,23 @@ export const sendAdminEmail = async ({
   subject: string
   body: string
 }) => {
-  if (!env.PRIVATE_ADMIN_EMAIL) {
+  if (!env.PRIVATE_ADMIN_EMAIL || !configured()) {
     return
   }
 
   try {
-    const resend = new Resend(env.PRIVATE_RESEND_API_KEY)
-    const resp = await resend.emails.send({
-      from: env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL,
-      to: [env.PRIVATE_ADMIN_EMAIL],
+    const result = await providerFactory().sendEmail({
+      from: parseSender(
+        env.PRIVATE_FROM_ADMIN_EMAIL || env.PRIVATE_ADMIN_EMAIL,
+      ),
+      to: env.PRIVATE_ADMIN_EMAIL,
       subject: "ADMIN_MAIL: " + subject,
       text: body,
+      idempotencyKey: `admin-${crypto.randomUUID()}`,
+      metadata: { source: "mailer" },
     })
-
-    if (resp.error) {
-      console.log("Failed to send admin email, error:", resp.error)
+    if (!result.sent) {
+      console.log("Failed to send admin email, error:", result.reason)
     }
   } catch (e) {
     console.log("Failed to send admin email, error:", e)
@@ -92,18 +123,13 @@ export const sendUserEmail = async ({
 /**
  * `sent: false` distinguishes WHY, rather than collapsing every non-send
  * into one falsy value — a caller that needs to know whether an email
- * actually went out (rather than fire-and-forget) cannot tell "Resend
+ * actually went out (rather than fire-and-forget) cannot tell "Bird
  * rejected it" from "no API key in this environment" from a bare boolean,
  * and the two call for very different messages to whoever triggered the send.
  */
 export type SendEmailResult =
   | { sent: true }
   | { sent: false; reason: "not_configured" | "no_body" | "send_failed" }
-
-export type EmailAttachment = {
-  filename: string
-  content: Buffer
-}
 
 export const sendTemplatedEmail = async ({
   subject,
@@ -120,7 +146,7 @@ export const sendTemplatedEmail = async ({
   template_properties: Record<string, string>
   attachments?: EmailAttachment[]
 }): Promise<SendEmailResult> => {
-  if (!env.PRIVATE_RESEND_API_KEY) {
+  if (!configured()) {
     // Email is optional; no error if unconfigured.
     return { sent: false, reason: "not_configured" }
   }
@@ -157,35 +183,26 @@ export const sendTemplatedEmail = async ({
     return { sent: false, reason: "no_body" }
   }
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const email: any = {
-      from: from_email,
-      to: to_emails,
-      subject: subject,
+  // One Bird message per recipient: a shared message id across several
+  // recipients would make a bounce for one indistinguishable from the rest.
+  const provider = providerFactory()
+  const from = parseSender(from_email)
+  let failed = false
+  for (const to of to_emails) {
+    const result = await provider.sendEmail({
+      from,
+      to,
+      subject,
+      text: plaintextBody,
+      html: htmlBody,
+      attachments,
+      idempotencyKey: `mail-${crypto.randomUUID()}`,
+      metadata: { source: "mailer", template: template_name },
+    })
+    if (!result.sent) {
+      console.log("Failed to send email, error:", result.reason, result.detail)
+      failed = true
     }
-    if (plaintextBody) {
-      email.text = plaintextBody
-    }
-    if (htmlBody) {
-      email.html = htmlBody
-    }
-    if (attachments && attachments.length > 0) {
-      email.attachments = attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-      }))
-    }
-    const resend = new Resend(env.PRIVATE_RESEND_API_KEY)
-    const resp = await resend.emails.send(email)
-
-    if (resp.error) {
-      console.log("Failed to send email, error:", resp.error)
-      return { sent: false, reason: "send_failed" }
-    }
-    return { sent: true }
-  } catch (e) {
-    console.log("Failed to send email, error:", e)
-    return { sent: false, reason: "send_failed" }
   }
+  return failed ? { sent: false, reason: "send_failed" } : { sent: true }
 }

@@ -448,8 +448,9 @@ routes an inbound message to its tenant by the address it was sent to, a
 three-step send that keeps the carrier call outside any transaction, and
 `/messaging`, `/messaging/[id]` and `/settings/messaging`. Not yet:
 dedicated-tier routing, US 10DLC filing, attachments, a tenant's own sending
-domain, realtime, WhatsApp/Apple Messages, and moving the product's own
-transactional email off Resend — each listed in 37§6.
+domain, realtime, and WhatsApp/Apple Messages — each listed in 37§6. The
+product's own transactional email (`$lib/mailer.ts`) sends through the same
+Bird workspace; Resend is gone.
 
 The `(marketing)` route group is the CMSaasStarter site
 ([07-app-provenance.md](./07-app-provenance.md)), **not** the marketing module,

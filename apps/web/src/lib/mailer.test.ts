@@ -1,7 +1,6 @@
-import { vi, describe, it, expect, beforeEach } from "vitest"
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest"
 
 vi.mock("$env/dynamic/private")
-vi.mock("resend")
 
 // vi.mock factories are hoisted above top-level declarations, so the mock
 // object itself must be too.
@@ -26,26 +25,28 @@ vi.mock("$lib/server/supabase_service_role", () => ({
 }))
 
 import type { User } from "@supabase/supabase-js"
-import { Resend } from "resend"
+import type { MessagingProvider } from "$lib/server/messaging/bird"
 import * as mailer from "./mailer"
 
-describe("mailer", () => {
-  const mockSend = vi.fn().mockResolvedValue({ id: "mock-email-id" })
+/** The Bird provider, replaced wholesale: these tests are about what the mailer hands it, never about the wire. */
+const mockSend = vi.fn()
+const fakeProvider: MessagingProvider = {
+  sendEmail: mockSend,
+  sendSms: vi.fn(),
+  inboundEmailBody: vi.fn(),
+  searchNumbers: vi.fn(),
+  orderNumber: vi.fn(),
+}
 
+describe("mailer", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockSend.mockResolvedValue({ sent: true, providerMessageId: "em_mock" })
     const { env } = await import("$env/dynamic/private")
-    env.PRIVATE_RESEND_API_KEY = "mock_resend_api_key"
-
-    vi.mocked(Resend).mockImplementation(
-      () =>
-        ({
-          emails: {
-            send: mockSend,
-          },
-        }) as unknown as Resend,
-    )
+    env.PRIVATE_BIRD_API_KEY = "mock_bird_api_key"
+    mailer.useProvider(() => fakeProvider)
   })
+  afterEach(() => mailer.useProvider(null))
 
   describe("sendUserEmail", () => {
     const mockUser = { id: "user123", email: "user@example.com" }
@@ -74,7 +75,7 @@ describe("mailer", () => {
 
       expect(mockSend).toHaveBeenCalled()
       const email = mockSend.mock.calls[0][0]
-      expect(email.to).toEqual(["user@example.com"])
+      expect(email.to).toEqual("user@example.com")
     })
 
     it("should not send email if user is unsubscribed", async () => {
@@ -112,10 +113,10 @@ describe("mailer", () => {
   })
 
   describe("sendTemplatedEmail", () => {
-    it("sends templated email", async () => {
+    it("sends templated email, tagged as the mailer's and never a tenant's", async () => {
       const result = await mailer.sendTemplatedEmail({
         subject: "Test subject",
-        from_email: "from@example.com",
+        from_email: "Test Co <from@example.com>",
         to_emails: ["to@example.com"],
         template_name: "welcome_email",
         template_properties: {
@@ -125,10 +126,10 @@ describe("mailer", () => {
       })
 
       expect(result).toEqual({ sent: true })
-      expect(mockSend).toHaveBeenCalled()
+      expect(mockSend).toHaveBeenCalledTimes(1)
       const email = mockSend.mock.calls[0][0]
-      expect(email.from).toEqual("from@example.com")
-      expect(email.to).toEqual(["to@example.com"])
+      expect(email.from).toEqual({ email: "from@example.com", name: "Test Co" })
+      expect(email.to).toEqual("to@example.com")
       expect(email.subject).toEqual("Test subject")
       expect(email.text).toContain("This is a quick sample of a welcome email")
       expect(email.html).toContain("This is a quick sample of a welcome email")
@@ -138,6 +139,25 @@ describe("mailer", () => {
       expect(email.text).toContain("https://test.com")
       expect(email.text).toContain("Test Company")
       expect(email.attachments).toBeUndefined()
+      expect(email.metadata).toEqual({
+        source: "mailer",
+        template: "welcome_email",
+      })
+      expect(email.metadata.tenant_id).toBeUndefined()
+    })
+
+    it("sends one message per recipient", async () => {
+      await mailer.sendTemplatedEmail({
+        subject: "Test subject",
+        from_email: "from@example.com",
+        to_emails: ["a@example.com", "b@example.com"],
+        template_name: "welcome_email",
+        template_properties: {},
+      })
+      expect(mockSend.mock.calls.map((c) => c[0].to)).toEqual([
+        "a@example.com",
+        "b@example.com",
+      ])
     })
 
     it("attaches a file when attachments are given, and never adds the key otherwise", async () => {
@@ -163,9 +183,9 @@ describe("mailer", () => {
       ])
     })
 
-    it("reports not_configured, and never calls Resend, with no API key", async () => {
+    it("reports not_configured, and never calls Bird, with no API key", async () => {
       const { env } = await import("$env/dynamic/private")
-      env.PRIVATE_RESEND_API_KEY = ""
+      env.PRIVATE_BIRD_API_KEY = ""
 
       const result = await mailer.sendTemplatedEmail({
         subject: "Test subject",
@@ -179,9 +199,11 @@ describe("mailer", () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
-    it("reports send_failed when Resend itself rejects the send", async () => {
+    it("reports send_failed when Bird itself rejects the send", async () => {
       mockSend.mockResolvedValueOnce({
-        error: { message: "invalid `from` address" },
+        sent: false,
+        reason: "send_failed",
+        detail: "invalid `from` address",
       })
 
       const result = await mailer.sendTemplatedEmail({
@@ -193,6 +215,27 @@ describe("mailer", () => {
       })
 
       expect(result).toEqual({ sent: false, reason: "send_failed" })
+    })
+  })
+
+  describe("sendAdminEmail", () => {
+    it("sends to the admin address from the configured sender, and nothing with no admin address", async () => {
+      const { env } = await import("$env/dynamic/private")
+      env.PRIVATE_ADMIN_EMAIL = "ops@example.com"
+      env.PRIVATE_FROM_ADMIN_EMAIL = "Ops Desk <noreply@example.com>"
+      await mailer.sendAdminEmail({ subject: "Signup", body: "hello" })
+      const email = mockSend.mock.calls[0][0]
+      expect(email.to).toBe("ops@example.com")
+      expect(email.from).toEqual({
+        email: "noreply@example.com",
+        name: "Ops Desk",
+      })
+      expect(email.subject).toBe("ADMIN_MAIL: Signup")
+
+      mockSend.mockClear()
+      env.PRIVATE_ADMIN_EMAIL = ""
+      await mailer.sendAdminEmail({ subject: "Signup", body: "hello" })
+      expect(mockSend).not.toHaveBeenCalled()
     })
   })
 
@@ -213,6 +256,10 @@ describe("mailer", () => {
 
       expect(result).toEqual({ sent: true })
       const email = mockSend.mock.calls[0][0]
+      expect(email.from).toEqual({
+        email: "reminders@example.com",
+        name: "Northwind Consulting",
+      })
       for (const body of [email.text, email.html]) {
         expect(body).toContain("INV-2026-002")
         expect(body).toContain("Northwind Consulting")

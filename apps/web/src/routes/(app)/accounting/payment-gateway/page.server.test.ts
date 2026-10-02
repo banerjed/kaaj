@@ -6,7 +6,7 @@ import { vi, afterAll, afterEach, describe, expect, it } from "vitest"
  * hand-written envelope would fail pii.test.ts). The save/disconnect path
  * below runs against the REAL local database — the seal/open round trip,
  * the RLS policy, the upsert — with only the network call to Stripe itself
- * mocked, matching mailer.test.ts's own posture for Resend.
+ * mocked, matching mailer.test.ts's own posture for Bird.
  */
 vi.mock("stripe", async () => {
   const actual = await vi.importActual<typeof import("stripe")>("stripe")

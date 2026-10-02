@@ -252,7 +252,14 @@ async function statusEvent(
   const providerId = str(data.sms_id) ?? str(data.email_id) ?? str(data.id)
   if (!providerId) return "ignored"
   const tenantId = tenantFromMetadata(data)
-  if (!tenantId) return "unroutable"
+  // The product's own transactional mail ($lib/mailer) tags its sends with
+  // a source and no tenant: nothing in Kaaj tracks those rows, so their
+  // status events are simply not ours to route.
+  if (!tenantId) {
+    return typeof data.metadata === "object" && data.metadata !== null
+      ? "ignored"
+      : "unroutable"
+  }
   const detail =
     str(data.bounce_description) ??
     str(data.reason) ??

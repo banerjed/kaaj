@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from "vitest"
 
 // Real sends aren't exercised here (this environment has no live Stripe
 // account to test against, matching mailer.test.ts's own posture for
-// Resend) — the constructor is mocked, but `Stripe.errors.*` are the REAL
+// Bird) — the constructor is mocked, but `Stripe.errors.*` are the REAL
 // classes (imported via vi.importActual) so `instanceof` checks in
 // stripe_gateway.ts against a genuinely thrown error still work.
 vi.mock("stripe", async () => {
