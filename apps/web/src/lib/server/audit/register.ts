@@ -53,6 +53,16 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
 
   // -- Configuration that decides what people are PAID ----------------------
   {
+    route: "payroll/export/settings",
+    action: "save",
+    why: "Which provider code each kind of hours goes under. A wrong mapping pays overtime as regular time, or unpaid leave as paid, on every export after it.",
+  },
+  {
+    route: "payroll/employee-ids",
+    action: "save",
+    why: "Which provider employee receives a person's hours. A wrong id pays one person for another's time.",
+  },
+  {
     route: "settings/payroll/policies",
     action: "save",
     why: "Overtime thresholds, multipliers and rounding. If someone's overtime drops, this is the change that did it.",
@@ -276,33 +286,6 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     route: "accounting/accruals",
     action: "postDue",
     why: "Posts potentially many recognition entries in one run with no per-entry review before they exist — same trail as recurring invoices' generate and the reconciliation rules' apply.",
-  },
-
-  // -- Payroll: the record of money leaving the firm -----------------------
-  {
-    route: "payroll/runs",
-    action: "openRun",
-    why: "A pay run is the record of money leaving the firm. 'Who opened this period, and for which dates' is the first question asked when two runs cover the same fortnight.",
-  },
-  {
-    route: "payroll/runs/[id]",
-    action: "calculate",
-    why: "The moment the header totals become the figures a finance lead reads and reports. What the run claimed before, and what it claims now, is the whole question.",
-  },
-  {
-    route: "payroll/runs/[id]",
-    action: "approve",
-    why: "The money is committed here, by a named approver who is not the person who calculated it. The clearest case in this register.",
-  },
-  {
-    route: "payroll/runs/[id]",
-    action: "finalize",
-    why: "The payment file is cut from here. After this the money has left, and the trail is the only account of who authorised it.",
-  },
-  {
-    route: "payroll/runs/[id]",
-    action: "cancel",
-    why: "A pay period that was opened and then abandoned. Nobody can see it did not happen without a record that it was stopped, and by whom.",
   },
 
   // -- Project money: what a client is eventually billed against ----------

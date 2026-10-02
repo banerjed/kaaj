@@ -181,6 +181,9 @@ const NOT_SCALE_SENSITIVE = new Map([
     "bounded by employee count times tax years",
   ],
   ["payroll_pay_schedules", "small, admin-authored config"],
+  ["payroll_export_settings", "one row per tenant"],
+  ["payroll_export_codes", "one row per provider per kind of hours or time-off policy"],
+  ["payroll_employee_ids", "at most one row per employee per provider: bounded by headcount"],
   [
     "payroll_run_employees",
     "bounded by employee count times pay periods elapsed",

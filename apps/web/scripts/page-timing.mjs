@@ -19,7 +19,6 @@ const ROUTE_PARAM = [
   ["/employees/[id]", "employeeId"],
   ["/ticketing/[id]", "ticketId"],
   ["/projects/[id]", "projectId"],
-  ["/payroll/runs/[id]", "payrollRunId"],
   ["/chat/[conversationId]", "conversationId"],
   ["/documents/[folderId]", "folderId"],
   ["/objectives/[id]", "objectiveId"],

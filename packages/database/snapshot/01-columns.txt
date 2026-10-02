@@ -1455,6 +1455,25 @@ payroll_employee_deductions	22	updated_at	timestamp with time zone	f	CURRENT_TIM
 payroll_employee_deductions	23	employee_deduction_id	text	f	
 payroll_employee_deductions	24	deduction_def_id	uuid	t	
 payroll_employee_deductions	25	calculation_method	text	f	
+payroll_employee_ids	1	id	uuid	t	gen_random_uuid()
+payroll_employee_ids	2	tenant_id	uuid	t	
+payroll_employee_ids	3	employee_id	uuid	t	
+payroll_employee_ids	4	provider	text	t	
+payroll_employee_ids	5	external_id	character varying(20)	f	
+payroll_employee_ids	6	updated_at	timestamp with time zone	t	now()
+payroll_employee_ids	7	updated_by	uuid	f	
+payroll_export_codes	1	id	uuid	t	gen_random_uuid()
+payroll_export_codes	2	tenant_id	uuid	t	
+payroll_export_codes	3	provider	text	t	
+payroll_export_codes	4	source	text	t	
+payroll_export_codes	5	code	character varying(50)	f	
+payroll_export_codes	6	updated_at	timestamp with time zone	t	now()
+payroll_export_codes	7	updated_by	uuid	f	
+payroll_export_settings	1	tenant_id	uuid	t	
+payroll_export_settings	2	provider	text	t	
+payroll_export_settings	3	company_code	character varying(20)	f	
+payroll_export_settings	4	updated_at	timestamp with time zone	t	now()
+payroll_export_settings	5	updated_by	uuid	f	
 payroll_india_salary_structure	1	id	uuid	t	gen_random_uuid()
 payroll_india_salary_structure	2	tenant_id	uuid	t	
 payroll_india_salary_structure	3	employee_id	uuid	t	

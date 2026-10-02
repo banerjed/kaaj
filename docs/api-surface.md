@@ -353,7 +353,7 @@ section overrides it.
 | `payroll_india_tax_declarations` | `$lib/server/payroll/payroll_india_tax_declarations.repo.ts` | `list`, `getById`, `create`, `update`, `remove` |
 | `payroll_pay_schedules` | `$lib/server/payroll/payroll_pay_schedules.repo.ts` | `list`, `getById`, `create`, `update`, `archive` |
 | `payroll_run_employees` | `$lib/server/payroll/payroll_run_employees.repo.ts` | `list`, `getById`, `create`, `update`, `remove` |
-| `payroll_runs` | `$lib/server/payroll/payroll_runs.repo.ts` | `list`, `getById`, `create`, `update`, `remove` |
+| `payroll_export_settings`, `payroll_export_codes`, `payroll_employee_ids` | `$lib/server/payroll/payroll_export.repo.ts` | `settings`, `saveSettings`, `codes`, `saveCodes`, `employeeIdsPage`, `setEmployeeId`, `periodLines`, `periodNotes`, `problems` |
 | `payroll_tax_deposits` | `$lib/server/payroll/payroll_tax_deposits.repo.ts` | `list`, `getById`, `create`, `update`, `remove` |
 | `payroll_tax_rates` | `$lib/server/payroll/payroll_tax_rates.repo.ts` | `list`, `getById`, `create`, `update`, `archive` |
 | `payroll_tax_withholding_certificates` | `$lib/server/payroll/payroll_tax_withholding_certificates.repo.ts` | `list`, `getById`, `create`, `update`, `remove` |

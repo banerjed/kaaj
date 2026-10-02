@@ -1407,3 +1407,49 @@ test("adding a contact to a person account is refused by the action, not just hi
     "a second contact would have flipped the page to the company layout",
   ).toHaveCount(0)
 })
+
+test("a payroll export company code the provider would refuse is marked, not saved", async ({
+  page,
+}) => {
+  await page.goto("/payroll/export/settings")
+  const code = page.locator('input[name="company_code"]')
+  await expect(code).toBeVisible()
+
+  // Retried for the same hydration race as the company form above.
+  await expect(async () => {
+    await code.fill("not a code!")
+    await submitPastTheBrowser(page, "?/save")
+    await expect(page.locator(".alert").first()).toContainText("company code", {
+      timeout: 3_000,
+    })
+  }).toPass({ timeout: 20_000 })
+
+  await expect(code).toHaveClass(/input-error/)
+  await expect(code).toHaveAttribute("aria-invalid", "true")
+})
+
+test("an employee payroll id in the wrong form is refused, and its field is marked", async ({
+  page,
+}) => {
+  await page.goto("/payroll/employee-ids?q=Sarah")
+  const id = page.getByLabel("ADP RUN id for Sarah Johnson")
+  await expect(id).toBeVisible()
+
+  await expect(async () => {
+    // Short enough for the column, but RUN ids are letters, digits and dashes.
+    await id.fill("bad id!")
+    await id
+      .locator("xpath=ancestor::form")
+      .getByRole("button", { name: "Save" })
+      .click()
+    await expect(page.locator(".alert").first()).toContainText(
+      "ADP RUN id is not in the form",
+      {
+        timeout: 3_000,
+      },
+    )
+  }).toPass({ timeout: 20_000 })
+
+  await expect(id).toHaveClass(/input-error/)
+  await expect(id).toHaveAttribute("aria-invalid", "true")
+})

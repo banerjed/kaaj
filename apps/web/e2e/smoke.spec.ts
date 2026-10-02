@@ -34,8 +34,9 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/objectives", heading: "Objectives" },
   { path: "/projects", heading: "Projects" },
   { path: "/time-tracking", heading: "Time Tracking" },
-  { path: "/payroll/runs", heading: "Pay Runs" },
-  { path: "/payroll/payslips", heading: "Payslips" },
+  { path: "/payroll/export", heading: "Export to Payroll" },
+  { path: "/payroll/employee-ids", heading: "Employee Payroll IDs" },
+  { path: "/payroll/export/settings", heading: "Payroll Export Settings" },
   { path: "/accounting/invoices", heading: "Invoices" },
   { path: "/accounting/invoices/new", heading: "New invoice" },
   {

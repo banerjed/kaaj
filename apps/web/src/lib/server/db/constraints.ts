@@ -36,6 +36,11 @@ const REGISTRY: Record<string, Refusal> = {
     message:
       "Another holiday already uses that reference. Holiday references must be unique — pick a different one, or leave it blank.",
   },
+  payroll_employee_ids_external_id_taken: {
+    errorFields: ["external_id"],
+    message:
+      "Another employee already has that id in this payroll provider. Check the id in the provider: each employee's id is unique there.",
+  },
   employees_tenant_id_employee_id_key: {
     errorFields: ["employee_id"],
     message:
@@ -205,11 +210,6 @@ const REGISTRY: Record<string, Refusal> = {
     errorFields: ["location_code"],
     message:
       "That office no longer exists. Reload the page and pick one from the current list.",
-  },
-  fk_payroll_runs_pay_schedule_id: {
-    errorFields: ["pay_schedule_id"],
-    message:
-      "That pay schedule no longer exists. Reload the page and pick one from the current list.",
   },
   fk_payments_bank_account_id: {
     errorFields: ["bank_account_id"],

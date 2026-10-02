@@ -346,6 +346,12 @@ const TENANT_WIDE = new Map([
   ["hr_time_off_policies", "leave rules, configuration"],
   ["payroll_deduction_definitions", "deduction types, not who takes them"],
   ["payroll_pay_schedules", "pay calendar, configuration"],
+  ["payroll_export_settings", "which payroll provider, and the tenant's company code there: configuration, no secret"],
+  ["payroll_export_codes", "provider earnings codes per kind of hours: configuration"],
+  [
+    "payroll_employee_ids",
+    "an employee's id inside the payroll provider: an internal reference like employee_number, not a national identifier; writes limited to payroll roles by RLS",
+  ],
   ["payroll_tax_rates", "statutory rate tables, public information"],
   ["pm_automation_executions", "project workflow log"],
   ["pm_automations", "project workflow configuration"],

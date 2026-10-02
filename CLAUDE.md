@@ -125,11 +125,12 @@ could read every table that had only `tenant_isolation`
 ([L111](docs/10-lessons-learned.md)). Before you switch the portal on again,
 close every staff table to portal contacts.
 
-**Payroll and expense tracking are NOT YET IMPLEMENTED.**
-- **Payroll** has a run lifecycle and nothing more. `/payroll/runs` moves a
-  run through draft, calculate, approve and finalize, with an audit entry for
-  each step. But no code calculates the pay of an employee. Every gross, tax
-  and net amount comes from the fixture.
+**Payroll calculation and expense tracking are NOT IMPLEMENTED.**
+- **Payroll**: Kaaj does not calculate pay. `/payroll/export` makes a file of
+  the approved hours and time off of a pay period. The customer imports the
+  file in its own payroll provider: ADP RUN, ADP Workforce Now, Gusto or
+  Paychex Flex ([docs/36](docs/36-payroll-provider-integration.md)). The
+  `payroll_runs` tables stay, but no code reads or writes them.
 - **Expense tracking** has no module. `expenses` exists, and accounting
   reports read it. But no code submits, approves or reimburses an expense.
   - Billable expenses are columns on `expenses`: `is_billable`,

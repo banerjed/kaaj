@@ -65,9 +65,6 @@ async function pickIds(perf, tenantId) {
     projectId: await one(perf`
       SELECT project_id AS id FROM tasks WHERE tenant_id = ${tenantId}
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
-    payrollRunId: await one(perf`
-      SELECT payroll_run_id AS id FROM payroll_run_employees WHERE tenant_id = ${tenantId}
-       GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
     billId: await one(perf`
       SELECT bill_id AS id FROM bill_lines WHERE tenant_id = ${tenantId}
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
