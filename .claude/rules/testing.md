@@ -29,11 +29,16 @@ step and the perf steps render a page in `./check`. These tests ask for
 headings BY ROLE. This is how the smoke test found that no page in
 the product had an `<h1>` ([L64](docs/10-lessons-learned.md)).
 
-Both are read-only, because the unit suites use the same fixture. Thus, a
-spec that writes needs its own serial project, and it must load the fixture
-again. Run them with `pnpm --filter @kaaj/web e2e`. They are NOT in plain
-`./check` on purpose: `./check` takes 24 seconds, and the team wants to keep
-that time. `./check --all` and the pre-push hook run them.
+Both are read-only, because the unit suites use the same fixture. A spec
+that WRITES goes in the `writes` project of `playwright.config.ts`: its file
+is named `*.writes.spec.ts`, it runs on one worker after the read-only
+project, and it must remove every row it creates (`webhook-bird.writes.spec.ts`
+does this by the addresses it chose, as the owner, in `beforeAll` and
+`afterAll`). It never changes a fixture row another test asserts on
+([L125](docs/10-lessons-learned.md)). Run them with
+`pnpm --filter @kaaj/web e2e`. They are NOT in plain `./check` on purpose:
+`./check` takes 24 seconds, and the team wants to keep that time.
+`./check --all` and the pre-push hook run them.
 
 **If you did not see a workflow green, do not think that it runs.**
 `tests.yml` failed each run for five weeks. In the same weeks, `build`,

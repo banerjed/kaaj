@@ -1,0 +1,23 @@
+{
+  "_source": "Composed from https://bird.com/docs/guides/email/events (email_id, recipient_id, recipient, recipient_role, bounce_type, bounce_class, bounce_code, bounce_description, sending_ip, metadata). Replace with a captured delivery.",
+  "type": "email.bounced",
+  "timestamp": "2026-07-23T14:51:47.107Z",
+  "data": {
+    "email_id": "em_01ky7qc398fmxraqtxn604zeq9",
+    "recipient_id": "er_01ky7qc398fmwsc96nt6anrbqs",
+    "workspace_id": "ws_01ky7m21hjffh9s8kq76gyb1xf",
+    "recipient": "felix.ndiaye@acme.example",
+    "recipient_role": "to",
+    "bounce_type": "hard",
+    "bounce_class": 10,
+    "bounce_code": "550",
+    "bounce_description": "550 5.1.1 The email account that you tried to reach does not exist.",
+    "sending_ip": "192.0.2.10",
+    "tags": [],
+    "metadata": {
+      "tenant_id": "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1",
+      "message_id": "f3000000-0000-4000-8000-000000000004"
+    },
+    "broadcast_id": null
+  }
+}

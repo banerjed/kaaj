@@ -1,0 +1,15 @@
+{
+  "_source": "Composed: Bird's suppression event after a STOP, with Kaaj's metadata on the send it answered. Field names unverified — replace with a captured delivery.",
+  "type": "sms_suppression.created",
+  "timestamp": "2026-10-02T14:40:00Z",
+  "data": {
+    "sms_id": "sms_01krdgeqcxet5s7t44vh8rt9mg",
+    "workspace_id": "ws_01krdgeqcxet5s7t44vh8rt9mg",
+    "recipient": "+1 512 555 0201",
+    "reason": "stop",
+    "metadata": {
+      "tenant_id": "07fb03f8-1521-5ef4-9c2d-25fcfa297ac1",
+      "message_id": "f3000000-0000-4000-8000-000000000005"
+    }
+  }
+}

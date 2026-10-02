@@ -269,7 +269,7 @@ test rather than only having been fixed once and trusted to stay fixed.
   receives the pointer frame, a different tenant on the same conversation
   id never does, and `unsubscribe()` actually stops delivery.
 
-### Messaging — 24 tests
+### Messaging — 29 tests
 
 Customer-facing SMS and email through Bird (docs/38-messaging.md). The
 webhook is the one unauthenticated route in the product, so its refusing
@@ -291,6 +291,13 @@ asserted as the refused actor and the permitted one.
   `send()` refusing an opted-out address, a retired endpoint, a channel
   mismatch, a bad address and an endpoint the actor cannot see — with the
   provider asserted never called.
+- `lib/server/messaging/bird-payloads.test.ts` [5] — Bird's payloads as
+  checked-in JSON (`fixtures/bird/`, each with a `_source` saying whether it
+  is a verbatim documentation example or a composition to be replaced by a
+  captured delivery), read the way the webhook reads them: `parseEnvelope`,
+  then the pure `smsFields`/`emailFields` extractors; a delivery event about
+  the product's own mail is ignored, and `sms.delivered` on a fixture message
+  is routed by its metadata to the row under the tenant's own policies.
 - `lib/server/messaging/messaging.visibility.test.ts` [6] — as `app_user`:
   nothing for a plain employee, a contractor, HR, payroll, finance, IT, a
   portal contact at the thread's own company, or no claim; everything for
@@ -436,6 +443,15 @@ shared and read-only except where a file's own header says otherwise.
   project-management checks (the Add-task Parent select is scoped to the
   project's own top-level tasks, the Kanban board's column/card structure,
   and the List↔Kanban toggle firing no network request either way).
+- **`webhook-bird.writes.spec.ts` [5]** — the Bird webhook end to end, in
+  the `writes` project (one worker, after the read-only specs, removes its
+  own rows): an unsigned or tampered delivery is 401 and files nothing; a
+  signed inbound SMS opens a thread the inbox and the thread page show, and
+  a redelivery files nothing twice; STOP records an opt-out and a reply from
+  the thread page is refused before anything leaves; a signed inbound email
+  files under the catch-all address with its body marked unavailable and a
+  failed DKIM flagged; an event for an address no tenant owns is
+  acknowledged with 200 and files nothing.
 - **`form-errors.spec.ts` [60]** — a refused form names the field, marks it,
   and the form survives. Spans accounting (invoices, bills, journal entries,
   periods, year-end close, tax rates, banking, recurring schedules, Stripe),

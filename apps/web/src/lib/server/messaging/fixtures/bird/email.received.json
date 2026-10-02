@@ -1,0 +1,20 @@
+{
+  "_source": "Composed from https://bird.com/docs/guides/email/receiving-email (inbound_message_id, from, to, cc, subject, message_id, in_reply_to, spf_pass, dkim_pass, dmarc_pass, authentication). Replace with a captured delivery.",
+  "type": "email.received",
+  "timestamp": "2026-10-02T14:31:00Z",
+  "data": {
+    "inbound_message_id": "rem_01krdgeqcxet5s7t44vh8rt9mh",
+    "workspace_id": "ws_01krdgeqcxet5s7t44vh8rt9mg",
+    "from": { "email": "Felix.Ndiaye@acme.example", "name": "Felix Ndiaye" },
+    "to": [{ "email": "Northwind-7F3KQ2@inbound.example", "name": null }],
+    "cc": [],
+    "subject": "Renewal paperwork",
+    "message_id": "<abc123@acme.example>",
+    "in_reply_to": null,
+    "spf_pass": true,
+    "dkim_pass": true,
+    "dmarc_pass": null,
+    "authentication": "pass",
+    "received_at": "2026-10-02T14:30:58Z"
+  }
+}

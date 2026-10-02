@@ -1,0 +1,15 @@
+{
+  "_source": "Verbatim example from https://bird.com/docs/guides/email/events, with the metadata $lib/mailer attaches: a source and no tenant.",
+  "type": "email.delivered",
+  "timestamp": "2026-07-23T14:51:47.107Z",
+  "data": {
+    "email_id": "em_01ky7qc398fmxraqtxn604zeq9",
+    "recipient_id": "er_01ky7qc398fmwsc96nt6anrbqs",
+    "workspace_id": "ws_01ky7m21hjffh9s8kq76gyb1xf",
+    "recipient": "ap@acme.example",
+    "recipient_role": "to",
+    "tags": [{ "name": "category", "value": "transactional" }],
+    "metadata": { "source": "mailer", "template": "invoice_email" },
+    "broadcast_id": null
+  }
+}

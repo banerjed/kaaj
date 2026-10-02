@@ -1,0 +1,15 @@
+{
+  "_source": "Composed from https://bird.com/docs/guides/sms/events (field names as documented: sms_id, from, to, text, segments, carrier). Replace with a delivery captured from the Bird workspace once one has arrived.",
+  "type": "sms.received",
+  "timestamp": "2026-10-02T14:30:00Z",
+  "data": {
+    "sms_id": "sms_01krdgeqcxet5s7t44vh8rt9mg",
+    "workspace_id": "ws_01krdgeqcxet5s7t44vh8rt9mg",
+    "from": "+1 (512) 555-0177",
+    "to": "+12125550100",
+    "text": "Is the invoice due Friday?",
+    "segments": { "count": 1, "encoding": "GSM_7BIT" },
+    "carrier": "Example Wireless",
+    "received_at": "2026-10-02T14:29:58Z"
+  }
+}

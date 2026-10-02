@@ -121,13 +121,61 @@ export async function handleBirdEvent(
   }
 }
 
-async function receiveSms(envelope: WebhookEnvelope): Promise<InboundOutcome> {
-  const data = envelope.data
+/**
+ * What an `sms.received` event must carry for Kaaj to file it, read with
+ * the documented names and their obvious variants. Pure, so a recorded
+ * delivery can be checked against it without a database
+ * (`bird-payloads.test.ts`). Null when a required field is absent.
+ */
+export function smsFields(
+  data: Record<string, unknown>,
+): { providerId: string; from: string; to: string; text: string } | null {
   const providerId = str(data.sms_id) ?? str(data.id)
   const from = str(data.from) && messaging.normalizePhone(data.from as string)
   const to = str(data.to) && messaging.normalizePhone(data.to as string)
   const text = str(data.text) ?? str(data.body) ?? ""
-  if (!providerId || !from || !to) return "ignored"
+  if (!providerId || !from || !to) return null
+  return { providerId, from, to, text }
+}
+
+/** The same for `email.received`: the sender, and every recipient that could be one of ours, in the order they are tried. */
+export function emailFields(data: Record<string, unknown>): {
+  providerId: string
+  from: string
+  senderName: string | null
+  recipients: string[]
+  subject: string | null
+  rfcMessageId: string | null
+  rfcInReplyTo: string | null
+  spfPass: boolean | null
+  dkimPass: boolean | null
+} | null {
+  const providerId = str(data.inbound_message_id) ?? str(data.id)
+  const [sender] = addresses(data.from)
+  if (!providerId || !sender) return null
+  const from = messaging.normalizeEmail(sender.email)
+  if (!from) return null
+  const recipients = [...addresses(data.to), ...addresses(data.cc)]
+    .map((c) => messaging.normalizeEmail(c.email))
+    .filter((a): a is string => a !== null)
+  return {
+    providerId,
+    from,
+    senderName: clip(sender.name, NAME_MAX),
+    recipients,
+    subject: clip(str(data.subject), SUBJECT_MAX),
+    rfcMessageId: str(data.message_id),
+    rfcInReplyTo: str(data.in_reply_to),
+    spfPass: bool(data.spf_pass),
+    dkimPass: bool(data.dkim_pass),
+  }
+}
+
+async function receiveSms(envelope: WebhookEnvelope): Promise<InboundOutcome> {
+  const data = envelope.data
+  const fields = smsFields(data)
+  if (!fields) return "ignored"
+  const { providerId, from, to, text } = fields
 
   const tenantId = await routeAddress("sms", to)
   if (!tenantId) return "unroutable"
@@ -181,19 +229,15 @@ async function receiveEmail(
   provider: MessagingProvider,
 ): Promise<InboundOutcome> {
   const data = envelope.data
-  const providerId = str(data.inbound_message_id) ?? str(data.id)
-  const [sender] = addresses(data.from)
-  if (!providerId || !sender) return "ignored"
-  const from = messaging.normalizeEmail(sender.email)
-  if (!from) return "ignored"
+  const fields = emailFields(data)
+  if (!fields) return "ignored"
+  const { providerId, from } = fields
 
   // The first recipient that routes to a tenant is the one this message is
-  // for; a message to two Kaaj addresses files under the first.
+  // for; a message to two of our addresses files under the first.
   let tenantId: string | null = null
   let to: string | null = null
-  for (const candidate of [...addresses(data.to), ...addresses(data.cc)]) {
-    const address = messaging.normalizeEmail(candidate.email)
-    if (!address) continue
+  for (const address of fields.recipients) {
     tenantId = await routeAddress("email", address)
     if (tenantId) {
       to = address
@@ -214,7 +258,6 @@ async function receiveEmail(
     const endpoint = await messaging.endpointByAddress(tx, "email", to)
     if (!endpoint) return "unroutable"
     const contact = await messaging.matchContact(tx, "email", from)
-    const subject = clip(str(data.subject), SUBJECT_MAX)
     const conversationId = await messaging.findOrOpenConversation(
       tx,
       tenantId,
@@ -222,9 +265,9 @@ async function receiveEmail(
         channel: "email",
         endpointId: endpoint.id,
         counterpartyAddress: from,
-        counterpartyName: clip(sender.name, NAME_MAX),
+        counterpartyName: fields.senderName,
         contact,
-        subject,
+        subject: fields.subject,
         direction: "inbound",
       },
     )
@@ -232,14 +275,14 @@ async function receiveEmail(
       conversationId,
       fromAddress: from,
       toAddress: to,
-      subject,
+      subject: fields.subject,
       bodyText,
       bodyHtml: body?.html ?? null,
       providerMessageId: providerId,
-      rfcMessageId: str(data.message_id),
-      rfcInReplyTo: str(data.in_reply_to),
-      spfPass: bool(data.spf_pass),
-      dkimPass: bool(data.dkim_pass),
+      rfcMessageId: fields.rfcMessageId,
+      rfcInReplyTo: fields.rfcInReplyTo,
+      spfPass: fields.spfPass,
+      dkimPass: fields.dkimPass,
       occurredAt: occurredAt(envelope, data),
     })
     return filed.duplicate ? "duplicate" : "handled"

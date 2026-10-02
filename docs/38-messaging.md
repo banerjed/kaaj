@@ -135,6 +135,15 @@ answers 500 only for a failure Kaaj wants redelivered.
 The relay is poll-based on the browser side: an open thread refreshes
 every 30 seconds. There is no `LISTEN`/`NOTIFY` relay yet (§6).
 
+**How the webhook is tested.** Three layers, none of which touches Bird:
+`webhooks.test.ts` on the signature; `bird-payloads.test.ts` on checked-in
+payloads under `fixtures/bird/` (documentation examples until a captured
+delivery replaces each one — the `_source` field says which); and
+`webhook-bird.writes.spec.ts`, which posts signed events to the running app
+and checks the rows and the pages. What none of them proves is Bird's real
+payload shape or a real carrier round trip; that needs a workspace with a
+number and a verified domain, and one manual send each way per release.
+
 ---
 
 ## 5. Sending
