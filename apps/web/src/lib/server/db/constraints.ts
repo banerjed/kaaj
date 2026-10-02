@@ -20,6 +20,18 @@ type Refusal = { errorFields: string[]; message: string }
  * is neither.
  */
 const REGISTRY: Record<string, Refusal> = {
+  // ---- Messaging (docs/37-messaging.md) ---------------------------------
+  messaging_endpoints_tenant_id_channel_address_key: {
+    errorFields: ["address"],
+    message:
+      "That number or address is already registered for this workspace. Pick a different one, or reactivate the existing entry.",
+  },
+  idx_messaging_endpoints_route: {
+    errorFields: ["address"],
+    message:
+      "That number or address is already in use. Each one can receive for only one workspace.",
+  },
+
   // ---- Business keys: UNIQUE (tenant_id, <code>) ------------------------
   firm_locations_tenant_id_location_code_key: {
     errorFields: ["location_code"],

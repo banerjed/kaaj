@@ -150,6 +150,14 @@ journal_entries	app_user	INSERT,SELECT,UPDATE
 journal_entries	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 journal_entry_lines	app_user	INSERT,SELECT,UPDATE
 journal_entry_lines	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+messaging_conversations	app_user	INSERT,SELECT,UPDATE
+messaging_conversations	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+messaging_endpoints	app_user	INSERT,SELECT,UPDATE
+messaging_endpoints	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+messaging_messages	app_user	INSERT,SELECT,UPDATE
+messaging_messages	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+messaging_opt_outs	app_user	INSERT,SELECT,UPDATE
+messaging_opt_outs	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payment_allocations	app_user	INSERT,SELECT,UPDATE
 payment_allocations	postgres	DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 payment_gateway_settings	app_user	INSERT,SELECT,UPDATE

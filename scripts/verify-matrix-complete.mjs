@@ -244,6 +244,22 @@ const ROW_SCOPED = new Map([
   ["team_chat_members", "members of the conversation only"],
   ["tasks", "follows its project (task_visibility)"],
   ["team_chat_messages", "members of the conversation only"],
+  [
+    "messaging_endpoints",
+    "the firm's admins, sales, marketing and auditor (app.reads_all_messaging); never a portal contact",
+  ],
+  [
+    "messaging_opt_outs",
+    "same readers as messaging_endpoints; an outside address that asked not to be contacted",
+  ],
+  [
+    "messaging_conversations",
+    "same readers as messaging_endpoints; who the firm is in a thread with",
+  ],
+  [
+    "messaging_messages",
+    "same readers as messaging_endpoints; what was said to and by an outside person",
+  ],
   ["ticketing_ticket_reference_links", "follows the ticket's staff visibility"],
   ["ticketing_ticket_tasks", "follows the ticket's staff visibility"],
   [

@@ -59,6 +59,12 @@ const FORM_WRITTEN = [
   // customers row and its contact together.
   "customers",
   "customer_contacts",
+  // Messaging (docs/37-messaging.md): endpoints and opt-outs from
+  // /settings/messaging; conversations and messages from compose/reply.
+  "messaging_endpoints",
+  "messaging_opt_outs",
+  "messaging_conversations",
+  "messaging_messages",
 ]
 
 /**
@@ -504,6 +510,94 @@ const CANNOT_BE_TRIPPED = new Map([
   [
     "fk_bank_accounts_gl_account_id",
     "no action writes gl_account_id: the only form write to bank_accounts is the import saving statement_import_profile",
+  ],
+
+  // Messaging (docs/37-messaging.md).
+  ["messaging_endpoints_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "messaging_endpoints_channel_check",
+    "channel is hardcoded per action (addEmailAddress writes 'email', registerNumber/orderNumber write 'sms'), never form input",
+  ],
+  ["messaging_endpoints_provider_check", "a column default; no form writes it"],
+  [
+    "messaging_endpoints_registration_status_check",
+    "FormReader's choice(registration_status, REGISTRATION_STATUSES) refuses anything off the list",
+  ],
+  [
+    "uq_messaging_endpoints_tenant_id_id",
+    "id is the primary key; this is a foreign-key target",
+  ],
+  ["messaging_opt_outs_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "messaging_opt_outs_channel_check",
+    "FormReader's choice(channel, CHANNELS) refuses anything off the list",
+  ],
+  [
+    "messaging_opt_outs_reason_check",
+    "addOptOut hardcodes 'manual'; the webhook path writes 'stop'/'preference' itself",
+  ],
+  [
+    "messaging_opt_outs_tenant_id_channel_address_key",
+    "recordOptOut is INSERT ... ON CONFLICT (tenant_id, channel, address) DO UPDATE, so a repeat re-arms the row instead of colliding",
+  ],
+  ["messaging_conversations_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "messaging_conversations_channel_check",
+    "copied from the endpoint row the repository read under RLS first, never form input",
+  ],
+  [
+    "messaging_conversations_status_check",
+    "FormReader's choice(status, CONVERSATION_STATUSES) refuses anything off the list",
+  ],
+  [
+    "messaging_conversations_last_direction_check",
+    "set by the repository ('inbound'/'outbound' per write), never form input",
+  ],
+  [
+    "fk_messaging_conversations_endpoint",
+    "compose reads the endpoint under RLS (endpointById) and refuses no_such_endpoint before inserting",
+  ],
+  [
+    "fk_messaging_conversations_contact",
+    "set from matchContact's own RLS-scoped read of customer_contacts, or from a contact id the action looked up under RLS first; never raw form input",
+  ],
+  [
+    "fk_messaging_conversations_customer",
+    "copied from the same customer_contacts row as the contact id",
+  ],
+  [
+    "uq_messaging_conversations_thread",
+    "findOrOpenConversation is INSERT ... ON CONFLICT DO NOTHING and re-selects, so a normal request never reaches this constraint",
+  ],
+  [
+    "uq_messaging_conversations_tenant_id_id",
+    "id is the primary key; this is a foreign-key target",
+  ],
+  ["messaging_messages_tenant_id_fkey", "tenant_id comes from the session"],
+  [
+    "messaging_messages_direction_check",
+    "hardcoded per repository write (recordOutbound/recordInbound), never form input",
+  ],
+  [
+    "messaging_messages_status_check",
+    "written only by the repository's own transitions, never form input",
+  ],
+  ["messaging_messages_provider_check", "a column default; no form writes it"],
+  [
+    "fk_messaging_messages_conversation",
+    "reply reads the conversation under RLS (conversationById) and 404s before inserting",
+  ],
+  [
+    "fk_messaging_messages_author",
+    "set from the authenticated actor's employee id, never form input",
+  ],
+  [
+    "ck_messaging_messages_direction_fields",
+    "recordOutbound sets author + a non-received status, recordInbound sets neither author nor any other status; a form cannot reach the columns the CHECK pairs",
+  ],
+  [
+    "idx_messaging_messages_provider_id",
+    "recordInbound is ON CONFLICT DO NOTHING on it; markSent writes the id Bird returned, which Bird's own Idempotency-Key keeps unique per send",
   ],
 ])
 

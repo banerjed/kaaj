@@ -99,6 +99,12 @@ const PAGES: { path: string; heading: string }[] = [
   { path: "/documents", heading: "Documents" },
   { path: "/documents/archived", heading: "Archived" },
   { path: "/chat", heading: "Chat" },
+  { path: "/messaging", heading: "Messaging" },
+  {
+    path: "/messaging/f2000000-0000-4000-8000-000000000001",
+    heading: "Dana Whitcombe",
+  },
+  { path: "/settings/messaging", heading: "Messaging" },
   { path: "/settings/company", heading: "Company" },
   { path: "/settings/departments", heading: "Departments" },
   { path: "/settings/locations", heading: "Locations" },

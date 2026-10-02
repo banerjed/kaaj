@@ -41,6 +41,13 @@ If you make the snapshot from a database that you changed by hand, your local
 experiments go into the baseline. This occurred one time: a manual `ALTER` left
 `invoices.total` as `numeric(18,2)`, but the migration says `numeric(15,2)`.
 
+**If another session works in a parallel worktree, do not reset or snapshot
+the shared local database. Build a scratch database with `ci-database.sh`
+and point `DATABASE_URL` at it** ([L119](docs/10-lessons-learned.md)). Every
+worktree's tests use the one local stack. A migration that another branch
+applied there goes into your snapshot, and `--generate` cannot tell the two
+apart. Read the diff of `00-tables.txt` before you commit it.
+
 **`supabase db reset` leaves `app_user` unable to log in.** The migration
 `20260827000002_auth_and_grants.sql` creates the role with no password.
 `./setup` sets a password in a separate step after the reset, and `db reset`

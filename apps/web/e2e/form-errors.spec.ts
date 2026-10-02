@@ -1407,3 +1407,25 @@ test("adding a contact to a person account is refused by the action, not just hi
     "a second contact would have flipped the page to the company layout",
   ).toHaveCount(0)
 })
+
+test("a new message with nobody to send it to names the address field and keeps the composer open", async ({
+  page,
+}) => {
+  await page.goto("/messaging")
+  await openModal(page, /new message/i, 'textarea[name="body"]')
+
+  const body = page.locator('textarea[name="body"]')
+  const address = page.locator('input[name="address"]')
+  await body.fill("Hello there")
+  // No contact picked, no address typed: exactly one field is wrong, and the
+  // action refuses before anything could reach Bird.
+  await submitPastTheBrowser(page, "?/compose")
+
+  await expect(page.locator(".modal .text-error").first()).toContainText(
+    /address/i,
+  )
+  await expect(body).toHaveValue("Hello there")
+  await expect(address).toHaveClass(/input-error/)
+  await expect(address).toHaveAttribute("aria-invalid", "true")
+  await expect(body).not.toHaveClass(/textarea-error/)
+})

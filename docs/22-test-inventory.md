@@ -257,6 +257,35 @@ test rather than only having been fixed once and trusted to stay fixed.
   receives the pointer frame, a different tenant on the same conversation
   id never does, and `unsubscribe()` actually stops delivery.
 
+### Messaging — 24 tests
+
+Customer-facing SMS and email through Bird (docs/37-messaging.md). The
+webhook is the one unauthenticated route in the product, so its refusing
+branches are the first thing tested, and every role's view of the tables is
+asserted as the refused actor and the permitted one.
+
+- `lib/server/messaging/webhooks.test.ts` [9] — Standard Webhooks
+  verification: a signature over a tampered body, another secret, a stale
+  timestamp and a missing header are each refused; a rotated (space-
+  delimited) signature set is accepted; the envelope parser answers null for
+  anything that is not an event.
+- `lib/server/messaging/messaging.writes.test.ts` [15] — routing an address
+  to a tenant before any tenant is known (live, retired, unknown); the
+  inbound handler's ignored/unroutable branches without touching the body
+  API; CRM contact matching digit for digit and case-insensitively; a
+  redelivered webhook files nothing twice while the first one reopens and
+  marks the thread; a new STOP re-arms a lifted opt-out; delivery status
+  only moves forward; the outbound row's queued→accepted transition; and
+  `send()` refusing an opted-out address, a retired endpoint, a channel
+  mismatch, a bad address and an endpoint the actor cannot see — with the
+  provider asserted never called.
+- `lib/server/messaging/messaging.visibility.test.ts` [6] — as `app_user`:
+  nothing for a plain employee, a contractor, HR, payroll, finance, IT, a
+  portal contact at the thread's own company, or no claim; everything for
+  sales, marketing, auditor, owner, firm_admin and the webhook's `system`
+  claim; INSERT refused for auditor and a plain employee, allowed for sales
+  and `system`; and RLS agreeing with `can()` for nine role combinations.
+
 ### Tenancy, RLS & Row Visibility — 203 tests
 
 Cross-cutting by nature — asserts what every module's RLS policy actually

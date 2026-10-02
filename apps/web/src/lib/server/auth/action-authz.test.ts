@@ -332,6 +332,71 @@ const MATRIX: {
       ["owner", []],
     ],
   },
+  {
+    module: "messaging — compose",
+    load: async () =>
+      (await import("../../../routes/(app)/messaging/+page.server")).actions,
+    actions: ["compose"],
+    denied: [
+      ["employee", []],
+      ["contractor", []],
+      ["employee", ["hr_admin"]],
+      ["employee", ["finance_admin"]],
+      ["employee", ["it_admin"]],
+      // Reads everything, writes nothing.
+      ["employee", ["auditor"]],
+    ],
+    allowed: [
+      ["employee", ["sales_admin"]],
+      ["employee", ["marketing_admin"]],
+      ["firm_admin", []],
+      ["owner", []],
+    ],
+  },
+  {
+    module: "messaging/[id] — reply",
+    load: async () =>
+      (await import("../../../routes/(app)/messaging/[id]/+page.server"))
+        .actions,
+    actions: ["reply"],
+    denied: [
+      ["employee", []],
+      ["employee", ["hr_admin"]],
+      ["employee", ["auditor"]],
+    ],
+    allowed: [
+      ["employee", ["sales_admin"]],
+      ["firm_admin", []],
+      ["owner", []],
+    ],
+  },
+  {
+    module:
+      "settings/messaging — endpoints are the account admins', opt-outs are messaging's",
+    load: async () =>
+      (await import("../../../routes/(app)/settings/messaging/+page.server"))
+        .actions,
+    actions: ["addEmailAddress", "addOptOut"],
+    denied: [
+      ["employee", []],
+      ["employee", ["hr_admin"]],
+      ["employee", ["auditor"]],
+    ],
+    allowed: [
+      ["firm_admin", []],
+      ["owner", []],
+    ],
+  },
+  {
+    module:
+      "settings/messaging — a sales admin may note an opt-out but not buy a number",
+    load: async () =>
+      (await import("../../../routes/(app)/settings/messaging/+page.server"))
+        .actions,
+    actions: ["orderNumber"],
+    denied: [["employee", ["sales_admin"]]],
+    allowed: [["owner", []]],
+  },
 ]
 
 const name = (role: Role, fns: string[]) =>
@@ -363,10 +428,10 @@ for (const spec of MATRIX) {
 }
 
 describe("the matrix covers every action that exists", () => {
-  it("names all 34", async () => {
+  it("names all 39", async () => {
     // Companion to authz/actions-are-guarded, which only checks a call exists.
     const named = MATRIX.reduce((n, m) => n + m.actions.length, 0)
     const timeOff = 1 // decide — covered in time_off.test.ts, needs a real request
-    expect(named + timeOff).toBe(34)
+    expect(named + timeOff).toBe(39)
   })
 })

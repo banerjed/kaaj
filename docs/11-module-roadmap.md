@@ -439,6 +439,18 @@ checks moved inline into the policy; `can_see_folder()` itself is kept only
 for `staff_document_visibility` and the download-proxy route, which read
 `document_folders` from *outside* that table's own policy.
 
+**Customer-facing messaging (SMS and email through Bird) — ✅ built, first
+slice.** [37-messaging.md](./37-messaging.md). Four `messaging_*` tables
+(endpoints, conversations, messages, opt-outs) under a role-keyed policy
+(sales, marketing, auditor and the base admins; never a portal contact), a
+`messaging.*` permission pair, one signed webhook (`/webhooks/bird`) that
+routes an inbound message to its tenant by the address it was sent to, a
+three-step send that keeps the carrier call outside any transaction, and
+`/messaging`, `/messaging/[id]` and `/settings/messaging`. Not yet:
+dedicated-tier routing, US 10DLC filing, attachments, a tenant's own sending
+domain, realtime, WhatsApp/Apple Messages, and moving the product's own
+transactional email off Resend — each listed in 37§6.
+
 The `(marketing)` route group is the CMSaasStarter site
 ([07-app-provenance.md](./07-app-provenance.md)), **not** the marketing module,
 which is also not started.

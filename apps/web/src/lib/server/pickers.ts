@@ -44,6 +44,37 @@ export async function searchEmployees(
   return rows.map((r) => ({ id: r.id, label: r.name }))
 }
 
+/**
+ * Customer contacts with the address a channel needs — the compose picker on
+ * /messaging. `channel` filters to contacts who CAN be reached that way, so
+ * the picker never offers someone the send would then refuse.
+ */
+export async function searchCustomerContacts(
+  tx: Tx,
+  q: string,
+  { channel }: { channel: "sms" | "email" },
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; name: string; customer_name: string; address: string }[]
+  >`
+    SELECT cc.id, cc.first_name || ' ' || cc.last_name AS name,
+           cu.customer_name,
+           CASE WHEN ${channel} = 'sms' THEN cc.phone ELSE cc.email END AS address
+      FROM customer_contacts cc
+      JOIN customers cu ON cu.id = cc.customer_id
+     WHERE cc.is_active
+       AND (CASE WHEN ${channel} = 'sms' THEN cc.phone ELSE cc.email END) IS NOT NULL
+       AND (cc.first_name || ' ' || cc.last_name || ' ' || cu.customer_name) ILIKE ${like(q)}
+     ORDER BY cc.first_name, cc.last_name
+     LIMIT ${PICKER_LIMIT}
+  `
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.name,
+    sublabel: `${r.customer_name} · ${r.address}`,
+  }))
+}
+
 /** `activeOnly`: the invoicing pickers' set (`is_active`); otherwise every customer. Carries the currency in `meta`. */
 export async function searchCustomers(
   tx: Tx,

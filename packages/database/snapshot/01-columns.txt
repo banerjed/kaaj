@@ -1361,6 +1361,62 @@ journal_entry_lines	16	description	text	f
 journal_entry_lines	17	tax_amount	numeric(15,2)	f	0
 journal_entry_lines	18	tax_rate_id	uuid	f	
 journal_entry_lines	19	created_at	timestamp with time zone	f	CURRENT_TIMESTAMP
+messaging_conversations	1	id	uuid	t	gen_random_uuid()
+messaging_conversations	2	tenant_id	uuid	t	
+messaging_conversations	3	channel	text	t	
+messaging_conversations	4	endpoint_id	uuid	t	
+messaging_conversations	5	counterparty_address	character varying(255)	t	
+messaging_conversations	6	counterparty_name	character varying(200)	f	
+messaging_conversations	7	customer_contact_id	uuid	f	
+messaging_conversations	8	customer_id	uuid	f	
+messaging_conversations	9	subject	character varying(998)	f	
+messaging_conversations	10	status	text	t	'open'::text
+messaging_conversations	11	has_unread	boolean	t	false
+messaging_conversations	12	last_message_at	timestamp with time zone	t	now()
+messaging_conversations	13	last_direction	text	t	
+messaging_conversations	14	created_at	timestamp with time zone	t	now()
+messaging_conversations	15	archived_at	timestamp with time zone	f	
+messaging_endpoints	1	id	uuid	t	gen_random_uuid()
+messaging_endpoints	2	tenant_id	uuid	t	
+messaging_endpoints	3	channel	text	t	
+messaging_endpoints	4	address	character varying(255)	t	
+messaging_endpoints	5	label	character varying(120)	t	
+messaging_endpoints	6	provider	text	t	'bird'::text
+messaging_endpoints	7	provider_ref	character varying(80)	f	
+messaging_endpoints	8	country_code	character(2)	f	
+messaging_endpoints	9	registration_status	text	t	'none'::text
+messaging_endpoints	10	is_active	boolean	t	true
+messaging_endpoints	11	archived_at	timestamp with time zone	f	
+messaging_endpoints	12	created_at	timestamp with time zone	t	now()
+messaging_endpoints	13	created_by	uuid	f	
+messaging_messages	1	id	uuid	t	gen_random_uuid()
+messaging_messages	2	tenant_id	uuid	t	
+messaging_messages	3	conversation_id	uuid	t	
+messaging_messages	4	direction	text	t	
+messaging_messages	5	from_address	character varying(255)	t	
+messaging_messages	6	to_address	character varying(255)	t	
+messaging_messages	7	subject	character varying(998)	f	
+messaging_messages	8	body_text	text	t	
+messaging_messages	9	body_html	text	f	
+messaging_messages	10	status	text	t	
+messaging_messages	11	status_detail	character varying(500)	f	
+messaging_messages	12	provider	text	t	'bird'::text
+messaging_messages	13	provider_message_id	character varying(80)	f	
+messaging_messages	14	rfc_message_id	character varying(998)	f	
+messaging_messages	15	rfc_in_reply_to	character varying(998)	f	
+messaging_messages	16	spf_pass	boolean	f	
+messaging_messages	17	dkim_pass	boolean	f	
+messaging_messages	18	author_employee_id	uuid	f	
+messaging_messages	19	occurred_at	timestamp with time zone	t	now()
+messaging_messages	20	created_at	timestamp with time zone	t	now()
+messaging_opt_outs	1	id	uuid	t	gen_random_uuid()
+messaging_opt_outs	2	tenant_id	uuid	t	
+messaging_opt_outs	3	channel	text	t	
+messaging_opt_outs	4	address	character varying(255)	t	
+messaging_opt_outs	5	reason	text	t	
+messaging_opt_outs	6	noted_by	uuid	f	
+messaging_opt_outs	7	created_at	timestamp with time zone	t	now()
+messaging_opt_outs	8	revoked_at	timestamp with time zone	f	
 payment_allocations	1	tenant_id	uuid	t	
 payment_allocations	2	id	uuid	t	gen_random_uuid()
 payment_allocations	3	payment_id	uuid	t	

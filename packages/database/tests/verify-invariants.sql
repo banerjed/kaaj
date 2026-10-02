@@ -31,8 +31,8 @@ INSERT INTO _foreign_tables VALUES ('profiles'), ('stripe_customers'), ('contact
 -- RULE 1 — tenant_id leads every index on a tenant-scoped table (ADR-003 #2)
 -- =============================================================================
 -- tenant_id must lead every index on a shared instance: (tenant_id, status,
--- created_at), never (status, created_at). Six named exemptions below; the
--- assertion is set EQUALITY so a seventh, or a silently dropped one, fails.
+-- created_at), never (status, created_at). Named exemptions below; the
+-- assertion is set EQUALITY so a new one, or a silently dropped one, fails.
 CREATE TEMP TABLE _index_exempt (idx TEXT PRIMARY KEY, reason TEXT);
 INSERT INTO _index_exempt VALUES
   ('idx_jobs_claim',
@@ -47,6 +47,8 @@ INSERT INTO _index_exempt VALUES
    'GIN jsonb_path_ops; could take (tenant_id, custom_fields) via btree_gin'),
   ('idx_projects_custom_fields',
    'GIN jsonb_path_ops; same'),
+  ('idx_messaging_endpoints_route',
+   'the Bird webhook resolves a tenant FROM the address it was sent to, before any tenant is known (app.messaging_route)'),
   ('idx_tasks_custom_fields',
    'GIN jsonb_path_ops; same'),
   ('idx_document_folders_path',

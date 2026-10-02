@@ -74,6 +74,10 @@ invoices	t	t
 jobs	t	t
 journal_entries	t	t
 journal_entry_lines	t	t
+messaging_conversations	t	t
+messaging_endpoints	t	t
+messaging_messages	t	t
+messaging_opt_outs	t	t
 payment_allocations	t	t
 payment_gateway_settings	t	t
 payments	t	t

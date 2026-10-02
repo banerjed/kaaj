@@ -88,6 +88,8 @@ const SCALE_SENSITIVE = new Map([
   ["ticketing_tickets", "one row per ticket logged, indefinitely"],
   ["ticketing_updates", "one row per update posted to a ticket"],
   ["team_chat_messages", "one row per message sent, indefinitely (20§7 says so explicitly)"],
+  ["messaging_conversations", "one row per outside person who ever wrote in or was written to, per channel; grows with the customer base and never closes"],
+  ["messaging_messages", "one row per SMS or email sent or received, indefinitely (docs/37)"],
   ["time_tracking_entries", "one row per time entry logged, potentially daily"],
 ])
 
@@ -254,6 +256,8 @@ const NOT_SCALE_SENSITIVE = new Map([
     "bounded by locale count times translatable strings; config",
   ],
   ["vendors", "the tenant's own vendor roster; bounded by market size"],
+  ["messaging_endpoints", "one row per number or inbound address the firm owns; a handful, admin-authored"],
+  ["messaging_opt_outs", "one row per outside address that opted out; bounded by the customer base, not by message volume"],
 ])
 
 /** Every base table Postgres actually has, from the committed snapshot — not a hand-maintained list, so a new migration's table can't be missed by forgetting to add it here too. */

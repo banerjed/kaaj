@@ -80,6 +80,12 @@ export const PERMISSIONS = [
   // reserved customer-portal namespace) — see docs/20-team-chat.md §1/§4.
   "team_chat.read",
   "team_chat.write",
+  // Customer-facing SMS and email through Bird (docs/37-messaging.md). A
+  // different trust boundary from team_chat.* (employees only) and from
+  // 17§4's reserved chat.* (a portal contact's own view): this is staff
+  // reading and writing conversations with people OUTSIDE the firm.
+  "messaging.read",
+  "messaging.write",
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -195,8 +201,17 @@ const FUNCTIONAL: Record<FunctionalRole, Permission[]> = {
     // No compensation.write, no pii.reveal.
   ],
   finance_admin: ["accounting.read", "accounting.write", "firm.settings.read"],
-  sales_admin: ["crm.read", "crm.write"],
-  marketing_admin: ["marketing.read", "marketing.write"],
+  // Sales and marketing are the two functions that talk to customers by SMS
+  // and email; the base admins hold both through PERMISSIONS, and auditor
+  // reads through its `.read` filter. app.reads_all_messaging() /
+  // app.writes_messaging() mirror exactly this set.
+  sales_admin: ["crm.read", "crm.write", "messaging.read", "messaging.write"],
+  marketing_admin: [
+    "marketing.read",
+    "marketing.write",
+    "messaging.read",
+    "messaging.write",
+  ],
   // No pii.read. IT issues laptops; it does not need a tax identifier.
   it_admin: [
     "it.assets.write",

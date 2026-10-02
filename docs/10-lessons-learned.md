@@ -1755,6 +1755,44 @@ scaffolded table turns out to need wiring up, check whether it has scaffolded
 *siblings* sharing its naming prefix before assuming there's exactly one.
 
 
+### L119 — Every worktree shares the one local database, so another branch's migration lands in your snapshot
+
+**What happened.** Two sessions worked in two worktrees at once. One
+applied its migration (three `payroll_*` tables) to the local stack. The
+other ran `pnpm db:snapshot` for its own new tables and got a clean
+"schema matches" — with the first branch's three tables baked into
+`00-tables.txt`, and `verify-query-scale`/`verify-matrix-complete` then
+failing on tables that exist in no migration of the branch being checked.
+Nothing errored at the point that mattered: `--generate` cannot tell a
+table from another branch from a table from this one.
+
+**Why it is easy to make.** L20 says to regenerate only from a
+migration-built database, and `supabase db reset` is the usual way to get
+one. But a reset rebuilds the ONE database every worktree's tests point at,
+which destroys the other session's applied-but-uncommitted schema. So the
+natural move is to apply your own migration incrementally — and then the
+database is "migration-built" from two branches at once.
+
+**The rule.** When another session may be working against the same stack,
+build a scratch database for the schema steps instead of touching the
+shared one:
+
+```bash
+psql "$DATABASE_URL" -c "CREATE DATABASE kaaj_<branch>"
+PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres \
+  PGDATABASE=kaaj_<branch> packages/database/scripts/ci-database.sh
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/kaaj_<branch> ./check
+```
+
+`ci-database.sh` is what CI runs: roles and stubs, every migration in
+order, both fixtures. The result holds exactly this branch's schema. Point
+`DATABASE_URL` at it for `./check`; the app tests keep using
+`APP_DATABASE_URL` from `.env.local`, which a worktree does not have — copy
+it from the main checkout. Before committing a snapshot, read the diff of
+`00-tables.txt`: every added table must be in a migration of this branch.
+
+---
+
 ## Scale — what breaks after a tenant has been a customer for a year
 
 None of these are visible on a fixture of a dozen rows.

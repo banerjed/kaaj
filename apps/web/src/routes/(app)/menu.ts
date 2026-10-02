@@ -329,6 +329,13 @@ export const appMenuItems: ISidebarMenuItem[] = [
     permission: "team_chat.read",
   },
   {
+    id: "messaging",
+    icon: "lucide--mail",
+    label: "Messaging",
+    url: "/messaging",
+    permission: "messaging.read",
+  },
+  {
     id: "assistant",
     icon: "lucide--bot-message-square",
     label: "AI Assistant",
@@ -400,6 +407,12 @@ export const appMenuItems: ISidebarMenuItem[] = [
         id: "settings-groups",
         label: "Groups",
         url: "/settings/groups",
+      },
+      {
+        id: "settings-messaging",
+        label: "Messaging",
+        url: "/settings/messaging",
+        permission: "messaging.read",
       },
     ],
   },

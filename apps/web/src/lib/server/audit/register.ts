@@ -386,6 +386,48 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
     why: "Same as addMember, one level of indirection up — a group granted here reads every non-private ticket in this area for every current and future member.",
   },
 
+  // -- Messaging: the firm speaking to an outside person (docs/37) -----------
+  {
+    route: "messaging",
+    action: "compose",
+    why: "A message to a customer (or any outside address) sent on a named person's decision — the same 'who told the customer what, and when' question emailInvoice and sendReminders already answer.",
+  },
+  {
+    route: "messaging/[id]",
+    action: "reply",
+    why: "Same as compose: a reply is still the firm speaking to an outside person on a named employee's decision.",
+  },
+  {
+    route: "settings/messaging",
+    action: "addEmailAddress",
+    why: "Opens an address the public can write to; mail to it files under this tenant. 'Who opened this, and when' is the first question when a thread appears nobody expected.",
+  },
+  {
+    route: "settings/messaging",
+    action: "registerNumber",
+    why: "Binds a Bird number to this tenant: every SMS to it files here from now on. A routing change with a monthly charge behind it.",
+  },
+  {
+    route: "settings/messaging",
+    action: "orderNumber",
+    why: "Buys a number from Bird — a recurring charge on the workspace, placed by a named person.",
+  },
+  {
+    route: "settings/messaging",
+    action: "archiveEndpoint",
+    why: "Mail and SMS to this address become unroutable from this moment; 'why did customers stop reaching us' is answered here.",
+  },
+  {
+    route: "settings/messaging",
+    action: "addOptOut",
+    why: "Stops every future send to an address — a consent record, the kind a regulator asks to see with a name and a time on it.",
+  },
+  {
+    route: "settings/messaging",
+    action: "revokeOptOut",
+    why: "Re-enables sending to someone who had asked not to be contacted; the one write here most likely to be challenged.",
+  },
+
   // -- User groups: membership and grants change who reads what --------------
   // (docs/28-user-groups.md)
   {
@@ -1029,5 +1071,32 @@ export const NOT_AUDITED: AuditedOperation[] = [
     route: "crm/deals/[id]",
     action: "addActivity",
     why: "Same as crm/companies/[id]::addActivity.",
+  },
+
+  // -- Messaging: reads, pickers, and a thread's open/closed flag -------------
+  {
+    route: "messaging",
+    action: "searchContacts",
+    why: "Backs the compose form's contact picker; reads only.",
+  },
+  {
+    route: "messaging/[id]",
+    action: "setStatus",
+    why: "Open/closed is a triage flag on a thread, like a ticket's status; the messages themselves (the audited part) are untouched, and an inbound reply reopens it anyway.",
+  },
+  {
+    route: "messaging/[id]",
+    action: "loadMore",
+    why: "Pagination; reads only.",
+  },
+  {
+    route: "messaging/[id]",
+    action: "markRead",
+    why: "Clears the tenant-wide unread mark when someone opens the thread — a cursor, not a decision.",
+  },
+  {
+    route: "settings/messaging",
+    action: "searchNumbers",
+    why: "Asks Bird what is on sale; writes nothing until orderNumber, which is audited.",
   },
 ]
