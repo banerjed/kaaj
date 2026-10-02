@@ -21,13 +21,14 @@ const METHODS = [
   "mobile_payment",
 ] as const
 
-/** /accounting/receive-payment — one payment allocated across several of a customer's open invoices, lockbox-style. */
 /**
- * Oldest due first: what a payment usually settles. One payment allocates
- * to invoices on the page in view.
+ * Open invoices a page at a time, oldest due first — what a payment usually
+ * settles. The page keeps amounts typed on other pages, and `allocate` reads
+ * an amount for any of the customer's open invoices.
  */
 const INVOICE_PAGE_SIZE = 50
 
+/** /accounting/receive-payment — one payment allocated across several of a customer's open invoices, lockbox-style. */
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)

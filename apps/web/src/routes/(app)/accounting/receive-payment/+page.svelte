@@ -22,6 +22,29 @@
   )
 
   const today = new Date().toISOString().slice(0, 10)
+
+  // Amounts typed against invoices, by invoice id. Kept in the page rather
+  // than in the rows, so moving between pages of open invoices keeps what was
+  // typed on the others — one payment can settle invoices on several pages.
+  // Re-seeded, deliberately, when the customer changes or a payment lands.
+  let allocations = $state<Record<string, string>>({})
+  // Through $derived, so only a CHANGE of customer or payment re-seeds: every
+  // page move replaces `data` wholesale, and reading it here directly would
+  // clear the amounts on every move.
+  const customerId = $derived(data.filters.customerId)
+  const paid = $derived(form?.paid)
+  $effect(() => {
+    void customerId
+    void paid
+    allocations = {}
+  })
+  const onPage = $derived(new Set(data.openInvoices.map((i) => i.id)))
+  /** Typed on another page: posted as hidden fields with this one. */
+  const offPage = $derived(
+    Object.entries(allocations).filter(
+      ([id, v]) => v.trim() !== "" && !onPage.has(id),
+    ),
+  )
 </script>
 
 <PageHead title="Receive Payment" />
@@ -191,6 +214,9 @@
                           class={`input input-sm w-full text-right ${err.input(`alloc_${inv.id}`)}`}
                           aria-invalid={err.aria(`alloc_${inv.id}`)}
                           placeholder="0.00"
+                          value={allocations[inv.id] ?? ""}
+                          oninput={(e) =>
+                            (allocations[inv.id] = e.currentTarget.value)}
                         />
                       </td>
                     </tr>
@@ -198,9 +224,18 @@
                 </tbody>
               </table>
             </div>
+            {#each offPage as [id, amount] (id)}
+              <input type="hidden" name={`alloc_${id}`} value={amount} />
+            {/each}
+            {#if offPage.length > 0}
+              <p class="text-base-content/70 text-xs">
+                {offPage.length} amount{offPage.length === 1 ? "" : "s"} entered on
+                other pages {offPage.length === 1 ? "is" : "are"} kept and recorded
+                with this payment.
+              </p>
+            {/if}
             {#if data.openInvoiceTotal > data.invoicePageSize}
-              <!-- Oldest due first. Moving page drops amounts typed on this
-                   one: a payment allocates to the invoices in view. -->
+              <!-- Oldest due first. -->
               <Pagination
                 page={data.invoicePage}
                 pageSize={data.invoicePageSize}
