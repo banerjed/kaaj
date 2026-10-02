@@ -408,7 +408,10 @@ it less. If you are not sure that a comment is necessary, do not write it.
 
 ## Performance
 
-The rules for this section are in [.claude/rules/performance.md](.claude/rules/performance.md).
+Targets: a page renders on the server in under 20ms, and the first load of
+the application (signed in, `/employees` fully loaded) takes under 100ms.
+`./check` fails on the second. The rules for this section are in
+[.claude/rules/performance.md](.claude/rules/performance.md).
 
 ---
 

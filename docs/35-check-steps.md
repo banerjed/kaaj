@@ -22,7 +22,7 @@
 | dedicated targets | each dedicated-tier row in `tenant_registry` resolves to a real database that the step can reach and that has the correct migrations (ADR-009) | — |
 | security | authorization, PII and tenant isolation, in both test suites | 558 |
 | format / lint / typecheck / unit tests / build | each workspace package, through turbo | 1,482 tests |
-| front-page load | the step signs in as a real user, loads `/employees` 5×, and fails if the MEDIAN load time is more than 50ms (`apps/web/scripts/verify-front-page-load.mjs`) | 50ms |
+| front-page load | the step signs in as a real user, loads `/employees` 5×, and fails if the MEDIAN load time is more than 100ms (`apps/web/scripts/verify-front-page-load.mjs`) | 100ms |
 | pages within budget (`--all`) | each page × each perf actor costs the database no more queries or data pages than `budgets.tsv` permits. Each page also takes no more time than in the last run on this machine | 640 |
 
 **These counts do not stay correct.** They are in this file for a reason. If

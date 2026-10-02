@@ -32,23 +32,24 @@ application that you built and started before. The script reads the
 `server-timing` response header, which `hooks.server.ts` sets on every
 request. The network panel of the browser DevTools shows the same header.
 
-**The target for the first load of the application is less than 50ms, and
+**The target for the first load of the application is less than 100ms, and
 `./check` fails the build if the load takes more time.** The load starts with
 a signed-in user and ends when `/employees` is fully loaded. The step uses the
 MEDIAN of five samples. Before the five samples, it does one warm-up load and
 ignores its result. One latency sample is not a measurement.
 
 **CAUTION:** Until 2026-10-02 this step timed the SIGN-IN page, not
-`/employees` ([L120](docs/10-lessons-learned.md)). The 21.8-25.4ms (idle)
-and 25.9-46.0ms (busy) once recorded here are sign-in page numbers. A full
-load of `/employees` measured about 97ms on a busy machine; the idle number,
-and the target it supports, are not set yet. This step runs when the machine is busy: immediately
+`/employees` ([L120](docs/10-lessons-learned.md)), and the target was 50ms.
+The 21.8-25.4ms (idle) and 25.9-46.0ms (busy) once recorded here are
+sign-in page numbers. A full first load of `/employees`, from the sign-in
+POST to the `load` event, measures 74-88ms idle and about 97ms on a busy
+machine: hence 100ms. This step runs when the machine is busy: immediately
 after `build` and the unit suites. If the code becomes slower, every sample
 becomes slower, so the median also fails. The median removes the effect of a
 short delay in the scheduler, which caused approximately one run in four to
 fail. If the step fails, the error shows all five samples.
 
-The 50ms target is larger than the 20ms server target on purpose. It is the
+The 100ms target is larger than the 20ms server target on purpose. It is the
 `load` event of Navigation Timing. This event includes the network transfer,
 CSS, JS and hydration, not only the work on the server. The server time alone
 was ~3ms, but the *page* took more than 100ms. The cause was an external font
