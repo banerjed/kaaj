@@ -151,7 +151,15 @@
       </li>
 
       <li class="mt-auto">
-        <a href="/account/sign_out" class="mt-auto text-base">Sign Out</a>
+        <form
+          method="POST"
+          action="/account/sign_out"
+          class="mt-auto text-base"
+        >
+          <button type="submit" class="w-full cursor-pointer text-left"
+            >Sign Out</button
+          >
+        </form>
       </li>
     </ul>
   </div>

@@ -1,23 +1,5 @@
 <script lang="ts">
-  import { invalidate } from "$app/navigation"
-  import { getBrowserSupabase } from "$lib/supabase/browser"
-  import { onMount } from "svelte"
-
-  let { data, children } = $props()
-
-  let session = $derived(data.session)
-
-  onMount(() => {
-    const supabase = getBrowserSupabase()
-
-    const { data } = supabase.auth.onAuthStateChange((event, _session) => {
-      if (_session?.expires_at !== session?.expires_at) {
-        invalidate("supabase:auth")
-      }
-    })
-
-    return () => data.subscription.unsubscribe()
-  })
+  let { children } = $props()
 </script>
 
 <!-- Same reasoning as (marketing)/+layout.svelte: the account pages are

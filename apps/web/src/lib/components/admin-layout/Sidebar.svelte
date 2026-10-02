@@ -164,11 +164,21 @@
           </a>
         </li>
         <li>
-          <a class="text-error hover:bg-error/10" href="/account/sign_out">
-            <span class="iconify lucide--log-out size-4"></span><span
-              >Sign Out</span
+          <!-- A POST: a sign-out link would fire on hover preload. -->
+          <form
+            method="POST"
+            action="/account/sign_out"
+            class="text-error hover:bg-error/10"
+          >
+            <button
+              type="submit"
+              class="flex w-full cursor-pointer items-center gap-2"
             >
-          </a>
+              <span class="iconify lucide--log-out size-4"></span><span
+                >Sign Out</span
+              >
+            </button>
+          </form>
         </li>
       </ul>
     </div>

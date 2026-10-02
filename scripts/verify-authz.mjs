@@ -59,6 +59,30 @@ const EXEMPT = new Map([
     "ends the session it is called with; takes no input",
   ],
   [
+    "apps/web/src/routes/(marketing)/login/sign_in/+page.server.ts -> signIn",
+    "an anonymous visitor proving who they are; there is no session to authorize yet",
+  ],
+  [
+    "apps/web/src/routes/(marketing)/login/sign_in/+page.server.ts -> github",
+    "an anonymous visitor starting an OAuth sign-in; no session yet",
+  ],
+  [
+    "apps/web/src/routes/(marketing)/login/sign_up/+page.server.ts -> signUp",
+    "an anonymous visitor creating an auth user; no session, no tenant",
+  ],
+  [
+    "apps/web/src/routes/(marketing)/login/forgot_password/+page.server.ts -> sendReset",
+    "an anonymous visitor asking for a reset email; answers the same whether or not the account exists",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/sign_out/+page.server.ts -> default",
+    "ends the session it is called with; takes no input",
+  ],
+  [
+    "apps/web/src/routes/(admin)/account/(menu)/settings/change_password/+page.server.ts -> sendReset",
+    "emails the signed-in account's own address, read from the session, never from the form",
+  ],
+  [
     "apps/web/src/routes/(admin)/account/api/+page.server.ts -> toggleEmailSubscription",
     "the account's own marketing preference — filtered on session.user.id, through the RLS-scoped client, with no id taken from the form",
   ],

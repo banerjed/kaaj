@@ -124,7 +124,11 @@
       <div class="text-sm text-slate-800 mt-14">
         You are logged in as {user?.email}.
         <br />
-        <a class="underline" href="/account/sign_out"> Sign out </a>
+        <form method="POST" action="/account/sign_out" class="inline">
+          <button type="submit" class="cursor-pointer underline"
+            >Sign out</button
+          >
+        </form>
       </div>
     </div>
   </div>
