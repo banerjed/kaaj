@@ -40,20 +40,24 @@ type Q = Tx | postgres.Sql | postgres.TransactionSql
 async function disagreements(q: Q, tenantId = NORTHWIND): Promise<number> {
   const [row] = await (q as Tx)<{ n: number }[]>`
     WITH truth AS (
-      SELECT l.account_id, je.entry_date AS d,
+      SELECT l.account_id, je.entry_date AS d, l.tax_rate_id,
              coalesce(sum(l.base_debit_amount), 0)  AS dr,
              coalesce(sum(l.base_credit_amount), 0) AS cr,
+             coalesce(sum(l.debit_amount), 0)  AS ndr,
+             coalesce(sum(l.credit_amount), 0) AS ncr,
              count(*) AS n
         FROM journal_entry_lines l
         JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
        WHERE je.tenant_id = ${tenantId}
-       GROUP BY 1, 2)
+       GROUP BY 1, 2, 3)
     SELECT count(*)::int AS n
       FROM truth t
       FULL JOIN (SELECT * FROM gl_daily_balances WHERE tenant_id = ${tenantId}) b
         ON b.account_id = t.account_id AND b.balance_date = t.d
+       AND b.tax_rate_id IS NOT DISTINCT FROM t.tax_rate_id
      WHERE t.n IS NULL OR b.line_count IS NULL
-        OR t.dr <> b.base_debit OR t.cr <> b.base_credit OR t.n <> b.line_count
+        OR t.dr <> b.base_debit OR t.cr <> b.base_credit
+        OR t.ndr <> b.debit OR t.ncr <> b.credit OR t.n <> b.line_count
   `
   return row.n
 }
@@ -62,11 +66,14 @@ async function day(q: Q, code: string, d: string) {
   const [row] = await (q as Tx)<
     { base_debit: string; base_credit: string; line_count: number }[]
   >`
-    SELECT b.base_debit::text, b.base_credit::text, b.line_count
+    SELECT sum(b.base_debit)::text AS base_debit,
+           sum(b.base_credit)::text AS base_credit,
+           sum(b.line_count)::int AS line_count
       FROM gl_daily_balances b
       JOIN chart_of_accounts a ON a.id = b.account_id
      WHERE b.tenant_id = ${NORTHWIND} AND a.account_code = ${code}
        AND b.balance_date = ${d}::date
+    HAVING count(*) > 0
   `
   return row ?? null
 }

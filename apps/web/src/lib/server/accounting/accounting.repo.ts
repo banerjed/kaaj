@@ -1838,20 +1838,19 @@ export async function taxLiabilitySummary(
   const to = filters.to || null
   return tx<TaxLiabilityRow[]>`
     SELECT l.tax_rate_id, r.code, r.jurisdiction,
-           coalesce(sum(l.credit_amount) FILTER (WHERE a.account_code = '2200'), 0)::text
+           coalesce(sum(l.credit) FILTER (WHERE a.account_code = '2200'), 0)::text
              AS output_tax,
-           coalesce(sum(l.debit_amount) FILTER (WHERE a.account_code = '1200'), 0)::text
+           coalesce(sum(l.debit) FILTER (WHERE a.account_code = '1200'), 0)::text
              AS input_tax,
-           (coalesce(sum(l.credit_amount) FILTER (WHERE a.account_code = '2200'), 0)
-             - coalesce(sum(l.debit_amount) FILTER (WHERE a.account_code = '1200'), 0))::text
+           (coalesce(sum(l.credit) FILTER (WHERE a.account_code = '2200'), 0)
+             - coalesce(sum(l.debit) FILTER (WHERE a.account_code = '1200'), 0))::text
              AS net_liability
-      FROM journal_entry_lines l
-      JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
+      FROM gl_daily_balances l
       JOIN chart_of_accounts a ON a.id = l.account_id
       LEFT JOIN tax_rates r ON r.id = l.tax_rate_id
      WHERE a.account_code IN ('2200', '1200')
-       AND (${from}::date IS NULL OR je.entry_date >= ${from}::date)
-       AND (${to}::date   IS NULL OR je.entry_date <= ${to}::date)
+       AND (${from}::date IS NULL OR l.balance_date >= ${from}::date)
+       AND (${to}::date   IS NULL OR l.balance_date <= ${to}::date)
      GROUP BY l.tax_rate_id, r.code, r.jurisdiction
      ORDER BY r.code NULLS LAST
   `

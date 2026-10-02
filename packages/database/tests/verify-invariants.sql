@@ -687,16 +687,21 @@ SELECT 'ledger/daily-balances-agree', t.tenant_id::text, bad = 0,
       FROM (
         SELECT coalesce(t.tenant_id, b.tenant_id) AS tenant_id,
                t.n IS NOT NULL AND b.line_count IS NOT NULL
-               AND t.dr = b.base_debit AND t.cr = b.base_credit AND t.n = b.line_count AS ok
-          FROM (SELECT je.tenant_id, l.account_id, je.entry_date AS d,
-                       sum(l.base_debit_amount) AS dr, sum(l.base_credit_amount) AS cr,
+               AND t.dr = b.base_debit AND t.cr = b.base_credit
+               AND t.ndr = b.debit AND t.ncr = b.credit AND t.n = b.line_count AS ok
+          FROM (SELECT je.tenant_id, l.account_id, je.entry_date AS d, l.tax_rate_id,
+                       coalesce(sum(l.base_debit_amount), 0) AS dr,
+                       coalesce(sum(l.base_credit_amount), 0) AS cr,
+                       coalesce(sum(l.debit_amount), 0) AS ndr,
+                       coalesce(sum(l.credit_amount), 0) AS ncr,
                        count(*) AS n
                   FROM journal_entry_lines l
                   JOIN journal_entries je ON je.id = l.entry_id AND je.status = 'posted'
-                 GROUP BY 1, 2, 3) t
+                 GROUP BY 1, 2, 3, 4) t
           FULL JOIN gl_daily_balances b
             ON b.tenant_id = t.tenant_id AND b.account_id = t.account_id
-           AND b.balance_date = t.d) x
+           AND b.balance_date = t.d
+           AND b.tax_rate_id IS NOT DISTINCT FROM t.tax_rate_id) x
      GROUP BY x.tenant_id) t;
 
 

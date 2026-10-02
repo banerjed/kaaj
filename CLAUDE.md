@@ -594,7 +594,7 @@ only the rows the writer can see ([L106](docs/10-lessons-learned.md)).
 **`gl_daily_balances` is the one figure whose read path does not count the
 rows beside it** — the ledger reports read it precisely so as not to sum
 every line. It is recomputed by triggers on every write that can move a
-posted figure (as the table owner, under an advisory lock per account), and
+posted figure (as the table owner, under an advisory lock per tenant), and
 its agreement with the lines is asserted instead by `./check`'s
 `ledger/daily-balances-agree` invariant, `gl_daily_balances.test.ts` (after
 each kind of write, and two concurrent posts), and the perf tenant's

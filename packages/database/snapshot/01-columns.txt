@@ -910,6 +910,9 @@ gl_daily_balances	3	balance_date	date	t
 gl_daily_balances	4	base_debit	numeric(15,2)	t	
 gl_daily_balances	5	base_credit	numeric(15,2)	t	
 gl_daily_balances	6	line_count	integer	t	
+gl_daily_balances	7	tax_rate_id	uuid	f	
+gl_daily_balances	8	debit	numeric(15,2)	t	
+gl_daily_balances	9	credit	numeric(15,2)	t	
 hr_attendance	1	id	uuid	t	gen_random_uuid()
 hr_attendance	2	tenant_id	uuid	t	
 hr_attendance	3	attendance_id	text	f	

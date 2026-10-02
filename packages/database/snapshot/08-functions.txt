@@ -12,7 +12,7 @@ app	gl_daily_entries_updated		trigger	v	t	bfafc7eb038b97f6e07aa71a3b2bdba518ec8f
 app	gl_daily_lines_deleted		trigger	v	t	e81c2609f66d5d1fdd0728e177e1cc6be3351461a8629b69bcf67c6bb3ba8ab7
 app	gl_daily_lines_inserted		trigger	v	t	2d04e2fa60c066a38e840646750602ec471140439ca973188495f67af50d17d9
 app	gl_daily_lines_updated		trigger	v	t	6566066537a1ada5f6e161984404fa557f26f40db823ee34257c34eb0d8af1c0
-app	gl_daily_recompute	p_tenant uuid[], p_account uuid[], p_day date[]	void	v	t	f80d767d0cf74c8fee8b6afb9a34b76c848df3fad1d1b640b496ee9315a71c34
+app	gl_daily_recompute	p_tenant uuid[], p_account uuid[], p_day date[]	void	v	t	0602838fd19eb6d45d29e3d8c7f22bc4ae7445688015d49330e1bfd9ded16089
 app	is_portal_contact		boolean	s	f	00bc56adaa679a0561323177250c21184f655ccd0eb0ec2e8e3e77058349f7bb
 app	is_valid_regex	pattern text	boolean	i	f	a9b5b11ca3be338856d2cdb3235a30be6712336f35457cbdeb38ae5bc6dc015b
 app	jsonb_money_to_text	doc jsonb	jsonb	i	f	71478cc0a33fbcc7375ac42a2d34c06e9c32e0a831ab23995b53455823291a21
