@@ -136,6 +136,14 @@ export const supabase: Handle = async ({ event, resolve }) => {
     filterSerializedResponseHeaders(name) {
       return name === "content-range" || name === "x-supabase-api-version"
     },
+    // SvelteKit preloads scripts and CSS by default, not fonts. The Latin
+    // face is the one every first screen paints with: requested from the
+    // HTML head, it arrives with the stylesheet instead of after it, and the
+    // fallback is on screen for less time.
+    preload: ({ type, path }) =>
+      type === "js" ||
+      type === "css" ||
+      (type === "font" && path.includes("roboto-latin-wght-normal")),
   })
 }
 
