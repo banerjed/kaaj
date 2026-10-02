@@ -4,7 +4,12 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import * as exp from "$lib/server/payroll/payroll_export.repo"
 import { readPeriod } from "$lib/server/payroll/export-request"
-import { writeExport, type ExportEmployee } from "$lib/payroll/export-formats"
+import {
+  ExportFormatError,
+  writeExport,
+  type ExportEmployee,
+  type ExportFile,
+} from "$lib/payroll/export-formats"
 
 /**
  * The file a customer uploads in its payroll provider. `./check`'s
@@ -29,7 +34,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
     const period = read.period
 
     const lines = await exp.periodLines(tx, settings.provider, period)
-    const problems = exp.problems(settings.provider, lines)
+    const notes = await exp.periodNotes(tx, period)
+    const problems = exp.problems(settings.provider, lines, notes)
     // A file that leaves someone out pays them nothing, with no error.
     if (exp.refuses(problems))
       error(
@@ -52,14 +58,21 @@ export const GET: RequestHandler = async ({ locals, url }) => {
     if (employees.size === 0)
       error(409, "No approved hours or time off to export in this period.")
 
-    const file = writeExport({
-      provider: settings.provider,
-      companyCode: settings.company_code,
-      from: period.from,
-      to: period.to,
-      frequency: period.frequency,
-      employees: [...employees.values()],
-    })
+    let file: ExportFile
+    try {
+      file = writeExport({
+        provider: settings.provider,
+        companyCode: settings.company_code,
+        from: period.from,
+        to: period.to,
+        frequency: period.frequency,
+        employees: [...employees.values()],
+      })
+    } catch (e) {
+      // A value the provider's format cannot hold: say which, not a 500.
+      if (e instanceof ExportFormatError) error(409, e.message)
+      throw e
+    }
 
     // In the transaction that read the hours: who exported what, for when.
     await audit.record(tx, ctx!, {
@@ -68,7 +81,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
       module: "payroll",
       changes: {
         provider: { from: null, to: settings.provider },
-        period: { from: period.from, to: period.to },
+        period_start: { from: null, to: period.from },
+        period_end: { from: null, to: period.to },
         frequency: { from: null, to: period.frequency ?? "all" },
         employees: { from: null, to: String(employees.size) },
       },

@@ -96,7 +96,8 @@ describe("GET /payroll/export/file", () => {
         entityType: "payroll_export_settings",
         changes: expect.objectContaining({
           provider: { from: null, to: "adp_run" },
-          period: { from: "2026-02-01", to: "2026-02-28" },
+          period_start: { from: null, to: "2026-02-01" },
+          period_end: { from: null, to: "2026-02-28" },
           employees: { from: null, to: "1" },
         }),
       }),

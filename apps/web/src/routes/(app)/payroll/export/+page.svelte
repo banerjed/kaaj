@@ -31,6 +31,10 @@
       ? `Time off: ${s.slice("time_off:".length)}`
       : HOUR_TYPE_LABELS[s as HourType]
 
+  const names = (p: { first: { name: string }[]; total: number }) =>
+    p.first.map((m) => m.name).join(", ") +
+    (p.total > p.first.length ? ", …" : "")
+
   const codeFor = (s: string) => {
     const m = review?.mappings.find((x) => x.source === s)
     return m === undefined ? null : (m.code ?? "not exported")
@@ -164,19 +168,15 @@
             <p class="font-medium">
               The file would leave someone out, so it cannot be downloaded yet.
             </p>
-            {#if review.problems.missing_ids.length}
+            {#if review.problems.missing_ids.total}
               <p>
-                {review.problems.missing_ids.length}
-                {review.problems.missing_ids.length === 1
+                {review.problems.missing_ids.total}
+                {review.problems.missing_ids.total === 1
                   ? "employee has"
                   : "employees have"} no
-                {PROVIDER_LABELS[provider]} id:
-                {review.problems.missing_ids
-                  .slice(0, 10)
-                  .map((m) => m.name)
-                  .join(", ")}{review.problems.missing_ids.length > 10
-                  ? ", …"
-                  : ""}.
+                {PROVIDER_LABELS[provider]} id: {names(
+                  review.problems.missing_ids,
+                )}.
                 <a class="link" href="/payroll/employee-ids?missing=1"
                   >Add the ids</a
                 >.
@@ -190,12 +190,41 @@
                 >.
               </p>
             {/if}
-            {#if review.problems.duplicate_names.length}
+            {#if review.problems.no_overtime_rule.total}
               <p>
-                Gusto matches employees by name, and these names belong to more
-                than one employee:
-                {review.problems.duplicate_names.join(", ")}. Enter their hours
-                in Gusto by hand.
+                {review.problems.no_overtime_rule.total} overtime-eligible
+                {review.problems.no_overtime_rule.total === 1
+                  ? "employee works"
+                  : "employees work"} in an office with no overtime rule, and there
+                is no firm-wide one: {names(review.problems.no_overtime_rule)}.
+                Every hour would go out as regular.
+                <a class="link" href="/settings/payroll/policies"
+                  >Add a payroll policy</a
+                >.
+              </p>
+            {/if}
+            {#if review.problems.no_pay_record.total}
+              <p>
+                {review.problems.no_pay_record.total}
+                {review.problems.no_pay_record.total === 1
+                  ? "employee has"
+                  : "employees have"} approved time in this period and no pay record
+                to say how it is paid: {names(review.problems.no_pay_record)}.
+                <a class="link" href="/compensation">Check their compensation</a
+                >.
+              </p>
+            {/if}
+            {#if review.problems.duplicate_names.total}
+              <p>
+                Gusto matches employees by name, and {review.problems
+                  .duplicate_names.total}
+                {review.problems.duplicate_names.total === 1
+                  ? "name belongs"
+                  : "names belong"} to more than one employee:
+                {review.problems.duplicate_names.first.join(", ")}{review
+                  .problems.duplicate_names.total > 10
+                  ? ", …"
+                  : ""}. Enter their hours in Gusto by hand.
               </p>
             {/if}
           </div>
@@ -219,8 +248,13 @@
           <span class="iconify lucide--info size-5"></span>
           <div>
             <p>
-              These time-off requests extend outside the period. The file holds
-              the part on its weekdays inside the period:
+              {review.notes.prorated_total} time-off
+              {review.notes.prorated_total === 1
+                ? "request extends"
+                : "requests extend"} outside the period. The file holds the part on
+              weekdays inside the period{review.notes.prorated_total > 10
+                ? ". The first ten:"
+                : ":"}
             </p>
             <ul class="list-disc ps-5">
               {#each review.notes.prorated as r (r.employee + r.policy_code + r.start_date)}
@@ -237,7 +271,8 @@
         Not in the file: holidays, bonuses, commissions and reimbursements.
         Enter those in
         {PROVIDER_LABELS[provider]}. Do not open the file in Excel and save it
-        again: Excel removes the leading zeros of ids.
+        again: Excel removes the leading zeros of ids. Import each period once:
+        a second import of the same file can add the hours again.
       </p>
 
       {#if review.employeeCount === 0}

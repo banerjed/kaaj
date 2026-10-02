@@ -168,6 +168,8 @@ export type PeriodLine = {
   source_total: string
   mapped: boolean
   code: string | null
+  /** Overtime-eligible hours with no overtime rule to classify them. */
+  policy_missing: boolean
 }
 
 /**
@@ -175,17 +177,22 @@ export type PeriodLine = {
  * id and code. The whole period, not a page: the file needs every row and the
  * review needs every problem; the period is at most 31 days.
  *
- * Worked hours: approved time entries of employees whose current pay is
- * hourly. Overtime, if their current pay is overtime-eligible, by their
- * office's payroll policy (the firm-wide one when the office has none):
- * per day, hours past `double_time_after_hours` are double time and hours
- * past `daily_threshold_hours` overtime; per workweek, regular hours past
- * `weekly_threshold_hours` are overtime. A workweek is counted from its first
- * day, also when that day is before the period, but only days in the period
- * are exported.
+ * Worked hours: approved time entries, on days when the employee's pay
+ * record (the `compensation_base` row in effect that day) is hourly. So an
+ * employee who leaves, or moves to a salary, part-way through the period
+ * keeps the hourly days before the change. Overtime, on days when that record
+ * is overtime-eligible, by the office's payroll policy (the firm-wide one when
+ * the office has none): per day, hours past `double_time_after_hours` are
+ * double time and hours past `daily_threshold_hours` overtime; per workweek,
+ * regular hours past `weekly_threshold_hours` are overtime. A workweek is
+ * counted from its first day, also when that day is before the period, but
+ * only days in the period are exported.
  *
  * Time off: approved requests, prorated by the weekdays of the request that
  * fall in the period (by calendar days for a request with no weekday).
+ *
+ * The pay frequency filter uses the latest pay record in effect at any time
+ * in the period.
  */
 export async function periodLines(
   tx: Tx,
@@ -195,16 +202,14 @@ export async function periodLines(
   return tx<PeriodLine[]>`
     WITH emp AS (
       SELECT e.id, e.first_name, e.last_name, e.employee_id AS employee_code,
-             e.location_code, cb.compensation_type,
-             coalesce(cb.overtime_eligible, false) AS ot_eligible
+             e.location_code
         FROM employees e
         LEFT JOIN LATERAL (
-          SELECT c.compensation_type::text AS compensation_type, c.overtime_eligible,
-                 c.pay_frequency::text AS pay_frequency
+          SELECT c.pay_frequency::text AS pay_frequency
             FROM compensation_base c
            WHERE c.employee_id = e.id
              AND c.effective_from <= ${f.to}::date
-             AND (c.effective_to IS NULL OR c.effective_to >= ${f.to}::date)
+             AND (c.effective_to IS NULL OR c.effective_to >= ${f.from}::date)
            ORDER BY c.effective_from DESC
            LIMIT 1
         ) cb ON true
@@ -228,24 +233,34 @@ export async function periodLines(
         ) p ON true
     ),
     days AS (
-      SELECT t.employee_id, t.entry_date, sum(t.hours) AS h
+      SELECT t.employee_id, t.entry_date,
+             coalesce(c.overtime_eligible, false) AS ot_eligible, sum(t.hours) AS h
         FROM time_tracking_entries t
-        JOIN emp ON emp.id = t.employee_id AND emp.compensation_type = 'hourly'
+        JOIN emp ON emp.id = t.employee_id
+        JOIN LATERAL (
+          SELECT c.compensation_type, c.overtime_eligible
+            FROM compensation_base c
+           WHERE c.employee_id = t.employee_id
+             AND c.effective_from <= t.entry_date
+             AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)
+           ORDER BY c.effective_from DESC
+           LIMIT 1
+        ) c ON true
        WHERE t.status = 'approved'
+         AND c.compensation_type::text = 'hourly'
          AND t.entry_date BETWEEN ${f.from}::date - 6 AND ${f.to}::date
-       GROUP BY t.employee_id, t.entry_date
+       GROUP BY t.employee_id, t.entry_date, c.overtime_eligible
     ),
     daily AS (
-      SELECT d.employee_id, d.entry_date, d.h, emp.ot_eligible, pol.weekly_thr,
+      SELECT d.employee_id, d.entry_date, d.h, d.ot_eligible, pol.weekly_thr,
              d.entry_date - ((extract(dow FROM d.entry_date)::int - pol.wsd + 7) % 7)
                AS week_start,
-             CASE WHEN emp.ot_eligible AND pol.dt_after IS NOT NULL
+             CASE WHEN d.ot_eligible AND pol.dt_after IS NOT NULL
                   THEN greatest(d.h - pol.dt_after, 0) ELSE 0 END AS dt,
-             CASE WHEN emp.ot_eligible AND pol.daily_thr IS NOT NULL
+             CASE WHEN d.ot_eligible AND pol.daily_thr IS NOT NULL
                   THEN greatest(least(d.h, coalesce(pol.dt_after, d.h)) - pol.daily_thr, 0)
                   ELSE 0 END AS daily_ot
         FROM days d
-        JOIN emp ON emp.id = d.employee_id
         JOIN pol ON pol.employee_id = d.employee_id
     ),
     weekly AS (
@@ -256,7 +271,7 @@ export async function periodLines(
         FROM daily x
     ),
     worked AS (
-      SELECT w.employee_id, w.dt, w.daily_ot + w.weekly_ot AS ot,
+      SELECT w.employee_id, w.ot_eligible, w.dt, w.daily_ot + w.weekly_ot AS ot,
              w.reg_day - w.weekly_ot AS reg
         FROM (
           SELECT weekly.*,
@@ -267,6 +282,16 @@ export async function periodLines(
             FROM weekly
         ) w
        WHERE w.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
+    ),
+    -- Overtime-eligible hours with no rule to classify them: every hour would
+    -- go out as regular, which under-pays with no error. A refusal instead.
+    unruled AS (
+      SELECT w.employee_id
+        FROM worked w
+        JOIN pol ON pol.employee_id = w.employee_id
+       WHERE w.ot_eligible
+         AND pol.daily_thr IS NULL AND pol.weekly_thr IS NULL AND pol.dt_after IS NULL
+       GROUP BY w.employee_id
     ),
     leave AS (
       SELECT r.employee_id, 'time_off:' || r.policy_code AS source,
@@ -301,9 +326,11 @@ export async function periodLines(
     SELECT l.employee_id, emp.first_name, emp.last_name, emp.employee_code,
            x.external_id, l.source, round(l.hours, 2)::text AS hours,
            (sum(round(l.hours, 2)) OVER (PARTITION BY l.source))::text AS source_total,
-           c.id IS NOT NULL AS mapped, c.code
+           c.id IS NOT NULL AS mapped, c.code,
+           u.employee_id IS NOT NULL AS policy_missing
       FROM lines l
       JOIN emp ON emp.id = l.employee_id
+      LEFT JOIN unruled u ON u.employee_id = l.employee_id
       LEFT JOIN payroll_employee_ids x
              ON x.employee_id = l.employee_id AND x.provider = ${provider}
       LEFT JOIN payroll_export_codes c
@@ -315,16 +342,24 @@ export async function periodLines(
               l.source`
 }
 
+export type Named = { employee_id: string; name: string }
+
 export type PeriodNotes = {
-  /** Time entries in the period that are still draft or submitted. */
+  /** Time entries of hourly days in the period that are still draft or submitted. */
   unapproved_entries: number
-  /** Approved requests that extend outside the period, so were prorated. */
+  /** Approved requests that extend outside the period, so were prorated: the first 10. */
   prorated: {
     employee: string
     policy_code: string
     start_date: string
     end_date: string
   }[]
+  prorated_total: number
+  /**
+   * Employees with approved time in the period and no pay record to say
+   * whether it is paid: their hours would be left out of the file.
+   */
+  no_pay_record: Named[]
 }
 
 export async function periodNotes(
@@ -334,23 +369,26 @@ export async function periodNotes(
   const [counts] = await tx<{ unapproved_entries: number }[]>`
     SELECT count(*)::int AS unapproved_entries
       FROM time_tracking_entries t
-      JOIN employees e ON e.id = t.employee_id
-      LEFT JOIN LATERAL (
-        SELECT c.pay_frequency::text AS pay_frequency
+      JOIN LATERAL (
+        SELECT c.compensation_type, c.pay_frequency::text AS pay_frequency
           FROM compensation_base c
-         WHERE c.employee_id = e.id
-           AND c.effective_from <= ${f.to}::date
-           AND (c.effective_to IS NULL OR c.effective_to >= ${f.to}::date)
+         WHERE c.employee_id = t.employee_id
+           AND c.effective_from <= t.entry_date
+           AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)
          ORDER BY c.effective_from DESC
          LIMIT 1
-      ) cb ON true
+      ) c ON true
      WHERE t.status IN ('draft', 'submitted')
+       AND c.compensation_type::text = 'hourly'
        AND t.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
-       AND (${f.frequency}::text IS NULL OR cb.pay_frequency = ${f.frequency}::text)`
-  const prorated = await tx<PeriodNotes["prorated"]>`
+       AND (${f.frequency}::text IS NULL OR c.pay_frequency = ${f.frequency}::text)`
+  const prorated = await tx<
+    (PeriodNotes["prorated"][number] & { total: number })[]
+  >`
     SELECT e.first_name || ' ' || e.last_name AS employee, r.policy_code,
            to_char(r.start_date, 'YYYY-MM-DD') AS start_date,
-           to_char(r.end_date, 'YYYY-MM-DD') AS end_date
+           to_char(r.end_date, 'YYYY-MM-DD') AS end_date,
+           count(*) OVER ()::int AS total
       FROM hr_time_off_requests r
       JOIN employees e ON e.id = r.employee_id
       LEFT JOIN LATERAL (
@@ -358,7 +396,7 @@ export async function periodNotes(
           FROM compensation_base c
          WHERE c.employee_id = e.id
            AND c.effective_from <= ${f.to}::date
-           AND (c.effective_to IS NULL OR c.effective_to >= ${f.to}::date)
+           AND (c.effective_to IS NULL OR c.effective_to >= ${f.from}::date)
          ORDER BY c.effective_from DESC
          LIMIT 1
       ) cb ON true
@@ -367,48 +405,92 @@ export async function periodNotes(
        AND (r.start_date < ${f.from}::date OR r.end_date > ${f.to}::date)
        AND (${f.frequency}::text IS NULL OR cb.pay_frequency = ${f.frequency}::text)
      ORDER BY e.last_name, e.first_name, r.start_date
-     LIMIT 50`
-  return { unapproved_entries: counts.unapproved_entries, prorated }
+     LIMIT 10`
+  // Approved time on a day no pay record covers, or approved time off in a
+  // period no pay record overlaps. Not filtered by frequency: with no pay
+  // record there is no frequency to filter on, and leaving them out is the
+  // failure this exists to catch.
+  const noPayRecord = await tx<Named[]>`
+    SELECT DISTINCT e.id AS employee_id, e.first_name || ' ' || e.last_name AS name,
+           e.last_name, e.first_name
+      FROM employees e
+     WHERE EXISTS (
+             SELECT 1 FROM time_tracking_entries t
+              WHERE t.employee_id = e.id AND t.status = 'approved'
+                AND t.entry_date BETWEEN ${f.from}::date AND ${f.to}::date
+                AND NOT EXISTS (
+                      SELECT 1 FROM compensation_base c
+                       WHERE c.employee_id = e.id
+                         AND c.effective_from <= t.entry_date
+                         AND (c.effective_to IS NULL OR c.effective_to >= t.entry_date)))
+        OR EXISTS (
+             SELECT 1 FROM hr_time_off_requests r
+              WHERE r.employee_id = e.id AND r.status = 'approved'
+                AND r.start_date <= ${f.to}::date AND r.end_date >= ${f.from}::date
+                AND NOT EXISTS (
+                      SELECT 1 FROM compensation_base c
+                       WHERE c.employee_id = e.id
+                         AND c.effective_from <= ${f.to}::date
+                         AND (c.effective_to IS NULL OR c.effective_to >= ${f.from}::date)))
+     ORDER BY e.last_name, e.first_name`
+  return {
+    unapproved_entries: counts.unapproved_entries,
+    prorated: prorated.map(({ total: _, ...r }) => r),
+    prorated_total: prorated[0]?.total ?? 0,
+    no_pay_record: noPayRecord.map(({ employee_id, name }) => ({
+      employee_id,
+      name,
+    })),
+  }
 }
 
 export type ExportProblems = {
   /** Employees with hours and no id in a provider that needs one. */
-  missing_ids: { employee_id: string; name: string }[]
+  missing_ids: Named[]
   /** Sources with hours and no code mapping. */
   unmapped_sources: string[]
   /** Gusto matches by name: two employees with one name are ambiguous. */
   duplicate_names: string[]
+  /** Overtime-eligible employees whose office has no overtime rule, and no firm-wide one. */
+  no_overtime_rule: Named[]
+  /** Approved time with no pay record: it would be left out. */
+  no_pay_record: Named[]
 }
 
 /** What stops the file being complete. Any of these refuses the download. */
 export function problems(
   provider: PayrollProvider,
   lines: PeriodLine[],
+  notes: Pick<PeriodNotes, "no_pay_record">,
 ): ExportProblems {
   const missing = new Map<string, string>()
+  const unruled = new Map<string, string>()
   const unmapped = new Set<string>()
   const names = new Map<string, Set<string>>()
   for (const l of lines) {
+    const name = `${l.first_name} ${l.last_name}`
     if (!l.mapped) unmapped.add(l.source)
+    if (l.policy_missing) unruled.set(l.employee_id, name)
     // A source mapped to "not exported" puts nothing in the file, so needs no id.
     const exported = l.mapped && l.code !== null
     if (exported && NEEDS_EMPLOYEE_ID[provider] && !l.external_id)
-      missing.set(l.employee_id, `${l.first_name} ${l.last_name}`)
+      missing.set(l.employee_id, name)
     if (exported) {
-      const key = `${l.first_name} ${l.last_name}`.toLowerCase()
+      const key = name.toLowerCase()
       names.set(key, (names.get(key) ?? new Set()).add(l.employee_id))
     }
   }
+  const named = (m: Map<string, string>) =>
+    [...m].map(([employee_id, name]) => ({ employee_id, name }))
   return {
-    missing_ids: [...missing].map(([employee_id, name]) => ({
-      employee_id,
-      name,
-    })),
+    missing_ids: named(missing),
     unmapped_sources: [...unmapped].sort(),
     duplicate_names:
       provider === "gusto"
         ? [...names].filter(([, ids]) => ids.size > 1).map(([n]) => n)
         : [],
+    no_overtime_rule: named(unruled),
+    no_pay_record: notes.no_pay_record,
   }
 }
 
@@ -416,6 +498,8 @@ export function refuses(p: ExportProblems): boolean {
   return (
     p.missing_ids.length > 0 ||
     p.unmapped_sources.length > 0 ||
-    p.duplicate_names.length > 0
+    p.duplicate_names.length > 0 ||
+    p.no_overtime_rule.length > 0 ||
+    p.no_pay_record.length > 0
   )
 }

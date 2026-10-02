@@ -37,11 +37,14 @@ fills them from the provider.
 'approved'`) and approved time off (`hr_time_off_requests.status =
 'approved'`). Attendance is not a source: no code writes `hr_attendance` yet.
 
-**Who.** Worked hours are exported only for employees whose current
-`compensation_base` row is `hourly`. Providers pay salaried employees their
-salary without hours, so exporting a salaried employee's hours would pay them
-twice. Time off is exported for every employee, because providers track
-leave balances for salaried staff too.
+**Who.** Worked hours are exported only for the days on which the
+employee's pay record (the `compensation_base` row in effect that day) is
+`hourly`. Providers pay salaried employees their salary without hours, so
+exporting a salaried employee's hours would pay them twice. An employee who
+leaves, or moves to a salary, part-way through the period keeps the hourly
+days before the change. Time off is exported for every employee, because
+providers track leave balances for salaried staff too. The pay-frequency
+filter uses the latest pay record in effect during the period.
 
 **Overtime.** Kaaj classifies worked hours before export; all four providers
 expect overtime as hours, not as raw time.
@@ -50,8 +53,8 @@ expect overtime as hours, not as raw time.
   the firm-wide policy (`location_id IS NULL`) if the office has none:
   `daily_threshold_hours`, `weekly_threshold_hours`, `double_time_after_hours`,
   and `workweek_start_day` (0 = Sunday).
-- It applies only if the employee's current `compensation_base.overtime_eligible`
-  is true. Otherwise every hour is regular.
+- It applies on the days when the pay record in effect is
+  `overtime_eligible`. Otherwise every hour is regular.
 - Per day: hours above `double_time_after_hours` are double time; hours above
   `daily_threshold_hours` (and not double time) are overtime.
 - Per workweek: the remaining regular hours above `weekly_threshold_hours`
@@ -98,16 +101,29 @@ Rules for every writer:
 
 ## Refusals
 
-The download is refused, and the review page lists why, if any employee in
-the file:
+The download is refused, and the review page lists why (a count and the
+first ten names), if any employee in the period:
 
-- has no id for the selected provider, or
-- has hours of a type with no code mapping for that provider.
+- has no id for the selected provider;
+- has hours of a type with no code mapping for that provider;
+- is overtime-eligible in an office with no overtime rule, and there is no
+  firm-wide rule: every hour would otherwise go out as regular;
+- has approved time that no pay record covers, so nothing says whether it
+  is paid;
+- (Gusto) shares a name with another employee, because Gusto matches by
+  name.
 
 A file that leaves someone out pays them nothing, with no error. The review
 page also shows, without refusing, the number of time entries in the period
-that are still draft or submitted, and (for Gusto) employees with the same
-name.
+of hourly days that are still draft or submitted, and the time-off requests
+that were prorated.
+
+**Two known limits.** Kaaj does not record what each file contained, so:
+
+- time approved after its period was exported is in no file. Approve time
+  before the export, or enter the late hours in the provider by hand;
+- importing the same period twice can add the hours twice (Workforce Now
+  makes a new batch). Import each period once.
 
 ## Data
 
@@ -119,16 +135,20 @@ name.
 
 ## Pages
 
-- **Settings → Payroll export**: provider, company code, code mappings.
-- **Payroll → Employee ids**: the provider id of each employee, paginated.
-- **Payroll → Export**: period dates and (RUN) pay frequency; a review of
-  each employee's hours by type, paginated; the problems; **Download**.
+- **Payroll → Export to Payroll** (`/payroll/export`): period dates and pay
+  frequency (required for RUN); a review of each employee's hours by type,
+  paginated; the problems; **Download**.
+- **Payroll → Employee Payroll IDs** (`/payroll/employee-ids`): the provider
+  id of each employee, paginated, with a filter for those missing one.
+- **Payroll → Export Settings** (`/payroll/export/settings`): provider,
+  company code, code mappings.
 
-Permissions: the export and the id pages require `payroll.run`, held by
-roles that can read every employee's time and compensation. Settings
-require `firm.settings.read`/`write`. Each download records an `export`
-audit entry with the provider, the period and the counts, in the same
-transaction that reads the hours.
+Permissions: all three require `payroll.run` (owner, firm admin, payroll
+admin), the roles that can read every employee's time and compensation, and
+the RLS write policies on the three tables match it. Each download records
+an `export` audit entry with the provider, `period_start`, `period_end`, the
+frequency and the number of employees, in the same transaction that reads
+the hours.
 
 ---
 

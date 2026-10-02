@@ -170,6 +170,52 @@ describe("payroll export: hours for a period", () => {
     })
   })
 
+  it("keeps the hourly days of a pay record that ends inside the period", async () => {
+    const lines = await inRollback(async (tx) => {
+      // Hourly until the 20th; the salaried row from the fixture is in effect after.
+      await tx`
+        INSERT INTO compensation_base (tenant_id, employee_id, effective_from, effective_to,
+                                       compensation_type, amount, overtime_eligible)
+        VALUES (${NORTHWIND}, ${AISHA}, '2026-09-01', '2026-09-20', 'hourly', '30.00', false)`
+      await work(tx, AISHA, { "2026-09-15": 8, "2026-09-22": 8 })
+      return exp.periodLines(tx, "adp_run", PERIOD)
+    })
+    expect(byEmployee(lines, AISHA)).toEqual({ regular: "8.00" })
+  })
+
+  it("refuses approved time that no pay record covers, rather than leave it out", async () => {
+    const { lines, notes } = await inRollback(async (tx) => {
+      await tx`UPDATE compensation_base SET effective_from = '2027-01-01'
+                WHERE employee_id = ${OLIVER}`
+      await work(tx, OLIVER, { "2026-09-14": 8 })
+      return {
+        lines: await exp.periodLines(tx, "adp_run", PERIOD),
+        notes: await exp.periodNotes(tx, PERIOD),
+      }
+    })
+    expect(notes.no_pay_record).toEqual([
+      { employee_id: OLIVER, name: "Oliver Grant" },
+    ])
+    expect(exp.refuses(exp.problems("adp_run", lines, notes))).toBe(true)
+  })
+
+  it("refuses overtime-eligible hours that no overtime rule can classify", async () => {
+    const { lines, notes } = await inRollback(async (tx) => {
+      await tx`UPDATE firm_payroll_policies SET is_active = false`
+      await payHourly(tx, AISHA, true)
+      await work(tx, AISHA, { "2026-09-14": 13 })
+      return {
+        lines: await exp.periodLines(tx, "adp_run", PERIOD),
+        notes: await exp.periodNotes(tx, PERIOD),
+      }
+    })
+    // Every hour regular: exactly the under-payment the refusal prevents.
+    expect(byEmployee(lines, AISHA)).toEqual({ regular: "13.00" })
+    expect(exp.problems("adp_run", lines, notes).no_overtime_rule).toEqual([
+      { employee_id: AISHA, name: "Aisha Okafor" },
+    ])
+  })
+
   it("filters by pay frequency", async () => {
     const lines = await inRollback(async (tx) => {
       await payHourly(tx, AISHA, true)
@@ -181,6 +227,7 @@ describe("payroll export: hours for a period", () => {
 })
 
 describe("payroll export: what refuses the file", () => {
+  const NO_NOTES = { no_pay_record: [] }
   const line = (over: Partial<exp.PeriodLine>): exp.PeriodLine => ({
     employee_id: AISHA,
     first_name: "Aisha",
@@ -192,11 +239,12 @@ describe("payroll export: what refuses the file", () => {
     source_total: "8.00",
     mapped: true,
     code: "REG",
+    policy_missing: false,
     ...over,
   })
 
   it("an employee with hours and no id refuses the file", () => {
-    const p = exp.problems("adp_run", [line({ external_id: null })])
+    const p = exp.problems("adp_run", [line({ external_id: null })], NO_NOTES)
     expect(p.missing_ids).toEqual([
       { employee_id: AISHA, name: "Aisha Okafor" },
     ])
@@ -204,10 +252,14 @@ describe("payroll export: what refuses the file", () => {
   })
 
   it("Gusto matches by name, so needs no id, but two people with one name refuse it", () => {
-    const p = exp.problems("gusto", [
-      line({ external_id: null }),
-      line({ employee_id: YUKI, external_id: null }),
-    ])
+    const p = exp.problems(
+      "gusto",
+      [
+        line({ external_id: null }),
+        line({ employee_id: YUKI, external_id: null }),
+      ],
+      NO_NOTES,
+    )
     expect(p.missing_ids).toEqual([])
     expect(p.duplicate_names).toEqual(["aisha okafor"])
     expect(exp.refuses(p)).toBe(true)
@@ -215,13 +267,17 @@ describe("payroll export: what refuses the file", () => {
 
   it("hours with no code mapping refuse the file; a mapping to 'not exported' does not", () => {
     expect(
-      exp.problems("adp_run", [
-        line({ source: "overtime", mapped: false, code: null }),
-      ]).unmapped_sources,
+      exp.problems(
+        "adp_run",
+        [line({ source: "overtime", mapped: false, code: null })],
+        NO_NOTES,
+      ).unmapped_sources,
     ).toEqual(["overtime"])
-    const p = exp.problems("adp_run", [
-      line({ source: "time_off:UNPAID", code: null, external_id: null }),
-    ])
+    const p = exp.problems(
+      "adp_run",
+      [line({ source: "time_off:UNPAID", code: null, external_id: null })],
+      NO_NOTES,
+    )
     expect(exp.refuses(p)).toBe(false)
   })
 })

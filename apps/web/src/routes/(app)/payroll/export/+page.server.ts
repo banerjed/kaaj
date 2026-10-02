@@ -7,6 +7,10 @@ import { readPeriod, MAX_PERIOD_DAYS } from "$lib/server/payroll/export-request"
 
 const PAGE_SIZE = 50
 
+function firstTen<T>(all: T[]): { first: T[]; total: number } {
+  return { first: all.slice(0, 10), total: all.length }
+}
+
 type ReviewRow = {
   employee_id: string
   name: string
@@ -47,8 +51,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     // is offered; the period is at most MAX_PERIOD_DAYS, and only one page of
     // employees goes to the browser.
     const lines = await exp.periodLines(tx, settings.provider, period)
-    const problems = exp.problems(settings.provider, lines)
     const notes = await exp.periodNotes(tx, period)
+    const problems = exp.problems(settings.provider, lines, notes)
 
     const byEmployee = new Map<string, ReviewRow>()
     const totals: Record<string, string> = {}
@@ -79,9 +83,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         rows: rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
         page,
         pageSize: PAGE_SIZE,
-        problems,
+        // A count and the first ten of each: a tenant's first export, before
+        // any id is entered, would otherwise send its whole roster here.
+        problems: {
+          missing_ids: firstTen(problems.missing_ids),
+          no_overtime_rule: firstTen(problems.no_overtime_rule),
+          no_pay_record: firstTen(problems.no_pay_record),
+          duplicate_names: firstTen(problems.duplicate_names),
+          unmapped_sources: problems.unmapped_sources,
+        },
         refused: exp.refuses(problems),
-        notes,
+        notes: {
+          unapproved_entries: notes.unapproved_entries,
+          prorated: notes.prorated,
+          prorated_total: notes.prorated_total,
+        },
         mappings: await exp.codes(tx, settings.provider),
       },
     }
