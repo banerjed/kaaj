@@ -223,3 +223,149 @@ entries). Nobody has asked for that; the original usage brief described CRM
 activities as discrete logged events, not back-and-forth conversations. If
 that need surfaces later, it's a bigger schema change than either gap above
 and deserves its own plan rather than being folded into this one.
+
+---
+
+## Benchmarked against Twenty CRM (2026-10-01)
+
+Read the whole of <https://docs.twenty.com/> — core concepts (data model,
+layout, workflows, calendar/email, AI, dashboards, glossary) and the
+developer data-model, relations, roles and API pages. Twenty is the closest
+open-source comparator to this module, so it is a useful mirror; it is not a
+target to converge on, for reasons set out under *Deliberate divergence*.
+
+### How Twenty works, in one paragraph
+
+**It is a CRM-shaped object database, not a CRM.** Everything is "objects and
+fields": five standard objects ship (Companies, People, Opportunities, Tasks,
+Notes) and *custom objects are indistinguishable from them* — same REST and
+GraphQL endpoints, same views, same permissions, same workflow triggers. That
+one decision drives the whole product. Around it: ~25 field types including
+composites (`FULL_NAME`, `ADDRESS`, `EMAILS`, `PHONES`, `LINKS`, `CURRENCY`
+as amount+code, `ACTOR`, `FILES`) plus `RICH_TEXT`, `RATING` and a
+server-managed `TS_VECTOR`; bidirectional relations with explicit `onDelete`
+and many-to-many via junction objects; table/kanban/calendar **views** that
+each save their own filters, sorts, grouping and field visibility; a timeline
+that records created/updated/linked/unlinked automatically and fans events
+out to related records; workflows (triggers: record events, manual, cron,
+webhook × actions: CRUD, email, HTTP, custom JS, branches, loops, delays,
+mid-flow forms, AI agents); Google/M365 calendar and email sync auto-matched
+to records; permissions at object, field and record level; and Core +
+Metadata APIs in REST and GraphQL, generated per workspace, with webhooks.
+
+### Gaps this document already tracks
+
+Four of the differences are already covered above and are **not** restated as
+new work — the comparison confirms the existing sequencing rather than
+changing it:
+
+| Twenty has | Tracked here as |
+|---|---|
+| Attachments on timeline entries | Gap 1 — `crm_activities` has no attachment support |
+| One timeline per record, fanned out from every source | Gap 2 — no unified "everything about this customer" timeline |
+| Send email from a record, auto-logged | Phase 3 |
+| Full Gmail/Outlook sync | Phase 3, *explicitly out of scope* — unchanged by this comparison |
+
+### Gaps this document did NOT have
+
+Ordered by what an SMB feels first. None of these are started.
+
+1. **CSV import.** ⛔ The largest adoption blocker and the cheapest to fix. A
+   firm switching from spreadsheets or another CRM currently cannot get its
+   data in at all. CSV *export* infrastructure already exists in accounting
+   (`accounting/*/export`) and nothing in CRM uses it in either direction.
+   Twenty treats import with field mapping and duplicate detection as table
+   stakes.
+2. **Filters, sorts and saved views.** ⛔ Clients has one status dropdown;
+   Pipeline and Contacts have nothing. In Twenty the saved view *is* the
+   primary interaction — unlimited per object, each carrying its own filters,
+   sorts and column visibility. Worth taking the idea without the
+   generality: a handful of filters on the three list pages, with the state
+   in the URL (the pattern `ticketing` and `crm/contacts` already use),
+   closes most of the value.
+3. **Global search.** ⛔ None. There is one combobox on the contacts page and
+   no cross-object search anywhere in the product. Postgres full-text is
+   already the ADR-002 answer for search; nothing uses it.
+4. **Automatic timeline events.** ⛔ `crm_activities` only ever holds what a
+   person typed. Nothing records "stage changed", "owner reassigned",
+   "status moved to churned" — and **`audit_log` does not have them either**:
+   every CRM write is in the register's `NOT_AUDITED` list, each with a
+   stated reason ("a deal record is the firm's own sales plan, not anyone's
+   pay"). `crm/pipeline::moveStage` is there too, so a deal moving stage
+   currently leaves no trace anywhere in the system.
+
+   That classification is right and should not be changed. The audit trail
+   answers *"who must justify this later"* — a compliance question, in a
+   table that can never be deleted from. A CRM timeline answers *"what has
+   happened to this client"* — a sales question, in a feed people read daily.
+   Same events, different purpose, different retention; routing the second
+   through the first would quietly widen what the audit trail is for. An
+   automatic timeline therefore needs its own mechanism (a trigger or a
+   repo-level write into `crm_activities` with a system `activity_type`),
+   which is a design decision this document has not made. It belongs with
+   Gap 2: the unified feed wants three sources, not two.
+5. **Follow-up tasks on a client or deal.** ⛔ "Call back Tuesday" is core
+   CRM and there is no way to express it. `tasks` exists but is
+   project-scoped; whether this reuses that table or gets its own is an open
+   question.
+6. **Pipeline reporting.** ⛔ No win rate, cycle time, forecast or
+   stage-conversion anywhere. The board now computes per-stage totals per
+   currency, which is the data the first report would need.
+7. **Public API and webhooks.** ⛔ None, for any module. For a suite whose
+   buyers already run other tools this is how anything integrates. Larger
+   than it looks: it needs an auth model (API keys scoped to permissions),
+   rate limiting and a versioning commitment.
+8. **Composite field types.** ⛔ Custom fields support 7 scalar types (text,
+   number, money, date, boolean, select, multiselect). No address, phones,
+   emails, links or rating. `ADDRESS` is the one that bites: `customers`
+   stores `billing_address`/`shipping_address` as JSONB with no typed editor
+   behind them.
+
+### Where this product is ahead, and should stay there
+
+- **Tenant isolation is enforced in the database** — RLS with `FORCE ROW
+  LEVEL SECURITY`, a non-owner application connection, and 672 isolation
+  assertions. Twenty's record-level predicates are a paid-plan feature.
+- **PII encryption per employee**, with GDPR Art. 17 erasure by destroying
+  the key. Twenty has no comparable mechanism.
+- **The CRM customer IS the accounts-receivable customer.** `customers`
+  carries `ar_account_id`, `tax_rate_id`, `payment_terms` and `credit_limit`
+  and feeds invoices, payments and tax. In Twenty that is an integration
+  project.
+- **Audit coverage enforced by CI**, against a committed register.
+
+### Deliberate divergence — do not converge
+
+**Custom objects are Twenty's central bet and are incompatible with ours.**
+`docs/06-customization-model.md` says customization is data — rows, custom
+field definitions, settings — never per-tenant schema. ADR-002/003 put
+everything in one Postgres under shared-schema RLS. The typed repositories,
+the disclosure matrix, `verify-query-scale.mjs` and the constraint registry
+all depend on a schema known at build time; a metadata-driven one would
+invalidate every check in `./check` that starts from the schema. Twenty buys
+flexibility with a dynamic schema and pays for it with a Metadata API and
+weaker static guarantees. Both are coherent. Mixing them is not.
+
+Also not to be copied: **field-level permissions as a general configurable
+mechanism** (ours is stronger where it matters — per-column classification,
+encryption, `_pvt`/`_ct` naming enforced both ways — and deliberately less
+configurable), and **apps/plugins and autonomous AI agents**, which are out
+of scope.
+
+### One place Twenty's model is better than ours
+
+**Twenty makes People and Companies peers.** A person-only client is simply a
+Person. `customer_contacts.customer_id` is `NOT NULL` here, which is what
+forced the person-account shape built on 2026-10-01: one `customers` row plus
+its single contact, `customer_name` derived from the person's name so the two
+cannot drift, and "an individual has exactly one contact" held by
+construction rather than by the schema (see `customers.repo.ts`'s
+`isPersonAccount`). That works and is tested, but Twenty's split is cleaner
+for exactly the market this product targets — SMBs whose own clients are
+individuals.
+
+**Not proposed:** re-modelling `customers`/`customer_contacts` into peer
+entities. It would touch accounting, documents, ticketing and the portal, all
+of which FK to `customers`, and the current shape is correct and covered. This
+is recorded so the next person to meet the awkwardness knows it was seen,
+measured and left alone on purpose — not missed.
