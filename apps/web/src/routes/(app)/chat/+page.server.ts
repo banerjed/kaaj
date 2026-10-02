@@ -28,6 +28,18 @@ export const actions: Actions = {
     }))
   },
 
+  /** Backs the sidebar's find-a-conversation picker — your own, past the sidebar's cap. */
+  searchConversations: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "team_chat.read")
+    if (!locals.employeeId)
+      error(403, "Chat is for employees, not this kind of account.")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await chat.searchMyConversations(tx, locals.employeeId!, q),
+    }))
+  },
+
   /** Backs the browse-public-channels picker (the layout's modal). */
   searchChannels: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")

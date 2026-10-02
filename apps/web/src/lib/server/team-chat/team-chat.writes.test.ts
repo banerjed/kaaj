@@ -265,6 +265,42 @@ describe("unread counts — recomputed, not maintained (§2)", () => {
   })
 })
 
+describe("the sidebar holds the most recent conversations, never all of them", () => {
+  afterAll(async () => {
+    await closeConnections()
+  })
+
+  const SARAH = "6d466aa9-e51a-5d52-9015-152600855932"
+
+  it("caps the list, counts the rest, and finds an old one by name", async () => {
+    const result = await inRollback(asEmployee(SARAH), async (tx) => {
+      const before = await chat.countConversations(tx, SARAH)
+      const made: string[] = []
+      for (let i = 0; i < chat.SIDEBAR_LIMIT + 5; i++) {
+        made.push(
+          await chat.createChannel(tx, {
+            tenantId: NORTHWIND,
+            creatorEmployeeId: SARAH,
+            name: `cap-test-${String(i).padStart(2, "0")}`,
+            topic: null,
+            visibility: "public",
+          }),
+        )
+      }
+      return {
+        before,
+        listed: (await chat.listConversations(tx, SARAH)).length,
+        total: await chat.countConversations(tx, SARAH),
+        found: await chat.searchMyConversations(tx, SARAH, "cap-test-00"),
+        firstMade: made[0],
+      }
+    })
+    expect(result.listed).toBe(chat.SIDEBAR_LIMIT)
+    expect(result.total).toBe(result.before + chat.SIDEBAR_LIMIT + 5)
+    expect(result.found.map((c) => c.id)).toEqual([result.firstMade])
+  })
+})
+
 describe("archiveChannel", () => {
   afterAll(async () => {
     await closeConnections()

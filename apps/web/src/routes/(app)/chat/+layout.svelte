@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state"
   import { enhance } from "$app/forms"
+  import { goto } from "$app/navigation"
   import PageHead from "$lib/components/PageHead.svelte"
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { fieldErrors, type FormResult } from "$lib/form-errors"
@@ -12,6 +13,7 @@
   // The layout serves every /chat/* page, so it names /chat's own action.
   const searchPeople = actionSearch("/chat?/searchPeople")
   const searchChannels = actionSearch("/chat?/searchChannels")
+  const searchConversations = actionSearch("/chat?/searchConversations")
 
   let creatingChannel = $state(false)
   let startingDm = $state(false)
@@ -54,6 +56,25 @@
       class="card-body flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4"
     >
       <PageTitle title="Chat" />
+
+      {#if data.conversationTotal > data.conversations.length}
+        <!-- The sidebar holds the most recent conversations; the rest are a
+             search away, never an unbounded list. -->
+        <div>
+          <Combobox
+            name="find_conversation"
+            search={searchConversations}
+            placeholder="Find a conversation…"
+            emptyText="No matching conversation"
+            onchange={(picked) => {
+              if (picked[0]) goto(`/chat/${picked[0].id}`)
+            }}
+          />
+          <p class="text-base-content/60 mt-1 px-1 text-xs">
+            The {data.conversations.length} most recent of {data.conversationTotal}
+          </p>
+        </div>
+      {/if}
 
       <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div>

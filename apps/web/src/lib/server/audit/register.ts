@@ -762,6 +762,11 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the browse-public-channels picker.",
   },
   {
+    route: "chat",
+    action: "searchConversations",
+    why: "A read, not a write — backs the sidebar's find-a-conversation picker.",
+  },
+  {
     route: "crm/companies",
     action: "searchPeople",
     why: "A read, not a write — backs the account-manager picker.",

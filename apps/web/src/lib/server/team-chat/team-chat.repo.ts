@@ -83,7 +83,7 @@ export function dmKey(employeeIds: string[]): string {
 }
 
 /**
- * Every conversation the actor belongs to, most recent activity first, with
+ * The actor's `limit` most recently active conversations, with
  * an unread count and a last-message preview computed in ONE query — no
  * per-conversation follow-up (`verify-no-loop-queries.mjs`), no full scan of
  * the SCALE_SENSITIVE messages table (the join condition uses
@@ -92,9 +92,13 @@ export function dmKey(employeeIds: string[]): string {
  * hide (CLAUDE.md's disclosure lens — a flag that governs disclosure is
  * enforced where the data is read).
  */
+/** The sidebar's cap; older conversations are found with `searchMyConversations`. */
+export const SIDEBAR_LIMIT = 50
+
 export async function listConversations(
   tx: Tx,
   employeeId: string,
+  limit = SIDEBAR_LIMIT,
 ): Promise<ConversationSummary[]> {
   return tx<ConversationSummary[]>`
     SELECT
@@ -123,8 +127,56 @@ export async function listConversations(
        WHERE msg.conversation_id = c.id AND msg.created_at > m.last_read_at
     ) unread ON true
     WHERE c.archived_at IS NULL
-    ORDER BY coalesce(last_msg.created_at, c.created_at) DESC
+    ORDER BY coalesce(last_msg.created_at, c.created_at) DESC, c.id
+    LIMIT ${limit}
   `
+}
+
+/** How many live conversations the employee is in — the sidebar's "of N". */
+export async function countConversations(
+  tx: Tx,
+  employeeId: string,
+): Promise<number> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n
+      FROM team_chat_conversations c
+      JOIN team_chat_members m ON m.conversation_id = c.id
+       AND m.employee_id = ${employeeId}::uuid AND m.left_at IS NULL
+     WHERE c.archived_at IS NULL
+  `
+  return row?.n ?? 0
+}
+
+/** The employee's own conversations by channel name or DM partner — for the ones past the sidebar's cap. */
+export async function searchMyConversations(
+  tx: Tx,
+  employeeId: string,
+  q: string,
+): Promise<{ id: string; label: string; sublabel?: string }[]> {
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+  const rows = await tx<{ id: string; label: string; kind: string }[]>`
+    SELECT x.id, x.label, x.kind
+      FROM (
+        SELECT c.id, c.kind,
+               CASE WHEN c.kind = 'channel' THEN '#' || c.name
+                    ELSE (SELECT string_agg(e.first_name || ' ' || e.last_name, ', ' ORDER BY e.first_name)
+                            FROM employees e
+                           WHERE e.id = ANY (c.member_ids) AND e.id <> ${employeeId}::uuid)
+               END AS label
+          FROM team_chat_conversations c
+          JOIN team_chat_members m ON m.conversation_id = c.id
+           AND m.employee_id = ${employeeId}::uuid AND m.left_at IS NULL
+         WHERE c.archived_at IS NULL
+      ) x
+     WHERE coalesce(x.label, '') ILIKE ${like}
+     ORDER BY x.label
+     LIMIT 20
+  `
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label ?? "(just you)",
+    sublabel: r.kind === "dm" ? "Direct message" : "Channel",
+  }))
 }
 
 /**

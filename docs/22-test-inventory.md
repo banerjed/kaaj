@@ -230,19 +230,21 @@ visibility, and `upload.ts`'s own Storage-writing path are still covered
 only by two e2e render checks (`smoke.spec.ts`, §2), no write path, no
 refusal.
 
-### Team Chat — 12 tests
+### Team Chat — 13 tests
 
 Deliberately NOT left at documents'/ticketing's bar (0) — `team-chat.repo.ts`
 hides two genuinely non-obvious Postgres RLS/trigger interactions
 (docs/10-lessons-learned.md L93/L95), and both have a permanent regression
 test rather than only having been fixed once and trusted to stay fixed.
 
-- `lib/server/team-chat/team-chat.writes.test.ts` [9] — `findOrCreateDm`
+- `lib/server/team-chat/team-chat.writes.test.ts` [10] — `findOrCreateDm`
   idempotency and `member_ids` seeding, `joinPublicChannel`'s first-ever-join
   and leave/rejoin cases (the L93/L95 regression guard), keyset pagination,
   the deleted-message tombstone, refusing to edit/delete someone else's
   message, unread-count recompute (§2's "recomputed, not maintained"),
-  `archiveChannel` and its double-archive refusal.
+  `archiveChannel` and its double-archive refusal; the sidebar holds the 50
+  most recent conversations, counts the rest, and finds an older one by
+  name (watched failing without the cap).
 - `lib/server/team-chat/realtime.test.ts` [3] — the SSE relay's in-process
   fan-out (docs/20-team-chat.md §5), against a real `pg_notify` on the
   shared pool rather than a mock: a subscribed conversation/tenant pair

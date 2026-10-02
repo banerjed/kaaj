@@ -15,6 +15,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   return withTenant(actorFrom(locals), async (tx) => {
     return {
       conversations: await chat.listConversations(tx, locals.employeeId!),
+      conversationTotal: await chat.countConversations(tx, locals.employeeId!),
     }
   })
 }
