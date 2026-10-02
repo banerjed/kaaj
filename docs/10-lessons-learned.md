@@ -1882,7 +1882,7 @@ budget"). The general point: a "deterministic" performance figure needs the
 planner's inputs fixed, not just the rows — and a check run once, or twice
 on the same database, cannot tell you it is not. Reseed and run it again.
 
-### L121 — Playwright's `route.fulfill` skips network throttling
+### L123 — Playwright's `route.fulfill` skips network throttling
 
 To see whether a fallback font changed the first paint on a slow
 connection, the test throttled the network with CDP
@@ -1895,7 +1895,7 @@ stylesheet comment saying so was written and then had to be removed. When a
 comparison throttles the network, send EVERY variant, the control too,
 through the same path, or none of them.
 
-### L120 — The front-page check timed the sign-in page, not `/employees`
+### L122 — The front-page check timed the sign-in page, not `/employees`
 
 `verify-front-page-load.mjs` signs in, waits for `/employees`, and reads
 `performance.getEntriesByType("navigation")[0].loadEventEnd`. That entry

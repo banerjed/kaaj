@@ -39,7 +39,7 @@ MEDIAN of five samples. Before the five samples, it does one warm-up load and
 ignores its result. One latency sample is not a measurement.
 
 **CAUTION:** Until 2026-10-02 this step timed the SIGN-IN page, not
-`/employees` ([L120](docs/10-lessons-learned.md)), and the target was 50ms.
+`/employees` ([L122](docs/10-lessons-learned.md)), and the target was 50ms.
 The 21.8-25.4ms (idle) and 25.9-46.0ms (busy) once recorded here are
 sign-in page numbers. A full first load of `/employees`, from the sign-in
 POST to the `load` event, measures 74-88ms idle and about 97ms on a busy
