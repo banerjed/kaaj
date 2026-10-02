@@ -1,15 +1,9 @@
 <script lang="ts">
-  import { page } from "$app/state"
-  import {
-    getBrowserSupabase,
-    type BrowserSupabaseClient,
-  } from "$lib/supabase/browser"
-  import { onMount } from "svelte"
+  import { enhance } from "$app/forms"
   import SettingsModule from "../settings_module.svelte"
 
-  let { data } = $props()
+  let { data, form } = $props()
   let user = $derived(data.user)
-  let supabase: BrowserSupabaseClient | null = $state(null)
 
   // True only if they definitely have a password (oAuth/email-link users won't). No AMR typedef from Supabase, hence the cast.
   let amr: { method: string }[] | undefined = $derived(data.amr ?? undefined)
@@ -20,35 +14,8 @@
     amr?.find((x) => x.method === "oauth") ? true : false,
   )
 
-  let sendBtnDisabled = $state(false)
-  let sendBtnText = $state("Send Set Password Email")
-  let sentEmail = $state(false)
-
-  onMount(() => {
-    supabase = getBrowserSupabase()
-  })
-
-  let sendForgotPassword = () => {
-    sendBtnDisabled = true
-    sendBtnText = "Sending..."
-
-    let email = user?.email
-    if (!email || !supabase) {
-      sendBtnDisabled = false
-      sendBtnText = "Send Forgot Password Email"
-      return
-    }
-
-    supabase.auth
-      .resetPasswordForEmail(email, {
-        redirectTo: `${page.url.origin}/auth/callback?next=%2Faccount%2Fsettings%2Freset_password`,
-      })
-      .then((d) => {
-        sentEmail = d.error ? false : true
-        sendBtnDisabled = false
-        sendBtnText = "Send Forgot Password Email"
-      })
-  }
+  let sending = $state(false)
+  const sentEmail = $derived(form && "sent" in form)
 </script>
 
 <svelte:head>
@@ -104,13 +71,29 @@
         The button below will send you an email at {user?.email} which will allow
         you to set your password.
       </div>
-      <button
-        class="btn btn-outline btn-wide {sentEmail ? 'hidden' : ''}"
-        disabled={sendBtnDisabled}
-        onclick={sendForgotPassword}
+      {#if form?.message}
+        <div role="alert" class="alert alert-error">{form.message}</div>
+      {/if}
+      <form
+        method="POST"
+        action="?/sendReset"
+        class={sentEmail ? "hidden" : ""}
+        use:enhance={() => {
+          sending = true
+          return async ({ update }) => {
+            await update()
+            sending = false
+          }
+        }}
       >
-        {sendBtnText}
-      </button>
+        <button
+          type="submit"
+          class="btn btn-outline btn-wide"
+          disabled={sending}
+        >
+          {sending ? "Sending..." : "Send Set Password Email"}
+        </button>
+      </form>
       <div class="success alert alert-success {sentEmail ? '' : 'hidden'}">
         Sent email! Please check your inbox and use the link to set your
         password.

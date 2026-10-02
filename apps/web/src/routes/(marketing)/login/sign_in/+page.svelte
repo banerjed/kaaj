@@ -1,27 +1,12 @@
 <script lang="ts">
-  import { goto } from "$app/navigation"
   import { page } from "$app/state"
-  import AuthForm from "../AuthForm.svelte"
+  import { fieldErrors } from "$lib/form-errors"
 
-  let { data } = $props()
+  let { form } = $props()
 
-  // Honour ?redirect (set by the app's layout when bouncing an unauthenticated visitor); fall back to the directory.
-  const destination = () => {
-    const wanted = page.url.searchParams.get("redirect")
-    // Same-origin paths only: an open redirect here would send someone who
-    // just typed their password to whatever a link told it to.
-    return wanted && wanted.startsWith("/") && !wanted.startsWith("//")
-      ? wanted
-      : "/employees"
-  }
-
-  const onSignedIn = () => {
-    // Delay needed because callback order is not guaranteed; let layout auth
-    // invalidation settle before the destination loads.
-    setTimeout(() => {
-      goto(destination())
-    }, 1)
-  }
+  const err = $derived(fieldErrors(form))
+  // Set by the app's layout when it sends an unauthenticated visitor here.
+  const redirectTo = $derived(page.url.searchParams.get("redirect") ?? "")
 </script>
 
 <svelte:head>
@@ -30,27 +15,55 @@
 
 {#if page.url.searchParams.get("verified") == "true"}
   <div role="alert" class="alert alert-success mb-5">
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      class="stroke-current shrink-0 h-6 w-6"
-      fill="none"
-      viewBox="0 0 24 24"
-      ><path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-      /></svg
-    >
+    <span class="iconify lucide--circle-check size-6"></span>
     <span>Email verified! Please sign in.</span>
   </div>
 {/if}
 <h1 class="text-2xl font-bold mb-6">Sign In</h1>
-<AuthForm
-  view="sign_in"
-  redirectTo={`${data.url}/auth/callback`}
-  {onSignedIn}
-/>
+
+{#if form?.message}
+  <div role="alert" class="alert alert-error mb-4 text-left">
+    <span>{form.message}</span>
+  </div>
+{/if}
+
+<form method="POST" action="?/github">
+  <input type="hidden" name="redirect" value={redirectTo} />
+  <button type="submit" class="btn btn-outline w-full">
+    Sign in with GitHub
+  </button>
+</form>
+
+<div class="divider">or</div>
+
+<form method="POST" action="?/signIn" class="flex flex-col gap-3 text-left">
+  <input type="hidden" name="redirect" value={redirectTo} />
+  <fieldset class="fieldset">
+    <legend class="fieldset-legend">Email address</legend>
+    <input
+      name="email"
+      type="email"
+      autocomplete="email"
+      required
+      value={form?.email ?? ""}
+      class={`input w-full ${err.input("email")}`}
+      aria-invalid={err.aria("email")}
+    />
+  </fieldset>
+  <fieldset class="fieldset">
+    <legend class="fieldset-legend">Password</legend>
+    <input
+      name="password"
+      type="password"
+      autocomplete="current-password"
+      required
+      class={`input w-full ${err.input("password")}`}
+      aria-invalid={err.aria("password")}
+    />
+  </fieldset>
+  <button type="submit" class="btn btn-primary mt-2">Sign in</button>
+</form>
+
 <div class="text-l text-slate-800 mt-4">
   <a class="underline" href="/login/forgot_password">Forgot password?</a>
 </div>
