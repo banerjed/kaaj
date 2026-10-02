@@ -12,6 +12,7 @@
   import type { RowAction } from "$lib/components/row-actions"
   import { has } from "$lib/permissions"
   import Combobox from "$lib/components/Combobox.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
@@ -160,6 +161,14 @@
           </div>
         </div>
       {/each}
+    </div>
+    <div class="card bg-base-100 mt-3 shadow">
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+      />
     </div>
   {/if}
 </div>

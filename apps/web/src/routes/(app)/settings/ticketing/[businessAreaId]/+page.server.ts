@@ -7,14 +7,18 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 import * as audit from "$lib/server/audit/audit.repo"
 import * as customFields from "$lib/server/custom-fields/custom-fields.repo"
 import { customFieldSettingsHandlers } from "$lib/server/custom-fields/settings-actions"
 
 /** /settings/ticketing/[businessAreaId] — categories, subcategories, members, group access and custom fields for one business area. */
-export const load: PageServerLoad = async ({ locals, params }) => {
+const MEMBER_PAGE_SIZE = 50
+
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "firm.settings.read")
+  const memberPage = pageParam(url, "members")
 
   return withTenant(actorFrom(locals), async (tx) => {
     const businessArea = await ticketing.businessAreaById(
@@ -30,7 +34,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       businessArea,
       categories,
       subcategories,
-      members: await ticketing.businessAreaMembers(tx, params.businessAreaId),
+      members: await ticketing.businessAreaMembersPage(
+        tx,
+        params.businessAreaId,
+        pageOf(memberPage, MEMBER_PAGE_SIZE),
+      ),
+      memberPage,
+      memberPageSize: MEMBER_PAGE_SIZE,
       customFields: await customFields.definitionsFor(tx, {
         entityType: "ticket",
         businessAreaId: params.businessAreaId,
@@ -158,47 +168,76 @@ export const actions: Actions = {
 
   // Default membership decides who reads every non-private ticket in this
   // area (staff_ticket_visibility) — a rights change, audited like an
-  // individual ticket's assignee/subscriber grant.
-  saveMembers: async ({ request, locals, params }) => {
+  // individual ticket's assignee/subscriber grant. One person at a time: the
+  // list is paged, so there is no whole list to submit.
+  addMember: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "firm.settings.write")
     const tenantId = locals.tenantId
     const ctx = contextFrom(locals)
 
-    const data = await request.formData()
-    const memberIds = formList(data, "member_ids")
+    const f = new FormReader(await request.formData())
+    const employeeId = f.uuid("employee_id", { required: true })
+    if (!f.ok) return fail(400, f.problem())
 
-    await withTenant(actorFrom(locals), async (tx) => {
-      const before = await ticketing.businessAreaMembers(
-        tx,
-        params.businessAreaId,
-      )
-      await ticketing.setBusinessAreaMembers(
+    const added = await withTenant(actorFrom(locals), async (tx) => {
+      const changed = await ticketing.addBusinessAreaMember(
         tx,
         tenantId,
         params.businessAreaId,
-        memberIds,
+        employeeId,
         ctx!.employeeId ?? ctx!.userId,
       )
-      await audit.record(tx, ctx!, {
-        action: "update",
-        entityType: "ticketing_business_area_members",
-        entityId: params.businessAreaId,
-        changes: {
-          member_ids: {
-            from: before
-              .map((m) => m.employee_id)
-              .sort()
-              .join(","),
-            to: [...memberIds].sort().join(","),
-          },
-        },
-      })
+      if (changed) {
+        await audit.record(tx, ctx!, {
+          action: "update",
+          entityType: "ticketing_business_area_members",
+          entityId: params.businessAreaId,
+          changes: { employee_id: { from: "", to: employeeId } },
+          reason: "member added",
+        })
+      }
+      return changed
     })
-    return { membersSaved: true }
+    if (!added) {
+      return fail(400, { message: "That person is already a member." })
+    }
+    return { memberAdded: true }
   },
 
-  // Same rights-change shape as saveMembers, one level of indirection up —
+  removeMember: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "firm.settings.write")
+    const ctx = contextFrom(locals)
+
+    const f = new FormReader(await request.formData())
+    const employeeId = f.uuid("employee_id", { required: true })
+    if (!f.ok) return fail(400, f.problem())
+
+    const removed = await withTenant(actorFrom(locals), async (tx) => {
+      const changed = await ticketing.removeBusinessAreaMember(
+        tx,
+        params.businessAreaId,
+        employeeId,
+      )
+      if (changed) {
+        await audit.record(tx, ctx!, {
+          action: "update",
+          entityType: "ticketing_business_area_members",
+          entityId: params.businessAreaId,
+          changes: { employee_id: { from: employeeId, to: "" } },
+          reason: "member removed",
+        })
+      }
+      return changed
+    })
+    if (!removed) {
+      return fail(400, { message: "That person is no longer a member." })
+    }
+    return { memberRemoved: true }
+  },
+
+  // Same rights-change shape as the member actions, one level of indirection up —
   // a group granted here reads every non-private ticket in this area for
   // every current and future member (docs/28-user-groups.md).
   saveGroups: async ({ request, locals, params }) => {

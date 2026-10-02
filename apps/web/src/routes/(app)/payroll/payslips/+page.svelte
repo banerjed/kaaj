@@ -3,6 +3,7 @@
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data } = $props()
 
@@ -163,5 +164,15 @@
         </div>
       {/each}
     </div>
+    {#if data.total > data.pageSize}
+      <div class="card bg-base-100 mt-3 shadow">
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+        />
+      </div>
+    {/if}
   {/if}
 </div>

@@ -28,6 +28,18 @@ export const actions: Actions = {
     }))
   },
 
+  /** Backs the browse-public-channels picker (the layout's modal). */
+  searchChannels: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "team_chat.read")
+    if (!locals.employeeId)
+      error(403, "Chat is for employees, not this kind of account.")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await chat.searchPublicChannels(tx, locals.employeeId!, q),
+    }))
+  },
+
   createChannel: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

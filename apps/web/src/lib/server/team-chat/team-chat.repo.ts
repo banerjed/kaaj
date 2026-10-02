@@ -145,17 +145,26 @@ export async function memberConversationIds(
 }
 
 /** Public channels the actor hasn't joined yet — for "browse channels." */
-export async function browsablePublicChannels(
+/** Public channels the employee is not in yet, matching `q` — at most 20, for the browse-channels picker. */
+export async function searchPublicChannels(
   tx: Tx,
   employeeId: string,
-): Promise<{ id: string; name: string; topic: string | null }[]> {
-  return tx<{ id: string; name: string; topic: string | null }[]>`
+  q: string,
+): Promise<{ id: string; label: string; sublabel?: string }[]> {
+  const rows = await tx<{ id: string; name: string; topic: string | null }[]>`
     SELECT id, name, topic
       FROM team_chat_conversations
      WHERE kind = 'channel' AND visibility = 'public' AND archived_at IS NULL
        AND NOT (${employeeId}::uuid = ANY (member_ids))
+       AND name ILIKE ${`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`}
      ORDER BY name
+     LIMIT 20
   `
+  return rows.map((r) => ({
+    id: r.id,
+    label: `#${r.name}`,
+    sublabel: r.topic ?? undefined,
+  }))
 }
 
 /**

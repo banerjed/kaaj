@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 import { sanitizeRichText } from "../rich-text"
 
 /**
@@ -998,47 +999,66 @@ export async function archiveSubcategory(tx: Tx, id: string): Promise<boolean> {
 
 export type MemberRow = { employee_id: string; name: string }
 
-export async function businessAreaMembers(
+/** One page of an area's members — a whole department can be a member, hundreds of people. */
+export async function businessAreaMembersPage(
   tx: Tx,
   businessAreaId: string,
-): Promise<MemberRow[]> {
-  return tx<MemberRow[]>`
-    SELECT m.employee_id, e.first_name || ' ' || e.last_name AS name
-      FROM ticketing_business_area_members m
-      JOIN employees e ON e.id = m.employee_id
-     WHERE m.business_area_id = ${businessAreaId}::uuid AND m.is_active
-     ORDER BY name
-  `
+  page: Page,
+): Promise<Paged<MemberRow>> {
+  return paged<MemberRow>(
+    tx,
+    tx`
+      SELECT m.employee_id, e.first_name || ' ' || e.last_name AS name
+        FROM ticketing_business_area_members m
+        JOIN employees e ON e.id = m.employee_id
+       WHERE m.business_area_id = ${businessAreaId}::uuid AND m.is_active`,
+    tx`q.name, q.employee_id`,
+    page,
+  )
 }
 
 /**
- * Replaces the whole membership list in one go — the settings page submits a
- * checkbox list, not one grant at a time. No DELETE
- * (20260830120000_append_only.sql): anyone dropped from the list is
- * deactivated, and anyone re-added later reactivates their existing row via
- * the same ON CONFLICT path `addAssignee`/`addSubscriber` use.
+ * Grants one person the area. No DELETE (20260830120000_append_only.sql): a
+ * former member's row is reactivated through the same ON CONFLICT path
+ * `addAssignee`/`addSubscriber` use. The employee is read under RLS, so a
+ * foreign key alone cannot let another tenant's id in. False when there was
+ * no such person, or they were already a member.
  */
-export async function setBusinessAreaMembers(
+export async function addBusinessAreaMember(
   tx: Tx,
   tenantId: string,
   businessAreaId: string,
-  employeeIds: string[],
+  employeeId: string,
   actorId: string,
-): Promise<void> {
-  await tx`
+): Promise<boolean> {
+  const rows = await tx<{ id: string }[]>`
+    INSERT INTO ticketing_business_area_members (tenant_id, business_area_id, employee_id, added_by)
+    SELECT ${tenantId}::uuid, ${businessAreaId}::uuid, e.id, ${actorId}
+      FROM employees e
+     WHERE e.id = ${employeeId}::uuid
+    ON CONFLICT (tenant_id, business_area_id, employee_id)
+    DO UPDATE SET is_active = TRUE, added_at = now(), added_by = EXCLUDED.added_by
+     WHERE NOT ticketing_business_area_members.is_active
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
+/** Ends one membership. False when there was none to end. */
+export async function removeBusinessAreaMember(
+  tx: Tx,
+  businessAreaId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const rows = await tx<{ id: string }[]>`
     UPDATE ticketing_business_area_members
        SET is_active = FALSE
      WHERE business_area_id = ${businessAreaId}::uuid
+       AND employee_id = ${employeeId}::uuid
        AND is_active
-       AND NOT (employee_id = ANY(${employeeIds}::uuid[]))
+    RETURNING id
   `
-  if (employeeIds.length === 0) return
-  await tx`
-    INSERT INTO ticketing_business_area_members (tenant_id, business_area_id, employee_id, added_by)
-    SELECT ${tenantId}::uuid, ${businessAreaId}::uuid, unnest(${employeeIds}::uuid[]), ${actorId}
-    ON CONFLICT (tenant_id, business_area_id, employee_id)
-    DO UPDATE SET is_active = TRUE, added_at = now(), added_by = EXCLUDED.added_by
-  `
+  return rows.length > 0
 }
 
 export type GroupGrantRow = { group_id: string; display_name: string }
@@ -1057,7 +1077,11 @@ export async function businessAreaGroups(
   `
 }
 
-/** Replace-whole-list, same shape as setBusinessAreaMembers. */
+/**
+ * Replaces the whole grant list in one go — groups are few enough to submit
+ * as a checkbox list. No DELETE: a dropped grant is deactivated, and a
+ * re-added one reactivates its row.
+ */
 export async function setBusinessAreaGroups(
   tx: Tx,
   tenantId: string,

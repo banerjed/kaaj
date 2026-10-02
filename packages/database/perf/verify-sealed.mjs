@@ -19,11 +19,12 @@ export async function verifySealed(sql, tenantId, sample = 25) {
     { table: "customers", column: "tax_number_ct", subject: "tenant" },
     { table: "bank_accounts", column: "account_number_ct", subject: "tenant" },
     { table: "vendors", column: "bank_account_number_ct", subject: "tenant" },
+    { table: "payment_gateway_settings", column: "secret_key_ct", subject: "tenant", key: "tenant_id" },
   ]
   let opened = 0
-  for (const { table, column, subject } of checks) {
+  for (const { table, column, subject, key: idColumn = "id" } of checks) {
     const rows = await sql`
-      SELECT id::text, ${sql(column)} AS stored FROM ${sql(table)}
+      SELECT ${sql(idColumn)}::text AS id, ${sql(column)} AS stored FROM ${sql(table)}
        WHERE tenant_id = ${tenantId} AND ${sql(column)} IS NOT NULL
        ORDER BY id LIMIT ${sample}`
     for (const { id, stored } of rows) {

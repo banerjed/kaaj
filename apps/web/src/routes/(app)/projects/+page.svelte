@@ -22,6 +22,7 @@
 
   const searchCustomers = actionSearch("searchCustomers")
   const searchPeople = actionSearch("searchPeople")
+  const searchObjectives = actionSearch("searchObjectives")
 
   function pageHref(n: number): string {
     const params = new URLSearchParams()
@@ -284,16 +285,13 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Objective (optional)</legend>
-          <select
+          <Combobox
             name="objective_id"
-            aria-invalid={err.aria("objective_id")}
-            class={`select w-full ${err.select("objective_id")}`}
-          >
-            <option value="">No objective</option>
-            {#each data.objectives as o (o.id)}
-              <option value={o.id}>{o.objective_name}</option>
-            {/each}
-          </select>
+            search={searchObjectives}
+            invalid={!!err.aria("objective_id")}
+            placeholder="No objective"
+            emptyText="No matching objective"
+          />
         </fieldset>
 
         {#if data.templates.length > 0}

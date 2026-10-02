@@ -22,7 +22,7 @@ function like(q: string): string {
 }
 
 export type EmployeeFilter = {
-  /** `managerOptions`' set: `is_active`. `employed`: `employment_status = 'active'`. */
+  /** `active`: `is_active`. `employed`: `employment_status = 'active'` (the project and objective pickers' set). */
   set?: "active" | "employed"
   excludeId?: string | null
 }
@@ -173,4 +173,51 @@ export async function searchTopFolders(
 /** Shows each option's `meta.currency` as its sublabel — accounting pickers name the currency a document will be raised in. */
 export function withCurrency(options: ComboboxOption[]): ComboboxOption[] {
   return options.map((o) => ({ ...o, sublabel: o.meta?.currency }))
+}
+
+/** Any task of one project, whatever its status — the dependency picker's set, less `excludeIds` (the task itself and what it already depends on). */
+export async function searchProjectTasks(
+  tx: Tx,
+  q: string,
+  projectId: string,
+  excludeIds: string[],
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; task_number: string | null; task_name: string }[]
+  >`
+    SELECT id, task_number, task_name
+      FROM tasks
+     WHERE project_id = ${projectId}
+       AND NOT (id = ANY(${excludeIds}::uuid[]))
+       AND (task_name ILIKE ${like(q)} OR coalesce(task_number, '') ILIKE ${like(q)})
+     ORDER BY task_number NULLS LAST, task_name
+     LIMIT ${PICKER_LIMIT}
+  `
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.task_number ?? r.task_name,
+    sublabel: r.task_number ? r.task_name : undefined,
+  }))
+}
+
+/** Objectives that are not archived — the project forms' objective set. */
+export async function searchObjectives(
+  tx: Tx,
+  q: string,
+): Promise<ComboboxOption[]> {
+  const rows = await tx<
+    { id: string; objective_number: string | null; objective_name: string }[]
+  >`
+    SELECT id, objective_number, objective_name
+      FROM pm_objectives
+     WHERE archived_at IS NULL
+       AND (objective_name ILIKE ${like(q)} OR coalesce(objective_number, '') ILIKE ${like(q)})
+     ORDER BY objective_number
+     LIMIT ${PICKER_LIMIT}
+  `
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.objective_name,
+    sublabel: r.objective_number ?? undefined,
+  }))
 }

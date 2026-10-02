@@ -36,6 +36,9 @@ const SEALED = [
     value: (id) => digits(id, 10) },
   { table: "vendors", column: "bank_routing_number_ct", subject: "tenant",
     value: (id) => digits(id, 9, 10) },
+  // One row per tenant, keyed by tenant_id: payment_gateway.repo.ts binds it to the tenant.
+  { table: "payment_gateway_settings", column: "secret_key_ct", subject: "tenant", key: "tenant_id",
+    value: () => ["sk", "test", "perf".repeat(5) + "4242"].join("_") },
 ]
 
 const BATCH = 2000
@@ -87,9 +90,9 @@ export async function sealEncryptedColumns(sql, tenantId) {
   const tenantKey = (await dataKeys(sql, tenantId, "tenant", [tenantId], kek, label)).get(tenantId)
 
   let sealed = 0
-  for (const { table, column, subject, value } of SEALED) {
+  for (const { table, column, subject, value, key = "id" } of SEALED) {
     const ids = await sql.unsafe(
-      `SELECT id::text FROM public."${table}" WHERE tenant_id = $1`,
+      `SELECT "${key}"::text AS id FROM public."${table}" WHERE tenant_id = $1`,
       [tenantId],
     )
     for (let i = 0; i < ids.length; i += BATCH) {
@@ -101,7 +104,7 @@ export async function sealEncryptedColumns(sql, tenantId) {
       await sql`
         UPDATE ${sql(table)} t SET ${sql(column)} = r.sealed
           FROM jsonb_to_recordset(${sql.json(rows)}) AS r(id uuid, sealed text)
-         WHERE t.id = r.id`
+         WHERE ${sql("t." + key)} = r.id`
       sealed += rows.length
     }
   }

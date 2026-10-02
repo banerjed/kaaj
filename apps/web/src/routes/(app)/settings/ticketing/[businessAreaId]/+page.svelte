@@ -10,6 +10,7 @@
   import type { RowAction } from "$lib/components/row-actions"
   import { has } from "$lib/permissions"
   import Combobox from "$lib/components/Combobox.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
@@ -68,7 +69,7 @@
       <span class="iconify lucide--circle-alert size-5"></span>
       <span>{form.message}</span>
     </div>
-  {:else if form?.membersSaved}
+  {:else if form?.memberAdded || form?.memberRemoved}
     <div role="status" class="alert alert-success mt-4">
       <span class="iconify lucide--check size-5"></span>
       <span>Default viewers saved.</span>
@@ -165,26 +166,63 @@
     <!-- Default viewers -->
     <SectionCard
       title="Default viewers"
-      description="Everyone checked here sees every non-private ticket in this business area by default. A ticket can still add someone else as a subscriber, whether or not they're on this list."
+      description="Everyone listed here sees every non-private ticket in this business area by default. A ticket can still add someone else as a subscriber, whether or not they're on this list."
       class="mt-4"
     >
-      <form method="POST" action="?/saveMembers" use:enhance class="mt-2">
-        {#key data.members}
-          <Combobox
-            name="member_ids"
-            multiple
-            search={searchPeople}
-            selected={data.members.map((m) => ({
-              id: m.employee_id,
-              label: m.name,
-            }))}
-            placeholder="Add a person…"
-            emptyText="No matching person"
-          />
-        {/key}
-        <button class="btn btn-primary btn-sm mt-3">Save default viewers</button
+      {#if canWrite}
+        <form
+          method="POST"
+          action="?/addMember"
+          use:enhance
+          class="mt-2 flex items-end gap-2"
         >
-      </form>
+          <div class="grow">
+            {#key data.members.total}
+              <Combobox
+                name="employee_id"
+                search={searchPeople}
+                invalid={!!err.aria("employee_id")}
+                placeholder="Add a person…"
+                emptyText="No matching person"
+              />
+            {/key}
+          </div>
+          <button class="btn btn-primary btn-sm">Add</button>
+        </form>
+      {/if}
+
+      {#if data.members.total === 0}
+        <p class="text-base-content/70 mt-3 text-sm">No default viewers.</p>
+      {:else}
+        <ul class="list mt-2">
+          {#each data.members.rows as m (m.employee_id)}
+            <li class="list-row items-center px-0 py-1.5">
+              <span class="list-col-grow text-sm">{m.name}</span>
+              {#if canWrite}
+                <form method="POST" action="?/removeMember" use:enhance>
+                  <input
+                    type="hidden"
+                    name="employee_id"
+                    value={m.employee_id}
+                  />
+                  <button
+                    class="btn btn-ghost btn-xs"
+                    aria-label={`Remove ${m.name}`}>Remove</button
+                  >
+                </form>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        {#if data.members.total > data.memberPageSize}
+          <Pagination
+            page={data.memberPage}
+            pageSize={data.memberPageSize}
+            total={data.members.total}
+            hrefFor={(n) => (n > 1 ? `?members=${n}` : "?")}
+          />
+        {/if}
+      {/if}
     </SectionCard>
 
     <!-- Groups with access — docs/28-user-groups.md, additive to Default viewers above -->

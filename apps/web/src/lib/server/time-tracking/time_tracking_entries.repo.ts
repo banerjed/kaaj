@@ -119,6 +119,24 @@ export async function list(
   `
 }
 
+/**
+ * The viewer's own employee id when `time_visibility` lets them see only
+ * their own entries, else null — asked of the policy's own functions, so it
+ * cannot drift from it. Passing it as `employeeId` changes no result; it
+ * lets the planner use the employee index. Behind the policy's OR it cannot,
+ * and walks every entry in the firm by date looking for twenty of theirs.
+ */
+export async function ownEntriesOnly(tx: Tx): Promise<string | null> {
+  const [row] = await tx<{ own: string | null }[]>`
+    SELECT CASE
+             WHEN app.approves_time_entries() OR app.reads_all_compensation()
+               OR app.reads_all_accounting() THEN NULL
+             ELSE app.current_employee_id()::text
+           END AS own
+  `
+  return row?.own ?? null
+}
+
 /** The total matching a filter set — same predicates as `list`, for the list page's pagination controls. */
 export async function count(
   tx: Tx,

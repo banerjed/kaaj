@@ -13,8 +13,18 @@
   import Combobox from "$lib/components/Combobox.svelte"
   import { actionSearch } from "$lib/action-search"
   import { formatBytes } from "$lib/documents/format-bytes"
+  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
+
+  /** Files (`page`) and subfolders (`fpage`) page independently; each link keeps the other's place. */
+  function pageHref(filesPage: number, foldersPage: number): string {
+    const params = new URLSearchParams()
+    if (filesPage > 1) params.set("page", String(filesPage))
+    if (foldersPage > 1) params.set("fpage", String(foldersPage))
+    const qs = params.toString()
+    return qs ? `?${qs}` : "?"
+  }
   const searchPeople = actionSearch("searchPeople")
   const tenantLocale = $derived(data.tenant?.default_locale ?? "en-US")
   const err = $derived(fieldErrors(form))
@@ -118,6 +128,14 @@
       </a>
     {/each}
   </div>
+  {#if data.folderTotal > data.folderPageSize}
+    <Pagination
+      page={data.folderPage}
+      pageSize={data.folderPageSize}
+      total={data.folderTotal}
+      hrefFor={(n) => pageHref(data.page, n)}
+    />
+  {/if}
 {/if}
 
 <h2 class="mt-6 font-medium">Files</h2>
@@ -180,6 +198,14 @@
         </tbody>
       </table>
     </div>
+    {#if data.total > data.pageSize}
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={(n) => pageHref(n, data.folderPage)}
+      />
+    {/if}
   </div>
 {/if}
 

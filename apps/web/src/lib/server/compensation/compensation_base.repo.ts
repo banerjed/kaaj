@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 
 export type { Tx }
 
@@ -228,8 +229,8 @@ export type CurrentPay = {
  * does not filter by person; the RLS policy on compensation_base is the rule.
  * Never reads employees.base_amount_pvt, the unprotected cache (L47).
  */
-export async function currentForAll(tx: Tx): Promise<CurrentPay[]> {
-  return tx<CurrentPay[]>`
+function currentQuery(tx: Tx) {
+  return tx`
     SELECT c.employee_id,
            e.first_name, e.last_name, e.job_title,
            e.department_code, e.location_code,
@@ -240,7 +241,25 @@ export async function currentForAll(tx: Tx): Promise<CurrentPay[]> {
       FROM compensation_base c
       JOIN employees e ON e.id = c.employee_id
      WHERE c.effective_from <= CURRENT_DATE
-       AND (c.effective_to IS NULL OR c.effective_to >= CURRENT_DATE)
-     ORDER BY e.last_name, e.first_name
+       AND (c.effective_to IS NULL OR c.effective_to >= CURRENT_DATE)`
+}
+
+export async function currentForAll(tx: Tx): Promise<CurrentPay[]> {
+  return tx<CurrentPay[]>`
+    SELECT q.* FROM (${currentQuery(tx)}) q
+     ORDER BY q.last_name, q.first_name, q.employee_id
   `
+}
+
+/** One page of `currentForAll` — the /compensation list, one row per person in the firm. */
+export async function currentPage(
+  tx: Tx,
+  page: Page,
+): Promise<Paged<CurrentPay>> {
+  return paged<CurrentPay>(
+    tx,
+    currentQuery(tx),
+    tx`q.last_name, q.first_name, q.employee_id`,
+    page,
+  )
 }

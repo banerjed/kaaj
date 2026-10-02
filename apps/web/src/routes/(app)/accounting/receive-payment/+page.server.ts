@@ -8,6 +8,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 import { compareDecimal } from "$lib/decimal"
 import { pickerQuery, searchCustomers, withCurrency } from "$lib/server/pickers"
 
@@ -21,6 +22,12 @@ const METHODS = [
 ] as const
 
 /** /accounting/receive-payment — one payment allocated across several of a customer's open invoices, lockbox-style. */
+/**
+ * Oldest due first: what a payment usually settles. One payment allocates
+ * to invoices on the page in view.
+ */
+const INVOICE_PAGE_SIZE = 50
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
@@ -34,6 +41,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // Read before the gate (L33).
   const customerId = f.uuid("customer_id")
   if (!f.ok) error(400, "That is not a valid customer.")
+  const invoicePage = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
     selectedCustomer: customerId
@@ -44,9 +52,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
           `
         )[0] ?? null)
       : null,
-    openInvoices: customerId
-      ? await acc.openInvoicesForCustomer(tx, customerId)
-      : [],
+    ...(customerId
+      ? await acc
+          .openInvoicesForCustomerPage(
+            tx,
+            customerId,
+            pageOf(invoicePage, INVOICE_PAGE_SIZE),
+          )
+          .then((p) => ({ openInvoices: p.rows, openInvoiceTotal: p.total }))
+      : { openInvoices: [], openInvoiceTotal: 0 }),
+    invoicePage,
+    invoicePageSize: INVOICE_PAGE_SIZE,
     filters: { customerId: customerId ?? "" },
     mayWrite: can(ctx, "accounting.write"),
     methods: METHODS,

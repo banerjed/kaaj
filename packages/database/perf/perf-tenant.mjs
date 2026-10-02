@@ -133,6 +133,19 @@ async function seed({ scale, asOf }) {
  * (invoice total = subtotal + tax, …) is already a CHECK on insert.
  */
 const INVARIANTS = [
+  ["each employee's latest pay record equals the base_amount_pvt cache", `
+    SELECT count(*) FROM employees e
+     WHERE e.tenant_id = $1
+       AND NOT EXISTS (
+             SELECT 1 FROM compensation_base c
+              WHERE c.employee_id = e.id AND c.amount = e.base_amount_pvt
+                AND NOT EXISTS (SELECT 1 FROM compensation_base n
+                                 WHERE n.employee_id = e.id AND n.effective_from > c.effective_from))`],
+  ["an objective's rollup matches its linked projects", `
+    SELECT count(*) FROM pm_objectives o
+      LEFT JOIN (SELECT objective_id, coalesce(sum(total_billed), 0) AS revenue FROM projects
+                  WHERE archived_at IS NULL GROUP BY 1) p ON p.objective_id = o.id
+     WHERE o.tenant_id = $1 AND o.actual_revenue <> coalesce(p.revenue, 0)`],
   ["every journal entry balances, natively and in base", `
     SELECT count(*) FROM (
       SELECT entry_id FROM journal_entry_lines WHERE tenant_id = $1 GROUP BY entry_id

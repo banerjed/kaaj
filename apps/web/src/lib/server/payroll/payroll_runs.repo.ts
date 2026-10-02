@@ -52,18 +52,39 @@ const RUN_SELECT = `
     LEFT JOIN employees a ON a.id = r.approved_by
 `
 
-export async function list(
-  tx: Tx,
-  filters: { country?: string; status?: string } = {},
-): Promise<PayrollRun[]> {
+type RunFilters = { country?: string; status?: string }
+
+function runsQuery(tx: Tx, filters: RunFilters) {
   const country = filters.country || null
   const status = filters.status || null
-  return tx<PayrollRun[]>`
+  return tx`
     ${tx.unsafe(RUN_SELECT)}
      WHERE (${country}::text IS NULL OR r.country = ${country}::text)
-       AND (${status}::text IS NULL OR r.run_status = ${status}::text)
-     ORDER BY r.pay_date DESC, r.run_id ASC
+       AND (${status}::text IS NULL OR r.run_status = ${status}::text)`
+}
+
+export async function list(
+  tx: Tx,
+  filters: RunFilters = {},
+): Promise<PayrollRun[]> {
+  return tx<PayrollRun[]>`
+    SELECT q.* FROM (${runsQuery(tx, filters)}) q
+     ORDER BY q.pay_date DESC, q.run_id ASC
   `
+}
+
+/** One page of `list` — a run per schedule per period, so it grows every month. */
+export async function listPage(
+  tx: Tx,
+  filters: RunFilters,
+  page: Page,
+): Promise<Paged<PayrollRun>> {
+  return paged<PayrollRun>(
+    tx,
+    runsQuery(tx, filters),
+    tx`q.pay_date DESC, q.run_id ASC, q.id`,
+    page,
+  )
 }
 
 export async function byId(tx: Tx, id: string): Promise<PayrollRun | null> {
@@ -155,11 +176,8 @@ export type Payslip = PayslipLine & {
  * explicitly rather than inherited — a widened type over LINE_SELECT's own
  * columns would render `undefined` beside a real amount (L45).
  */
-export async function forEmployee(
-  tx: Tx,
-  employeeId: string,
-): Promise<Payslip[]> {
-  return tx<Payslip[]>`
+function payslipsQuery(tx: Tx, employeeId: string) {
+  return tx`
     SELECT line.*,
            to_char(r.pay_date,'YYYY-MM-DD') AS pay_date,
            r.currency,
@@ -167,9 +185,31 @@ export async function forEmployee(
       FROM (${tx.unsafe(LINE_SELECT)}) AS line
       JOIN payroll_run_employees pe ON pe.id = line.id
       JOIN payroll_runs r ON r.id = pe.payroll_run_id
-     WHERE line.employee_id = ${employeeId}
-     ORDER BY r.pay_date DESC
+     WHERE line.employee_id = ${employeeId}`
+}
+
+export async function forEmployee(
+  tx: Tx,
+  employeeId: string,
+): Promise<Payslip[]> {
+  return tx<Payslip[]>`
+    SELECT q.* FROM (${payslipsQuery(tx, employeeId)}) q
+     ORDER BY q.pay_date DESC
   `
+}
+
+/** One page of `forEmployee` — a payslip every pay period, for as long as they are employed. */
+export async function payslipsPage(
+  tx: Tx,
+  employeeId: string,
+  page: Page,
+): Promise<Paged<Payslip>> {
+  return paged<Payslip>(
+    tx,
+    payslipsQuery(tx, employeeId),
+    tx`q.pay_date DESC, q.id`,
+    page,
+  )
 }
 
 /**

@@ -1462,7 +1462,10 @@ describe("recurring invoice schedules (US-ACC-004)", () => {
 
   describe("listRecurringSchedules", () => {
     it("returns the fixture schedule with its customer and line count", async () => {
-      const rows = await inRollback((tx) => acc.listRecurringSchedules(tx))
+      const { rows, total } = await inRollback((tx) =>
+        acc.listRecurringSchedules(tx, { limit: 50, offset: 0 }),
+      )
+      expect(total).toBe(rows.length)
       const row = rows.find((r) => r.id === SCHEDULE)
       expect(row).toMatchObject({
         customer_name: "Acme Manufacturing",

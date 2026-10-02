@@ -314,6 +314,34 @@ What each needs, slowest first:
 
 Not measured: `/objectives/[id]` — the generator makes no objectives.
 
+## After paging and indexing (2026-10-01)
+
+`pnpm db:perf rows` found 40 places sending more than 100 rows (most of
+them pickers in closed modals — L112), then more once the generator filled
+the bounded tables pages read (objectives, compensation, holidays,
+schedules) and the sweep opened a selected view (receive-payment with its
+busiest customer). Every one is now a paged list or a searching picker; the
+sweep is clean for all eight actors. Three indexes came out of the timings:
+`customer_contacts (tenant_id, customer_id)`,
+`time_tracking_entries (tenant_id, employee_id, entry_date, created_at)`,
+`hr_time_off_requests (tenant_id, start_date, id)`.
+
+| Page | Before | After |
+|---|---|---|
+| /crm/companies | 4,740ms, 4.5 MB | 19ms, 109 KB |
+| /crm/pipeline | 4,750ms, 1.9 MB | 31ms, 253 KB |
+| /projects | 90–233ms, 4.0 MB | 13–22ms, 105 KB |
+| /time-tracking (IT, sales, manager) | 700–1,400ms | 7–8ms |
+| /documents | 53–104ms, 1.2 MB | 5–18ms |
+
+Of 359 page × actor renders that returned 200, 340 are under 100ms and 251
+under 20ms; the largest page is 253 KB. What remains over 100ms is the
+accounting reports (trial balance, balance sheet, tax summary, cash flow:
+120–530ms). Each sums the whole ledger per request — 56,000 AR lines joined
+to their entries for one control-account figure — and better plans only
+halve it. They need balances kept per account per period, maintained when
+an entry posts, so a report adds periods instead of lines.
+
 ## Interaction with `./check`
 
 The tenant lives in its own cluster, so `./check` and the unit suites never

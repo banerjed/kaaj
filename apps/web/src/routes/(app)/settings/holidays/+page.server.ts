@@ -7,6 +7,9 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
+
+const PAGE_SIZE = 50
 
 /** /settings/holidays — module-firm-profile.md § Holiday Calendar. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -17,8 +20,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const yearParam = url.searchParams.get("year")
   const year = yearParam ? Number(yearParam) : undefined
 
+  const page = pageParam(url)
+
   return withTenant(actorFrom(locals), async (tx) => ({
-    holidays: await holidays.list(tx, Number.isFinite(year) ? year : undefined),
+    ...(await holidays
+      .list(
+        tx,
+        Number.isFinite(year) ? year : undefined,
+        pageOf(page, PAGE_SIZE),
+      )
+      .then((p) => ({ holidays: p.rows, total: p.total }))),
+    page,
+    pageSize: PAGE_SIZE,
     availableYears: await holidays.years(tx),
     locations: await locationsRepo.list(tx),
     selectedYear: Number.isFinite(year) ? year : null,
@@ -76,9 +89,7 @@ export const actions: Actions = {
         }
 
         // Read before writing, so the entry says what changed.
-        const before = id
-          ? ((await holidays.list(tx)).find((r) => r.id === id) ?? null)
-          : null
+        const before = id ? await holidays.byId(tx, id) : null
 
         if (id) await holidays.update(tx, id, input)
         else await holidays.create(tx, tenantId, input)

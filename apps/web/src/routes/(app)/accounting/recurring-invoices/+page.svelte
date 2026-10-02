@@ -4,6 +4,7 @@
   import PageHead from "$lib/components/PageHead.svelte"
   import Combobox from "$lib/components/Combobox.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
   import { actionSearch } from "$lib/action-search"
@@ -120,7 +121,7 @@
 
   <div class="card bg-base-100 mt-4 shadow">
     <div class="overflow-x-auto">
-      {#if data.schedules.length === 0}
+      {#if data.schedules.total === 0}
         <EmptyState
           icon="lucide--repeat"
           message="No recurring schedules yet."
@@ -141,7 +142,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each data.schedules as s (s.id)}
+            {#each data.schedules.rows as s (s.id)}
               <tr class="hover:bg-base-200/40">
                 <td class="font-medium">
                   {s.customer_name}
@@ -179,6 +180,14 @@
         </table>
       {/if}
     </div>
+    {#if data.schedules.total > data.pageSize}
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.schedules.total}
+        hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+      />
+    {/if}
   </div>
 
   {#if data.mayWrite}

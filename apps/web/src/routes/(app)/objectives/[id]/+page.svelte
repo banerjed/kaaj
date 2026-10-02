@@ -12,6 +12,9 @@
   } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
+  import Combobox from "$lib/components/Combobox.svelte"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -225,6 +228,12 @@
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.projectTotal}
+          hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+        />
       </div>
     {/if}
   </div>
@@ -302,16 +311,22 @@
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Owner</legend>
-          <select
+          <Combobox
             name="owner_employee_id"
-            aria-invalid={err.aria("owner_employee_id")}
-            class={`select w-full ${err.select("owner_employee_id")}`}
-          >
-            <option value="">Unassigned</option>
-            {#each data.owners as owner (owner.id)}
-              <option value={owner.id}>{owner.name}</option>
-            {/each}
-          </select>
+            search={actionSearch("searchPeople")}
+            selected={data.objective.owner_employee_id &&
+            data.objective.owner_name
+              ? [
+                  {
+                    id: data.objective.owner_employee_id,
+                    label: data.objective.owner_name,
+                  },
+                ]
+              : []}
+            invalid={!!err.aria("owner_employee_id")}
+            placeholder="Unassigned"
+            emptyText="No matching person"
+          />
         </fieldset>
 
         <fieldset class="fieldset">

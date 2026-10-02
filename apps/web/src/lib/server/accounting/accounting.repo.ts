@@ -587,20 +587,38 @@ export type OpenInvoiceForAllocation = {
 }
 
 /** A customer's open invoices, for allocating a lockbox payment across them. */
+const openInvoicesBase = (tx: Tx, customerId: string) => tx`
+  SELECT id, invoice_number, currency,
+         to_char(due_date, 'YYYY-MM-DD') AS due_date,
+         amount_due::text AS amount_due
+    FROM invoices
+   WHERE customer_id = ${customerId}::uuid
+     AND amount_due > 0
+     AND status NOT IN ('draft', 'void')`
+
+/** Every open invoice — what an allocation may name. */
 export async function openInvoicesForCustomer(
   tx: Tx,
   customerId: string,
 ): Promise<OpenInvoiceForAllocation[]> {
   return tx<OpenInvoiceForAllocation[]>`
-    SELECT id, invoice_number, currency,
-           to_char(due_date, 'YYYY-MM-DD') AS due_date,
-           amount_due::text AS amount_due
-      FROM invoices
-     WHERE customer_id = ${customerId}::uuid
-       AND amount_due > 0
-       AND status NOT IN ('draft', 'void')
-     ORDER BY due_date ASC
+    SELECT * FROM (${openInvoicesBase(tx, customerId)}) q
+     ORDER BY q.due_date ASC, q.id
   `
+}
+
+/** One page of them, oldest due first — what the page shows. */
+export async function openInvoicesForCustomerPage(
+  tx: Tx,
+  customerId: string,
+  page: Page,
+): Promise<Paged<OpenInvoiceForAllocation>> {
+  return paged<OpenInvoiceForAllocation>(
+    tx,
+    openInvoicesBase(tx, customerId),
+    tx`q.due_date ASC, q.id`,
+    page,
+  )
 }
 
 /** `journal_entries.status` is a plain `varchar(50)`, not a real Postgres
@@ -3519,19 +3537,24 @@ export type RecurringScheduleRow = {
   line_count: number
 }
 
+/** One page of schedules, next due first — one per subscription client, so as many as there are clients. */
 export async function listRecurringSchedules(
   tx: Tx,
-): Promise<RecurringScheduleRow[]> {
-  return tx<RecurringScheduleRow[]>`
-    SELECT s.id::text AS id, s.customer_id::text AS customer_id, c.customer_name,
-           s.frequency, to_char(s.next_run_date,'YYYY-MM-DD') AS next_run_date,
-           s.due_in_days, s.exchange_rate::text AS exchange_rate,
-           s.payment_terms, s.notes, s.is_active,
-           jsonb_array_length(s.template_lines) AS line_count
-      FROM recurring_schedules s
-      JOIN customers c ON c.id = s.customer_id
-     ORDER BY s.next_run_date, c.customer_name
-  `
+  page: Page,
+): Promise<Paged<RecurringScheduleRow>> {
+  return paged<RecurringScheduleRow>(
+    tx,
+    tx`
+      SELECT s.id::text AS id, s.customer_id::text AS customer_id, c.customer_name,
+             s.frequency, to_char(s.next_run_date,'YYYY-MM-DD') AS next_run_date,
+             s.due_in_days, s.exchange_rate::text AS exchange_rate,
+             s.payment_terms, s.notes, s.is_active,
+             jsonb_array_length(s.template_lines) AS line_count
+        FROM recurring_schedules s
+        JOIN customers c ON c.id = s.customer_id`,
+    tx`q.next_run_date, q.customer_name, q.id`,
+    page,
+  )
 }
 
 export type NewRecurringSchedule = {
@@ -3760,18 +3783,35 @@ export type AccountingPeriod = {
   closed_at: Date | null
 }
 
-export async function listAccountingPeriods(
-  tx: Tx,
-): Promise<AccountingPeriod[]> {
-  return tx<AccountingPeriod[]>`
+function periodsQuery(tx: Tx) {
+  return tx`
     SELECT p.id, p.period_name, p.period_type::text AS period_type,
            p.start_date::text, p.end_date::text, p.fiscal_year,
            p.status, p.closed_at,
            e.first_name || ' ' || e.last_name AS closed_by_name
       FROM accounting_periods p
-      LEFT JOIN employees e ON e.id::text = p.closed_by::text
-     ORDER BY p.start_date DESC
+      LEFT JOIN employees e ON e.id::text = p.closed_by::text`
+}
+
+export async function listAccountingPeriods(
+  tx: Tx,
+): Promise<AccountingPeriod[]> {
+  return tx<AccountingPeriod[]>`
+    SELECT q.* FROM (${periodsQuery(tx)}) q ORDER BY q.start_date DESC
   `
+}
+
+/** One page of periods, newest first — twelve more every year. */
+export async function accountingPeriodsPage(
+  tx: Tx,
+  page: Page,
+): Promise<Paged<AccountingPeriod>> {
+  return paged<AccountingPeriod>(
+    tx,
+    periodsQuery(tx),
+    tx`q.start_date DESC, q.id`,
+    page,
+  )
 }
 
 async function periodState(
@@ -4032,10 +4072,14 @@ export type AmortizationScheduleRow = {
   reference: string | null
 }
 
+/** One page of schedules, next due first; each one stays listed after it finishes, so they accumulate. */
 export async function listAmortizationSchedules(
   tx: Tx,
-): Promise<AmortizationScheduleRow[]> {
-  return tx<AmortizationScheduleRow[]>`
+  page: Page,
+): Promise<Paged<AmortizationScheduleRow>> {
+  return paged<AmortizationScheduleRow>(
+    tx,
+    tx`
     SELECT s.id::text AS id, s.kind,
            s.balance_sheet_account_id::text AS balance_sheet_account_id,
            bs.account_code || ' — ' || bs.account_name AS balance_sheet_account_name,
@@ -4051,9 +4095,10 @@ export async function listAmortizationSchedules(
       LEFT JOIN (
         SELECT source_id, count(*) AS n FROM journal_entries
          WHERE source_type = 'amortization' GROUP BY source_id
-      ) cnt ON cnt.source_id = s.id
-     ORDER BY s.next_run_date, s.description
-  `
+      ) cnt ON cnt.source_id = s.id`,
+    tx`q.next_run_date, q.description, q.id`,
+    page,
+  )
 }
 
 export type NewAmortizationSchedule = {

@@ -1010,21 +1010,21 @@
 
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Objective (optional)</legend>
-          <select
+          <Combobox
             name="objective_id"
-            aria-invalid={err.aria("objective_id")}
-            class={`select w-full ${err.select("objective_id")}`}
-          >
-            <option value="">No objective</option>
-            {#each data.objectives as o (o.id)}
-              <option
-                value={o.id}
-                selected={o.id === data.project.objective_id}
-              >
-                {o.objective_name}
-              </option>
-            {/each}
-          </select>
+            search={actionSearch("searchObjectives")}
+            selected={data.project.objective_id && data.project.objective_name
+              ? [
+                  {
+                    id: data.project.objective_id,
+                    label: data.project.objective_name,
+                  },
+                ]
+              : []}
+            invalid={!!err.aria("objective_id")}
+            placeholder="No objective"
+            emptyText="No matching objective"
+          />
         </fieldset>
 
         <fieldset class="fieldset">
@@ -1158,9 +1158,6 @@
 <!-- Manage a task's dependencies ------------------------------------------ -->
 {#if managingDependenciesTask}
   {@const t = managingDependenciesTask}
-  {@const candidates = data.tasks.filter(
-    (o) => o.id !== t.id && !t.depends_on.some((d) => d.id === o.id),
-  )}
   <div class="modal modal-open" role="dialog" aria-label="Manage dependencies">
     <div class="modal-box max-w-md">
       <h3 class="text-lg font-medium">Dependencies for {t.task_name}</h3>
@@ -1199,7 +1196,7 @@
         </ul>
       {/if}
 
-      {#if data.mayWrite && candidates.length > 0}
+      {#if data.mayWrite}
         <form
           method="POST"
           action="?/addDependency"
@@ -1209,16 +1206,17 @@
           <input type="hidden" name="task_id" value={t.id} />
           <fieldset class="fieldset grow">
             <legend class="fieldset-legend">Add dependency</legend>
-            <select
-              name="depends_on_task_id"
-              aria-invalid={err.aria("depends_on_task_id")}
-              class={`select w-full ${err.select("depends_on_task_id")}`}
-              required
-            >
-              {#each candidates as c (c.id)}
-                <option value={c.id}>{c.task_number ?? c.task_name}</option>
-              {/each}
-            </select>
+            {#key t.id}
+              <Combobox
+                name="depends_on_task_id"
+                search={actionSearch("searchDependencies", () => ({
+                  task_id: t.id,
+                }))}
+                invalid={!!err.aria("depends_on_task_id")}
+                placeholder="Search this project's tasks…"
+                emptyText="No matching task"
+              />
+            {/key}
           </fieldset>
           <button type="submit" class="btn btn-outline">Add</button>
         </form>

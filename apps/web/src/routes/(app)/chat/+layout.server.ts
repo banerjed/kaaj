@@ -13,10 +13,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     error(403, "Chat is for employees, not this kind of account.")
 
   return withTenant(actorFrom(locals), async (tx) => {
-    const [conversations, browsableChannels] = await Promise.all([
-      chat.listConversations(tx, locals.employeeId!),
-      chat.browsablePublicChannels(tx, locals.employeeId!),
-    ])
-    return { conversations, browsableChannels }
+    return {
+      conversations: await chat.listConversations(tx, locals.employeeId!),
+    }
   })
 }

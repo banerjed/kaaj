@@ -92,6 +92,11 @@ async function pickIds(perf, tenantId) {
     dealId: await one(perf`
       SELECT deal_id AS id FROM crm_activities WHERE tenant_id = ${tenantId} AND deal_id IS NOT NULL
        GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
+    // Not a route param: the receive-payment view with a customer chosen.
+    openInvoiceCustomerId: await one(perf`
+      SELECT customer_id AS id FROM invoices
+       WHERE tenant_id = ${tenantId} AND status IN ('sent', 'partially_paid', 'overdue')
+       GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1`),
   }
 }
 
@@ -270,6 +275,9 @@ async function session({ perfUrl, tenantId, only }, fn) {
       `/accounting/tax-summary?from=${year}-01-01&to=${year}-12-31`,
       `/accounting/trial-balance?as_of=${as_of}&compare_as_of=${Number(year) - 1}-${as_of.slice(5)}`,
       `/accounting/balance-sheet?as_of=${as_of}&compare_as_of=${year}-01-01`,
+      ...(ids.openInvoiceCustomerId
+        ? [`/accounting/receive-payment?customer_id=${ids.openInvoiceCustomerId}`]
+        : []),
     ]
     const { paths, unresolved } = pagePaths(ids, extraPaths)
 

@@ -14,6 +14,7 @@
   import { closeOnSuccess, resetOnSuccess, keepValues } from "$lib/form-enhance"
   import type { TicketUpdateRow } from "$lib/server/ticketing/ticketing.repo"
   import { page } from "$app/state"
+  import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
 
@@ -162,27 +163,7 @@
     return result.type === "success" ? (result.data?.results ?? []) : []
   }
 
-  // The assignee/subscriber picker's options — every active employee. Fetched
-  // once editing actually starts, not preloaded on every view: plain view
-  // mode never renders it (ticket.assignees/subscribers already carry
-  // names), so loading it eagerly charged every read for a write-only need.
-  let peopleOptions = $state<ComboboxOption[]>([])
-  let peopleOptionsLoaded = false
-  $effect(() => {
-    if (!editing || peopleOptionsLoaded) return
-    peopleOptionsLoaded = true
-    fetch("?/peopleOptions", { method: "POST", body: new FormData() })
-      .then((res) => res.text())
-      .then((text) => {
-        const result = deserialize<
-          { results: ComboboxOption[] },
-          Record<string, unknown>
-        >(text)
-        if (result.type === "success") {
-          peopleOptions = result.data?.results ?? []
-        }
-      })
-  })
+  const searchPeople = actionSearch("searchPeople")
   const assigneeSelected = $derived(
     data.ticket.assignees.map((a): ComboboxOption => ({
       id: a.employee_id,
@@ -787,7 +768,7 @@
                 <Combobox
                   name="assignee_ids"
                   multiple
-                  options={peopleOptions}
+                  search={searchPeople}
                   selected={assigneeSelected}
                   placeholder="Search people…"
                   form={EDIT_FORM_ID}
@@ -807,7 +788,7 @@
                   <Combobox
                     name="subscriber_ids"
                     multiple
-                    options={peopleOptions}
+                    search={searchPeople}
                     selected={subscriberSelected}
                     placeholder="Search people…"
                     form={EDIT_FORM_ID}

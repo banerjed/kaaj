@@ -48,10 +48,13 @@ async function nextCommentId(tx: Tx): Promise<string> {
  * Every comment for every task in a project, in one query — the project
  * page renders a thread per task, and fetching per-task would be a query
  * inside a loop over the task list (`verify-no-loop-queries.mjs`).
+ * `taskIds` narrows it to those tasks: the page passes its current page of
+ * tasks, so comments stay bounded with them.
  */
 export async function commentsForProject(
   tx: Tx,
   projectId: string,
+  taskIds: string[] | null = null,
 ): Promise<Record<string, CommentRow[]>> {
   const rows = await tx<(CommentRow & { task_id: string })[]>`
     SELECT c.id, c.task_id, c.comment_text, c.author_employee_id,
@@ -60,6 +63,7 @@ export async function commentsForProject(
       FROM pm_task_comments c
       LEFT JOIN employees e ON e.id = c.author_employee_id
      WHERE c.project_id = ${projectId}::uuid AND c.deleted_at IS NULL
+       AND (${taskIds}::uuid[] IS NULL OR c.task_id = ANY(${taskIds}::uuid[]))
      ORDER BY c.created_at
   `
   const out: Record<string, CommentRow[]> = {}

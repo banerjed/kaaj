@@ -9,34 +9,41 @@ import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader } from "$lib/server/forms"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+import { pageOf, pageParam } from "$lib/server/db/paged"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 
 const { OBJECTIVE_TYPES, OBJECTIVE_STATUSES } = objectives
 const { PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS } = projects
 
 /** /objectives/[id] — an objective, its rollup, and the projects linked to it. */
-export const load: PageServerLoad = async ({ locals, params }) => {
+const PAGE_SIZE = 25
+
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const objective = await objectives.byId(tx, params.id)
     if (!objective) error(404, "No such objective")
+    const linked = await objectives.projectsFor(
+      tx,
+      objective.id,
+      pageOf(page, PAGE_SIZE),
+    )
 
     return {
       objective,
-      projects: await objectives.projectsFor(tx, objective.id),
+      projects: linked.rows,
+      projectTotal: linked.total,
+      page,
+      pageSize: PAGE_SIZE,
       types: OBJECTIVE_TYPES,
       statuses: OBJECTIVE_STATUSES,
       projectStatuses: PROJECT_STATUSES,
       projectPriorities: PROJECT_PRIORITIES,
       projectHealths: PROJECT_HEALTHS,
       mayWrite: can(ctx, "projects.write"),
-      owners: await tx<{ id: string; name: string }[]>`
-        SELECT id, first_name || ' ' || last_name AS name
-          FROM employees
-         WHERE employment_status = 'active'
-         ORDER BY first_name, last_name
-      `,
       locations: await locationsRepo.list(tx),
     }
   })
@@ -61,6 +68,16 @@ function objectiveRefusal(e: ObjectiveWriteRefused) {
 }
 
 export const actions: Actions = {
+  /** Backs the edit form's owner picker; the form is `projects.write`'s. */
+  searchPeople: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchEmployees(tx, q, { set: "employed" }),
+    }))
+  },
+
   /** Edit the objective. Audited — the same reasoning as projects/[id]'s updateProject. */
   updateObjective: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")

@@ -2,7 +2,6 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
-import * as objectives from "$lib/server/objectives/objectives.repo"
 import * as comments from "$lib/server/projects/comments.repo"
 import { CommentWriteRefused } from "$lib/server/projects/comments.repo"
 import * as templates from "$lib/server/projects/templates.repo"
@@ -21,7 +20,12 @@ import * as groups from "$lib/server/groups/groups.repo"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formList } from "$lib/server/forms"
-import { pickerQuery, searchEmployees } from "$lib/server/pickers"
+import {
+  pickerQuery,
+  searchEmployees,
+  searchObjectives,
+  searchProjectTasks,
+} from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
 const {
@@ -62,11 +66,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       projectHealths: PROJECT_HEALTHS,
       projectPriorities: PROJECT_PRIORITIES,
       mayWrite: can(ctx, "projects.write"),
-      objectives: await objectives.list(tx),
       // For per-market number formatting; see localeForCurrency.
       locations: await locationsRepo.list(tx),
       // Batched — one query each, not one per task (verify-no-loop-queries.mjs).
-      commentsByTask: await comments.commentsForProject(tx, project.id),
+      commentsByTask: await comments.commentsForProject(
+        tx,
+        project.id,
+        taskIds,
+      ),
       filesByTask: await documents.forEntities(tx, "task", taskIds),
       // Custom fields (docs/26-project-management-custom-fields.md).
       taskFieldDefs: await customFields.definitionsFor(tx, {
@@ -150,6 +157,42 @@ export const actions: Actions = {
     return withTenant(actorFrom(locals), async (tx) => ({
       results: await searchEmployees(tx, q, { set: "employed" }),
     }))
+  },
+
+  /** Backs the edit form's objective picker. */
+  searchObjectives: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchObjectives(tx, q),
+    }))
+  },
+
+  /** Backs the add-dependency picker: the task's own project, less itself and what it already depends on. */
+  searchDependencies: async ({ request, locals, params }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const f = new FormReader(await request.formData())
+    const q = pickerQuery(f)
+    const taskId = f.uuid("task_id")
+    if (!taskId) return { results: [] }
+    return withTenant(actorFrom(locals), async (tx) => {
+      const [task] = await tx<{ depends_on: string[] }[]>`
+        SELECT ARRAY(
+                 SELECT jsonb_array_elements_text(coalesce(depends_on_task_ids, '[]'::jsonb))
+               ) AS depends_on
+          FROM tasks
+         WHERE id = ${taskId} AND project_id = ${params.id}
+      `
+      if (!task) return { results: [] }
+      return {
+        results: await searchProjectTasks(tx, q, params.id, [
+          taskId,
+          ...task.depends_on,
+        ]),
+      }
+    })
   },
 
   /**
@@ -315,7 +358,7 @@ export const actions: Actions = {
 
   // Opt-in visibility (docs/28-user-groups.md) — flips whether the project
   // narrows to its PM, task assignees and group grants, or stays firm-wide.
-  // Audited: the same class of change as ticketing's saveGroups/saveMembers.
+  // Audited: the same class of change as ticketing's saveGroups/addMember.
   setRestricted: async ({ request, locals, params }) => {
     if (!locals.tenantId) error(403, "No tenant")
     const ctx = contextFrom(locals)

@@ -17,10 +17,15 @@ import {
 } from "$lib/server/custom-fields/read-values"
 
 const SCOPE = { entityType: "deal" } as const
+const ACTIVITY_PAGE_SIZE = 20
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
+  const activityPage = Math.max(
+    1,
+    Number(url.searchParams.get("activities")) || 1,
+  )
 
   return withTenant(actorFrom(locals), async (tx) => {
     const deal = await deals.getById(tx, params.id)
@@ -33,7 +38,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       fieldValues: fieldValues[params.id] ?? [],
       stages: await pipelineStages.list(tx),
       contacts: await contacts.listForCustomer(tx, deal.customer_id),
-      activities: await activities.listForDeal(tx, params.id),
+      activities: await activities.listForDeal(tx, params.id, {
+        limit: ACTIVITY_PAGE_SIZE,
+        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
+      }),
+      activityPage,
+      activityPageSize: ACTIVITY_PAGE_SIZE,
       activityTypes: activities.ACTIVITY_TYPES,
     }
   })

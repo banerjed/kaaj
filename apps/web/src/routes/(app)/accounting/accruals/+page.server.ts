@@ -11,6 +11,7 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 
 /**
  * /accounting/accruals — §11: accruals (auto-reversing, posted immediately —
@@ -18,19 +19,24 @@ import { constraintFailure } from "$lib/server/db/constraints"
  * (a schedule, posted on demand — same manual-trigger shape as recurring
  * invoices and the reconciliation rules' apply-now action).
  */
-export const load: PageServerLoad = async ({ locals }) => {
+const PAGE_SIZE = 50
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
   if (!can(ctx, "accounting.read")) {
     error(403, "Only finance can see accruals.")
   }
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
+    page,
+    pageSize: PAGE_SIZE,
     periods: (await acc.listAccountingPeriods(tx)).filter(
       (p) => p.status === "open",
     ),
     accounts: await listExpenseAccountsForPicker(tx),
-    schedules: await acc.listAmortizationSchedules(tx),
+    schedules: await acc.listAmortizationSchedules(tx, pageOf(page, PAGE_SIZE)),
     kinds: AMORTIZATION_KINDS,
     mayWrite: can(ctx, "accounting.write"),
   }))

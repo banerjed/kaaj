@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 
 /**
  * Objectives — the strategic layer above projects
@@ -34,6 +35,7 @@ export type ObjectiveRow = {
   target_end_date: string | null
   fiscal_year: string | null
   quarter: string | null
+  owner_employee_id: string | null
   owner_name: string | null
   customer_name: string | null
   project_count: number
@@ -50,6 +52,7 @@ const SELECT = `
          to_char(o.start_date,'YYYY-MM-DD')      AS start_date,
          to_char(o.target_end_date,'YYYY-MM-DD') AS target_end_date,
          o.fiscal_year, o.quarter,
+         o.owner_employee_id::text AS owner_employee_id,
          e.first_name || ' ' || e.last_name AS owner_name,
          c.customer_name,
          to_char(o.archived_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS archived_at,
@@ -60,12 +63,14 @@ const SELECT = `
     LEFT JOIN customers c ON c.id = o.customer_id
 `
 
-export async function list(tx: Tx): Promise<ObjectiveRow[]> {
-  return tx<ObjectiveRow[]>`
-    ${tx.unsafe(SELECT)}
-   WHERE o.archived_at IS NULL
-   ORDER BY o.objective_number
-  `
+/** One page of the live objectives; `total` counts all of them. */
+export async function list(tx: Tx, page: Page): Promise<Paged<ObjectiveRow>> {
+  return paged<ObjectiveRow>(
+    tx,
+    tx`${tx.unsafe(SELECT)} WHERE o.archived_at IS NULL`,
+    tx`q.objective_number, q.id`,
+    page,
+  )
 }
 
 export async function byId(tx: Tx, id: string): Promise<ObjectiveRow | null> {
@@ -90,16 +95,20 @@ export type ObjectiveProjectRow = {
 export async function projectsFor(
   tx: Tx,
   objectiveId: string,
-): Promise<ObjectiveProjectRow[]> {
-  return tx<ObjectiveProjectRow[]>`
-    SELECT p.id, p.project_number, p.project_name, p.status, p.health_status,
-           p.progress_percentage::text AS progress_percentage,
-           p.total_billed::text        AS total_billed,
-           p.currency
-      FROM projects p
-     WHERE p.objective_id = ${objectiveId}::uuid AND p.archived_at IS NULL
-     ORDER BY p.project_number
-  `
+  page: Page,
+): Promise<Paged<ObjectiveProjectRow>> {
+  return paged<ObjectiveProjectRow>(
+    tx,
+    tx`
+      SELECT p.id, p.project_number, p.project_name, p.status, p.health_status,
+             p.progress_percentage::text AS progress_percentage,
+             p.total_billed::text        AS total_billed,
+             p.currency
+        FROM projects p
+       WHERE p.objective_id = ${objectiveId}::uuid AND p.archived_at IS NULL`,
+    tx`q.project_number, q.id`,
+    page,
+  )
 }
 
 // ---------------------------------------------------------------------------

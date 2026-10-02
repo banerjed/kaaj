@@ -8,12 +8,15 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 
 // Vocabulary comes from the repository, so the filter can't drift from the lifecycle (L57).
 const STATUSES = runs.RUN_STATUSES
 
 /** What the fixture uses, and what the column will accept. */
 const RUN_TYPES = ["regular", "off_cycle", "correction", "bonus"] as const
+
+const PAGE_SIZE = 50
 
 /** /payroll/runs — reading a run reads everyone's pay, so gated on `compensation.read.all`; opening one needs `payroll.run` instead. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -31,11 +34,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const country = f.text("country", { max: 2, upper: true })
   const status = f.choice("status", STATUSES) ?? ""
 
+  const page = pageParam(url)
+
   return withTenant(actorFrom(locals), async (tx) => ({
-    runs: await runs.list(tx, {
-      country: country ?? undefined,
-      status,
-    }),
+    ...(await runs
+      .listPage(
+        tx,
+        { country: country ?? undefined, status },
+        pageOf(page, PAGE_SIZE),
+      )
+      .then((p) => ({ runs: p.rows, total: p.total }))),
+    page,
+    pageSize: PAGE_SIZE,
     statuses: STATUSES,
     runTypes: RUN_TYPES,
     filters: { country: country ?? "", status },

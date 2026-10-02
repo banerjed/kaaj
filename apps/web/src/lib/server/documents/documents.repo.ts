@@ -134,6 +134,15 @@ const FOLDER_COLUMNS = `
 /** One page of top-level folders (no parent) — the root view's folder cards. */
 export async function topFolders(
   tx: Tx,
+  page: { limit: number; offset: number },
+): Promise<{ rows: FolderRow[]; total: number }> {
+  return foldersIn(tx, null, page)
+}
+
+/** One page of a folder's live subfolders — `null` for the top level. A folder per client is thousands. */
+export async function foldersIn(
+  tx: Tx,
+  parentId: string | null,
   { limit, offset }: { limit: number; offset: number },
 ): Promise<{ rows: FolderRow[]; total: number }> {
   // The page first, so the per-folder counts run for these rows only.
@@ -142,7 +151,9 @@ export async function topFolders(
       SELECT f.id, count(*) OVER ()::text AS total
         FROM document_folders f
         JOIN employees o ON o.id = f.owner_employee_id
-       WHERE f.parent_folder_id IS NULL AND f.archived_at IS NULL
+       WHERE (f.parent_folder_id = ${parentId}::uuid
+              OR (${parentId}::uuid IS NULL AND f.parent_folder_id IS NULL))
+         AND f.archived_at IS NULL
        ORDER BY f.name, f.id
        LIMIT ${limit} OFFSET ${offset}
     )
@@ -159,19 +170,6 @@ export async function topFolders(
 }
 
 /** Subfolders of one folder. */
-export async function childFolders(
-  tx: Tx,
-  parentId: string,
-): Promise<FolderRow[]> {
-  return tx<FolderRow[]>`
-    SELECT ${tx.unsafe(FOLDER_COLUMNS)}
-      FROM document_folders f
-      JOIN employees o ON o.id = f.owner_employee_id
-     WHERE f.parent_folder_id = ${parentId}::uuid AND f.archived_at IS NULL
-     ORDER BY f.name
-  `
-}
-
 export async function folder(tx: Tx, id: string): Promise<FolderRow | null> {
   const [row] = await tx<FolderRow[]>`
     SELECT ${tx.unsafe(FOLDER_COLUMNS)}
@@ -205,7 +203,8 @@ const DOCUMENT_COLUMNS = `
   d.archived_at, d.created_at
 `
 
-const PAGE_SIZE = 25
+export const DOCUMENT_PAGE_SIZE = 25
+const PAGE_SIZE = DOCUMENT_PAGE_SIZE
 
 /**
  * Every document for a SET of entities of one type, in one query — grouped

@@ -78,6 +78,26 @@ const NEW_ENTRY = {
   description: "Cutover rehearsal prep",
 }
 
+describe("ownEntriesOnly", () => {
+  it("names a plain employee, and narrowing to it changes nothing they see", async () => {
+    const { own, filtered, unfiltered } = await asPlainEmployee(
+      AISHA,
+      async (tx) => ({
+        own: await entries.ownEntriesOnly(tx),
+        filtered: await entries.list(tx, { employeeId: AISHA }),
+        unfiltered: await entries.list(tx),
+      }),
+    )
+    expect(own).toBe(AISHA)
+    expect(filtered.length).toBeGreaterThan(0)
+    expect(filtered.map((e) => e.id)).toEqual(unfiltered.map((e) => e.id))
+  })
+
+  it("is null for someone the policy lets see every entry", async () => {
+    expect(await inRollback((tx) => entries.ownEntriesOnly(tx))).toBeNull()
+  })
+})
+
 describe("logging time keeps the task/project hours true", () => {
   afterAll(async () => {
     await closeConnections()

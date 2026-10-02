@@ -3,6 +3,7 @@
   import { calendarDate, localeForCurrency, money } from "$lib/format"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
 
@@ -100,6 +101,14 @@
           </tbody>
         </table>
       </div>
+      {#if data.total > data.pageSize}
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+        />
+      {/if}
     </div>
   {/if}
 </div>

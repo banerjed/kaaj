@@ -858,7 +858,7 @@ export async function projectGroups(
   `
 }
 
-/** Replace-whole-list, same shape as ticketing.repo.ts's setBusinessAreaMembers. */
+/** Replace-whole-list, same shape as ticketing.repo.ts's setBusinessAreaGroups. */
 export async function setProjectGroups(
   tx: Tx,
   tenantId: string,

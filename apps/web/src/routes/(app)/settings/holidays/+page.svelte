@@ -7,6 +7,7 @@
   import { closeOnSuccess } from "$lib/form-enhance"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import SectionCard from "$lib/components/SectionCard.svelte"
   import ModalActions from "$lib/components/ModalActions.svelte"
   import RowActions from "$lib/components/RowActions.svelte"
@@ -102,8 +103,8 @@
         {/each}
       </select>
       <span class="text-base-content/70 text-sm">
-        {data.holidays.length}
-        {data.holidays.length === 1 ? "holiday" : "holidays"}
+        {data.total}
+        {data.total === 1 ? "holiday" : "holidays"}
       </span>
     </form>
 
@@ -161,6 +162,21 @@
         </SectionCard>
       {/each}
     </div>
+    {#if data.total > data.pageSize}
+      <div class="card bg-base-100 mt-4 shadow">
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          hrefFor={(n) => {
+            const p = new URLSearchParams()
+            if (data.selectedYear) p.set("year", String(data.selectedYear))
+            if (n > 1) p.set("page", String(n))
+            return p.size ? `?${p}` : "?"
+          }}
+        />
+      </div>
+    {/if}
   {/if}
 </div>
 

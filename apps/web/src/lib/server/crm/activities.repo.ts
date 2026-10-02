@@ -13,7 +13,7 @@ export type Activity = {
   body: string | null
   occurred_at: string
   created_by: string
-  /** Denormalised for display; see the SELECT below. */
+  /** Denormalised for display; see COLUMNS_AND_FROM below. */
   created_by_name: string
   /**
    * The customer's own person on the other side of the conversation, where
@@ -32,8 +32,7 @@ const COLUMNS_AND_FROM = `
     JOIN employees e ON e.id = a.created_by
     LEFT JOIN customer_contacts cc ON cc.id = a.customer_contact_id
 `
-const SELECT = `SELECT ${COLUMNS_AND_FROM}`
-/** The same, with every match counted alongside one page of them. */
+/** Every match counted alongside one page of them. */
 const SELECT_COUNTED = `SELECT count(*) OVER ()::text AS total, ${COLUMNS_AND_FROM}`
 
 type Paged = { limit: number; offset: number }
@@ -77,12 +76,18 @@ function paged(rows: (Activity & { total: string })[]): {
   }
 }
 
-export async function listForDeal(tx: Tx, dealId: string): Promise<Activity[]> {
-  return tx<Activity[]>`
-    ${tx.unsafe(SELECT)}
+export async function listForDeal(
+  tx: Tx,
+  dealId: string,
+  { limit, offset }: Paged,
+): Promise<{ rows: Activity[]; total: number }> {
+  const rows = await tx<(Activity & { total: string })[]>`
+    ${tx.unsafe(SELECT_COUNTED)}
      WHERE a.deal_id = ${dealId}
-     ORDER BY a.occurred_at DESC
+     ORDER BY a.occurred_at DESC, a.id
+     LIMIT ${limit} OFFSET ${offset}
   `
+  return paged(rows)
 }
 
 export type ActivityInput = {

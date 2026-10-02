@@ -1,11 +1,6 @@
 <script lang="ts">
   import PageTitle from "$lib/components/PageTitle.svelte"
   import { calendarDate, currentTimeIn, localised } from "$lib/format"
-  import {
-    clashingDates,
-    nextPayDates,
-    type Frequency,
-  } from "$lib/firm-profile/pay-dates"
   import { timezoneOptions } from "$lib/firm-profile/regional"
   import type { PaySchedule } from "$lib/server/payroll/payroll_pay_schedules.repo"
   import { fieldErrors } from "$lib/form-errors"
@@ -40,18 +35,8 @@
   const zoneLocale = (timezone: string) =>
     data.locations.find((l) => l.timezone === timezone)?.locale ?? tenantLocale
 
-  const holidayDates = (timezone: string) => {
-    const office = data.locations.find((l) => l.timezone === timezone)
-    return data.holidays
-      .filter((h) => !office || h.location_code === office.location_code)
-      .map((h) => h.date)
-  }
-
-  const projection = (s: PaySchedule) => {
-    if (!s.anchor_date) return { dates: [] as string[], clashes: {} }
-    const dates = nextPayDates(s.anchor_date, s.frequency as Frequency, 12)
-    return { dates, clashes: clashingDates(dates, holidayDates(s.timezone)) }
-  }
+  const projection = (s: PaySchedule) =>
+    data.projections[s.id] ?? { dates: [] as string[], clashes: {} }
 
   let editing = $state<PaySchedule | "new" | null>(null)
   const current = $derived(editing === "new" ? null : editing)

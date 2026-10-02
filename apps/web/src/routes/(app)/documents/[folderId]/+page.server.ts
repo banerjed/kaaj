@@ -16,6 +16,8 @@ import { constraintFailure } from "$lib/server/db/constraints"
 import { uploadDocument, UploadRefused } from "$lib/server/documents/upload"
 import * as audit from "$lib/server/audit/audit.repo"
 
+const FOLDER_PAGE_SIZE = 24
+
 /** /documents/[folderId] — one folder: breadcrumb, subfolders, its files, and (owner/admin) the share panel. */
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
@@ -23,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   requireCan(ctx, "document.read")
 
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
+  const folderPage = Math.max(1, Number(url.searchParams.get("fpage")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => {
     const folder = await documents.folder(tx, params.folderId)
@@ -33,7 +36,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
     const [breadcrumb, subfolders, filesPage, shareRows] = await Promise.all([
       documents.breadcrumb(tx, folder.path_ids, folder.id),
-      documents.childFolders(tx, folder.id),
+      documents.foldersIn(tx, folder.id, {
+        limit: FOLDER_PAGE_SIZE,
+        offset: (folderPage - 1) * FOLDER_PAGE_SIZE,
+      }),
       documents.documentsIn(tx, folder.id, page),
       atLeast(permission, "owner")
         ? documents.shares(tx, folder.id)
@@ -43,10 +49,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     return {
       folder,
       breadcrumb,
-      subfolders,
+      subfolders: subfolders.rows,
+      folderTotal: subfolders.total,
+      folderPage,
+      folderPageSize: FOLDER_PAGE_SIZE,
       files: filesPage.documents,
       total: filesPage.total,
       page,
+      pageSize: documents.DOCUMENT_PAGE_SIZE,
       permission,
       canEdit: atLeast(permission, "edit"),
       canManage: atLeast(permission, "owner"),

@@ -3,6 +3,7 @@
   import PageTitle from "$lib/components/PageTitle.svelte"
   import PageHead from "$lib/components/PageHead.svelte"
   import StatusBadge from "$lib/components/StatusBadge.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { fieldErrors } from "$lib/form-errors"
   import { closeOnSuccess } from "$lib/form-enhance"
   import { calendarDate, instant } from "$lib/format"
@@ -120,6 +121,14 @@
         </tbody>
       </table>
     </div>
+    {#if data.total > data.pageSize}
+      <Pagination
+        page={data.page}
+        pageSize={data.pageSize}
+        total={data.total}
+        hrefFor={(n) => (n > 1 ? `?page=${n}` : "?")}
+      />
+    {/if}
   </div>
 </div>
 

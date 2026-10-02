@@ -2,7 +2,6 @@ import { error, fail } from "@sveltejs/kit"
 import type { Actions, PageServerLoad } from "./$types"
 import * as projects from "$lib/server/projects/projects.repo"
 import { ProjectWriteRefused } from "$lib/server/projects/projects.repo"
-import * as objectives from "$lib/server/objectives/objectives.repo"
 import * as templates from "$lib/server/projects/templates.repo"
 import { TemplateWriteRefused } from "$lib/server/projects/templates.repo"
 import * as locationsRepo from "$lib/server/firm-profile/firm_locations.repo"
@@ -13,6 +12,7 @@ import {
   pickerQuery,
   searchCustomers,
   searchEmployees,
+  searchObjectives,
 } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 
@@ -58,7 +58,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     filters: { status, health },
     // UI convenience only — the action re-enforces this gate.
     mayCreate: can(ctx, "projects.write"),
-    objectives: await objectives.list(tx),
     // For per-market number formatting; see localeForCurrency.
     locations: await locationsRepo.list(tx),
     templates: await templates.listTemplates(tx),
@@ -83,6 +82,16 @@ export const actions: Actions = {
     const q = pickerQuery(new FormReader(await request.formData()))
     return withTenant(actorFrom(locals), async (tx) => ({
       results: await searchEmployees(tx, q, { set: "employed" }),
+    }))
+  },
+
+  /** Backs the create form's objective picker. */
+  searchObjectives: async ({ request, locals }) => {
+    if (!locals.tenantId) error(403, "No tenant")
+    requireCan(contextFrom(locals), "projects.write")
+    const q = pickerQuery(new FormReader(await request.formData()))
+    return withTenant(actorFrom(locals), async (tx) => ({
+      results: await searchObjectives(tx, q),
     }))
   },
 

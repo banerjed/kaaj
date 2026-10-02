@@ -1,4 +1,5 @@
 import type { Tx } from "../db/tenant"
+import { paged, type Page, type Paged } from "../db/paged"
 
 /**
  * firm_holidays — the observed calendar, per office. Holidays are per
@@ -18,16 +19,48 @@ export type FirmHoliday = {
   recurrence_rule: string | null
 }
 
-export async function list(tx: Tx, year?: number): Promise<FirmHoliday[]> {
-  return tx<FirmHoliday[]>`
-    SELECT id, holiday_id, location_code, name, name_i18n,
+const COLUMNS = `id, holiday_id, location_code, name, name_i18n,
            to_char(date, 'YYYY-MM-DD') AS date,
-           is_paid, is_mandatory, is_recurring, recurrence_rule
+           is_paid, is_mandatory, is_recurring, recurrence_rule`
+
+/**
+ * One page of the calendar, office by office then date — so an office's
+ * holidays stay together across pages. A dozen offices at ten a year is
+ * past a hundred within the first year.
+ */
+export async function list(
+  tx: Tx,
+  year: number | undefined,
+  page: Page,
+): Promise<Paged<FirmHoliday>> {
+  return paged<FirmHoliday>(
+    tx,
+    tx`
+      SELECT ${tx.unsafe(COLUMNS)}
+        FROM firm_holidays
+       WHERE is_active
+         AND (${year ?? null}::int IS NULL
+              OR extract(year FROM date) = ${year ?? null}::int)`,
+    tx`q.location_code, q.date, q.id`,
+    page,
+  )
+}
+
+export async function byId(tx: Tx, id: string): Promise<FirmHoliday | null> {
+  const [row] = await tx<FirmHoliday[]>`
+    SELECT ${tx.unsafe(COLUMNS)} FROM firm_holidays WHERE id = ${id}
+  `
+  return row ?? null
+}
+
+/** Every active holiday's office and date — server-side only, for projecting pay dates. */
+export async function dates(
+  tx: Tx,
+): Promise<{ location_code: string; date: string }[]> {
+  return tx<{ location_code: string; date: string }[]>`
+    SELECT location_code, to_char(date, 'YYYY-MM-DD') AS date
       FROM firm_holidays
      WHERE is_active
-       AND (${year ?? null}::int IS NULL
-            OR extract(year FROM date) = ${year ?? null}::int)
-     ORDER BY date ASC, location_code ASC
   `
 }
 

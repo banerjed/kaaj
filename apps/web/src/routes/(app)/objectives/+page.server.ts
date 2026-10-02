@@ -12,6 +12,7 @@ import {
   searchEmployees,
 } from "$lib/server/pickers"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 
 const { OBJECTIVE_TYPES, OBJECTIVE_STATUSES } = objectives
 
@@ -19,12 +20,20 @@ const { OBJECTIVE_TYPES, OBJECTIVE_STATUSES } = objectives
  * /objectives — the strategic layer over projects. No read gate, matching
  * /projects: an objective is firm business, every employee may see it.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+const PAGE_SIZE = 25
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
-    objectives: await objectives.list(tx),
+    ...(await objectives.list(tx, pageOf(page, PAGE_SIZE)).then((p) => ({
+      objectives: p.rows,
+      total: p.total,
+    }))),
+    page,
+    pageSize: PAGE_SIZE,
     types: OBJECTIVE_TYPES,
     statuses: OBJECTIVE_STATUSES,
     // UI convenience only — the action re-enforces this gate.

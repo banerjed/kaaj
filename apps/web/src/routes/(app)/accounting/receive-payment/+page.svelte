@@ -7,6 +7,7 @@
   import { fieldErrors } from "$lib/form-errors"
   import { keepValues } from "$lib/form-enhance"
   import Combobox from "$lib/components/Combobox.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import { actionSearch } from "$lib/action-search"
 
   let { data, form } = $props()
@@ -197,6 +198,17 @@
                 </tbody>
               </table>
             </div>
+            {#if data.openInvoiceTotal > data.invoicePageSize}
+              <!-- Oldest due first. Moving page drops amounts typed on this
+                   one: a payment allocates to the invoices in view. -->
+              <Pagination
+                page={data.invoicePage}
+                pageSize={data.invoicePageSize}
+                total={data.openInvoiceTotal}
+                hrefFor={(n) =>
+                  `?customer_id=${data.filters.customerId}${n > 1 ? `&page=${n}` : ""}`}
+              />
+            {/if}
             <p class="text-base-content/70 text-xs">
               The amounts allocated must add up to the total received above —
               checked on the server, not summed here.

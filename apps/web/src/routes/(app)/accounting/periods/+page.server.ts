@@ -7,16 +7,24 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 
 /** /accounting/periods — open/close/reopen accounting periods (US-ACC-035, INV-ACC-002). */
-export const load: PageServerLoad = async ({ locals }) => {
+const PAGE_SIZE = 36
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
   if (!can(ctx, "accounting.read")) {
     error(403, "Only finance can see accounting periods.")
   }
+  const page = pageParam(url)
   return withTenant(actorFrom(locals), async (tx) => ({
-    periods: await acc.listAccountingPeriods(tx),
+    ...(await acc
+      .accountingPeriodsPage(tx, pageOf(page, PAGE_SIZE))
+      .then((p) => ({ periods: p.rows, total: p.total }))),
+    page,
+    pageSize: PAGE_SIZE,
     mayWrite: can(ctx, "accounting.write"),
   }))
 }

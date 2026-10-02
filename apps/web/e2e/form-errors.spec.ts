@@ -159,13 +159,19 @@ test("adding a dependency that would create a cycle is refused with a sentence, 
   // is reachable from a pristine database. The FIRST "Dependencies" button
   // on the page is T-001's own row (task list order).
   await page.goto("/projects/8257009f-6a91-5fd1-9efb-518198c08e2a")
-  await openModal(page, /dependencies/i, 'select[name="depends_on_task_id"]')
+  await openModal(page, /dependencies/i, '.modal [role="combobox"]')
 
-  // Options are labelled by task_number, not task name — see
-  // `+page.svelte`'s dependency select (`c.task_number ?? c.task_name`).
+  // The picker searches this project's tasks; options are labelled by
+  // task_number (`searchProjectTasks`).
+  await page.locator(".modal").getByRole("combobox").fill("T-002")
   await page
-    .locator('select[name="depends_on_task_id"]')
-    .selectOption({ label: "T-002" })
+    .getByRole("listbox")
+    .getByRole("option", { name: /T-002/ })
+    .locator("button")
+    .click()
+  await expect(
+    page.locator('input[type="hidden"][name="depends_on_task_id"]'),
+  ).not.toHaveValue("")
   await submitPastTheBrowser(page, "?/addDependency")
 
   await expect(page.locator(".alert").first()).toContainText(

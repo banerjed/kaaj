@@ -48,9 +48,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const myEmployeeId = await resolveEmployeeId(locals, userId)
 
   return withTenant(actorFrom(locals), async (tx) => {
+    const own = await entries.ownEntriesOnly(tx)
     const queryFilters = {
       status,
-      employeeId: mineOnly ? (myEmployeeId ?? undefined) : undefined,
+      employeeId:
+        (mineOnly ? (myEmployeeId ?? undefined) : undefined) ??
+        own ??
+        undefined,
     }
     const [entryRows, total] = await Promise.all([
       entries.list(tx, {

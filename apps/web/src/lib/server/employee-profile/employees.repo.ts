@@ -285,20 +285,6 @@ export async function update(
   `
 }
 
-/** Everyone who could be someone's manager, for the picker. */
-export async function managerOptions(
-  tx: Tx,
-  excludeId?: string,
-): Promise<{ id: string; name: string }[]> {
-  return tx<{ id: string; name: string }[]>`
-    SELECT id, first_name || ' ' || last_name AS name
-      FROM employees
-     WHERE is_active
-       AND (${excludeId ?? null}::uuid IS NULL OR id <> ${excludeId ?? null}::uuid)
-     ORDER BY last_name, first_name
-  `
-}
-
 /** Would setting `managerId` create a reporting cycle? Same shape as the department tree — a self-referencing FK can't express acyclicity. */
 export async function wouldReportToSelf(
   tx: Tx,

@@ -1768,7 +1768,10 @@ describe("accruals and amortization (§11)", () => {
     const CONSULTING_REVENUE = "6d1ef213-cb96-5ad4-beaf-1d4e07242d65"
 
     it("lists the fixture schedules with zero periods posted", async () => {
-      const rows = await inRollback((tx) => listAmortizationSchedules(tx))
+      const { rows, total } = await inRollback((tx) =>
+        listAmortizationSchedules(tx, { limit: 50, offset: 0 }),
+      )
+      expect(total).toBe(rows.length)
       const deferred = rows.find((r) => r.id === DEFERRED_REVENUE_SCHEDULE)
       expect(deferred).toMatchObject({
         kind: "deferred_revenue",

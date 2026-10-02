@@ -62,8 +62,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       : []
 
     // Goals only for subjects whose reviews are visible, so the page's two
-    // halves agree — now the current PAGE of reviews, same invariant.
-    const subjects = [...new Set(visible.map((r) => r.employee_id))]
+    // halves agree — and of those only the reader's own, the one set the
+    // page shows ("Your goals").
+    const subjects = [...new Set(visible.map((r) => r.employee_id))].filter(
+      (id) => id === reader.employeeId,
+    )
 
     const feedbackReader = { ...reader, manages }
     const [feedbackRows, feedbackTotal] = await Promise.all([

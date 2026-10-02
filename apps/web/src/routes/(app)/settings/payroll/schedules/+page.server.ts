@@ -8,6 +8,11 @@ import { contextFrom, requireCan } from "$lib/server/auth/can"
 import * as audit from "$lib/server/audit/audit.repo"
 import { FormReader, formString } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import {
+  clashingDates,
+  nextPayDates,
+  type Frequency,
+} from "$lib/firm-profile/pay-dates"
 
 const FREQUENCIES = ["weekly", "bi-weekly", "semi-monthly", "monthly"] as const
 
@@ -16,12 +21,33 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "firm.settings.read")
 
-  return withTenant(actorFrom(locals), async (tx) => ({
-    schedules: await schedules.list(tx),
-    // Needed to flag a pay date colliding with a holiday.
-    holidays: await holidaysRepo.list(tx),
-    locations: await locationsRepo.list(tx),
-  }))
+  return withTenant(actorFrom(locals), async (tx) => {
+    const [list, locations, holidays] = await Promise.all([
+      schedules.list(tx),
+      locationsRepo.list(tx),
+      holidaysRepo.dates(tx),
+    ])
+    // Projected here, so the page gets each schedule's twelve dates and their
+    // clashes rather than every holiday of every office in every year.
+    const holidayDates = (timezone: string) => {
+      const office = locations.find((l) => l.timezone === timezone)
+      return holidays
+        .filter((h) => !office || h.location_code === office.location_code)
+        .map((h) => h.date)
+    }
+    const projections = Object.fromEntries(
+      list.map((s) => {
+        const dates = s.anchor_date
+          ? nextPayDates(s.anchor_date, s.frequency as Frequency, 12)
+          : []
+        return [
+          s.id,
+          { dates, clashes: clashingDates(dates, holidayDates(s.timezone)) },
+        ]
+      }),
+    )
+    return { schedules: list, projections, locations }
+  })
 }
 
 /** The fields a reviewer would ask about, not every column. */

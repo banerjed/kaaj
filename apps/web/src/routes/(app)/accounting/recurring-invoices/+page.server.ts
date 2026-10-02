@@ -11,21 +11,27 @@ import * as audit from "$lib/server/audit/audit.repo"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
+import { pageOf, pageParam } from "$lib/server/db/paged"
 import { pickerQuery, searchCustomers, withCurrency } from "$lib/server/pickers"
 
 const MAX_LINES = 50
 
 /** /accounting/recurring-invoices — schedules that generate draft invoices
  *  on demand; there is no scheduler in this codebase to run them on their own. */
-export const load: PageServerLoad = async ({ locals }) => {
+const PAGE_SIZE = 50
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
   if (!can(ctx, "accounting.read")) {
     error(403, "Only finance can see recurring invoices.")
   }
+  const page = pageParam(url)
 
   return withTenant(actorFrom(locals), async (tx) => ({
-    schedules: await acc.listRecurringSchedules(tx),
+    schedules: await acc.listRecurringSchedules(tx, pageOf(page, PAGE_SIZE)),
+    page,
+    pageSize: PAGE_SIZE,
     taxRates: (await taxRates.listTaxRates(tx)).filter((r) => r.is_active),
     frequencies: RECURRING_FREQUENCIES,
     mayWrite: can(ctx, "accounting.write"),

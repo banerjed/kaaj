@@ -61,7 +61,7 @@ export async function list(
     ${tx.unsafe(SELECT)}
      WHERE (${status} = '' OR r.status = ${status})
        AND (${employee}::uuid IS NULL OR r.employee_id = ${employee}::uuid)
-     ORDER BY r.start_date DESC
+     ORDER BY r.start_date DESC, r.id DESC
      ${limit === null ? tx`` : tx`LIMIT ${limit} OFFSET ${offset}`}
   `
 }

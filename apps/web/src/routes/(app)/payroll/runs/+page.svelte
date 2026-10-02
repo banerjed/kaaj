@@ -8,6 +8,7 @@
   import { payrollRunStatusTone as statusTone } from "$lib/components/status-tone"
   import PageHead from "$lib/components/PageHead.svelte"
   import EmptyState from "$lib/components/EmptyState.svelte"
+  import Pagination from "$lib/components/Pagination.svelte"
   import RowActions from "$lib/components/RowActions.svelte"
   import type { RowAction } from "$lib/components/row-actions"
 
@@ -164,6 +165,20 @@
           </tbody>
         </table>
       </div>
+      {#if data.total > data.pageSize}
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          hrefFor={(n) => {
+            const p = new URLSearchParams()
+            if (data.filters.country) p.set("country", data.filters.country)
+            if (data.filters.status) p.set("status", data.filters.status)
+            if (n > 1) p.set("page", String(n))
+            return p.size ? `?${p}` : "?"
+          }}
+        />
+      {/if}
     </div>
   {/if}
 </div>

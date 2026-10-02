@@ -11,6 +11,7 @@
   let { data, children } = $props()
   // The layout serves every /chat/* page, so it names /chat's own action.
   const searchPeople = actionSearch("/chat?/searchPeople")
+  const searchChannels = actionSearch("/chat?/searchChannels")
 
   let creatingChannel = $state(false)
   let startingDm = $state(false)
@@ -259,34 +260,25 @@
   <dialog class="modal modal-open">
     <div class="modal-box">
       <h3 class="text-lg font-medium">Browse public channels</h3>
-      <ul class="mt-4 flex flex-col gap-2">
-        {#each data.browsableChannels as c (c.id)}
-          <li class="flex items-center justify-between gap-2">
-            <div>
-              <div class="font-medium">#{c.name}</div>
-              {#if c.topic}<div class="text-base-content/60 text-sm">
-                  {c.topic}
-                </div>{/if}
-            </div>
-            <form
-              method="POST"
-              action="/chat?/joinChannel"
-              use:enhance={captureAndClose(
-                () => (browsing = false),
-                () => {},
-              )}
-            >
-              <input type="hidden" name="conversation_id" value={c.id} />
-              <button type="submit" class="btn btn-sm btn-primary">Join</button>
-            </form>
-          </li>
-        {/each}
-        {#if data.browsableChannels.length === 0}
-          <li class="text-base-content/60 text-sm">
-            No public channels left to join — you're already in all of them.
-          </li>
-        {/if}
-      </ul>
+      <form
+        method="POST"
+        action="/chat?/joinChannel"
+        class="mt-4 flex items-end gap-2"
+        use:enhance={captureAndClose(
+          () => (browsing = false),
+          () => {},
+        )}
+      >
+        <div class="grow">
+          <Combobox
+            name="conversation_id"
+            search={searchChannels}
+            placeholder="Search public channels…"
+            emptyText="No public channel to join matches"
+          />
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Join</button>
+      </form>
       <div class="modal-action">
         <button
           type="button"

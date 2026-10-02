@@ -5,7 +5,7 @@ import {
   TicketingRefused,
   TICKET_STATUSES,
 } from "$lib/server/ticketing/ticketing.repo"
-import * as employees from "$lib/server/employee-profile/employees.repo"
+import { pickerQuery, searchEmployees } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { can, contextFrom, requireCan } from "$lib/server/auth/can"
 import { FormReader, formList, formString } from "$lib/server/forms"
@@ -74,11 +74,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       // may only import a `$lib/server/*` VALUE if it's erased at compile
       // time (`import type`); this one is read at runtime to size a page.
       updatesMiddlePageSize: ticketing.UPDATES_MIDDLE_PAGE_SIZE,
-      // Every active employee, for the assignee/subscriber Combobox options,
-      // is NOT here — it's `?/peopleOptions`, fetched only once `editing` is
-      // true. Plain view mode never renders it (ticket.assignees/subscribers
-      // already carry names), so eagerly fetching it on every load charged
-      // every read for a write-only need.
       mayWrite:
         can(ctx, "ticketing.write.own") || can(ctx, "ticketing.write.all"),
       // Assignee grants change ticket visibility (staff_ticket_visibility) —
@@ -282,15 +277,13 @@ export const actions: Actions = {
     })
   },
 
-  /** The assignee/subscriber Combobox's options — fetched once, when editing actually starts, not on every load of the page. */
-  peopleOptions: async ({ locals }) => {
+  /** Backs the assignee and subscriber pickers. */
+  searchPeople: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "ticketing.write.own")
+    const q = pickerQuery(new FormReader(await request.formData()))
     return withTenant(actorFrom(locals), async (tx) => ({
-      results: (await employees.managerOptions(tx)).map((p) => ({
-        id: p.id,
-        label: p.name,
-      })),
+      results: await searchEmployees(tx, q),
     }))
   },
 

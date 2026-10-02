@@ -372,13 +372,18 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   },
   {
     route: "settings/ticketing/[businessAreaId]",
-    action: "saveMembers",
-    why: "A business area's default-visible list decides who reads every non-private ticket in it — changing it is a bulk rights change.",
+    action: "addMember",
+    why: "A business area's default-visible list decides who reads every non-private ticket in it — adding someone is a rights change.",
+  },
+  {
+    route: "settings/ticketing/[businessAreaId]",
+    action: "removeMember",
+    why: "Same as addMember: removing a default viewer narrows who reads the area's tickets.",
   },
   {
     route: "settings/ticketing/[businessAreaId]",
     action: "saveGroups",
-    why: "Same as saveMembers, one level of indirection up — a group granted here reads every non-private ticket in this area for every current and future member.",
+    why: "Same as addMember, one level of indirection up — a group granted here reads every non-private ticket in this area for every current and future member.",
   },
 
   // -- User groups: membership and grants change who reads what --------------
@@ -396,7 +401,7 @@ export const AUDITED_OPERATIONS: AuditedOperation[] = [
   {
     route: "projects/[id]",
     action: "setRestricted",
-    why: "Flips whether the project's visibility narrows to its PM, task assignees and group grants, or stays firm-wide — the same class of change as ticketing's saveGroups/saveMembers.",
+    why: "Flips whether the project's visibility narrows to its PM, task assignees and group grants, or stays firm-wide — the same class of change as ticketing's saveGroups/addMember.",
   },
   {
     route: "projects/[id]",
@@ -553,8 +558,8 @@ export const NOT_AUDITED: AuditedOperation[] = [
   },
   {
     route: "ticketing/[id]",
-    action: "peopleOptions",
-    why: "A read, not a write — backs the assignee/subscriber Combobox's options, fetched only once editing starts.",
+    action: "searchPeople",
+    why: "A read, not a write — backs the assignee and subscriber pickers.",
   },
   {
     route: "ticketing/[id]",
@@ -752,6 +757,11 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the new-DM person picker.",
   },
   {
+    route: "chat",
+    action: "searchChannels",
+    why: "A read, not a write — backs the browse-public-channels picker.",
+  },
+  {
     route: "crm/companies",
     action: "searchPeople",
     why: "A read, not a write — backs the account-manager picker.",
@@ -792,6 +802,26 @@ export const NOT_AUDITED: AuditedOperation[] = [
     why: "A read, not a write — backs the add-task assignee picker.",
   },
   {
+    route: "projects/[id]",
+    action: "searchObjectives",
+    why: "A read, not a write — backs the edit form's objective picker.",
+  },
+  {
+    route: "projects/[id]",
+    action: "searchDependencies",
+    why: "A read, not a write — backs the add-dependency task picker.",
+  },
+  {
+    route: "projects",
+    action: "searchObjectives",
+    why: "A read, not a write — backs the create form's objective picker.",
+  },
+  {
+    route: "objectives/[id]",
+    action: "searchPeople",
+    why: "A read, not a write — backs the edit form's owner picker.",
+  },
+  {
     route: "time-tracking",
     action: "searchProjects",
     why: "A read, not a write — backs the log-time project picker.",
@@ -809,7 +839,7 @@ export const NOT_AUDITED: AuditedOperation[] = [
   {
     route: "settings/groups",
     action: "create",
-    why: "An empty named container changes nobody's access by itself — same reasoning as addTask. It's saveMembers, not this, that moves a rights boundary.",
+    why: "An empty named container changes nobody's access by itself — same reasoning as addTask. It's addMember, not this, that moves a rights boundary.",
   },
   {
     route: "settings/groups",
