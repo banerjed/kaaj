@@ -363,10 +363,27 @@ before and after, on the fixture and after new postings.
 | Cash flow | 113–130ms | 10–14ms |
 | P&L | 62–102ms | 7–14ms |
 
-The tax summary stays on lines (~110ms): it groups by tax rate in native
-amounts, which a per-account rollup does not carry. A per-rate daily table
-on the same trigger machinery would do it. A full reseed takes 3:53 with the
-triggers, against 3:13 without.
+A full reseed takes 3:53 with the triggers, against 3:13 without.
+
+The tax summary grouped by tax rate in native amounts, which the first
+version of the table did not carry, so it stayed on lines (130–266ms).
+20261002120000 keys each row by tax rate too and adds native totals; every
+other report sums across rates, unchanged — the same 107 outputs were again
+identical before and after. Tax summary: 266ms to 14ms (one year: 78ms to
+4ms).
+
+The time-tracking and attendance pagers counted every matching row to print
+"of 417,680" — up to 52ms on their own for anyone who sees the whole firm.
+They now count to a cap (`countCap`: 10,000, or one past the page in view)
+and say "10,000+" when they reach it. Time tracking: worst 75ms to 39ms,
+typical 28 to 11. Attendance: 51 to 23, typical 27 to 15.
+
+The employee forms loaded every job title with a per-title head count (each
+a scan of the directory under its row policy) to fill a dropdown that shows
+only the title; they now load the titles alone. The directory and an
+employee's page computed "current pay" as `DISTINCT ON` over every
+employee's pay history, then joined one; they now look up the listed
+people's own. Directory: worst 68ms to 17; edit form 44 to 24; new 37 to 13.
 
 ## Interaction with `./check`
 

@@ -1108,14 +1108,21 @@ test("a reconciliation rule with no matching criteria is refused, not silently a
   await page.goto("/accounting/banking/rules")
   const form = page.locator('form[action="?/create"]')
   await form.locator('input[name="rule_name"]').fill("Matches everything")
-  // The account picker searches: focusing it lists the first matches.
-  await form.locator('input[role="combobox"]').first().click()
-  await page
-    .getByRole("listbox")
-    .getByRole("option")
-    .first()
-    .locator("button")
-    .click()
+  // The account picker searches: focusing it lists the first matches. Picked
+  // by keyboard — the field sits at the foot of the window, where scrolling to
+  // click the floating list moves it under the pointer.
+  const picker = form.locator('input[role="combobox"]').first()
+  // Retried, like openModal: a click before hydration focuses a field with
+  // no handlers yet, and nothing opens.
+  await expect(async () => {
+    await picker.blur()
+    await picker.click()
+    await expect(
+      page.getByRole("listbox").getByRole("option").first(),
+    ).toBeAttached({ timeout: 1000 })
+  }).toPass({ timeout: 15_000 })
+  await picker.press("ArrowDown")
+  await picker.press("Enter")
   await expect(
     form.locator('input[type="hidden"][name="category_account_id"]'),
   ).not.toHaveValue("")
@@ -1175,14 +1182,18 @@ test("recording an accrual against the last period is refused, not silently acce
     label: "March 2026",
   })
   // The account picker searches: focusing it lists the first matches. Its
-  // own input, not getByRole("combobox") — a native <select> has that role too.
-  await form.locator('input[role="combobox"]').first().click()
-  await page
-    .getByRole("listbox")
-    .getByRole("option")
-    .first()
-    .locator("button")
-    .click()
+  // own input, not getByRole("combobox") — a native <select> has that role
+  // too — and retried, since a click before hydration opens nothing.
+  const picker = form.locator('input[role="combobox"]').first()
+  await expect(async () => {
+    await picker.blur()
+    await picker.click()
+    await expect(
+      page.getByRole("listbox").getByRole("option").first(),
+    ).toBeAttached({ timeout: 1000 })
+  }).toPass({ timeout: 15_000 })
+  await picker.press("ArrowDown")
+  await picker.press("Enter")
   await expect(
     form.locator('input[type="hidden"][name="expense_account_id"]'),
   ).not.toHaveValue("")
