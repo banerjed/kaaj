@@ -17,26 +17,12 @@ export async function signInAs(
   const emailField = page.locator('input[name="email"]')
   await expect(emailField).toBeVisible({ timeout: 15_000 })
 
-  // The Auth UI mounts its Supabase client in onMount, so the very first
-  // fill can land before the form is truly interactive and gets dropped
-  // silently — retry the whole fill rather than trust one attempt, the same
-  // race auth.setup.ts and form-errors.spec.ts already work around.
-  await expect(async () => {
-    await emailField.fill(email)
-    await page.locator('input[name="password"]').fill(password)
-    await expect(emailField).toHaveValue(email, { timeout: 1_000 })
-  }).toPass({ timeout: 10_000 })
-
-  // The submit handler attaches on hydration; a click that lands before it
-  // does nothing at all, silently, and leaves the page exactly where it
-  // was — which a lenient `waitForURL` regex (one that also accepts
-  // `/login`) can mistake for "arrived and was refused." Retry the click
-  // itself until the URL actually leaves /login/sign_in, the same race
-  // `openModal` works around in form-errors.spec.ts.
-  await expect(async () => {
-    await page.getByRole("button", { name: "Sign in", exact: true }).click()
-    await expect(page).not.toHaveURL(/\/login\/sign_in/, { timeout: 2_000 })
-  }).toPass({ timeout: 15_000 })
+  // The sign-in page is server-rendered HTML with no JavaScript, so there is
+  // no hydration to wait for: the form works from the first paint.
+  await emailField.fill(email)
+  await page.locator('input[name="password"]').fill(password)
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+  await expect(page).not.toHaveURL(/\/login\/sign_in/, { timeout: 15_000 })
 }
 
 /**
@@ -57,8 +43,14 @@ export async function openModal(page: Page, button: RegExp, field: string) {
  * typed, which is the point of an authorization probe: a client-side gate
  * silently blocking submission must never be mistaken for a server-side
  * refusal (TESTPLAN.md SEC-06 found this the hard way).
+ *
+ * The default skips the shell's sign-out forms, which are on every page and
+ * come before the page's own form.
  */
-export async function submitPastTheBrowser(page: Page, formSelector = "form") {
+export async function submitPastTheBrowser(
+  page: Page,
+  formSelector = 'form:not([action="/account/sign_out"])',
+) {
   await page
     .locator(formSelector)
     .first()

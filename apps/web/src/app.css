@@ -80,20 +80,6 @@ a {
   @apply cursor-pointer;
 }
 
-/* Hack to temporarily solve https://github.com/supabase/auth-ui/issues/219 */
-.authBtn {
-  @apply btn;
-}
-button[disabled].authBtn {
-  font-size: 0.001px;
-  filter: brightness(65%);
-}
-button[disabled].authBtn::before {
-  font-size: 14px;
-  content: "Loading...";
-  color: oklch(var(--pc));
-}
-
 /*
  * Doc 04's 44px touch floor, in one rule rather than on each control (L12).
  * daisyUI's btn-sm is 32px. Coarse pointers only: the floor is for fingers.

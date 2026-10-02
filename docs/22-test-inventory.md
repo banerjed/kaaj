@@ -341,9 +341,10 @@ does, as the DEPLOYED enforcement (see CLAUDE.md's note on this suite vs.
 Not module-specific — every page's form and every money/date/locale render
 goes through these.
 
-- `lib/server/forms.test.ts` [34] — `FormReader`: three outcomes not two
+- `lib/server/forms.test.ts` [36] — `FormReader`: three outcomes not two
   (L33), the column type is not the validator (L34), values that feed
-  `Intl`, decimal bounds compared as decimals. Plus `uuidParam`, which is
+  `Intl`, decimal bounds compared as decimals, a password read exactly as
+  typed (never trimmed). Plus `uuidParam`, which is
   the query string's equivalent of `f.uuid()` — `""` and a malformed value
   both answer null rather than reaching a `::uuid` cast and raising (L37).
 - `lib/format.test.ts` [27] — `money`, `money` (compact), `calendarDate`,

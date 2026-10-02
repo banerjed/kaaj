@@ -142,6 +142,22 @@ export class FormReader {
   }
 
   /**
+   * A password, exactly as typed. Every other reader trims, and a space at
+   * either end is part of a password: trimmed, a sign-in compares a different
+   * string and fails, or a new password is stored without the space the person
+   * typed. Only presence and length are checked; the auth service judges the
+   * rest.
+   */
+  password(name: string, opts: { max: number }): string {
+    const raw = formString(this.data, name)
+    if (raw === "" || [...raw].length > opts.max) {
+      this.failures.add(name)
+      return ""
+    }
+    return raw
+  }
+
+  /**
    * A `RichTextEditor` field. `max` gates the RAW submitted markup (which
    * runs longer than its visible text), then `sanitizeRichText` strips
    * anything outside its fixed allowlist before the value is ever stored —

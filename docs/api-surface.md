@@ -645,9 +645,10 @@ kept the SvelteKit server.
 ## Surface C — Supabase Auth
 
 ADR-008: *"Auth is the decisive reason for this choice."* Unlike the Data API, this surface is
-certain to be used — `@supabase/ssr` and `@supabase/auth-ui-svelte` are already dependencies and
-the CMSaasStarter routes below already call it. Call it through the `supabase-js` client, not by
-URL; `@supabase/ssr` handles the cookie plumbing.
+certain to be used — `@supabase/ssr` is already a dependency and the CMSaasStarter routes below
+already call it. Call it through the server's `supabase-js` client (`locals.supabase`), never
+from the browser: sign-in, sign-up, password reset and sign-out are form actions, so no Supabase
+code ships to the browser. `@supabase/ssr` handles the cookie plumbing.
 
 ### Methods already used in `apps/web/src` (8)
 

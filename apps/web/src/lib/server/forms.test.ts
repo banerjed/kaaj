@@ -65,6 +65,23 @@ describe("an optional field has three outcomes, not two (L33)", () => {
   })
 })
 
+describe("a password is read exactly as typed", () => {
+  it("keeps a space at either end, which every other reader trims", () => {
+    const f = form({ password: "  open sesame " })
+    expect(f.password("password", { max: 200 })).toBe("  open sesame ")
+    expect(f.ok).toBe(true)
+  })
+
+  it("refuses a blank password, and one longer than the limit", () => {
+    const blank = form({ password: "" })
+    blank.password("password", { max: 200 })
+    expect(blank.errorFields).toEqual(["password"])
+    const long = form({ password: "x".repeat(201) })
+    long.password("password", { max: 200 })
+    expect(long.errorFields).toEqual(["password"])
+  })
+})
+
 describe("the column type is not the validator (L34)", () => {
   it("refuses text longer than the column, which is a 500 otherwise", () => {
     const f = form({ name: "D".repeat(300) })

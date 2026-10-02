@@ -1844,6 +1844,22 @@ budget"). The general point: a "deterministic" performance figure needs the
 planner's inputs fixed, not just the rows — and a check run once, or twice
 on the same database, cannot tell you it is not. Reseed and run it again.
 
+### L120 — The front-page check timed the sign-in page, not `/employees`
+
+`verify-front-page-load.mjs` signs in, waits for `/employees`, and reads
+`performance.getEntriesByType("navigation")[0].loadEventEnd`. That entry
+belongs to the DOCUMENT, and signing in used to be an in-page navigation
+(the Supabase auth form called `goto`), so the document was still the
+sign-in page. For months the step reported the sign-in page's load —
+21.8–25.4ms isolated — as "the initial app load", and the 50ms limit and
+CLAUDE.md's numbers were calibrated on it. When sign-in became a server
+form action, the browser loaded `/employees` as a new document, and the
+same step measured it for the first time: about 97ms on a loaded machine,
+against 13ms for the sign-in page in the same run. Nothing about the step
+failed or looked wrong while it measured the wrong page. A timing read from
+the Navigation Timing API measures the last full page load, which a
+client-side `goto` does not create.
+
 ### L119 — `track_planning` puts the planner's catalog reads in the page budget
 
 To find where a slow page spent its time, `pg_stat_statements.track_planning`

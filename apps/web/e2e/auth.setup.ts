@@ -5,8 +5,8 @@ import { dirname } from "node:path"
 /**
  * Sign in once, save the session, and let every other spec reuse it.
  *
- * **Through the real form, not by injecting a token.** The app signs in with
- * `@supabase/auth-ui-svelte` against a browser Supabase client, and the
+ * **Through the real form, not by injecting a token.** The sign-in form posts
+ * to a server action that signs in with the server's Supabase client, and the
  * session it produces lives in cookies written by `@supabase/ssr`. Faking that
  * would mean reproducing the cookie format, which is the library's business
  * and changes without notice — and it would stop this from proving that login
@@ -30,16 +30,13 @@ setup("sign in as the seeded owner", async ({ page }) => {
 
   await page.goto("/login/sign_in")
 
-  // The Auth UI renders once the browser Supabase client is constructed in
-  // onMount, so the fields are not in the first paint.
   const email = page.locator('input[name="email"]')
   await expect(email).toBeVisible({ timeout: 15_000 })
 
   await email.fill(EMAIL)
   await page.locator('input[name="password"]').fill(PASSWORD)
-  // By accessible name, not `button[type=submit]`: the OAuth provider buttons
-  // are submits too, so the attribute selector matches three things and the
-  // first is "Sign in with Github".
+  // By accessible name, not `button[type=submit]`: "Sign in with GitHub" is
+  // a submit too, and comes first.
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
   // Landing on /employees is the proof, not the absence of an error: a login

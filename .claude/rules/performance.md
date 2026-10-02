@@ -37,9 +37,11 @@ a signed-in user and ends when `/employees` is fully loaded. The step uses the
 MEDIAN of five samples. Before the five samples, it does one warm-up load and
 ignores its result. One latency sample is not a measurement.
 
-When the machine has no other work, this page loads in 21.8-25.4ms. When the
-machine is busy, the same page measures 25.9-46.0ms, and sometimes one sample
-is more than the target. This step runs when the machine is busy: immediately
+**CAUTION:** Until 2026-10-02 this step timed the SIGN-IN page, not
+`/employees` ([L120](docs/10-lessons-learned.md)). The 21.8-25.4ms (idle)
+and 25.9-46.0ms (busy) once recorded here are sign-in page numbers. A full
+load of `/employees` measured about 97ms on a busy machine; the idle number,
+and the target it supports, are not set yet. This step runs when the machine is busy: immediately
 after `build` and the unit suites. If the code becomes slower, every sample
 becomes slower, so the median also fails. The median removes the effect of a
 short delay in the scheduler, which caused approximately one run in four to
