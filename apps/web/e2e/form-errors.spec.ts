@@ -381,13 +381,25 @@ test("a lockbox payment whose allocations don't match the total received is refu
   await expect(alloc).toBeVisible()
 
   // $100 said received, but only $50 allocated — a mismatch, not an
-  // unallocated remainder silently accepted.
-  await totalAmount.fill("100.00")
-  await date.fill("2026-03-01")
-  await alloc.fill("50.00")
-  await submitPastTheBrowser(page, "?/allocate")
-
-  await expect(page.locator(".alert").first()).toContainText("don't add up")
+  // unallocated remainder silently accepted. Retried until the submission is
+  // the hydrated one: the allocation inputs are page state, so a value typed
+  // before hydration is reset to empty. Every attempt is refused, so nothing
+  // is written.
+  await expect(async () => {
+    await totalAmount.fill("100.00")
+    await date.fill("2026-03-01")
+    await alloc.fill("50.00")
+    await submitPastTheBrowser(
+      page,
+      "?customer_id=e40d0f18-1333-5cd1-a969-f5113df51e70&/allocate",
+    )
+    await expect(page.locator(".alert").first()).toContainText("don't add up", {
+      timeout: 3_000,
+    })
+    // Before hydration the refusal is a full reload, which keeps nothing
+    // typed: only the enhanced submission is the one under test.
+    await expect(totalAmount).toHaveValue("100.00", { timeout: 3_000 })
+  }).toPass({ timeout: 20_000 })
   await expect(totalAmount).toHaveClass(/input-error/)
   await expect(totalAmount).toHaveAttribute("aria-invalid", "true")
   // The form is still there and what was typed survived (keepValues).
