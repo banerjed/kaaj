@@ -317,7 +317,7 @@ Not measured: `/objectives/[id]` — the generator makes no objectives.
 ## After paging and indexing (2026-10-01)
 
 `pnpm db:perf rows` found 40 places sending more than 100 rows (most of
-them pickers in closed modals — L112), then more once the generator filled
+them pickers in closed modals — L117), then more once the generator filled
 the bounded tables pages read (objectives, compensation, holidays,
 schedules) and the sweep opened a selected view (receive-payment with its
 busiest customer). Every one is now a paged list or a searching picker; the

@@ -40,6 +40,11 @@ const {
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   const ctx = contextFrom(locals)
+  // The page checks its own read permission; a `requireCan` in this page's
+  // actions covers only the POST, and the (app) layout gate is coarse
+  // identity, not this module (L79). Which projects are then visible is
+  // `project_visibility` RLS, not this check.
+  requireCan(ctx, "projects.read")
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1)
   const pageSize = projects.TASK_PAGE_SIZE
 

@@ -3,7 +3,8 @@ name: End-to-end
 # The only CI job that loads a URL in a real browser. Needs the full local
 # Supabase stack (Postgres + GoTrue), not just Postgres — e2e signs in through
 # the real form (apps/web/e2e/auth.setup.ts), which needs a working Auth API,
-# not the SQL-level auth.uid()/auth.jwt() stubs database.yml and tests.yml use.
+# not the SQL-level auth.uid()/auth.jwt() stubs database.yml uses. `tests.yml`
+# now starts the same stack, for the same reason.
 #
 # Kept out of ./check by default (see apps/web/playwright.config.ts) and out
 # of the other workflows for the same reason: it is materially slower than
@@ -23,7 +24,7 @@ env:
   PRIVATE_PII_KEK: "1:xZqNWwsCOqE17r/jdVQN2zca+L1Ztdop48xeCxAcxr0="
   # What the APPLICATION connects as — a non-owner, so RLS applies to it.
   # `./setup` sets this password locally; CI has no ./setup, so a step below
-  # sets it the same way ci-database.sh does for database.yml/tests.yml.
+  # sets it the same way ci-database.sh does for database.yml.
   APP_DATABASE_URL: postgresql://app_user:app_user@127.0.0.1:54322/postgres
 
 jobs:
@@ -60,8 +61,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client-17
 
       # Set out of band, never in a migration (20260827000002 says so).
-      # `./setup` does this locally; CI has no ./setup. Same step
-      # database.yml/tests.yml take via ci-database.sh.
+      # `./setup` does this locally; CI has no ./setup. `tests.yml` takes the
+      # same step; database.yml gets it from ci-database.sh.
       - name: Set the app_user password (local/CI demo credential)
         run: |
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \

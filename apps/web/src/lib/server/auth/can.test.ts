@@ -161,6 +161,26 @@ describe("owner and firm_admin", () => {
     // pick up the staff-side grant by accident.
     expect(can(c, "ticketing.read.own")).toBe(false)
     expect(can(c, "ticketing.write.own")).toBe(false)
+    // The actor the projects guard exists to refuse. Every staff role holds
+    // `projects.read`, so this is the only branch where it answers false —
+    // a guard never observed failing is not evidence.
+    expect(can(c, "projects.read")).toBe(false)
+  })
+
+  it("every staff role may open the projects module; RLS picks the rows", () => {
+    // `projects.read` is module access, deliberately in EVERYONE — the same
+    // split as `document.read`. Which projects are visible is
+    // `project_visibility` (docs/28), asserted in row-visibility.test.ts.
+    expect(can(ctx("employee", []), "projects.read")).toBe(true)
+    expect(can(ctx("contractor", []), "projects.read")).toBe(true)
+    expect(can(ctx("employee", ["project_manager"]), "projects.read")).toBe(
+      true,
+    )
+    expect(can(ctx("firm_admin", []), "projects.read")).toBe(true)
+    expect(can(ctx("owner", []), "projects.read")).toBe(true)
+    // Reads everything, writes nothing.
+    expect(can(ctx("employee", ["auditor"]), "projects.read")).toBe(true)
+    expect(can(ctx("employee", ["auditor"]), "projects.write")).toBe(false)
   })
 })
 

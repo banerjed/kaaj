@@ -182,9 +182,9 @@ export type IndividualInput = {
  * gets the company treatment everywhere — a layout that hides contacts it has
  * no other way to show would strand them.
  *
- * Defined once because the page and the action MUST agree. When they did not,
- * the form rendered one shape and the action expected the other, and the row
- * could not be saved at all.
+ * Defined once because the page's layout and the save action's write path
+ * turn on the same question, and two copies of a rule are one rule that will
+ * disagree (L113).
  */
 export function isPersonAccount(
   customerType: CustomerType | null,

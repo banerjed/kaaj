@@ -7,16 +7,17 @@
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { relationshipStatusTone } from "$lib/components/status-tone"
+  import { instant, money } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
-  import Pagination from "$lib/components/Pagination.svelte"
   import Combobox from "$lib/components/Combobox.svelte"
   import { actionSearch } from "$lib/action-search"
-  import { money } from "$lib/format"
 
   let { data, form } = $props()
+
+  const searchPeople = actionSearch("searchPeople")
 
   const err = $derived(fieldErrors(form))
   const c = $derived(data.company)
@@ -34,17 +35,15 @@
   let addingContact = $state(false)
   let addingDeal = $state(false)
 
-  const searchPeople = actionSearch("searchPeople")
-
-  /** This page's URL with one list's page changed, the other's kept. */
-  function pageHref(list: "deals" | "activities", n: number): string {
-    const params = new URLSearchParams(page.url.searchParams)
-    params.delete("edit")
-    if (n > 1) params.set(list, String(n))
-    else params.delete(list)
-    const qs = params.toString()
-    return qs ? `?${qs}` : "?"
-  }
+  const fmtCtx = $derived({
+    locale: tenantLocale,
+    currency: c.currency,
+    timezone: data.tenant?.default_timezone ?? "UTC",
+    timeFormat: data.tenant?.time_format,
+  })
+  const loadMoreActivitiesHref = $derived(
+    `?activities=${data.activityPages + 1}`,
+  )
 
   const activityIcon = (t: string) =>
     t === "call"
@@ -177,7 +176,7 @@
             <div class="flex items-center justify-between gap-2">
               <h2 class="text-base font-medium">
                 Contacts
-                {#if data.contacts.length > 0}({data.contacts.length}){/if}
+                {#if data.contactCount > 0}({data.contactCount}){/if}
               </h2>
               <button
                 class="btn btn-ghost btn-sm gap-2"
@@ -216,6 +215,11 @@
                 </li>
               {/each}
             </ul>
+            {#if data.contacts.length < data.contactCount}
+              <p class="text-base-content/70 mt-2 text-xs">
+                Showing {data.contacts.length} of {data.contactCount}
+              </p>
+            {/if}
           {/if}
         </SectionCard>
       {/if}
@@ -226,11 +230,13 @@
             <div>
               <h2 class="text-base font-medium">
                 Deals
-                {#if data.deals.total > 0}({data.deals.total}){/if}
+                {#if data.dealCount > 0}({data.dealCount}){/if}
               </h2>
-              {#each data.dealValue as v (v.currency)}
+              <!-- Per currency, summed in SQL. A figure adding USD to GBP is
+                   not a number anyone can act on (BR-FP-003). -->
+              {#each data.dealTotals as t (t.currency)}
                 <p class="text-base-content/70 text-xs tabular-nums">
-                  {money(v.amount, v.currency, tenantLocale)} total
+                  {money(t.amount, t.currency, tenantLocale)} total
                 </p>
               {/each}
             </div>
@@ -243,7 +249,7 @@
             </button>
           </div>
         {/snippet}
-        {#if data.deals.total === 0}
+        {#if data.deals.length === 0}
           <div class="flex flex-col items-center gap-2 py-6 text-center">
             <span class="iconify lucide--handshake text-base-content/30 size-8"
             ></span>
@@ -251,7 +257,7 @@
           </div>
         {:else}
           <ul class="flex max-h-72 flex-col gap-2 overflow-y-auto pe-1">
-            {#each data.deals.rows as d (d.id)}
+            {#each data.deals as d (d.id)}
               <li>
                 <a
                   href={`/crm/deals/${d.id}`}
@@ -261,18 +267,21 @@
                 </a>
                 <p class="text-base-content/70 text-xs">
                   {d.stage_name}
-                  {#if d.value_amount}· {d.currency} {d.value_amount}{/if}
+                  {#if d.value_amount}
+                    · {money(
+                      d.value_amount,
+                      d.currency ?? c.currency,
+                      tenantLocale,
+                    )}
+                  {/if}
                 </p>
               </li>
             {/each}
           </ul>
-          {#if data.deals.total > data.dealPageSize}
-            <Pagination
-              page={data.dealPage}
-              pageSize={data.dealPageSize}
-              total={data.deals.total}
-              hrefFor={(n) => pageHref("deals", n)}
-            />
+          {#if data.deals.length < data.dealCount}
+            <p class="text-base-content/70 mt-2 text-xs">
+              Showing {data.deals.length} of {data.dealCount}
+            </p>
           {/if}
         {/if}
       </SectionCard>
@@ -318,11 +327,11 @@
           </select>
         </form>
 
-        {#if data.activities.total === 0}
+        {#if data.activities.length === 0}
           <p class="text-base-content/70 mt-3 text-sm">Nothing logged yet.</p>
         {:else}
           <ul class="mt-3 flex flex-col gap-2">
-            {#each data.activities.rows as a (a.id)}
+            {#each data.activities as a (a.id)}
               <li class="border-base-200 border-t pt-2">
                 <div class="flex items-start gap-2">
                   <span
@@ -339,23 +348,26 @@
                     {/if}
                     <p class="text-base-content/70 mt-0.5 text-xs">
                       {#if a.contact_name}with {a.contact_name} ·
-                      {/if}{a.created_by_name} · {new Date(
+                      {/if}{a.created_by_name} · {instant(
                         a.occurred_at,
-                      ).toLocaleString()}
+                        fmtCtx,
+                      )}
                     </p>
                   </div>
                 </div>
               </li>
             {/each}
           </ul>
-          {#if data.activities.total > data.activityPageSize}
-            <Pagination
-              page={data.activityPage}
-              pageSize={data.activityPageSize}
-              total={data.activities.total}
-              hrefFor={(n) => pageHref("activities", n)}
-            />
-          {/if}
+          <div class="mt-3 flex items-center justify-between gap-2">
+            <p class="text-base-content/70 text-xs">
+              Showing the most recent {data.activities.length} of {data.activityTotal}
+            </p>
+            {#if data.activities.length < data.activityTotal}
+              <a href={loadMoreActivitiesHref} class="btn btn-ghost btn-xs">
+                Load more
+              </a>
+            {/if}
+          </div>
         {/if}
       </SectionCard>
     </div>
@@ -663,7 +675,6 @@
             <Combobox
               name="owner_id"
               search={searchPeople}
-              invalid={!!err.aria("owner_id")}
               placeholder="Search people…"
               emptyText="No matching person"
             />

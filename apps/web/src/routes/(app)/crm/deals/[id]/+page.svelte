@@ -7,17 +7,24 @@
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
   import { dealStageTone } from "$lib/components/status-tone"
+  import { instant } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
   import Combobox from "$lib/components/Combobox.svelte"
-  import Pagination from "$lib/components/Pagination.svelte"
   import { actionSearch } from "$lib/action-search"
+
+  let { data, form } = $props()
 
   const searchPeople = actionSearch("searchPeople")
 
-  let { data, form } = $props()
+  const fmtCtx = $derived({
+    locale: data.tenant?.default_locale ?? "en-US",
+    currency: data.tenant?.default_currency ?? "USD",
+    timezone: data.tenant?.default_timezone ?? "UTC",
+    timeFormat: data.tenant?.time_format,
+  })
 
   const err = $derived(fieldErrors(form))
   const d = $derived(data.deal)
@@ -184,11 +191,11 @@
         </select>
       </form>
 
-      {#if data.activities.total === 0}
+      {#if data.activities.length === 0}
         <p class="text-base-content/70 mt-3 text-sm">Nothing logged yet.</p>
       {:else}
         <ul class="mt-3 flex flex-col gap-2">
-          {#each data.activities.rows as a (a.id)}
+          {#each data.activities as a (a.id)}
             <li class="border-base-200 border-t pt-2">
               <div class="flex items-start gap-2">
                 <span
@@ -205,22 +212,17 @@
                   {/if}
                   <p class="text-base-content/70 mt-0.5 text-xs">
                     {#if a.contact_name}with {a.contact_name} ·
-                    {/if}{a.created_by_name} · {new Date(
-                      a.occurred_at,
-                    ).toLocaleString()}
+                    {/if}{a.created_by_name} · {instant(a.occurred_at, fmtCtx)}
                   </p>
                 </div>
               </div>
             </li>
           {/each}
         </ul>
-        {#if data.activities.total > data.activityPageSize}
-          <Pagination
-            page={data.activityPage}
-            pageSize={data.activityPageSize}
-            total={data.activities.total}
-            hrefFor={(n) => (n > 1 ? `?activities=${n}` : "?")}
-          />
+        {#if data.activityTotal > data.activities.length}
+          <p class="text-base-content/70 mt-2 text-xs">
+            Showing the most recent {data.activities.length} of {data.activityTotal}
+          </p>
         {/if}
       {/if}
     </SectionCard>
@@ -265,7 +267,6 @@
                 name="owner_id"
                 search={searchPeople}
                 selected={[{ id: d.owner_id, label: d.owner_name }]}
-                invalid={!!err.aria("owner_id")}
                 placeholder="Search people…"
                 emptyText="No matching person"
               />

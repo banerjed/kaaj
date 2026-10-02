@@ -9,7 +9,7 @@ import {
 } from "$lib/server/pickers"
 import { withTenant, actorFrom } from "$lib/server/db/tenant"
 import { contextFrom, requireCan } from "$lib/server/auth/can"
-import { FormReader } from "$lib/server/forms"
+import { FormReader, uuidParam } from "$lib/server/forms"
 import { constraintFailure } from "$lib/server/db/constraints"
 
 /**
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   requireCan(contextFrom(locals), "crm.read")
 
   // One column paged at a time: the URL carries which stage, and which page.
-  const pageStageId = url.searchParams.get("stage")
+  const pageStageId = uuidParam(url.searchParams.get("stage"))
   const stagePage = Math.max(1, Number(url.searchParams.get("page")) || 1)
 
   return withTenant(actorFrom(locals), async (tx) => {

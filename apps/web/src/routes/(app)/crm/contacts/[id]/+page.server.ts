@@ -15,16 +15,12 @@ import { constraintFailure } from "$lib/server/db/constraints"
 
 const SCOPE = { entityType: "customer_contact" } as const
 
-const ACTIVITY_PAGE_SIZE = 20
+/** `crm_activities` grows per event; the feed shows the most recent, with the real total beside it. */
+const ACTIVITY_PAGE_SIZE = 10
 
-export const load: PageServerLoad = async ({ params, locals, url }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
-
-  const activityPage = Math.max(
-    1,
-    Number(url.searchParams.get("activities")) || 1,
-  )
 
   return withTenant(actorFrom(locals), async (tx) => {
     const contact = await contacts.getById(tx, params.id)
@@ -37,12 +33,12 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
     return {
       contact,
-      activities: await activities.listForContact(tx, params.id, {
-        limit: ACTIVITY_PAGE_SIZE,
-        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
-      }),
-      activityPage,
-      activityPageSize: ACTIVITY_PAGE_SIZE,
+      activities: await activities.listForContact(
+        tx,
+        params.id,
+        ACTIVITY_PAGE_SIZE,
+      ),
+      activityTotal: await activities.countForContact(tx, params.id),
       activityTypes: activities.ACTIVITY_TYPES,
       fieldDefs,
       fieldValues: fieldValues[params.id] ?? [],

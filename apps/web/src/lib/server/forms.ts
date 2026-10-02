@@ -16,6 +16,20 @@ import { sanitizeRichText } from "$lib/server/rich-text"
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * A uuid taken from the QUERY STRING, or null if it is absent, blank or not a
+ * uuid at all.
+ *
+ * `searchParams.get()` returns `""` for `?stage=` and whatever was typed for
+ * `?stage=garbage` — and SQL does not short-circuit, so either one reaching a
+ * `::uuid` parameter is an Internal Error rather than an empty filter (L37).
+ * A query string is as crafted as a form body; the only difference is that no
+ * `FormReader` sits in front of it.
+ */
+export function uuidParam(raw: string | null | undefined): string | null {
+  return raw && UUID.test(raw) ? raw : null
+}
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 /** Still used directly for the `name_i18n.<locale>` loops, which are dynamic. */

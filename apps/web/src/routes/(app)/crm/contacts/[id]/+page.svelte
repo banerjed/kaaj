@@ -5,13 +5,20 @@
   import ModalActions from "$lib/components/ModalActions.svelte"
   import CustomFieldValues from "$lib/components/CustomFieldValues.svelte"
   import CustomFieldFormFields from "$lib/components/CustomFieldFormFields.svelte"
+  import { instant } from "$lib/format"
   import { fieldErrors } from "$lib/form-errors"
   import { enhance } from "$app/forms"
   import { closeOnSuccess, keepValues } from "$lib/form-enhance"
   import { page } from "$app/state"
-  import Pagination from "$lib/components/Pagination.svelte"
 
   let { data, form } = $props()
+
+  const fmtCtx = $derived({
+    locale: data.tenant?.default_locale ?? "en-US",
+    currency: data.tenant?.default_currency ?? "USD",
+    timezone: data.tenant?.default_timezone ?? "UTC",
+    timeFormat: data.tenant?.time_format,
+  })
 
   const err = $derived(fieldErrors(form))
   const p = $derived(data.contact)
@@ -138,11 +145,11 @@
         />
       </form>
 
-      {#if data.activities.total === 0}
+      {#if data.activities.length === 0}
         <p class="text-base-content/70 mt-3 text-sm">Nothing logged yet.</p>
       {:else}
         <ul class="mt-3 flex flex-col gap-2">
-          {#each data.activities.rows as a (a.id)}
+          {#each data.activities as a (a.id)}
             <li class="border-base-200 border-t pt-2">
               <div class="flex items-start gap-2">
                 <span
@@ -158,22 +165,17 @@
                     <p class="text-base-content/70 text-sm">{a.body}</p>
                   {/if}
                   <p class="text-base-content/70 mt-0.5 text-xs">
-                    {a.created_by_name} · {new Date(
-                      a.occurred_at,
-                    ).toLocaleString()}
+                    {a.created_by_name} · {instant(a.occurred_at, fmtCtx)}
                   </p>
                 </div>
               </div>
             </li>
           {/each}
         </ul>
-        {#if data.activities.total > data.activityPageSize}
-          <Pagination
-            page={data.activityPage}
-            pageSize={data.activityPageSize}
-            total={data.activities.total}
-            hrefFor={(n) => (n > 1 ? `?activities=${n}` : "?")}
-          />
+        {#if data.activityTotal > data.activities.length}
+          <p class="text-base-content/70 mt-2 text-xs">
+            Showing the most recent {data.activities.length} of {data.activityTotal}
+          </p>
         {/if}
       {/if}
     </SectionCard>

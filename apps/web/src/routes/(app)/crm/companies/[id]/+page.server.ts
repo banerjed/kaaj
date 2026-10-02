@@ -20,45 +20,54 @@ import {
 const SCOPE = { entityType: "company" } as const
 
 const ACTIVITY_PAGE_SIZE = 10
-const DEAL_PAGE_SIZE = 20
+
+/**
+ * Rows in the Contacts and Deals cards. Both tables are SCALE_SENSITIVE, and
+ * both cards sit in a fixed-height scroller — reading the whole history to
+ * fill a 72-unit box is the shape that bites once a client is years old.
+ */
+const CARD_PAGE_SIZE = 20
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
 
-  const pageParam = (name: string) =>
-    Math.max(1, Number(url.searchParams.get(name)) || 1)
-  const activityPage = pageParam("activities")
-  const dealPage = pageParam("deals")
+  // "Load more" grows the feed; a page never holds more than 100 rows.
+  const activityPages = Math.min(
+    100 / ACTIVITY_PAGE_SIZE,
+    Math.max(1, Number(url.searchParams.get("activities")) || 1),
+  )
+  const activityLimit = activityPages * ACTIVITY_PAGE_SIZE
 
   return withTenant(actorFrom(locals), async (tx) => {
     const company = await customers.getById(tx, params.id)
     if (!company) error(404, "Client not found")
     const fieldValues = await customFields.valuesFor(tx, "company", [params.id])
-    const people = await contacts.listForCustomer(tx, params.id)
+    // The count, not the loaded page: a capped list would make a business
+    // with 21 contacts look like a one-contact person account.
+    const contactCount = await contacts.countForCustomer(tx, params.id)
+    const people = await contacts.listForCustomer(tx, params.id, CARD_PAGE_SIZE)
 
     return {
       company,
+      contactCount,
+      dealCount: await deals.countForCustomer(tx, params.id),
+      dealTotals: await deals.totalsForCustomer(tx, params.id),
       isPersonAccount: customers.isPersonAccount(
         company.customer_type,
-        people.length,
+        contactCount,
       ),
       fieldDefs: await customFields.definitionsFor(tx, SCOPE),
       fieldValues: fieldValues[params.id] ?? [],
       contacts: people,
-      deals: await deals.listForCustomer(tx, params.id, {
-        limit: DEAL_PAGE_SIZE,
-        offset: (dealPage - 1) * DEAL_PAGE_SIZE,
-      }),
-      dealPage,
-      dealPageSize: DEAL_PAGE_SIZE,
-      dealValue: await deals.valueByCurrencyForCustomer(tx, params.id),
-      activities: await activities.listForCustomer(tx, params.id, {
-        limit: ACTIVITY_PAGE_SIZE,
-        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
-      }),
-      activityPage,
-      activityPageSize: ACTIVITY_PAGE_SIZE,
+      deals: await deals.listForCustomer(tx, params.id, CARD_PAGE_SIZE),
+      activities: await activities.listForCustomer(
+        tx,
+        params.id,
+        activityLimit,
+      ),
+      activityTotal: await activities.countForCustomer(tx, params.id),
+      activityPages,
       pipelineStages: await pipelineStages.list(tx),
       relationshipStatuses: customers.RELATIONSHIP_STATUSES,
       customerTypes: customers.CUSTOMER_TYPES,
@@ -68,7 +77,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 }
 
 export const actions: Actions = {
-  /** Backs the account-manager and deal-owner pickers. */
+  /** Backs the account-manager and new-deal owner pickers. */
   searchPeople: async ({ request, locals }) => {
     if (!locals.tenantId) error(403, "No tenant")
     requireCan(contextFrom(locals), "crm.read")

@@ -17,15 +17,13 @@ import {
 } from "$lib/server/custom-fields/read-values"
 
 const SCOPE = { entityType: "deal" } as const
-const ACTIVITY_PAGE_SIZE = 20
 
-export const load: PageServerLoad = async ({ params, locals, url }) => {
+/** `crm_activities` grows per event; the feed shows the most recent, with the real total beside it. */
+const ACTIVITY_PAGE_SIZE = 10
+
+export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.tenantId) error(403, "No tenant")
   requireCan(contextFrom(locals), "crm.read")
-  const activityPage = Math.max(
-    1,
-    Number(url.searchParams.get("activities")) || 1,
-  )
 
   return withTenant(actorFrom(locals), async (tx) => {
     const deal = await deals.getById(tx, params.id)
@@ -38,12 +36,12 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       fieldValues: fieldValues[params.id] ?? [],
       stages: await pipelineStages.list(tx),
       contacts: await contacts.listForCustomer(tx, deal.customer_id),
-      activities: await activities.listForDeal(tx, params.id, {
-        limit: ACTIVITY_PAGE_SIZE,
-        offset: (activityPage - 1) * ACTIVITY_PAGE_SIZE,
-      }),
-      activityPage,
-      activityPageSize: ACTIVITY_PAGE_SIZE,
+      activities: await activities.listForDeal(
+        tx,
+        params.id,
+        ACTIVITY_PAGE_SIZE,
+      ),
+      activityTotal: await activities.countForDeal(tx, params.id),
       activityTypes: activities.ACTIVITY_TYPES,
     }
   })

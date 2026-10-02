@@ -20,8 +20,8 @@ export type Deal = {
   updated_at: string
 }
 
-const COLUMNS_AND_FROM = `
-         d.id, d.customer_id, c.customer_name, d.customer_contact_id,
+const SELECT = `
+  SELECT d.id, d.customer_id, c.customer_name, d.customer_contact_id,
          cc.first_name || ' ' || cc.last_name AS contact_name,
          d.stage_id, s.name AS stage_name, s.stage_type,
          d.name, d.value_amount, d.currency, d.probability_percent,
@@ -34,17 +34,6 @@ const COLUMNS_AND_FROM = `
     JOIN employees o ON o.id = d.owner_id
     LEFT JOIN customer_contacts cc ON cc.id = d.customer_contact_id
 `
-const SELECT = `SELECT ${COLUMNS_AND_FROM}`
-/** The same, with every match counted alongside one page of them. */
-const SELECT_COUNTED = `SELECT count(*) OVER ()::text AS total, ${COLUMNS_AND_FROM}`
-
-/** Every open and closed deal, board order (stage, then newest first). */
-export async function list(tx: Tx): Promise<Deal[]> {
-  return tx<Deal[]>`
-    ${tx.unsafe(SELECT)}
-    ORDER BY s.sort_order ASC, d.created_at DESC
-  `
-}
 
 /**
  * The board, paged PER COLUMN rather than per page.
@@ -140,39 +129,46 @@ export async function stageSummary(tx: Tx): Promise<StageSummary[]> {
   }))
 }
 
-/** One page of a client's deals, newest first; `total` counts every one. */
 export async function listForCustomer(
   tx: Tx,
   customerId: string,
-  { limit, offset }: { limit: number; offset: number },
-): Promise<{ rows: Deal[]; total: number }> {
-  const rows = await tx<(Deal & { total: string })[]>`
-    ${tx.unsafe(SELECT_COUNTED)}
+  limit = 10,
+): Promise<Deal[]> {
+  return tx<Deal[]>`
+    ${tx.unsafe(SELECT)}
      WHERE d.customer_id = ${customerId}
-     ORDER BY d.created_at DESC, d.id
-     LIMIT ${limit} OFFSET ${offset}
+     ORDER BY d.created_at DESC
+     LIMIT ${limit}
   `
-  return {
-    rows: rows.map(({ total: _total, ...row }) => row),
-    total: rows.length > 0 ? Number(rows[0].total) : 0,
-  }
+}
+
+export async function countForCustomer(
+  tx: Tx,
+  customerId: string,
+): Promise<number> {
+  const [row] = await tx<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM crm_deals WHERE customer_id = ${customerId}
+  `
+  return row?.n ?? 0
 }
 
 /**
- * A client's deal value, per currency, over every deal rather than the page
- * on screen. Never one figure across currencies (BR-FP-003).
+ * A client's open pipeline, per currency. Summed in SQL because `NUMERIC` is
+ * exact there, and split by currency because a figure adding USD to GBP is
+ * not a number anyone can act on — money is never converted for display
+ * (BR-FP-003).
  */
-export async function valueByCurrencyForCustomer(
+export async function totalsForCustomer(
   tx: Tx,
   customerId: string,
 ): Promise<{ currency: string; amount: string }[]> {
   return tx<{ currency: string; amount: string }[]>`
-    SELECT d.currency, sum(d.value_amount)::text AS amount
-      FROM crm_deals d
-     WHERE d.customer_id = ${customerId}
-       AND d.value_amount IS NOT NULL AND d.currency IS NOT NULL
-     GROUP BY d.currency
-     ORDER BY d.currency
+    SELECT currency, sum(value_amount)::text AS amount
+      FROM crm_deals
+     WHERE customer_id = ${customerId}
+       AND value_amount IS NOT NULL AND currency IS NOT NULL
+     GROUP BY currency
+     ORDER BY currency
   `
 }
 
