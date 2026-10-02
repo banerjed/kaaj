@@ -1,86 +1,97 @@
 # Coding Guidelines
 
-Patterns for writing code in Kaaj, with real GOOD/BAD examples. This file
-teaches the pattern; **CLAUDE.md and `docs/*.md` are the authority** on
-repo-specific rules, and `./check` is what actually enforces most of them —
-where this file and `./check` disagree, `./check` is right and this file is
-stale.
+This file gives the patterns to write code in Kaaj, with real GOOD and BAD
+examples. This file teaches the pattern. **CLAUDE.md and `docs/*.md` are the
+authority** for the rules of this repository, and `./check` enforces most of
+these rules. If this file and `./check` do not agree, `./check` is correct and
+this file is out of date.
 
-Read this before writing a new route, a new table, or a new form. It won't
-make you re-derive anything CLAUDE.md already states as a rule; it exists to
-show what following that rule actually looks like in code, and what breaking
-it looks like, since most of the entries below are patterns that have already
-broken in this codebase at least once (see `docs/10-lessons-learned.md`,
-referenced inline as `Lnn`).
+Read this file before you write a new route, a new table or a new form. You do
+not have to derive again a rule that CLAUDE.md already states. This file shows
+how code that obeys a rule looks in practice, and how code that does not obey
+it looks. Most of the entries below are patterns that failed in this codebase
+at least one time. `docs/10-lessons-learned.md` records these failures, and
+this file refers to them as `Lnn`.
 
 ---
 
 ## The checklist
 
-- **Authorize before you write, at both layers.** `requireCan()` before the
-  first `withTenant(...)` call in every action, *and* an RLS policy that would
-  refuse the row even if the app-layer guard were missing. One without the
-  other is not defense in depth.
-- **`withTenant` takes the actor, never a bare tenant id.** `actorFrom(locals)`,
-  not `locals.tenantId` — a bare id passes tenant isolation and then silently
-  returns zero rows under a row-visibility policy.
-- **A new table gets `tenant_isolation` immediately, and a row-visibility
-  decision before it ships**, not before it "needs" one. Tenant-only vs
-  role-aware is a real design call — see `docs/15-row-level-visibility.md`.
-- **Never recreate a policy with `DROP`/`CREATE`.** `AS RESTRICTIVE`, `FOR`,
-  `TO`, `WITH CHECK` are lost by omission and the statement still succeeds —
-  this produced a 12-row cross-tenant leak once already (L63).
-- **Money is a string, end to end.** `NUMERIC` in Postgres, `string` in
-  TypeScript, `inputmode="decimal"` in the browser. Never `Number()` it,
-  never `type="number"` it, never add/subtract it in JavaScript.
-- **A `timestamptz` renders in the *office's* zone; a `DATE` renders in UTC.**
-  Never the viewer's zone, never a bare `::date` cast on a timestamp.
+- **Authorize before you write, at both layers.** In each action, put
+  `requireCan()` before the first `withTenant(...)` call. *Also* add an RLS
+  policy that refuses the row when the guard in the application is absent.
+  One layer without the other is not defense in depth.
+- **`withTenant` takes the actor, never a bare tenant id.** Use
+  `actorFrom(locals)`, not `locals.tenantId`. A bare id passes tenant
+  isolation. Then a visibility policy returns zero rows, with no error.
+- **A new table gets `tenant_isolation` immediately, and a decision about a
+  visibility policy before you release it.** Do not wait until the table
+  "needs" a decision. The choice between tenant-only and role-aware visibility
+  is a real design decision. See `docs/15-row-level-visibility.md`.
+- **Never recreate an RLS policy with `DROP`/`CREATE`.** If you do not write
+  `AS RESTRICTIVE`, `FOR`, `TO` and `WITH CHECK` again, Postgres removes them.
+  The statement succeeds with no error. This caused a cross-tenant disclosure
+  of 12 rows one time already (L63).
+- **Money is a string, end to end.** Use `NUMERIC` in Postgres, `string` in
+  TypeScript and `inputmode="decimal"` in the browser. Never use `Number()` on
+  an amount. Never use `type="number"` for an amount. Never add or subtract
+  amounts in JavaScript.
+- **A `timestamptz` renders in the zone of the *office*; a `DATE` renders in
+  UTC.** Never use the zone of the user. Never use a bare `::date` cast on a
+  timestamp.
 - **Never hardcode a currency-to-locale or country-to-locale mapping.** Read
-  the real value from `firm_locations` via `localeForCurrency`/
-  `localeForCountry`. A ternary that only knows GBP/INR has already shipped
-  and had to be fixed three times.
-- **A write someone may later be asked to justify gets an audit entry, in the
-  *same* transaction as the write.** Written afterwards, the trail records
-  what the app believed happened, not what happened (L40).
-- **An error reaching a log goes through `safeError`, never raw.** A
-  `PostgresError`'s `detail` can carry the offending row.
-- **Never assemble a Tailwind class name.** `` `badge-${size}` `` is invisible
-  to Tailwind's static analysis — the class is never generated, and nothing
-  errors. Map each state to a complete string.
-- **Every field a form action writes goes through `FormReader`.** `required`
-  and `type` are browser UX and vanish on a crafted POST; the reader is the
-  last line of defense before the column's own type is.
-- **A refused write is a sentence naming the field, on a form still on
-  screen** — not `fail(400)` with nothing rendered, and not a full-page
-  reload that discards what the person typed (L68).
+  the real value from `firm_locations` through `localeForCurrency` or
+  `localeForCountry`. We released a ternary that knew only GBP and INR, and we
+  had to correct it three times.
+- **A write that someone may have to justify later gets an audit entry, in the
+  *same* transaction as the write.** If the application writes the entry
+  after the write, the trail records what the application believed occurred.
+  It does not record what occurred (L40).
+- **An error that goes to a log goes through `safeError`, never raw.** The
+  `detail` of a `PostgresError` can contain the row that caused the error.
+- **Never assemble a Tailwind class name.** The static analysis of Tailwind
+  cannot see `` `badge-${size}` ``. Tailwind does not generate the class, and
+  no error occurs. Map each state to a complete string.
+- **Every field that a form action writes goes through `FormReader`.**
+  `required` and `type` are browser UX, and a crafted POST does not have them.
+  The reader is the last defense before the type of the column itself.
+- **A refused write gives a sentence that names the field, on a form that is
+  still on screen.** Do not return `fail(400)` and render nothing. Do not do a
+  full-page reload that discards what the user typed (L68).
 - **On a request path, nothing reads more rows than it returns, apart from a
-  capped count.** Page first, then join onto the page. An aggregate that is
-  inherently large is read from a precomputed table, never summed per
-  request.
+  capped count.** First select the rows of the page, then join other data to
+  these rows only. Read an aggregate that is large by nature from a
+  precomputed table. Never calculate it again for each request.
 
 ---
 
 ## 1. Authorizing a new API call — read and write
 
-Every `(app)` route's `load` and every form action is a place someone could
-reach a row they shouldn't. Two layers protect it, and they answer different
-questions:
+Each `(app)` route has a `load` function and form actions. In each of these
+places, a user can get to a row that they must not see. Two layers protect
+these places, and each layer answers a different question:
 
-- **`can()` / `requireCan()`** (`$lib/server/auth/can`) answers *"may this
-  actor do this to this row"* — a permission check.
-- **RLS** (the database's row-visibility policy) answers *"do these rows even
-  exist for this actor"* — independent of whether the app remembered to ask.
+- **`can()` / `requireCan()`** (`$lib/server/auth/can`) answers *"can this
+  actor do this operation on this row?"* This layer examines a permission.
+- **RLS** (the visibility policies of the database) answers *"do these rows
+  exist for this actor?"* RLS gives this answer also when the application did
+  not remember to ask.
 
-A route needs both wherever the table carries a row-visibility policy, and
-needs the app-layer check alone where the table is tenant-only by design (see
-§2). Relying on only one is exactly the shape of the incidents this
-convention exists to prevent — accounting was tenant-only at the database for
-weeks while the application was already correct, so one query path that
-missed `requireCan` would have disclosed every invoice in the firm.
+If the table has a visibility policy, the route needs both layers. If the
+table is tenant-only by design, the route needs only the guard in the
+application (see §2). This convention prevents one type of incident: code
+that relies on only one layer. For weeks, the accounting tables were
+tenant-only in the database, but the application was already correct. Thus,
+one query path without `requireCan` could show each invoice of the
+organization to all users of the tenant.
 
-**GOOD** — a read gated on a permission, a write gated *and* guarded before
-the transaction opens, an audited write, and a constraint refusal turned into
-a field-level message:
+**GOOD**: the example below shows:
+
+- a read that a permission guard controls
+- a write that a permission guard controls, with the guard *before* the
+  transaction opens
+- a write that records an audit entry
+- a constraint refusal that becomes a message for one field
 
 ```ts
 // +page.server.ts
@@ -125,7 +136,7 @@ export const actions: Actions = {
 }
 ```
 
-**BAD** — three real failure modes, each already caught once by `./check`:
+**BAD**: three real failure modes. `./check` found each of them one time:
 
 ```ts
 // 1. No guard at all — a plain tenant check is not an authorization check.
@@ -154,17 +165,21 @@ return withTenant(locals.tenantId, async (tx) => ...) // row-visibility policies
 
 ## 2. Row-level security for a new table
 
-Every tenant-owned table gets `tenant_isolation` — no exception. The separate
-question, for every new table, is whether a row-visibility policy on top of
-it is warranted: **does a same-tenant colleague reading this row cause real
-harm** (pay, PII, a firm's own financial records), or is it directory-shaped
-data everyone in the tenant may already see? See
-`docs/15-row-level-visibility.md` for the full criterion and the current
-tier list.
+Each table that a tenant owns always gets `tenant_isolation`. For each new
+table, there is a second question: does the table also need a visibility
+policy? **If a colleague in the same tenant reads this row, does real harm
+occur?** Examples of harm are pay, PII and the financial records of the
+organization. Or is the row directory data that all users in the tenant can
+already see? For the full criterion and the current list of tiers, see
+`docs/15-row-level-visibility.md`.
 
-**GOOD** — tenant isolation always, a role-aware RESTRICTIVE policy layered
-on top when the table warrants it, with every modifier spelled out and the
-claim parsed through a fail-closed helper function (never inline):
+**GOOD**: the example below shows:
+
+- tenant isolation, always
+- a role-aware RESTRICTIVE policy in addition, if the table needs one
+- the full text of each modifier
+- a helper function that parses the claim and fails closed (never parse the
+  claim inline)
 
 ```sql
 ALTER TABLE widgets ENABLE ROW LEVEL SECURITY;
@@ -195,7 +210,7 @@ USING (
 );
 ```
 
-**BAD** — the three shapes that have each caused a real incident here:
+**BAD**: three shapes. Each of them caused a real incident in this codebase:
 
 ```sql
 -- 1. Parsing the claim inline instead of through a fail-closed function.
@@ -223,17 +238,19 @@ SELECT COALESCE(wp.protected_value, w.cached_value_unprotected) FROM widgets w
   LEFT JOIN widget_protected wp ON wp.widget_id = w.id -- (L47's exact shape)
 ```
 
-Run `./check --db` immediately after any policy change — `verify-rls.sql`
-tests every table both ways (the refused actor gets nothing, the permitted
-one still gets rows), and it is the thing that actually catches #2 above.
+Run `./check --db` immediately after each change to an RLS policy.
+`verify-rls.sql` runs tests on each table in two directions: the refused
+actor gets no rows, and the permitted actor still gets rows. This script is
+the step that finds #2 above.
 
 ---
 
 ## 3. Money and currency
 
-`NUMERIC` in Postgres, `string` in TypeScript, from the browser to the
-database and back. A float anywhere in that path loses digits silently —
-measured on this schema: `99999.99` stored as `real` comes back as `100000`.
+Use `NUMERIC` in Postgres and `string` in TypeScript, on the full path from
+the browser to the database and back. A float at any point on that path loses
+digits with no error. A measurement on this schema shows this: if Postgres
+stores `99999.99` as `real`, it returns `100000`.
 
 **GOOD**:
 
@@ -273,21 +290,22 @@ const total = invoiceLine1.amount + invoiceLine2.amount
 <input name="amount" type="number" step="0.01" />
 ```
 
-JSONB money (payroll's `earnings`/`taxes` documents) needs the same
-discipline and an extra one: **store `"95000"`, never `95000`** — a JSON
-number inside JSONB is exact in Postgres and becomes a lossy float64 the
-moment JavaScript reads it back out, and no schema-level check can see inside
-a JSONB column to catch this. See CLAUDE.md § Money for the full list of
-JSONB money paths this applies to.
+Money in JSONB (the `earnings`/`taxes` documents of payroll) needs the same
+rules and one more rule: **store `"95000"`, never `95000`**. Postgres keeps a
+JSON number in JSONB exactly. When JavaScript reads the number back, the
+number becomes a float64, and a float64 can lose digits. No `./check` step
+that reads the schema can see inside a JSONB column, so no step finds this
+bug. For the full list of JSONB money paths that this rule applies to, see
+CLAUDE.md § Money.
 
 ---
 
 ## 4. Dates and timezones
 
-A `timestamptz` is an instant — the same moment is a 9am start in Bangalore
-and a 10:30pm finish in New York. A `DATE` carries no zone at all. Using the
-wrong one of `instant()` / `calendarDate()` for a given column is the
-mistake; both exist so you don't have to remember the rule each time.
+A `timestamptz` is an instant. The same instant is a 9am start in Bangalore
+and a 10:30pm finish in New York. A `DATE` has no zone. The bug is to use the
+wrong one of `instant()` / `calendarDate()` for a column. The two functions
+exist so that you do not have to remember the rule each time.
 
 **GOOD**:
 
@@ -322,13 +340,14 @@ if (row.created_at.getTime() > Date.now() - 3600_000) { /* ... */ }
 
 ## 5. Locale and international formatting
 
-**Never hardcode which countries or currencies exist.** A ternary like
+**Never hardcode which countries or currencies exist.** A ternary such as
 `currency === "GBP" ? "en-GB" : currency === "INR" ? "en-IN" : "en-US"` looks
-harmless and has shipped — and had to be found and fixed — three separate
-times in this codebase, each time because it silently mis-formatted (or
-failed to format) a market the ternary didn't know about. The real per-office
-locale already lives in `firm_locations` (`country`, `currency`, `locale`
-columns); read it from there.
+safe. But this shape went into production three times in this codebase, and
+each time a person had to find it and correct it. Each time, it formatted a
+market incorrectly (or did not format it) with no error, because the ternary
+did not know that market. The real locale of each office is already in
+`firm_locations` (the `country`, `currency` and `locale` columns). Read the
+locale from there.
 
 **GOOD**:
 
@@ -348,9 +367,9 @@ locations: await locationsRepo.list(tx),
 {money(invoice.total, invoice.currency, localeFor(invoice.currency))}
 ```
 
-Adding a new market — a French or German office — is then just adding the
-`firm_locations` row. Nothing in application code needs to change or "learn"
-about the new country.
+To add a new market (for example, a French or German office), add only the
+`firm_locations` row. No application code changes, and no application code
+must "learn" about the new country.
 
 **BAD**:
 
@@ -362,39 +381,53 @@ const locale =
   currency === "GBP" ? "en-GB" : currency === "INR" ? "en-IN" : "en-US"
 ```
 
-**Tenant-configurable translated *data*** (a firm's own name in multiple
-languages, a benefits-package name) is a different concern from UI text, and
-already has a real pattern: a `name_i18n JSONB` column beside the plain
-`name`, keyed by locale, read through `FormReader`'s `i18n()` reader and
-scoped to `supported_locales` — see `firm_locations.name_i18n` or
-`payroll_pay_schedules.name_i18n` for a working example.
+**Translated *data* that a tenant configures** is a different subject from UI
+text. Examples are the name of an organization in more than one language, and
+the name of a benefits package. This data already has a real pattern:
 
-**UI text i18n — every label the user reads, in their own chosen language —
-does not exist in this codebase yet.** There is no message-catalog library
-wired in, and no locale switcher. Every string in every `.svelte` file is
-English today. Don't invent a local, one-off translation mechanism for a
-single page in the meantime — that produces the exact "two copies of one
-concern, and they disagree" shape this codebase's own conventions exist to
-avoid (see CLAUDE.md's "a vocabulary lives in one place" rule, `L57`). Treat
-full UI-text i18n as a separate, foundational piece of work with its own
-design (library choice, per-user vs per-tenant language preference,
-extraction strategy) rather than something to bolt on page by page.
+- a `name_i18n JSONB` column next to the plain `name`, with one key for each
+  locale
+- the `i18n()` reader of `FormReader` reads the column
+- the reader limits the keys to `supported_locales`
+
+For a real example, see `firm_locations.name_i18n` or
+`payroll_pay_schedules.name_i18n`.
+
+**UI text i18n does not exist in this codebase yet.** UI text i18n shows each
+label that the user reads in the language that the user selects. The
+application has no message-catalog library and no locale switcher. Today, each
+string in each `.svelte` file is in English.
+
+Until a full design exists, do not make a local translation mechanism for one
+page only. That mechanism makes a shape that the conventions of this codebase
+prevent: "two copies of one concern, and they disagree". For the rule, see "a
+vocabulary lives in one place" in CLAUDE.md (`L57`).
+
+Do full UI-text i18n as a separate, basic piece of work with its own design.
+The design must decide the library, whether the language preference is per
+user or per tenant, and how to extract the strings. Do not add i18n one page
+at a time.
 
 ---
 
 ## 6. Audit logging
 
-A write someone may later be asked to justify — a pay change, an approval, a
-role grant, an erasure — gets an entry in `audit_log`, written in the **same
-transaction** as the change. Written afterwards, on a second connection, or
-best-effort with a swallowed error, the trail records what the application
-*believed* happened, and the two diverge exactly when someone is asking why
-(L40). `audit_log` cannot be deleted from, so both directions matter: an
-action that should audit and doesn't is a silent gap, and one that audits but
-shouldn't is permanent noise nobody can prune. Every write action is
-classified one way or the other in
-`apps/web/src/lib/server/audit/register.ts`, and `./check` fails on an
-action in neither list.
+Some writes are writes that a user can later ask you to justify: a pay change,
+an approval, a role grant, an erasure. Each of these writes adds an entry to
+`audit_log`, in the **same transaction** as the change. Do not write the entry
+after the change, on a second connection, or with an error that the code
+ignores. If you do, the audit trail records what the application *believed*
+happened. Then the trail and the real data are different exactly when a user
+asks why (L40).
+
+Nobody can delete rows from `audit_log`, so both directions are important:
+
+- If an action must audit and does not, the trail has a gap, with no error.
+- If an action audits and must not, the result is permanent noise that
+  nobody can remove.
+
+`apps/web/src/lib/server/audit/register.ts` classifies each write action in
+one list or the other. If an action is in neither list, `./check` fails.
 
 **GOOD**:
 
@@ -442,11 +475,11 @@ changes: { amount: { from: 148000, to: 152000 } } // should be "148000"/"152000"
 
 ## 7. Error handling
 
-An error reaching a log — or the browser — goes through an allowlist, never
-raw. A `PostgresError`'s `detail`/`where`/`query` fields can carry the
-offending row (a date of birth that failed a type check IS the error
-message), and `handleError` is the one place SvelteKit lets that reach a log
-at all.
+Send an error to a log or to the browser only through an allowlist. Never send
+the raw error. The `detail`/`where`/`query` fields of a `PostgresError` can
+hold the row that caused the error. For example, if a date of birth fails the
+type validation, the date of birth IS the error message. `handleError` is the
+only place where SvelteKit lets that error go to a log.
 
 **GOOD**:
 
@@ -487,27 +520,30 @@ try {
 }
 ```
 
-Every *unexpected* error gets an id (`handleError` mints one, logs the error
-against it, and returns `{ id, message }` — SvelteKit replaces the real
-message before it reaches the browser). Without the id, a bug report has
-nothing to search for.
+Every *unexpected* error gets an id. `handleError` makes the id, writes the
+error to the log with that id, and returns `{ id, message }`. SvelteKit
+replaces the real message before the message gets to the browser. Without the
+id, a bug report has nothing that we can search for.
 
 ---
 
 ## 8. UI code
 
-Compare new screens against **the Nexus reference**
-(<https://nexus.daisyui.com/dashboards/ecommerce>) before calling UI work
-done — spacing, density, empty/loading states, and how the shell behaves at
-each breakpoint. What this app deliberately diverges from Nexus on (solid
-badges instead of `badge-soft`, no lakh/crore code because `Intl` already
-knows) is recorded in `docs/07-app-provenance.md` — check there before
-"fixing" a divergence that was actually a measured decision.
+Before you say that UI work is complete, compare each new page with **the
+Nexus reference** (<https://nexus.daisyui.com/dashboards/ecommerce>). Compare
+the spacing, the density, the empty states and loading states, and the
+behavior of the shell at each breakpoint.
 
-**Never assemble a class name.** Tailwind reads *source text* to decide which
-classes to generate — it cannot evaluate a template expression, so an
-assembled class is silently never generated and the element renders
-unstyled, with no error anywhere.
+`docs/07-app-provenance.md` records each intentional difference between this
+application and Nexus. Two examples are solid badges instead of `badge-soft`,
+and no lakh/crore code, because `Intl` already has that knowledge. Before you
+"correct" a difference, examine that file. The difference can be a decision
+that a measurement supports.
+
+**Never assemble a class name.** Tailwind reads the *source text* to find
+which classes it must generate. Tailwind cannot evaluate a template
+expression. Thus, Tailwind does not generate an assembled class, and the
+element shows with no style and with no error.
 
 **GOOD**:
 
@@ -534,49 +570,53 @@ unstyled, with no error anywhere.
 <span class={`badge badge-${size} badge-${tone}`}>{status}</span>
 ```
 
-A few more that have each cost real time to find:
+Each of the items below took much time to find:
 
-- **daisyUI theme tokens, never a hardcoded color.** `text-base-content/70`
-  for secondary text (below `/70` fails WCAG AA on light backgrounds — `/60`
-  measures 4.26:1 against a 4.5 requirement, and passes in dark either way,
-  which is why the failure hides if you only check one theme, L22).
-  `bg-base-100`/`border-base-300`, never `bg-white`/`border-gray-200` — the
-  app owns no copy of the palette; the two themes are daisyUI's own `nord`
-  and `night`.
-- **Measure a color pair by letting the *browser* convert it** — paint to a
-  canvas, read the pixel — never by hand-parsing a computed color string.
-  `oklab()` components read as RGB, an alpha color composited over white
-  rather than its real backdrop, and a naive regex over `oklch(...)` have
-  each produced a wrong contrast number in this codebase already.
-- **Every page needs a real `<h1>`**, reachable by role, not just visually
-  present — `apps/web/e2e/smoke.spec.ts` is the only check that actually
-  renders a page and found one entirely missing one (L64).
-- **A modal form needs `update({ reset: false })`, not the default.** The
-  default reset discards exactly the edit the person is being asked to fix,
-  the moment their submission is refused (L68) — use
-  `use:enhance={closeOnSuccess(...)}` (modal) or `keepValues` (full-page),
-  from `$lib/form-enhance`.
+- **Use daisyUI theme tokens, never a hardcoded color.** Use
+  `text-base-content/70` for secondary text. A value below `/70` fails WCAG
+  AA on light backgrounds: `/60` gives 4.26:1, and AA requires 4.5. In the
+  dark theme, these values pass. Thus, if you examine only one theme, you do
+  not see the failure (L22). Use `bg-base-100`/`border-base-300`, never
+  `bg-white`/`border-gray-200`. The application has no copy of the palette:
+  the two themes are daisyUI's own `corporate` and `night`.
+- **Let the *browser* convert a color pair before you measure it.** Paint the
+  color on a canvas, and read the pixel. Do not parse a computed color string
+  by hand. In this codebase, each of these hand methods already gave a wrong
+  contrast number:
+  - The code read `oklab()` components as RGB.
+  - The code put an alpha color over white, not over its real background.
+  - A simple regex read `oklch(...)`.
+- **Every page needs a real `<h1>`** that a test can find by its role. It is
+  not sufficient that the heading is visible. `apps/web/e2e/smoke.spec.ts`
+  renders every page. That test found that no page in the product had an
+  `<h1>` (L64).
+- **A modal form needs `update({ reset: false })`, not the default.** When
+  the application refuses a submission, the default reset deletes the edit
+  that the user must correct (L68). For a modal form, use
+  `use:enhance={closeOnSuccess(...)}` from `$lib/form-enhance`. For a
+  full-page form, use `keepValues` from `$lib/form-enhance`.
 
 ---
 
 ## 9. Form validation
 
-Every field a form action writes goes through `FormReader`
-(`$lib/server/forms`) — no `formString()` for a value that reaches a column.
-Browser `required`/`type` vanish on a crafted POST; the column's own type
-(`varchar(n)`, a Postgres enum, `uuid`) is the *last* line of defense, and its
-failure mode is an unhandled 500, not a field-level error.
+Each field that a form action writes goes through `FormReader`
+(`$lib/server/forms`). Do not use `formString()` for a value that goes into a
+column. A crafted POST does not obey the browser attributes `required`/`type`.
+The type of the column (`varchar(n)`, a Postgres enum, `uuid`) is the *last*
+defense. If that type refuses a value, the result is an unhandled 500, not an
+error on the field.
 
-| Column | Reader | What it stops |
+| Column | Reader | What it prevents |
 |---|---|---|
-| `varchar(n)` / `text` | `text(name, { max: n })` | `value too long` — a 500. `max` must match the column |
+| `varchar(n)` / `text` | `text(name, { max: n })` | `value too long`, which is a 500. The `max` value must agree with the column |
 | `uuid` | `uuid(name)` | `invalid input syntax for type uuid` from a crafted hidden field |
 | a Postgres enum | `enumValue(name, "<type>")` | `invalid input value for enum` |
-| a fixed `varchar` set | `choice(name, ALLOWED)` | anything off-list reaching display code |
-| `date` | `date(name)` | `2026-13-45` — well-shaped, not real, and a 500 on the cast |
-| money / rates | `decimal(name, { scale })` | a float round-trip, and silent third-decimal rounding |
-| `int4` | `integer(name, { min, max })` | out-of-range — also a 500 |
-| locale / zone / currency | `locale(name)` / `timezone(name)` / `currency(name)` | a `RangeError` inside `Intl` on every page that later formats a figure for that office |
+| a fixed `varchar` set | `choice(name, ALLOWED)` | a value that is not on the list and gets to the display code |
+| `date` | `date(name)` | `2026-13-45`: the shape is correct, the date is not real, and the cast gives a 500 |
+| money / rates | `decimal(name, { scale })` | a conversion through a float and back, and a third decimal that the column rounds with no error |
+| `int4` | `integer(name, { min, max })` | a value out of range, which is also a 500 |
+| locale / zone / currency | `locale(name)` / `timezone(name)` / `currency(name)` | a `RangeError` inside `Intl`, on each page that later formats a number for that office |
 
 **GOOD**:
 
@@ -626,15 +666,16 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return fail(400, /* ... */)
 
 ## 10. Queries on a request path
 
-**Nothing reads more rows than it returns, apart from a capped count.
-Aggregates that are inherently large get a precomputed table.** Postgres has
-no catastrophic plan to choose for a query whose work is bounded by what is
-on screen. A query that touches the whole table to return twenty rows is fine
-on the fixture's dozen rows. In a tenant's second year, or after a fresh
-`ANALYZE`, it turns slow, with no error (L118).
+**Nothing reads more rows than it returns, apart from a capped count. An
+aggregate that is large by nature comes from a precomputed table.** If the
+content on screen limits the work of a query, Postgres has no very slow plan
+to choose. A query can read the whole table to return twenty rows. On the
+approximately twelve rows of the fixture, that query is fast. In the second
+year of a tenant, or after a new `ANALYZE`, the query becomes slow, with no
+error (L118).
 
-**GOOD**: page first, then decorate only the page
-(`employee-profile/employees.repo.ts`):
+**GOOD**: first select the rows for the page, then add data only to those
+rows (`employee-profile/employees.repo.ts`):
 
 ```ts
 const rows = await tx<(EmployeeRow & { total: string })[]>`
@@ -659,22 +700,24 @@ const rows = await tx<(EmployeeRow & { total: string })[]>`
 `
 ```
 
-That count is uncapped because `employees` is bounded by the firm's size. On
-a table that grows per event (`SCALE_SENSITIVE`), the count stops at
-`countCap(page, size)` (`$lib/server/db/paged.ts`), and `Pagination` shows
-"of N+" through its `atLeast` prop. `time_tracking_entries.repo.ts` `count`:
+That count has no limit, because the size of the organization limits
+`employees`. A table can get one more row for each event that occurs
+(`SCALE_SENSITIVE`). On such a table, the count stops at
+`countCap(page, size)` (`$lib/server/db/paged.ts`). `Pagination` then shows
+"of N+" through its `atLeast` prop. This is the `count` function in
+`time_tracking_entries.repo.ts`:
 
 ```ts
 const total = await entries.count(tx, filters, countCap(page, PAGE_SIZE))
 // SELECT count(*) FROM (SELECT 1 FROM ... WHERE ... LIMIT ${cap}) x
 ```
 
-A figure summed over every row is read from a table kept at write time, never
-summed per request. The ledger reports read `gl_daily_balances`, which holds
-one row per account, day and tax rate, kept by triggers. They do not read
-every `journal_entry_lines` row. A precomputed table must be proven to agree
-with its rows: an invariant in `./check`, and a test after each kind of
-write.
+If a value is a sum of all rows, read it from a precomputed table. Do not
+calculate the sum for each request. The ledger reports read
+`gl_daily_balances`. Triggers keep this table current, with one row for each
+account, day and tax rate. The reports do not read each `journal_entry_lines`
+row. You must prove that a precomputed table agrees with its rows. Use an
+invariant in `./check`, and a test after each type of write.
 
 **BAD**:
 
@@ -705,13 +748,15 @@ SELECT account_id, sum(base_debit_amount) FROM journal_entry_lines ... GROUP BY 
 const deals = await tx`SELECT id, stage_id, created_at FROM crm_deals`
 ```
 
-The board's fix is a `LATERAL (... ORDER BY created_at DESC LIMIT n)` per
-stage row. It reads at most n deals per stage, whatever the statistics say.
+To correct the board, use one `LATERAL (... ORDER BY created_at DESC LIMIT n)`
+for each stage row. This query reads a maximum of n deals for each stage,
+independent of the statistics.
 
 ---
 
-*This document teaches the pattern. `./check` enforces most of it —
-`verify-authz.mjs`, `verify-audit-coverage.mjs`, `verify-matrix-complete.mjs`,
-`verify-constraint-registry.mjs`, `verify-no-backtick-in-sql.mjs`, and the SQL
-harnesses in `packages/database/tests/` are the actual guarantees. If this
-file and `./check` ever disagree, trust `./check` and fix this file.*
+*This document teaches the pattern. `./check` enforces most of it. These are
+the real guarantees: `verify-authz.mjs`, `verify-audit-coverage.mjs`,
+`verify-matrix-complete.mjs`, `verify-constraint-registry.mjs`,
+`verify-no-backtick-in-sql.mjs`, and the SQL test scripts in
+`packages/database/tests/`. If this file and `./check` do not agree,
+`./check` is correct, and you must correct this file.*
