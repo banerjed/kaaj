@@ -817,13 +817,39 @@ full-table read too: bounded by the firm's size is not small (1,000 people,
 3,000 clients). A picker over such a table is a `Combobox` with `search`,
 backed by the page's own `search*` action and a function in
 `$lib/server/pickers.ts` that returns 20 matches with the same filter the
-old list had. A total shown beside a paged list is computed in SQL over
-every row, never summed from the page ([L117](docs/10-lessons-learned.md)).
+old list had. A total shown beside a paged list is computed in SQL, never
+summed from the page ([L117](docs/10-lessons-learned.md)) — as a capped count
+or from a precomputed table, per the next rule.
 `pnpm db:perf rows` reads every page's load data as every perf-tenant actor
 and fails on any array over 100, so a picker inside a closed modal counts.
 `./check --all` runs it, as the pre-push hook does. It is
 not in plain `./check` because it needs the perf cluster, and a step that
 skipped whenever the cluster was down would pass silently.
+
+**On a request path, nothing reads more rows than it returns, apart from a
+capped count. Aggregates that are inherently large get a precomputed
+table.** A query whose cost is bounded by what is on screen cannot have a
+catastrophic plan; one that reads the whole table to show twenty rows is one
+statistics refresh away from it. The perf budget pins the planner to its
+best case, so it cannot see that ([L118](docs/10-lessons-learned.md)).
+- **Page first, then decorate.** Pick the page's ids in a CTE with its
+  `LIMIT`, then join or `LATERAL` the rest onto those rows only, as
+  `employees.repo.ts` `list` does. Never join or rank the whole table and
+  page the result.
+- **On a `SCALE_SENSITIVE` table, the count beside a paged list stops at a
+  cap.** Use `countCap` in `$lib/server/db/paged.ts`, with the `Pagination`
+  `atLeast` prop, as time tracking and attendance do. A table bounded by the
+  firm's size, such as `employees`, may count in full.
+- **A figure summed over every row is precomputed.** A ledger total, a
+  balance by day, or anything the page asks for by period is read from a
+  table maintained at write time, as `gl_daily_balances` is, and kept
+  provably equal to its rows.
+- **Not the application instead.** Fetching rows and joining them in
+  TypeScript moves the same reads into round trips. The fix is the shape of
+  the SQL.
+
+No check reads a query's shape. `/crm/pipeline` ranks every deal to show 20
+per stage, and violates this today.
 
 ---
 

@@ -53,6 +53,10 @@ referenced inline as `Lnn`).
 - **A refused write is a sentence naming the field, on a form still on
   screen** — not `fail(400)` with nothing rendered, and not a full-page
   reload that discards what the person typed (L68).
+- **On a request path, nothing reads more rows than it returns, apart from a
+  capped count.** Page first, then join onto the page. An aggregate that is
+  inherently large is read from a precomputed table, never summed per
+  request.
 
 ---
 
@@ -617,6 +621,92 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return fail(400, /* ... */)
 // type="number" on a money field — rounds through a browser float before
 // the server ever sees it.
 ```
+
+---
+
+## 10. Queries on a request path
+
+**Nothing reads more rows than it returns, apart from a capped count.
+Aggregates that are inherently large get a precomputed table.** Postgres has
+no catastrophic plan to choose for a query whose work is bounded by what is
+on screen. A query that touches the whole table to return twenty rows is fine
+on the fixture's dozen rows. In a tenant's second year, or after a fresh
+`ANALYZE`, it turns slow, with no error (L118).
+
+**GOOD**: page first, then decorate only the page
+(`employee-profile/employees.repo.ts`):
+
+```ts
+const rows = await tx<(EmployeeRow & { total: string })[]>`
+  WITH page AS (
+    SELECT e.id, count(*) OVER ()::text AS total
+      FROM employees e
+     WHERE ...filters...
+     ORDER BY e.last_name ASC, e.first_name ASC, e.id
+     LIMIT ${limit} OFFSET ${offset}
+  )
+  SELECT e.id, e.first_name, ..., cp.amount::text AS base_amount_pvt, page.total
+    FROM page
+    JOIN employees e ON e.id = page.id
+    LEFT JOIN LATERAL (            -- one index probe per row ON the page
+      SELECT amount, currency, pay_frequency
+        FROM compensation_base
+       WHERE employee_id = e.id AND effective_from <= CURRENT_DATE
+         AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+       ORDER BY effective_from DESC
+       LIMIT 1
+    ) cp ON true
+`
+```
+
+That count is uncapped because `employees` is bounded by the firm's size. On
+a table that grows per event (`SCALE_SENSITIVE`), the count stops at
+`countCap(page, size)` (`$lib/server/db/paged.ts`), and `Pagination` shows
+"of N+" through its `atLeast` prop. `time_tracking_entries.repo.ts` `count`:
+
+```ts
+const total = await entries.count(tx, filters, countCap(page, PAGE_SIZE))
+// SELECT count(*) FROM (SELECT 1 FROM ... WHERE ... LIMIT ${cap}) x
+```
+
+A figure summed over every row is read from a table kept at write time, never
+summed per request. The ledger reports read `gl_daily_balances`, which holds
+one row per account, day and tax rate, kept by triggers. They do not read
+every `journal_entry_lines` row. A precomputed table must be proven to agree
+with its rows: an invariant in `./check`, and a test after each kind of
+write.
+
+**BAD**:
+
+```ts
+// Ranks EVERY deal in the firm to show 20 per stage (crm/deals.repo.ts
+// listForBoard, today). The cost grows with the table, not the board, and
+// the same data read 5,278 or 14,162 pages depending on the statistics
+// sample.
+WITH ranked AS (
+  SELECT id, stage_id,
+         row_number() OVER (PARTITION BY stage_id ORDER BY created_at DESC) AS rn
+    FROM crm_deals
+)
+SELECT ... WHERE d.id IN (SELECT id FROM ranked WHERE rn <= ${perStage})
+
+// Joins the whole table, THEN pages: every employee's pay history is read to
+// show twenty of them.
+SELECT e.*, cp.amount
+  FROM employees e LEFT JOIN compensation_base cp ON cp.employee_id = e.id ...
+ ORDER BY e.last_name LIMIT 20
+
+// Sums every journal line in the firm on each report load.
+SELECT account_id, sum(base_debit_amount) FROM journal_entry_lines ... GROUP BY 1
+
+// "Do it in code instead": the same reads, now crossing the wire, and the
+// next step is a query per stage inside a loop, which ./check's loop step
+// exists to stop.
+const deals = await tx`SELECT id, stage_id, created_at FROM crm_deals`
+```
+
+The board's fix is a `LATERAL (... ORDER BY created_at DESC LIMIT n)` per
+stage row. It reads at most n deals per stage, whatever the statistics say.
 
 ---
 
